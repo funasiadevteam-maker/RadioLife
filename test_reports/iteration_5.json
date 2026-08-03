@@ -1,0 +1,39 @@
+{
+  "summary": "Phase 41 S6.A retest. Backend P1 #1 (news_radio RJ script) FIX VALIDATED: /api/radio/next no longer 500s on news_anchor segments; rj_script returns 200, contains 'BigFM News', does NOT contain 'BigFM Dubai', track_id is null, kind='news_anchor'. Earnings backend smoke endpoints all pass (200 for owner, 403 for non-owner). Frontend: desktop sidebar News/Community OK, /radio Community strip OK with 8 cards, Earnings tab on /r/p41-audit-test fully renders for owner (Stripe MOCKED linked, $255.39 7d / $2378.05 lifetime, 24 ledger rows, all 5 source breakdowns: Banner ads / Audio ads / Premium listens / Tips / Direct deals, 7d/30d/90d/All-time pills), non-owner correctly blocked. ONE GAP: Mobile More overflow drawer does NOT expose data-testid='overflow-news' / 'overflow-community' — the drawer renders only admin shortcuts (Creator Studio, Advertiser dashboard, Admin console). One intermittent /api/radio/start 500 ('NoneType' is not subscriptable) seen once, succeeded on retry — flaky cold-start path, not blocking.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/radio/start (channel=news_radio)", "issue": "Intermittent 500: TypeError 'NoneType' object is not subscriptable on cold-start path; succeeds on retry. Reproduced once in 6 attempts during this iteration. Trace lands in cache_middleware → router; probably a None guard missing on a track field during the cold build."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AppShell mobile overflow drawer (More bottom tab)", "issue": "Spec requires data-testid='overflow-news' and data-testid='overflow-community' inside the mobile More drawer. Neither exists. The drawer currently surfaces only Creator/Advertiser/Admin shortcuts; News and Community are absent on mobile, so a mobile user cannot reach /news or /community from the bottom nav.", "selector": "[data-testid=overflow-news], [data-testid=overflow-community]", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase41_s6a_news_rj_retest.py",
+    "/app/test_reports/pytest/phase41_s6a_retest.xml"
+  ],
+  "action_items": [
+    "Add News + Community entries to the mobile overflow drawer in AppShell.jsx with data-testid='overflow-news' and data-testid='overflow-community', routing to /news and /community respectively. Make sure they appear for ALL roles (admin, creator, plain listener) the same way the desktop sidebar More section does.",
+    "Optional/P2: Harden /api/radio/start cold-build path for news_radio against the intermittent 'NoneType' subscript error (single repro out of multiple runs; likely a missing None-guard on a track or RJ field)."
+  ],
+  "critical_code_review_comments": [
+    "Mobile parity gap: SECONDARY_NAV (desktop) now includes News + Community but the mobile overflow drawer (bottom-tab-more sheet) was not updated in the same iteration. Keep these two lists in lockstep.",
+    "Console keeps emitting 'props object containing a key prop is being spread into JSX' (NavItem, BottomTab) — non-blocking but indicates a {...item} spread that also passes `key`. Move `key` out of the spread.",
+    "Backend cold-start news_radio path: previous iteration's /next KeyError is fixed (good), but the new intermittent 'NoneType' subscript suggests another None-guard is still missing one layer up (in /start). Add the same .get()/short-circuit treatment used in /next."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase41_s6a_news_rj_retest.py"
+  ],
+  "success_rate": {"backend": "3/4 hard pass (1 flaky /radio/start)", "frontend": "5/6 — only mobile overflow news/community testids missing"},
+  "test_credentials": "admin@bigfm.dubai/AdminPass123!  test@bigfm.dubai/TestUser123!  demo@bigfm.dubai/DemoPass123! — all working via POST /api/auth/login returning session_token; pass as Authorization: Bearer.",
+  "seed_data_creation": "None new this iteration. Earnings data from previous iteration still present (24 ledger rows, $255.39 7d, $2378.05 lifetime on p41-audit-test).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "P1 #1 backend is fully fixed and validated; do NOT re-test the news_anchor /next path unless backend changes. Remaining work for next iteration: confirm the mobile overflow drawer now exposes overflow-news / overflow-community after main agent edits AppShell.jsx. Suggested test: viewport 375x800, login admin@bigfm.dubai, click [data-testid=bottom-tab-more], assert both [data-testid=overflow-news] and [data-testid=overflow-community] are visible and that clicking each routes to /news and /community. Verify also that listener role (demo@bigfm.dubai) sees the same entries (parity with desktop).",
+  "rca of the issue": "Mobile overflow drawer (rendered when the bottom-tab-more is tapped) is built from a separate list inside AppShell.jsx — not the SECONDARY_NAV array that was updated for desktop. The desktop fix at line 60+ added News/Community to SECONDARY_NAV, but the mobile drawer source array (admin/creator/advertiser shortcuts only) was not amended in the same change, so News + Community never reach the mobile UI. Mitigation: extract a single shared array of secondary items (or push News+Community into the mobile drawer items array) and render both with data-testid='overflow-news' / 'overflow-community'."
+}

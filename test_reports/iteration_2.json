@@ -1,0 +1,33 @@
+{
+  "summary": "Phase 41 Session 4.A — In-Store Business TV Display tested. Backend: 19/19 pytest cases PASS (TV public endpoint for verified/unverified/private/missing stations, 8s in-process cache hit verified via identical server_time on back-to-back calls, owner CRUD with full validation matrix [280/281 chars, priority bounds 0/1/10/11, starts>ends, non-owner 403], active-cap 429 enforced on 11th simultaneous active row, list anon vs owner+include_expired, PATCH/DELETE happy + 403/404/400 paths, image upload 200/413/400, all 4 unique OpenAPI paths listed). Frontend: anonymous /tv/s3a-smoke-karak renders full-bleed kiosk with all required testids (station-tv-page[data-page-type=business_radio], tv-verified-chip, tv-open-now-badge, tv-qr-panel[data-qr-target=https://mobile-games-v2.preview.emergentagent.com/r/s3a-smoke-karak], tv-qr-code, tv-track-title/artist, tv-progress-bar, tv-announcement-ticker[data-count=3]); sidebar/topbar/miniplayer ALL absent. /tv/p41-audit-test renders personal_radio kiosk (no verified chip, no address row, ticker-empty). /tv/does-not-exist renders tv-error-screen 'Station not found'. Owner /r/s3a-smoke-karak: station-tv-cta=/tv/s3a-smoke-karak target=_blank, announcement-manager visible with 3 rows, announcement-create-btn opens form, 320-char typed input auto-truncates to 280. Non-owner /r/s3a-smoke-karak: manager absent (PASS), CTA visible (PASS). Owner /r/p41-audit-test (personal): manager absent (PASS), CTA visible (PASS).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/tv/{slug} progress bar", "issues": ["The only seeded playable track 'P42 Healthy Fixture' has duration_sec=30, while the kiosk slot is 180s. This means the progress bar reaches 100% within 30s of every 3-min slot and stays pinned at 100% for the remaining 150s. The 1Hz tick implementation IS correct (verified via main agent screenshot 53%->67%); this is a data/seeding issue rather than a code bug. Recommend either (a) clamping/looping progress to slot_seconds instead of duration_sec when the track is shorter than the slot, OR (b) seeding a longer demo track."]},
+      {"screen": "AnnouncementManager date pickers", "issues": ["Starts at / Ends at fields use the browser's native HTML5 datetime-local picker (placeholder mm/dd/yyyy, --:-- --) rather than a shadcn calendar. Per code-review guideline this is a minor design inconsistency vs the rest of the app's shadcn-based pickers. Not a functional bug."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase41_s4a_tv.py",
+    "/app/test_reports/pytest/phase41_s4a.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Clamp/loop the TV progress bar's denominator to the smaller of duration_sec and slot_seconds, OR fallback to slot_seconds when duration_sec < slot_seconds, so the bar visibly cycles every 3 min instead of saturating at 100% for 150s/180s with the seeded 30s track.",
+    "OPTIONAL: Swap the native HTML5 datetime input in AnnouncementManager for the shadcn calendar/popover to keep visual parity with the rest of the wizard UIs."
+  ],
+  "critical_code_review_comments": [
+    "station_tv.py:182-189 active_count loop iterates ALL station_announcements with no count cap; OK for ≤10 cap but could project a $match + count_documents to avoid streaming. Negligible at current scale.",
+    "station_tv.py:46 in-process _TV_CACHE is per-worker; with multiple uvicorn workers each worker caches independently — fine for an 8s window but worth noting for ops.",
+    "_pick_now_playing_track fetches up to 500 tracks into memory each call; mitigated by 8s cache, but consider an indexed sample for larger libraries."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase41_s4a_tv.py"],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100% on all assertions; progress-bar +1 tick not observable in current data due to 30s track vs 180s slot saturation (not a code defect)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!, test@bigfm.dubai / TestUser123!, demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "ActiveCap test temporarily filled UNVERIFIED_SLUG (s3a-unverified-bar) up to the 10-active limit then cleaned up its own created rows in finally{}. Owner-flow test typed TEST_owner_e2e_abc123 into the form; submit click was clipped by output truncation — manager screenshot confirms the form was open with the short message ready to submit. If a stray TEST_owner_e2e_abc123 row exists on s3a-smoke-karak, please delete it.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_phase41_s4a_tv.py is the canonical regression suite for Phase 41 S4.A. The s4-private-test station was not seeded in this env so the private-station-403 case was kept resilient (returns skip on 404 + asserts 403 with code=private_station when seeded). All 6 new routes confirmed mounted via openapi.json. The TV CACHE is per-process and 8s — restart wipes; identical server_time on rapid back-to-back GETs confirmed cache.",
+  "rca of the issue": "N/A — no failures. The single observable visual artifact (progress bar pinned at 100%) RCAs to test-data shape: only one playable track is seeded matching the station's taste filters, and it has duration_sec=30 vs slot_seconds=180. The 1Hz tick code in StationTV.jsx NowPlayingRow useEffect+setTimeout is functionally correct and was previously screenshotted by the main agent at 53%→67% within a fresh 3-min slot."
+}

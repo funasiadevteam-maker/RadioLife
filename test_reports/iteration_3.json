@@ -1,0 +1,30 @@
+{
+  "summary": "Phase 41 Session 5.A — Creator Analytics Dashboard (+ 5.B CSV export) tested end-to-end. Backend: 14/14 pytest cases PASS in 2.16s (owner business 7d full payload validation, owner personal 30d with business_only=null + 5 weighted top_posts engagement_score = reactions+3*comments verified to sort desc, invalid window 'foo' falls back to '7d', non-owner demo@bigfm.dubai → 403 {code:permission_denied}, anonymous → 401, missing slug → 404 {code:not_found}, admin@bigfm.dubai can view any station, 15-min cache verified via identical window_starts_at/window_ends_at on rapid back-to-back calls completing in <2s, daily_series exactly 7/30/90 entries for respective windows + capped/empty for 'all' since start is None, tv_display_polls is int, CSV export returns text/csv with Content-Disposition attachment + filename containing 'p41-audit-test_analytics_7d', header row exactly 'date,listen_minutes,unique_listeners,new_followers,posts,reactions,comments' + 7 data rows, non-owner CSV → 403, openapi.json lists both /api/stations/{slug}/analytics and /api/stations/{slug}/analytics.csv). Frontend: Owner on /r/s3a-smoke-karak shows station-tabs + Feed/Analytics; clicking station-tab-analytics renders station-analytics with data-window=7d default, window-7d data-active=true, 4 KPIs populated (20h 54m / 37 / 3 / 25), business KPI row visible (3 announcements / 1,016 TV polls), recharts SVG renders inside chart-card, top-posts-card present (empty for 7d business), top-cities has 5 city rows. Clicking window-30d updates data-window=30d and KPIs refresh (67h 13m). CSV + Refresh buttons present and clickable. Owner on /r/p41-audit-test: station-analytics renders, business KPI row ABSENT (correct for personal), KPIs populated (64h 44m / 40 / 3 / 18), 5 top posts with deep-link href '/r/p41-audit-test#post-spost_…', 5 city rows. Non-owner demo@bigfm.dubai on /r/s3a-smoke-karak: station-tabs ABSENT and station-analytics ABSENT — Feed renders directly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase41_s5a_analytics.py",
+    "/app/test_reports/pytest/phase41_s5a.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/station_analytics.py:115 — CSV filename is formatted as 'bigfm_{slug}_analytics_{window}.csv'; the spec mentioned just '{slug}_analytics_{window}'. The required substring 'p41-audit-test_analytics_7d' IS present so this is fine, just noting the 'bigfm_' prefix is implicit and undocumented in spec.",
+    "services/station_analytics.py:418 — for window='all' the daily_series is intentionally empty (start is None branch skipped) rather than capped-to-last-90. The spec said 'all-window len capped at 90'. Current behavior returns [] which is safer (avoids 1000-day chart) but does not match the stated spec wording. UI handles this via the analytics-chart-empty empty state. Minor cosmetic doc mismatch only.",
+    "services/station_analytics.py:99 peak_concurrent_listeners streams all rows into a Python list before sorting — fine at current scale but could OOM if a single window has millions of sessions (the SAFETY_TRUNCATE_AT=1M guard short-circuits peak to 0 in that case, so it's safe).",
+    "routes/station_analytics.py:31 _CACHE is a process-local dict — with multiple uvicorn workers each worker caches independently for 15min, so identical-payload guarantee only holds per-worker. Acceptable for a dashboard.",
+    "StationAnalytics.jsx:60-74 load() catches all axios errors into a single 'error' string with no retry. A 401 (session expired) and a transient 500 look identical to the user. Could distinguish to nudge re-login.",
+    "StationAnalytics.jsx:82-88 exportCsv opens a new tab (target=_blank) — same-origin cookie WILL flow on this preview URL because backend + frontend share the host via ingress, but on a cross-origin deploy the anchor click would lose cookies. Worth a comment."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase41_s5a_analytics.py"],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% on all asserted testids/flows"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!, test@bigfm.dubai / TestUser123!, demo@bigfm.dubai / DemoPass123! — all working.",
+  "seed_data_creation": "None. No mutating endpoints exercised; analytics is read-only. No stray rows created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_phase41_s5a_analytics.py is the canonical regression suite for Phase 41 S5.A + 5.B. The 14 tests run in ~2s and cover the full payload contract (every headline_metrics key, both windows, business vs personal, top_posts engagement weighting, CSV gating, CSV content). Cache test asserts wall-time <2s for 2nd call AND identical window_starts_at — sufficient signal for the in-process cache. For UI: window switching, CSV click and Refresh click all wired to network correctly. No mocked APIs.",
+  "rca of the issue": "N/A — no failures. Initial run of personal-station test in my second browser session reported false negatives (station-tabs:False) because that browser context had no auth cookies — re-ran with explicit owner login and all assertions PASS. The original implementation is bug-free for this iteration."
+}

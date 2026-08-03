@@ -1,0 +1,220 @@
+/* ──────────────────────────────────────────────────────────────────────
+   Phase 15c — Radio page v2 split layout (FIX-2 from tester).
+
+   We DO NOT rely on Tailwind arbitrary-value classes for the grid here.
+   The grid is defined in plain CSS so the production build can't
+   strip / mis-resolve `lg:grid-cols-[minmax(0,1fr)_360px]`.
+
+   Layout:
+     ≥1024px (lg): two explicit columns — main (1fr) | rail (360px).
+                                  Children get explicit `grid-column` so the
+                                  channels row CANNOT paint into the rail.
+                                  Outer width capped at 1400px, centered.
+     <1024px:       no grid; radio-shell stacks normally; rail is not
+                                  mounted in the DOM (Radio.js gates mounting on
+                                  `useViewport().layout === "desktop"`).
+   ────────────────────────────────────────────────────────────────────── */
+
+.radio-page-v2 {
+    width: 100%;
+    min-width: 0;
+}
+
+@media (min-width: 1024px) {
+    .radio-page-v2 {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        column-gap: 24px;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 8px;
+    }
+    .radio-page-v2 > .radio-shell {
+        grid-column: 1;
+        grid-row: 1;
+        min-width: 0;
+        max-width: 100%;
+        margin: 0;
+        padding: 24px 12px 80px;
+        /* contain overflow so children that try to bleed (e.g. an
+             overflow-scrolling channel strip with wide content) cannot
+             paint into the rail column. */
+        overflow: hidden;
+    }
+    .radio-page-v2 > .radio-rail-col {
+        grid-column: 2;
+        grid-row: 1;
+        min-width: 0;
+        padding: 24px 0 80px;
+    }
+}
+
+/* Channels row inside the split layout. Container width is the grid cell
+     (constrained); the strip itself scrolls horizontally. The fade-mask +
+     chevron sit at the right edge but inside the cell. */
+.radio-page-v2 .channel-strip-wrap {
+    max-width: 100%;
+    margin: 0 0 18px;
+    padding: 0;
+    position: relative;
+    /* prevent the legacy 880px auto-center rule from leaking in. */
+    box-sizing: border-box;
+}
+.radio-page-v2 .channel-strip {
+    scroll-snap-type: x mandatory;
+    padding-right: 56px;
+    /* clip channels inside the cell — defence in depth on top of the
+         parent's `overflow: hidden`. */
+    overflow-x: auto;
+    mask-image:
+        linear-gradient(to right, black 0,
+                                                black calc(100% - 56px),
+                                                transparent 100%);
+    -webkit-mask-image:
+        linear-gradient(to right, black 0,
+                                                black calc(100% - 56px),
+                                                transparent 100%);
+}
+.radio-page-v2 .channel-chip {
+    scroll-snap-align: start;
+    flex: 0 0 auto;
+}
+
+.radio-page-v2 .channel-strip-chevron {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--bg-2, #14141C);
+    border: 1px solid var(--line, rgba(255,255,255,0.08));
+    color: var(--text-secondary, rgba(255,255,255,0.6));
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+    z-index: 2;
+}
+.radio-page-v2 .channel-strip-chevron:hover {
+    background: var(--accent-electric, #00D4FF);
+    color: var(--bg-base, #0A0A0F);
+}
+
+/* ON AIR puck — keep ornamental at lg. */
+@media (min-width: 1024px) {
+    .radio-page-v2 .radio-launch {
+        padding: 24px 12px;
+        min-height: auto;
+    }
+    .radio-page-v2 .onair-button {
+        width: 200px;
+        height: 200px;
+    }
+    .radio-page-v2 .launch-sub {
+        max-width: 540px;
+        margin: 16px auto 0;
+    }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────
+   Phase 15d.2 — Channel chip with full-bleed thumbnail + play overlay.
+   The base `.channel-chip` rules live in auth.css; these are *additive*
+   so we don't break legacy chips that don't yet have a thumbnail.
+   ───────────────────────────────────────────────────────────────────── */
+.channel-chip.has-thumb {
+    /* slightly wider, taller card so the poster has room to breathe */
+    min-width: 240px;
+    min-height: 148px;
+    padding: 0;
+    overflow: hidden;
+    isolation: isolate;        /* contain blend/blur to this card */
+}
+.channel-chip.has-thumb .ch-thumb-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+    transition: transform 380ms ease, filter 240ms ease;
+    filter: saturate(1.05);
+}
+.channel-chip.has-thumb:hover .ch-thumb-bg {
+    transform: scale(1.04);
+    filter: saturate(1.15);
+}
+.channel-chip.has-thumb::after {
+    /* Bottom-up scrim so the text stays legible over any poster art. */
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg,
+        rgba(10, 10, 15, 0.10) 0%,
+        rgba(10, 10, 15, 0.35) 45%,
+        rgba(10, 10, 15, 0.88) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+.channel-chip.has-thumb .ch-color-bar {
+    z-index: 2;
+}
+.channel-chip.has-thumb .ch-chip-body {
+    position: relative;
+    z-index: 2;
+    padding: 12px 14px;
+    margin-top: auto;
+    /* Push body to the bottom of the card. */
+    align-self: flex-end;
+    width: 100%;
+}
+.channel-chip.has-thumb {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+.channel-chip.has-thumb .ch-name {
+    color: #fff;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+.channel-chip.has-thumb .ch-tagline {
+    color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+.channel-chip.has-thumb .ch-hosts {
+    color: rgba(255, 255, 255, 0.62);
+}
+.channel-chip.has-thumb .ch-premium-badge,
+.channel-chip.has-thumb .ch-live,
+.channel-chip.has-thumb .ch-switching,
+.channel-chip.has-thumb .ch-locked-overlay {
+    z-index: 3;
+}
+
+/* Play overlay — center disc, only visible on hover/focus, scales in. */
+.channel-chip .ch-play-overlay {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%) scale(0.85);
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    background: var(--ch-color, var(--accent-electric, #00D4FF));
+    color: #0a0a0f;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45),
+                            0 0 0 4px rgba(255, 255, 255, 0.06);
+    transition: opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1);
+    z-index: 3;
+}
+.channel-chip:hover .ch-play-overlay,
+.channel-chip:focus-visible .ch-play-overlay {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+.channel-chip.is-on .ch-play-overlay { display: none; }

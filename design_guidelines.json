@@ -1,0 +1,133 @@
+{
+  "theme": {
+    "mode": "dark",
+    "archetype": "7-Electric-Neon-mixed-with-5-Luxury",
+    "description": "Neon-club Dubai dark aesthetic. Confident, aspirational, premium, pixel-conscious.",
+    "colors": {
+      "background": "#0a0c18",
+      "primary": "#ff2d95",
+      "secondary": "#00d9ff",
+      "accent_gold": "#ffd700",
+      "text_primary": "#ffffff",
+      "text_secondary": "#9ca3af",
+      "surface": "rgba(255, 255, 255, 0.03)",
+      "surface_border": "rgba(255, 255, 255, 0.1)"
+    },
+    "typography": {
+      "headings": "font-sans font-black tracking-tighter",
+      "labels": "font-mono uppercase tracking-[0.2em] text-xs",
+      "body": "font-sans leading-relaxed text-base"
+    },
+    "effects": {
+      "glass": "backdrop-blur-xl bg-white/5 border border-white/10",
+      "neon_glow_pink": "shadow-[0_0_20px_rgba(255,45,149,0.5)]",
+      "neon_glow_cyan": "shadow-[0_0_20px_rgba(0,217,255,0.5)]"
+    }
+  },
+  "media": {
+    "images": {
+      "pricing_hero_bg": {
+        "url": "https://static.prod-images.emergentagent.com/jobs/6575e7be-4754-4bdb-b0cf-17c22c4a16e8/images/59e033212fb4c82b029ef15c7f60f08b8c94e1578b97fda6e673bfe3c7769124.png",
+        "description": "Wide atmospheric abstract background for pricing hero section",
+        "usage": "Background for /pricing page hero section"
+      },
+      "vip_lounge_cover": {
+        "url": "https://static.prod-images.emergentagent.com/jobs/6575e7be-4754-4bdb-b0cf-17c22c4a16e8/images/a796d4e8ba873afaac66656a728b3dd94a575f06576b7afc90f3331cb6692dd8.png",
+        "description": "VIP Lounge cover art",
+        "usage": "Channel image for vip_lounge"
+      },
+      "premium_mehfil_cover": {
+        "url": "https://static.prod-images.emergentagent.com/jobs/6575e7be-4754-4bdb-b0cf-17c22c4a16e8/images/99977df7586c3a62b55092fcb9f41980f0cd6c56aa34c839163fdfac03b30013.png",
+        "description": "Premium Mehfil cover art",
+        "usage": "Channel image for premium_mehfil"
+      },
+      "success_confetti_bg": {
+        "url": "https://images.unsplash.com/photo-1678845538047-5e5203537b58?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwzfHxjb25mZXR0aSUyMGRhcmslMjBiYWNrZ3JvdW5kJTIwbmVvbnxlbnwwfHx8fDE3Nzk1NzE2MTJ8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Dark neon confetti background",
+        "usage": "Background for /billing/success page"
+      }
+    }
+  },
+  "pages": {
+    "pricing": {
+      "layout": "Marketing page bento grid and wide sections",
+      "elements": {
+        "test_mode_banner": {
+          "style": "bg-yellow-500/10 text-yellow-500 font-mono text-xs uppercase tracking-widest text-center py-2 border-b border-yellow-500/20 w-full fixed top-0 z-50",
+          "content": "Test mode · No real charges"
+        },
+        "hero_section": {
+          "background": "Use `pricing_hero_bg` with `bg-cover bg-center` and overlay `bg-[#0a0c18]/80`",
+          "heading": "text-5xl md:text-6xl+ font-black text-white text-center pt-32 pb-8",
+          "currency_selector": "pill-shaped toggle, glassmorphism, accenting active state with cyan (#00d9ff)"
+        },
+        "pricing_cards": {
+          "free_tier": "glassmorphism, muted borders, p-8 rounded-3xl",
+          "premium_tier": "glassmorphism, border-[#ff2d95]/50 neon_glow_pink, p-8 rounded-3xl relative overflow-hidden",
+          "premium_badge": "absolute top-0 right-0 bg-gradient-to-r from-[#ff2d95] to-[#00d9ff] text-white font-mono text-[10px] px-3 py-1 rounded-bl-xl",
+          "cta_premium": "w-full bg-[#ff2d95] text-white hover:bg-[#ff2d95]/90 py-4 rounded-xl font-bold uppercase tracking-wide transition-all neon_glow_pink data-testid='go-premium-cta'",
+          "price_display": "text-4xl font-black text-white, with 'billed annually' in font-mono text-xs text-gray-400"
+        },
+        "features_list": {
+          "style": "flex flex-col gap-4 mt-8",
+          "icon": "lucide-react Check (Cyan for premium)",
+          "items": ["Unlimited skips", "2 exclusive VIP channels", "Ad-free listening", "VIP Badge", "2x Rewards Multiplier"]
+        }
+      }
+    },
+    "billing_success": {
+      "layout": "Centered overlay / full screen minimal",
+      "elements": {
+        "background": "Use `success_confetti_bg` with `bg-cover` and `bg-[#0a0c18]/90` overlay",
+        "card": "glassmorphism max-w-md mx-auto p-12 text-center rounded-3xl border border-[#ff2d95]/30 neon_glow_pink",
+        "heading": "text-3xl font-black text-white mb-4",
+        "text": "Welcome to BigFM Premium",
+        "loader": "cyan pulsing indicator for session status",
+        "countdown": "font-mono text-sm text-[#00d9ff]"
+      }
+    }
+  },
+  "components": {
+    "avatar_dropdown": {
+      "free_user": {
+        "cta": "font-bold text-[#ff2d95] hover:bg-[#ff2d95]/10 data-testid='dropdown-go-premium'"
+      },
+      "premium_user": {
+        "badge": "inline-flex items-center gap-1 bg-[#ffd700]/10 text-[#ffd700] border border-[#ffd700]/30 font-mono text-[10px] px-2 py-0.5 rounded-full",
+        "link": "text-white hover:text-[#00d9ff] data-testid='dropdown-manage-sub'"
+      }
+    },
+    "profile_premium_tile": {
+      "style": "glassmorphism border-[#00d9ff]/30 p-6 rounded-2xl flex justify-between items-center",
+      "content": "Show VIP status, renewal date, and 'Manage Billing' button (cyan bordered)"
+    },
+    "radio_player": {
+      "vip_badge": "Gold/cyan VIP badge next to username (use lucide Crown icon)",
+      "skip_text": "Replace standard skip counter with 'Unlimited skips' in text-[#00d9ff] font-mono text-xs for premium users"
+    },
+    "channel_switcher": {
+      "free_user_premium_chip": "opacity-70 grayscale hover:grayscale-0 transition-all cursor-pointer relative",
+      "lock_icon": "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white bg-black/50 p-2 rounded-full backdrop-blur-md",
+      "premium_chip_style": "border-2 border-[#ffd700]/50 shadow-[0_0_15px_rgba(255,215,0,0.2)]",
+      "on_click": "Redirects to /pricing for free users"
+    },
+    "skip_limit_modal": {
+      "style": "glassmorphism border-[#ff2d95]/40 rounded-3xl p-8 text-center",
+      "heading": "text-2xl font-black text-white mb-2",
+      "body": "Out of skips. Premium = unlimited.",
+      "cta": "bg-gradient-to-r from-[#ff2d95] to-[#00d9ff] text-white w-full py-3 rounded-xl font-bold uppercase mt-6 hover:opacity-90 data-testid='modal-upgrade-nudge'"
+    }
+  },
+  "testing": {
+    "requirements": "All interactive and key informational elements MUST include a data-testid attribute."
+  },
+  "instructions_to_main_agent": [
+    "Implement the /pricing page following the layout and dark neon colors provided.",
+    "Ensure CF-IPCountry header logic correctly maps currencies: AE->AED, IN->INR, US/CA/AU/GB->USD, fallback->USD. Allow ?currency= override.",
+    "Use standard HTML tags and Tailwind classes. Avoid Shadcn components for marketing layouts unless heavily customized to fit the neon aesthetic.",
+    "Apply the test mode banner 'Test mode · No real charges' globally on /pricing.",
+    "Integrate the generated media URLs for backgrounds and channel covers.",
+    "For the Radio Player, swap the skip counter logic to display 'Unlimited skips' for premium tier.",
+    "Ensure all buttons and links have proper data-testid attributes."
+  ]
+}

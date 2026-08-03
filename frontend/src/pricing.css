@@ -1,0 +1,207 @@
+/* ============================================================
+   BigFM /pricing + /billing/success styles.
+   Aesthetic: dark club + neon pink/cyan from the radio page,
+   premium = gold accent. No purple gradients.
+   ============================================================ */
+
+.pricing-shell, .success-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% -8%, rgba(255,45,149,.18) 0%, transparent 42%),
+    radial-gradient(circle at 88% 110%, rgba(255,215,0,.10) 0%, transparent 48%),
+    #0a0c18;
+  color: #f0f1f5;
+  font-family: 'Inter', system-ui, sans-serif;
+  padding: 28px 24px 56px;
+}
+
+.pricing-shell { max-width: 1180px; margin: 0 auto; }
+.success-shell {
+  display: flex; align-items: center; justify-content: center;
+  padding: 48px 24px;
+}
+
+.pricing-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap; padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  margin-bottom: 32px;
+}
+.back-link { display:inline-flex; align-items:center; gap:8px; color:#9aa1bd;
+  text-decoration:none; font-size:11px; letter-spacing:.18em; transition: color .15s; }
+.back-link:hover { color:#ff2d95; }
+.mono { font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace; letter-spacing: .14em; text-transform: uppercase; }
+
+.auth-brand { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:600; }
+.brand-dot { width:10px; height:10px; border-radius:50%; background:#ff2d95;
+  box-shadow:0 0 16px rgba(255,45,149,.7); }
+.brand-name .dxb { color:#00d9ff; font-weight:400; }
+
+.currency-picker { display:flex; gap:6px; background:rgba(255,255,255,.04);
+  padding:4px; border-radius:999px; border:1px solid rgba(255,255,255,.06); }
+.cur-btn { padding:8px 14px; background:transparent; border:none; color:#9aa1bd;
+  font-size:11px; cursor:pointer; border-radius:999px; transition: all .15s; }
+.cur-btn:hover { color:#fff; }
+.cur-btn.is-on { background:linear-gradient(180deg,#ff2d95,#cc1f72); color:#fff;
+  box-shadow: 0 0 18px rgba(255,45,149,.45); }
+
+.test-banner {
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  background:rgba(255,215,0,.12); color:#ffd700;
+  border:1px solid rgba(255,215,0,.4);
+  padding:10px 16px; border-radius:999px; font-size:11px;
+  width:fit-content; margin: 0 auto 32px;
+}
+
+.pricing-hero { text-align:center; padding: 32px 0 48px; }
+.hero-eyebrow { color:#ff2d95; font-size:12px; margin-bottom:18px; }
+.hero-h1 { font-size: clamp(36px, 5vw, 56px); line-height:1.1; margin:0 0 18px;
+  font-weight: 800; letter-spacing: -0.02em; }
+.hero-accent { background: linear-gradient(120deg, #ffd700, #ffb700);
+  -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero-sub { color:#aab1c8; font-size:17px; max-width:540px; margin:0 auto; line-height:1.55; }
+
+.pricing-loading { display:flex; justify-content:center; padding:80px 0; }
+
+/* Plan grid */
+.plan-grid {
+  display:grid; gap:24px; margin: 24px 0 56px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  max-width: 880px; margin-left:auto; margin-right:auto;
+}
+.plan-card {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 22px; padding: 28px 26px 24px;
+  display:flex; flex-direction:column; gap:18px;
+  transition: border-color .2s, transform .2s;
+}
+.plan-card:hover { border-color: rgba(255,255,255,.18); }
+
+.plan-free .plan-tier { color:#9aa1bd; font-size:11px; }
+.plan-premium {
+  border-color: rgba(255,215,0,.4);
+  background:
+    linear-gradient(180deg, rgba(255,215,0,.07) 0%, rgba(255,215,0,0) 60%),
+    rgba(255,255,255,.03);
+  box-shadow: 0 0 0 1px rgba(255,215,0,.18), 0 24px 56px -32px rgba(255,215,0,.4);
+}
+.plan-tier-banner {
+  display:flex; align-items:center; gap:6px;
+  color:#ffd700; font-size:11px; padding-bottom:6px;
+  border-bottom:1px solid rgba(255,215,0,.18);
+}
+
+.plan-price { display:flex; align-items:baseline; gap:10px; }
+.plan-price .amount {
+  font-size:48px; font-weight:800; letter-spacing:-0.02em; line-height:1;
+}
+.plan-premium .plan-price .amount { color:#ffd700; }
+.plan-price .cadence { font-size:11px; color:#9aa1bd; }
+
+.plan-desc { color:#aab1c8; font-size:14px; line-height:1.5; margin:0; }
+
+.plan-list { list-style:none; padding:0; margin:0;
+  display:flex; flex-direction:column; gap:11px; }
+.plan-list li { display:flex; align-items:flex-start; gap:10px;
+  color:#dde0ee; font-size:14px; line-height:1.45; }
+.plan-list li svg { flex-shrink:0; margin-top:2px; color:#00d9ff; }
+.plan-premium .plan-list li svg { color:#ffd700; }
+.plan-list li.plan-missing { color:#6e7595; }
+.plan-list li.plan-missing svg { color:#6e7595; }
+
+.plan-cta {
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  border:none; padding:14px 18px; border-radius:14px;
+  font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  cursor:pointer; transition: all .15s; text-decoration:none;
+  margin-top: auto;
+}
+.plan-cta-free {
+  background:rgba(255,255,255,.06); color:#dde0ee;
+  border:1px solid rgba(255,255,255,.1);
+}
+.plan-cta-free:hover { background:rgba(255,255,255,.1); }
+.plan-cta-premium {
+  background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+  color:#0a0c18;
+  box-shadow: 0 8px 24px -8px rgba(255,215,0,.6);
+}
+.plan-cta-premium:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -8px rgba(255,215,0,.75);
+}
+.plan-cta-premium:disabled { opacity: .65; cursor:not-allowed; transform:none; }
+.plan-cta.is-loading { pointer-events:none; }
+
+.plan-fine-print { font-size:9px; color:#7e85a1; text-align:center; }
+
+/* Headlines grid */
+.pricing-headlines { padding: 40px 0 32px; }
+.headlines-eyebrow { color:#00d9ff; font-size:11px; text-align:center; margin-bottom:24px; }
+.headlines-grid {
+  display:grid; gap:14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px,1fr));
+  max-width:880px; margin:0 auto;
+}
+.headline-tile {
+  display:flex; align-items:center; gap:14px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px; padding:18px 20px;
+  color:#dde0ee; font-size:15px; font-weight:500;
+}
+.headline-tile svg { color:#ffd700; flex-shrink:0; }
+
+/* FAQ */
+.pricing-faq { max-width:680px; margin: 48px auto 0; }
+.pricing-faq h2 { font-size:22px; margin:0 0 24px; font-weight:700; }
+.pricing-faq dl { display:flex; flex-direction:column; gap:18px; }
+.pricing-faq dt { font-weight:600; color:#fff; margin-bottom:4px; font-size:15px; }
+.pricing-faq dd { color:#aab1c8; margin:0; font-size:14px; line-height:1.55; }
+
+.pricing-foot {
+  border-top:1px solid rgba(255,255,255,.06);
+  margin-top:64px; padding-top:24px;
+  display:flex; justify-content:space-between; gap:16px;
+  font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+  color:#6e7595;
+}
+
+/* ============================================================
+   Billing success
+   ============================================================ */
+.success-card {
+  max-width:520px; width:100%; padding:48px 36px; border-radius:24px;
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+  text-align:center; display:flex; flex-direction:column; align-items:center; gap:16px;
+}
+.success-card h1 { font-size:36px; margin:0; font-weight:800; letter-spacing:-0.02em; }
+.success-card p { color:#aab1c8; margin:0; line-height:1.5; max-width:380px; }
+.success-card .dim { color:#7e85a1; font-size:13px; }
+.success-eyebrow { color:#ffd700; font-size:11px; }
+
+.success-paid {
+  border-color: rgba(255,215,0,.45);
+  background:
+    linear-gradient(180deg, rgba(255,215,0,.08) 0%, rgba(255,215,0,0) 50%),
+    rgba(255,255,255,.04);
+  box-shadow: 0 0 0 1px rgba(255,215,0,.2), 0 32px 72px -32px rgba(255,215,0,.5);
+}
+.confetti { display:flex; align-items:center; gap:14px; color:#ffd700; }
+
+.success-receipt {
+  width:100%; max-width:340px; margin-top:8px;
+  background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.07);
+  border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px;
+}
+.receipt-row { display:flex; justify-content:space-between; font-size:13px; }
+.receipt-row .mono { color:#7e85a1; font-size:10px; }
+.status-paid { color:#36e29b; font-weight:600; letter-spacing:.08em; font-size:12px; }
+
+.poll-trail { color:#5b6383; font-size:10px; margin-top:8px; }
+
+.success-paid .plan-cta-premium { margin-top: 16px; width: auto; }
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }

@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend smoke tested all 5 surfaces in Phase 41 S4.5 (Announcement Coupons + Trivia Leaderboard). SURFACE 1 (Wallet Coupons), 2.A (StationPage Active Coupons + claim), 2.B (Top Brains Trivia Leaderboard), 2.C (Owner AnnouncementManager coupon editor) all PASS. SURFACE 3 (StationTV) renders all expected components but the coupon spotlight shows the active WALLET20 coupon instead of the sold-out KARAK15 the spec described — likely picking first/non-sold-out coupon by design, functional but a spec-vs-actual data deviation worth confirming.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Owner /r/s3a-smoke-karak AnnouncementManager", "issues": ["The clear/remove-coupon button is labelled 'Remove coupon' in the UI, but the request spec calls it 'Clear coupon'. Pure copy mismatch — functionality (removing a coupon from an announcement) works."]},
+      {"screen": "/tv/s3a-smoke-karak (StationTV spotlight)", "issues": ["tv-coupon-spotlight renders 'SCAN TO CLAIM · 20% OFF · 🎟 WALLET20 · 99 left' instead of the KARAK15/Sold out scenario described in the spec. Looks like the component picks the first active coupon (or the not-sold-out one). Component itself functions; flag for product confirmation."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_6.json"
+  ],
+  "action_items": [
+    "(Optional) Confirm StationTV CouponSpotlight selection rule — spec referenced KARAK15 (sold out) but actual picks WALLET20 (active). If KARAK15 is intended, fix selection logic in StationTV.jsx around the spotlight render block.",
+    "(Optional copy nit) AnnouncementManager owner edit row uses 'Remove coupon' label whereas review spec asked for 'Clear coupon'. Rename if you want the labels to match the spec."
+  ],
+  "critical_code_review_comments": [
+    "CouponClaimModal copy-code button renders 'WALLET20 ' with a trailing space because the lucide <Copy/> icon is included in the same flex container without trimming — harmless visually but the test_id text content has a trailing whitespace; tighten with a wrapping <span>{code}</span> if you ever assert exact text equality.",
+    "Console flood: NavItem in Sidebar spreads a props object that contains a 'key' field — React warning 'A props object containing a key prop is being spread into JSX'. Pre-existing and unrelated to Phase 41 S4.5 but it spams every page navigation and should be cleaned up.",
+    "401 noise: /api/geo/me?tz=UTC and a couple of public listing calls 401 on first paint before auth header is attached. Not a regression for this session but worth a tiny retry-with-auth pass." 
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (scope was frontend only)", "frontend": "100% functional, 2 minor copy/data deviations"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (listener); test@bigfm.dubai / TestUser123! (owner)",
+  "seed_data_creation": "None — used pre-seeded WALLET20 redemption (rd_12a8a82e5a574d) for demo + 12 game_sessions on p41-audit-test as described in the request.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 3 named surfaces (Wallet Coupons tab, StationPage Active Coupons + Trivia Leaderboard, TV ticker) plus the owner editor light-smoke surface are verified. Key data-testids confirmed: tab-coupons-content, wallet-coupon-rd_12a8a82e5a574d, coupon-claim-modal, coupon-modal-discount/station/qr/copy-code/close, station-active-coupons, active-coupon-ann_8fcab8f6c545 (Sold out + disabled), active-coupon-ann_50bc1c0a5877 (Claim enabled → 200 redeem → modal), trivia-leaderboard with window-7d/30d/all pills and 5 rows on All (Test Listener 4/12, BigFM Admin 3/9, Sam Thakkar 2/7, two QA Tester rows 2/5 and 1/3 with gold/silver/bronze rank colors), tv-coupon-spotlight + tv-coupon-qr + tv-announcement-ticker, StationTV uses BARE_ROUTES (no sidebar/topbar/miniplayer).",
+  "evidence": {
+    "surface1_wallet": {"tab_visible": true, "card_visible": true, "modal_discount": "20% OFF", "modal_station": "at S3A Smoke Karak", "modal_code": "WALLET20", "modal_qr_present": true, "escape_closes": true},
+    "surface2a_station": {"strip_visible": true, "karak15_disabled_sold_out": true, "wallet20_claim_succeeds_modal_opens": true, "redeem_api_status": 200},
+    "surface2b_trivia": {"leaderboard_visible": true, "all_window_rows": ["1 Test Listener 4/12", "2 BigFM Admin 3/9", "3 Sam Thakkar 2/7", "4 QA Tester 2/5", "5 QA Tester 1/3"], "pill_toggle_works": true},
+    "surface2c_owner": {"add_edit_buttons_count": 5, "form_mounts_with_code_discount_terms_inputs": true, "label_is_Remove_coupon_not_Clear_coupon": true},
+    "surface3_tv": {"spotlight_visible": true, "qr_svg_visible": true, "ticker_scrolls_with_both_codes": true, "bare_routes_layout": true, "spotlight_actually_shows": "WALLET20 (not KARAK15 as spec described)"}
+  }
+}

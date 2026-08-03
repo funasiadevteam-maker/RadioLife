@@ -1,0 +1,32 @@
+{
+  "summary": "Verified AUTH.1 Google sign-in button fix on both /login?design=legacy and /login?design=radiolife. Legacy variant is fully correct. RadioLife variant is functional but has a duplicate-DOM issue: TWO elements with data-testid='sign-in-with-google-button' exist on the RadioLife login (one from Login.js with data-variant='legacy', one from OnboardingRadioLife.jsx with data-variant='radiolife'), and the legacy backward-compat testid 'google-signin-btn' is also mounted underneath. Click navigation to auth.emergentagent.com/?redirect=...%2Fdashboard works correctly for both variants. No console errors (only 401s from unrelated API bootstrap).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "OnboardingRadioLife.jsx + Login.js (both rendered under RadioLife overlay)",
+        "issue": "On /login?design=radiolife, TWO elements match data-testid='sign-in-with-google-button': [0] data-variant='legacy' (visible at y=368, from Login.js underneath), [1] data-variant='radiolife' (visible at y=914, from OnboardingRadioLife). Automation using page.get_by_test_id('sign-in-with-google-button').first will hit the LEGACY variant on RadioLife, not the RadioLife one. Screenshot confirms both buttons render on the page. The legacy testid 'google-signin-btn' is also present (count=1) on RadioLife.",
+        "selector": "[data-testid='sign-in-with-google-button']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix duplicate button rendering on RadioLife design: either (a) prevent Login.js from rendering when RadioLifeOverlay/VariantWrapper is active, or (b) hide the legacy SignInWithGoogleButton (and its 'google-signin-btn' backward-compat span) when the RadioLife overlay is mounted. Currently both Login.js and OnboardingRadioLife.jsx render simultaneously, creating two identical-testid buttons on the RadioLife screen. This will break automation using .first getter and confuse users who see the legacy button peeking through in the background."
+  ],
+  "critical_code_review_comments": [
+    "Duplicate data-testid across two different DOM subtrees violates the uniqueness expectation for test IDs. RadioLifeOverlay should replace (not stack on top of) the legacy Login.js output for the /login route.",
+    "Consider using useDesignVariant() inside Login.js to early-return null when design==='radiolife' so only OnboardingRadioLife's Google button is present."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "90%"},
+  "test_credentials": "Not required for this test",
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Legacy design: PASS on all 5 acceptance criteria — testid exists, visible, data-variant=legacy, backward-compat 'google-signin-btn' present, click lands at https://auth.emergentagent.com/?redirect=https%3A%2F%2Fstream-bridge-9.preview.emergentagent.com%2Fdashboard. RadioLife design: PASS on visibility/variant/click-nav for the RadioLife-variant button itself, BUT there are 2 sign-in-with-google-button elements on that page (legacy Login.js is still mounted underneath the RadioLife overlay). Main agent should ensure Login.js does not render when RadioLifeOverlay is active on /login.",
+  "rca of the issue": "Root cause of the RadioLife duplicate button: RadioLifeOverlay/VariantWrapper (per problem statement other_misc_info) 'intercepts' /login and renders OnboardingRadioLife.jsx, but does not unmount Login.js. So both trees are in the DOM. The newly-added SignInWithGoogleButton in OnboardingRadioLife stacks with the one in Login.js. Reproduction: goto /login?design=radiolife, run page.locator('[data-testid=\"sign-in-with-google-button\"]').count() -> 2. Mitigation: in Login.js return null (or omit the SignInWithGoogleButton block) when useDesignVariant().design === 'radiolife'; OR have RadioLifeOverlay render as a Portal/Route replacement that unmounts the legacy Login route."
+}

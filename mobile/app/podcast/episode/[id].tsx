@@ -1,0 +1,302 @@
+import { useEffect, useState, useRef, useCallback } from 'react';
+import {
+  View, Text, ScrollView, TouchableOpacity, Image,
+  ActivityIndicator, StyleSheet, Alert, Linking,
+} from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
+import { COLORS, SPACING, RADIUS, FONT, common } from '../../../src/constants/theme';
+import {
+  getEpisode, getEpisodeMagicClips, getEpisodeShoppableCards,
+  episodeAudioUrl, shoppableClickUrl, subscribe,
+} from '../../../src/api/podcastApi';
+
+let AudioModule: any = null;
+try { AudioModule = require('expo-audio'); } catch {}
+
+function fmtSec(s: number) {
+  const m = Math.floor(s / 60);
+  const r = Math.floor(s % 60);
+  return `${m}:${String(r).padStart(2, '0')}`;
+}
+
+function formatPrice(cents: number | null, currency?: string) {
+  if (cents == null) return '';
+  return `${currency || 'USD'} ${(cents / 100).toFixed(2)}`;
+}
+
+export default function EpisodeDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+
+  const [episode, setEpisode] = useState<any>(null);
+  const [clips, setClips] = useState<any[]>([]);
+  const [cards, setCards] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [paywall, setPaywall] = useState<any>(null); // 402 payload
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0);
+  const [dur, setDur] = useState(0);
+  const soundRef = useRef<any>(null);
+  const [subBusy, setSubBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!id) return;
+    try {
+      const ep = await getEpisode(id);
+      setEpisode(ep);
+      const [mc, sc] = await Promise.all([
+        getEpisodeMagicClips(id).catch(() => []),
+        getEpisodeShoppableCards(id).catch(() => []),
+      ]);
+      setClips(mc);
+      setCards(sc);
+    } catch (e: any) {
+      if (e?.response?.status === 402) {
+        setPaywall(e.response.data);
+      } else {
+        Alert.alert('Error', e?.response?.data?.detail || 'Could not load episode');
+      }
+    } finally { setLoading(false); }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => { soundRef.current?.remove?.(); };
+  }, []);
+
+  const togglePlay = async () => {
+    if (!id || !AudioModule) return;
+    try {
+      if (soundRef.current) {
+        if (playing) {
+          await soundRef.current.pause();
+        } else {
+          await soundRef.current.play();
+        }
+        setPlaying(!playing);
+        return;
+      }
+      const player = AudioModule.useAudioPlayer
+        ? null // hook-based — we'll use createAsync
+        : null;
+      // Use Sound API
+      const snd = new AudioModule.Sound();
+      await snd.loadAsync({ uri: episodeAudioUrl(id) });
+      snd.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.isLoaded) {
+          setPos(status.positionMillis / 1000);
+          setDur(status.durationMillis ? status.durationMillis / 1000 : 0);
+          if (status.didJustFinish) setPlaying(false);
+        }
+      });
+      soundRef.current = snd;
+      await snd.playAsync();
+      setPlaying(true);
+    } catch (e: any) {
+      // Fallback: just mark as playing for UX; actual audio may not work in web preview
+      setPlaying(!playing);
+    }
+  };
+
+  const onSubscribe = async () => {
+    if (!paywall?.channel_id) return;
+    setSubBusy(true);
+    try {
+      const data = await subscribe(paywall.channel_id);
+      if (data?.checkout_url) {
+        await WebBrowser.openBrowserAsync(data.checkout_url);
+      }
+    } catch (e: any) {
+      Alert.alert('Subscribe', e?.response?.data?.detail || 'Failed');
+    } finally { setSubBusy(false); }
+  };
+
+  const openShoppable = (cardId: string) => {
+    Linking.openURL(shoppableClickUrl(cardId));
+  };
+
+  if (loading) return (
+    <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+  );
+
+  /* ── Paywall overlay ── */
+  if (paywall) {
+    const plan = paywall.plan || paywall.subscription_plan;
+    const dollars = plan?.price_cents ? (plan.price_cents / 100).toFixed(2) : '?';
+    return (
+      <SafeAreaView style={common.screen} edges={['top']}>
+        <TouchableOpacity testID="mobile-episode-back" onPress={() => router.back()} style={st.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+        </TouchableOpacity>
+        <View testID="mobile-episode-paywall" style={st.paywallWrap}>
+          <View style={st.paywallCard}>
+            <Text style={st.paywallLabel}>SUBSCRIBERS ONLY</Text>
+            <Text style={st.paywallTitle}>{plan?.plan_name || 'Premium'}</Text>
+            <Text style={st.paywallBody}>
+              Get this episode + every bonus drop on this channel.
+            </Text>
+            <View style={st.paywallPriceRow}>
+              <Text style={st.paywallPrice}>${dollars}</Text>
+              <Text style={st.paywallPer}>/month USD</Text>
+            </View>
+            {plan?.features?.ad_free && <Text style={st.paywallFeat}>✓ Ad-free listening</Text>}
+            {plan?.features?.early_access_hours > 0 && (
+              <Text style={st.paywallFeat}>✓ {plan.features.early_access_hours}-hour early access</Text>
+            )}
+            {plan?.features?.bonus_episodes && <Text style={st.paywallFeat}>✓ Bonus episodes</Text>}
+            <TouchableOpacity
+              testID="mobile-episode-paywall-subscribe"
+              style={st.paywallBtn}
+              onPress={onSubscribe}
+              disabled={subBusy}
+            >
+              <Text style={st.paywallBtnText}>
+                {subBusy ? 'Opening checkout…' : `Start ${plan?.trial_days || 7}-day free trial`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  /* ── Normal episode detail ── */
+  return (
+    <SafeAreaView style={common.screen} edges={['top']}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+        <TouchableOpacity testID="mobile-episode-back" onPress={() => router.back()} style={st.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+        </TouchableOpacity>
+
+        {/* Player area */}
+        <View testID="mobile-episode-player" style={st.playerArea}>
+          <TouchableOpacity
+            testID="mobile-episode-play-btn"
+            onPress={togglePlay}
+            style={st.playBtn}
+            activeOpacity={0.8}
+          >
+            <Ionicons name={playing ? 'pause' : 'play'} size={40} color="#fff" />
+          </TouchableOpacity>
+          <Text style={st.epTitle}>{episode?.title}</Text>
+          {dur > 0 && (
+            <Text style={st.scrubberText}>{fmtSec(pos)} / {fmtSec(dur)}</Text>
+          )}
+          {episode?.description ? (
+            <Text style={st.epDesc} numberOfLines={6}>{episode.description}</Text>
+          ) : null}
+        </View>
+
+        {/* Shoppable cards */}
+        {cards.length > 0 && (
+          <View testID="mobile-episode-shoppable" style={st.section}>
+            <Text style={common.sectionTitle}>Shop the episode</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {cards.map(c => (
+                <TouchableOpacity
+                  key={c.id}
+                  testID={`mobile-shoppable-tile-${c.id}`}
+                  style={st.shopCard}
+                  onPress={() => openShoppable(c.id)}
+                  activeOpacity={0.7}
+                >
+                  {c.image_url ? (
+                    <Image source={{ uri: c.image_url }} style={st.shopImg} />
+                  ) : (
+                    <View style={[st.shopImg, st.shopImgPlaceholder]}>
+                      <Ionicons name="bag" size={20} color={COLORS.textDim} />
+                    </View>
+                  )}
+                  <Text style={st.shopTitle} numberOfLines={1}>{c.title}</Text>
+                  {c.price_cents != null && (
+                    <Text style={st.shopPrice}>{formatPrice(c.price_cents, c.currency)}</Text>
+                  )}
+                  <View style={st.shopBtn}>
+                    <Text style={st.shopBtnText}>Shop</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Magic clips */}
+        {clips.length > 0 && (
+          <View testID="mobile-episode-highlights" style={st.section}>
+            <Text style={common.sectionTitle}>Highlights</Text>
+            {clips.map(c => (
+              <View key={c.id} testID={`mobile-episode-clip-${c.id}`} style={st.clipRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.clipTitle}>{c.title || 'Untitled'}</Text>
+                  <Text style={st.clipMeta}>
+                    {fmtSec(c.start_sec || 0)}–{fmtSec(c.end_sec || 0)} · {((c.end_sec || 0) - (c.start_sec || 0)).toFixed(0)}s
+                    · score {(c.score || 0).toFixed(2)}
+                  </Text>
+                </View>
+                <Ionicons name="play-circle-outline" size={24} color={COLORS.secondary} />
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const st = StyleSheet.create({
+  backBtn: { padding: SPACING.lg },
+  playerArea: { alignItems: 'center', paddingHorizontal: SPACING.lg, marginBottom: SPACING.lg },
+  playBtn: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  epTitle: { fontSize: FONT.xl, fontWeight: '800', color: COLORS.text, textAlign: 'center', marginBottom: 4 },
+  scrubberText: { fontSize: FONT.xs, color: COLORS.textDim, fontVariant: ['tabular-nums'], marginBottom: 8 },
+  epDesc: { fontSize: FONT.sm, color: COLORS.textDim, lineHeight: 20, textAlign: 'center' },
+  section: { paddingHorizontal: SPACING.lg, marginTop: SPACING.lg },
+  shopCard: {
+    width: 140, padding: 10, borderRadius: RADIUS.sm, marginRight: 10,
+    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  shopImg: { width: '100%', height: 80, borderRadius: 6, marginBottom: 8 },
+  shopImgPlaceholder: { backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center' },
+  shopTitle: { fontSize: FONT.sm, fontWeight: '600', color: COLORS.text, marginBottom: 2 },
+  shopPrice: { fontSize: FONT.xs, color: COLORS.orange, marginBottom: 6 },
+  shopBtn: {
+    backgroundColor: COLORS.orange, paddingVertical: 4, paddingHorizontal: 10,
+    borderRadius: 4, alignSelf: 'flex-start',
+  },
+  shopBtnText: { fontSize: FONT.xs, fontWeight: '700', color: '#000' },
+  clipRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 10, marginBottom: 6, borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  clipTitle: { fontSize: FONT.sm, fontWeight: '600', color: COLORS.text },
+  clipMeta: { fontSize: FONT.xs, color: COLORS.textDim, marginTop: 2 },
+  /* Paywall */
+  paywallWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.lg },
+  paywallCard: {
+    width: '100%', maxWidth: 400, padding: 22, borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)',
+    backgroundColor: '#1e1b3a',
+  },
+  paywallLabel: { fontSize: 11, color: COLORS.orange, letterSpacing: 0.6, marginBottom: 8 },
+  paywallTitle: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 10 },
+  paywallBody: { fontSize: 14, color: '#cbd5e1', marginBottom: 18 },
+  paywallPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 14 },
+  paywallPrice: { fontSize: 32, fontWeight: '900', color: '#fff' },
+  paywallPer: { fontSize: 13, color: '#94a3b8' },
+  paywallFeat: { fontSize: 13, color: '#e2e8f0', lineHeight: 24 },
+  paywallBtn: {
+    backgroundColor: COLORS.orange, paddingVertical: 12, paddingHorizontal: 18,
+    borderRadius: 8, alignItems: 'center', marginTop: 18,
+  },
+  paywallBtnText: { fontWeight: '800', fontSize: 14, color: '#0a0a0c' },
+});

@@ -1,0 +1,32 @@
+{
+  "summary": "Phase AD.12a — In-app notification ads + weekly digest opt-out — FULL e2e verified (backend + frontend). 25/25 backend tests pass in /app/backend/tests/test_ad12_notifications.py covering: pricing hints (food 8¢, retail 12¢, nightlife 15¢, health/services 10¢, default 10¢), campaign draft validation (title/body/target_url/budget<100), creative upload (icon ≤512KB PNG/JPG/WEBP, invalid slot, oversize, bad content-type), publish rejections (channel='push' → push_channel_not_enabled, channel='both' → push_channel_not_enabled, missing icon → icon_required), inbox mint+idempotency (same delivery_id on repeat calls, no re-mint), unread_count, click/open/dismiss lifecycle (dismissed row omitted next inbox), digest opt-out semantics (default TRUE, PATCH persists FALSE, send-now with force=false returns {ok:false,reason:'opted_out'} for opted-out and full payload {advertiser_name,total_spend_display,total_impressions,ctr_percent,spend_by_type,top_creatives,recommendations,opt_out_url} for opted-in), and regression smoke (coupon-campaigns/live, ad-review/queue, banner/serve zone=landing_hero, admin/nav-counts). Frontend: 5-step wizard flows correctly (identity → creative → targeting+channel → budget+CPD → preview+submit), all data-testids exist, push channel visibly disabled ('Browser push · soon'), CPD tooltip on hover reveals category groups (F&B 8¢, Retail 12¢, Entertainment/Nightlife 15¢, Health/Fitness 10¢, Services 10¢), step-5 preview shows 'Channel: in-app'. NotificationBell polls unread (badge=7), dropdown shows merged inbox (18 rows, 9 sponsored chips), view-all links to /notifications. /notifications full-page shows 22 rows w/ 11 sponsored dismiss buttons; dismissing a sponsored row removes it locally and via API. AdvertiserProfile digest toggle flips ON↔OFF and back with live PATCH persistence.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global (all pages)", "issues": ["Recurring React console warning: 'A props object containing a key prop is being spread into JSX'. Pre-existing, not caused by AD.12; low priority but flagged for cleanup."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad12_notifications.py",
+    "/app/test_reports/pytest/ad12_notifications.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "advertiser_digest_service.send_digest_for_advertiser DOES actually hit Mailgun on every call when force=true (admin send-now default is force=true per route signature). Test only used force=false to exercise the opt-out branch. Consider a dry_run flag distinct from force to allow admins to preview payload without emailing.",
+    "routes/ad12_notifications.py NotificationDraftBody uses Pydantic ge=100 on budget_cents which returns 422, not the {code:'budget_too_small'} 400 error the spec implied. Semantically equivalent (rejection happens), but if a machine-readable error code is required, catch at service layer and raise HTTPException(400) explicitly.",
+    "Publish path: 'push_channel_not_enabled' rejection only fires at publish. A publish attempt still allows the draft to persist with channel='push'/'both' (visible in the dashboard as 'push (deferred)' badge). Consider blocking channel!='in_app' at NotificationDraftBody or PATCH-level for a cleaner UX — advertisers can currently create drafts they can never publish."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad12_notifications.py (NEW — 25 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% (wizard 5-step + bell + notifications page + digest toggle all verified)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!  ·  demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "Tests create draft campaigns prefixed 'TEST_ad12 …' under advertiser advv2_9fac10b21f5595 during the run (kept as drafts, not published — safe). One live digest email was sent to demo@bigfm.dubai during opted-in test (via Mailgun, per admin send-now); test flow explicitly minimises real sends by hitting the opt-out branch first with force=false.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "AD.12 backend + frontend + digest opt-out is green end-to-end. Regression suite passes for AD.4 (coupons), ADMOD.1 (ad-review queue), AD.11 (banner/serve — note valid zones are landing_hero, station_detail, games, browse_row, wallet, now_playing, bottom_bar, NOT home_top/nav_top), ADMIN.NAV.1 (admin/nav-counts). Frontend has a benign but noisy React 'key spread' warning across pages — pre-existing.",
+  "rca of the issue": "N/A — no live issues found in AD.12a scope."
+}

@@ -1,0 +1,34 @@
+{
+  "summary": "Phase AD.7 (Scan-to-Pay) + Notification Trigger Recipes verified. Backend: 16/16 pytest tests pass in /app/backend/tests/test_ad7_scan_to_pay.py covering the full lifecycle — recipes registry (10 recipes with expected id set + all required keys), merchant scan-to-pay settings GET+PATCH (with 400 on ppd>1000 and pct>100), QR generate RBAC (demo non-owner rejected, admin owner succeeds), min-amount rejection (amount_below_min), disabled-merchant rejection (scan_to_pay_not_enabled), QR resolve (200 with merchant/settings/user_points_balance; qr_not_found for random tokens), quote cap enforcement (800 pts clamped to 500 on $10 bill @ max_pct=50, points_earned = int(card_cents/100 * ppd)), authorize → capture → refund happy-path with Stripe pm_card_visa, idempotency verified for both capture (already_captured:true) and refund (already_refunded:true), qr_already_used on repeat authorize, user/scan-to-pay/history has merchant_name join, merchant/scan-to-pay/transactions returns totals {gross_cents,net_cents,refunds_cents}, admin analytics gated (200 for admin, 403 for demo), balance restoration after refund (pre==post). save_coupon endpoint reachable without 5xx (silent dispatcher). Frontend: /scan renders scan-page testid + Tap-to-Scan + manual token input; /merchant/{mid}/scan-to-pay renders merchant-scan-page with Cashier terminal + Settings (loaded correctly: enabled=✓, ppd=10, pct=50, min=100) + Recent Transactions (3 txns / $0 net) — Generate QR with $5 amount produces merchant-scan-qr-display with visible QR code + 'Waiting for scan…' status; /scan-to-pay/{token} renders all 7 checkout testids (scan-checkout-points-slider with min=0/max=500 respecting the 50% cap on a $10 bill, scan-checkout-tip-0/100/200/500, scan-checkout-tip-input, scan-checkout-pay-button), quote breakdown displays Card $10.00 / Points 0 pts ($0.00) / You'll earn +100 pts as expected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "MerchantScanToPay Settings card", "issues": ["Checkbox label toggles between 'Enabled' and 'Disabled' bound to the same state (`form.enabled`). When user unchecks it, label flips to 'Disabled' which is slightly confusing — a static label 'Enabled' with the checkbox state alone would read more clearly. Cosmetic only."]},
+      {"screen": "global (all pages)", "issues": ["Recurring React console warning: 'A props object containing a key prop is being spread into JSX' — pre-existing across app, not AD.7-specific."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad7_scan_to_pay.py",
+    "/app/test_reports/pytest/ad7_scan_to_pay.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/scan_to_pay.py: authorize/capture/refund/user_history all check `if not user: raise 401`, but current_user dependency likely raises 401 itself on missing auth, so these guards are dead code. Not harmful, just noise.",
+    "services/scan_to_pay_service.py refund flow: reverses BOTH redeemed and earned points via PointsService — confirmed balance was fully restored to pre-authorize value in the lifecycle test. Note the current unit-of-reward binding is 1 pt == 1 cent (hard-coded in quote); if a future phase changes the ratio, the refund reversal math must be revisited to avoid over/under-crediting.",
+    "MerchantScanToPay.jsx uses `axios.get(..., { withCredentials: true })` — during initial page render before auth cookies are ready (e.g., first login redirect), settings can render as null and the 'Scan-to-Pay is disabled' banner briefly shows. Consider adding a small loading skeleton / retry so the banner doesn't flash on race.",
+    "The AD.12 recipe dropdown lives inside AdvertiserNotificationCampaigns.jsx — this iteration could not exercise the wizard step 3 UI directly because the demo user (role=business, is_advertiser=false) redirects to /advertiser/onboard and completing onboarding is out of scope. Testids all exist in source (advertiser-notification-wizard-recipe-select/-mode-preset/-mode-custom/-dropdown/-desc/-custom) and GET /api/notification-trigger-recipes is verified end-to-end from the backend."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad7_scan_to_pay.py (NEW — 16 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% for /scan, /merchant/{id}/scan-to-pay and /scan-to-pay/{token}; AD.12 wizard step-3 recipe UI verified in source only (advertiser onboarding gates prevented live UI exercise this iteration)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!  ·  demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "Lifecycle test creates 1 authorize→capture→refund transaction on biz_sc5_test_activated (net zero after refund) plus a couple of QRs used by resolve/quote paths. Existing seed 'biz_sc5_test_activated' with scan_to_pay_enabled=true was left in that state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "AD.7 backend is fully green with 16 pytest cases covering settings, RBAC, QR lifecycle, cap enforcement, idempotency, and analytics. Frontend for /scan, /merchant/{id}/scan-to-pay (cashier terminal + settings + txn list), and /scan-to-pay/{token} (all 7 testids, cap-aware slider) verified live. AD.12 recipe dropdown wiring is present in AdvertiserNotificationCampaigns.jsx with all 6 testids; the underlying /api/notification-trigger-recipes endpoint returns exactly the 10 recipes with all required keys. If a future agent needs to exercise the wizard step-3 UI, use an already-onboarded advertiser account (demo@bigfm.dubai is business-role but not is_advertiser=true → redirects to /advertiser/onboard); either onboard demo or seed an advertiser directly.",
+  "rca of the issue": "N/A — no live issues found."
+}

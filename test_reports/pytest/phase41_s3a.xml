@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="19" time="3.190" timestamp="2026-06-08T03:01:27.566079+00:00" hostname="agent-env-291fc163-620b-4c71-9e4e-8d2d3db658c9"><testcase classname="backend.tests.test_phase41_s3a_business.TestBusinessDraft" name="test_create_business_draft" time="0.367" /><testcase classname="backend.tests.test_phase41_s3a_business.TestOwnerProfileUpdate" name="test_owner_can_update_business_profile" time="0.108" /><testcase classname="backend.tests.test_phase41_s3a_business.TestLogoUpload" name="test_logo_upload_success" time="0.697" /><testcase classname="backend.tests.test_phase41_s3a_business.TestLogoUpload" name="test_logo_upload_oversize_413" time="0.186" /><testcase classname="backend.tests.test_phase41_s3a_business.TestLogoUpload" name="test_logo_upload_bad_mime_400" time="0.051" /><testcase classname="backend.tests.test_phase41_s3a_business.TestCoverUpload" name="test_cover_upload_success" time="0.176" /><testcase classname="backend.tests.test_phase41_s3a_business.TestNonOwnerForbidden" name="test_non_owner_profile_update_403" time="0.405" /><testcase classname="backend.tests.test_phase41_s3a_business.TestNonOwnerForbidden" name="test_non_owner_logo_403" time="0.055" /><testcase classname="backend.tests.test_phase41_s3a_business.TestNonOwnerForbidden" name="test_non_owner_cover_403" time="0.059" /><testcase classname="backend.tests.test_phase41_s3a_business.TestAdminGuard" name="test_non_admin_verify_403" time="0.055" /><testcase classname="backend.tests.test_phase41_s3a_business.TestAdminVerifyFlip" name="test_admin_verify_flip_on_then_off" time="0.318" /><testcase classname="backend.tests.test_phase41_s3a_business.TestBySlugRedaction" name="test_verified_business_phone_visible" time="0.175" /><testcase classname="backend.tests.test_phase41_s3a_business.TestBySlugRedaction" name="test_unverified_anon_sees_redacted_phone" time="0.056" /><testcase classname="backend.tests.test_phase41_s3a_business.TestBySlugRedaction" name="test_unverified_listener_sees_redacted_phone" time="0.054" /><testcase classname="backend.tests.test_phase41_s3a_business.TestBySlugRedaction" name="test_unverified_owner_sees_full_phone" time="0.049" /><testcase classname="backend.tests.test_phase41_s3a_business.TestDiscoverFilter" name="test_discover_business_only" time="0.058" /><testcase classname="backend.tests.test_phase41_s3a_business.TestDiscoverFilter" name="test_discover_personal_only" time="0.055" /><testcase classname="backend.tests.test_phase41_s3a_business.TestDiscoverFilter" name="test_discover_no_filter_mixed" time="0.057" /><testcase classname="backend.tests.test_phase41_s3a_business.TestOpenApi" name="test_new_routes_in_openapi" time="0.057"><failure message="requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)">/root/.venv/lib/python3.11/site-packages/requests/models.py:1116: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_phase41_s3a_business.py:332: in test_new_routes_in_openapi
+    paths = r.json().get("paths", {})
+            ^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:1120: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</failure></testcase></testsuite></testsuites>

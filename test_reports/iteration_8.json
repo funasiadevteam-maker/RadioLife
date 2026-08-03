@@ -1,0 +1,41 @@
+{
+  "summary": "Phase 42-D Polish Bundle (D1 thumbnails / D2 trial+vouchers / D3 station favorites) tested end-to-end. 17/17 backend pytest cases pass; frontend smoke (landing strip + /radio cards + heart toggle + favorites flyout + /personas entitlement + /billing voucher section) all confirmed working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/subscriptions/redeem-voucher", "issue": "Eligibility check ordering: when max_redemptions=1 and the SAME user reuses the code, the exhaustion check (410 voucher_exhausted) fires before the per-user reuse guard (409 voucher_already_redeemed). To reliably surface the 409 path, max_redemptions must be > current redemptions_count. Not blocking — task spec actually maps these to the correct paths — but worth noting if the frontend ever issues max=1 codes and expects 409 on same-user retry."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "App shell (logged-in)", "issues": ["React console warning: 'A props object containing a key prop is being spread into JSX' — non-blocking but worth a code review.", "Hydration warning: '<button> cannot be a descendant of <button>' inside [data-testid=shell-desktop] — non-blocking but should be cleaned up."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase42d_polish.py",
+    "/app/test_reports/pytest/phase42d_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Consider re-ordering checks in /api/subscriptions/redeem-voucher to evaluate per-user reuse before exhaustion so same-user retry on max=1 vouchers returns the more informative 409 'voucher_already_redeemed' instead of 410 'voucher_exhausted'.",
+    "(Cleanup) Address nested <button> hydration warning in shell-desktop and the 'key in spread props' React warning."
+  ],
+  "critical_code_review_comments": [
+    "billing_trial.py: structured state response is correct — 4 branches (already_active/already_consumed/upgrade_required/started) each return 200 with is_premium_or_trial flag. Good.",
+    "admin_subscriptions.py: voucher code generator uses secrets.choice (cryptographically secure) and stores uppercased with unique index — correct.",
+    "subscription_voucher.py: idempotency on insert via unique compound index (voucher_id, user_id). Order of guards: revoked → expired → exhausted → per-user-reuse. Consider swapping the last two if you want 409 to surface on max=1 same-user retry.",
+    "station_favorites.py: compound unique (user_id, station_id) makes POST idempotent. GET batches channel + imported lookups in two queries — efficient. MongoDB _id is popped from response — clean.",
+    "All 4 channel_thumbnails .webp files return 200 (bollywood_mehfil, vip_lounge, party_dubai, late_night_drive). party_dubai → party_dubai.webp fix confirmed (no party_mix.webp 404)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase42d_polish.py (new — 17 test functions)"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% on smoke-tested flows (landing tiles, /radio bigfm_ai cards, heart toggle, favorites flyout, /personas entitlement, /billing voucher section)"},
+  "test_credentials": "Used demo@bigfm.dubai/DemoPass123!, admin@bigfm.dubai/AdminPass123!, and freshly-registered qa_42d_*@bigfm.dubai users.",
+  "seed_data_creation": "Several throwaway users registered via /api/auth/register (prefix qa_42d_) and 3 throwaway vouchers (BIGFM-XXXXXXXX). All test data prefixed to avoid colliding with seed data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 42-D verified GREEN. Full backend regression file at /app/backend/tests/test_phase42d_polish.py covers D1 thumbnails, D2 trial+grant+voucher CRUD+redemption, D3 favorites CRUD, and OpenAPI schema. Frontend smoke covered landing+radio+personas+billing+favorites flyout. Did NOT test: /admin/subscriptions admin UI (grant card + voucher modal), /radio/browse direct page, /radio/station/imp_* detail page cover image, pre-roll regression on predictest free user. Those are recommended for next deep frontend pass.",
+  "rca of the issue": "No blocking RCA needed — only the voucher reuse-vs-exhaustion ordering quirk noted under minor issues."
+}

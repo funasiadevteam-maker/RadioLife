@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Luv Legends placeholder logo">
+    <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#7c1d1d"/>
+            <stop offset="1" stop-color="#dc2626"/>
+        </linearGradient>
+    </defs>
+    <rect width="200" height="200" rx="24" fill="url(#bg)"/>
+    <text x="100" y="90" text-anchor="middle" font-family="Georgia, serif"
+                font-weight="800" font-size="72" fill="#fef2f2" letter-spacing="4">LL</text>
+    <text x="100" y="140" text-anchor="middle" font-family="Georgia, serif"
+                font-weight="600" font-size="20" fill="#fecaca" letter-spacing="6">LEGENDS</text>
+    <text x="100" y="170" text-anchor="middle" font-family="ui-monospace, monospace"
+                font-weight="400" font-size="10" fill="#fecaca" letter-spacing="3" opacity="0.7">FUNASIA · UAE</text>
+</svg>

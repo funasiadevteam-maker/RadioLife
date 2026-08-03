@@ -1,0 +1,45 @@
+{
+  "summary": "Phase 41 Session 6.A — Creator Revenue Share (Earnings + MOCKED Stripe Connect + MOCKED payouts) + 3 P1 fixes (sidebar nav, news_radio RJ scripts, /radio Community Radio strip) backend tested via pytest (14 pass / 2 xfail). FE not exercised in this iteration due to two backend gaps that materially affect the FE story: (1) /api/radio/next crashes with KeyError 'track_id' the moment a news_anchor segment is built, so the very feature the P1 #1 fix targets is unreachable via the documented flow — script CANNOT be validated through the API; (2) the two re-rolled DFW channel thumbnails serve OK (200, image/webp) but the channels themselves are absent from /api/channels (12 channels returned, no dfw_* slugs), so the P1 #2 ‘confirm thumbnail_url on channel doc’ requirement can’t pass. All other backend deliverables (Earnings 30d/7d, owner/non-owner gating with permission_denied, Stripe Connect MOCKED onboard/activate/status, payout request + list, admin ledger + direct_deal, /api/community/top_listened with tier_used + limit cap at 50, openapi route listing) work as specified.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/radio/next", "issue": "500 Internal Server Error with KeyError: 'track_id' at server.py:3865 when next segment is a news_anchor (track=None). Blocks all news_radio listening past the first track. Fix: guard with seg.get('track_id') and skip the played/recent_artists bookkeeping for non-track segments.", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "/api/channels", "issue": "dfw_bollywood_drive and dfw_garba_nights are not surfaced in /api/channels for any tested user (test/admin) or market query. Only 12 Dubai/global channel slugs returned. The thumbnails were regenerated and ARE served correctly at /api/static/channel_thumbnails/<slug>.webp, but the spec line ‘channels have a thumbnail_url’ cannot be verified because those channel docs are not exposed."},
+      {"endpoint": "/api/me/stripe_connect/status & /activate", "issue": "Spec described key 'status' but actual response uses 'stripe_connect_status' (status endpoint) / both 'stripe_connect_status' (activate). Cosmetic schema drift; tests accept either."},
+      {"endpoint": "/api/me/payouts", "issue": "Returns {items:[...], count:N} rather than the spec's {payouts:[...]} — cosmetic schema drift."},
+      {"endpoint": "boot", "issue": "Recurring 'bigfm.advertiser.seed [adv_seed] E11000 duplicate key error collection: bigfm.advertisers index: id_1 dup key: {id: null}' on every backend startup — pre-existing, not Session 6.A regression."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "news_radio listening (P1 #1 validation)", "issue": "Cannot validate the new news anchor script in the UI either, because /api/radio/next 500s on the news_anchor segment. The frontend will hit the same 500 the first time it advances past the lead-in track.", "affected_selectors": []}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase41_s6a_creator_revenue.py",
+    "/app/test_reports/pytest/phase41_s6a.xml"
+  ],
+  "action_items": [
+    "P0: Fix server.py:3865 KeyError — guard `seg.get('track_id')` and skip the played_track_ids/recent_artists update when seg has no track (news_anchor kind). Then re-run TestNewsRjScript to validate that segment.rj_script contains 'BigFM News', NO 'BigFM Dubai', and exactly one Dubai mention.",
+    "P1: Either expose dfw_bollywood_drive and dfw_garba_nights in /api/channels (with thumbnail_url populated) or update the P1 #2 spec wording — currently only the image assets exist on disk.",
+    "Optional: Normalize Stripe Connect response keys to 'status' (drop 'stripe_connect_status' alias) and rename /api/me/payouts top-level key from 'items' to 'payouts' for spec parity.",
+    "Run frontend Playwright pass (sidebar nav, CommunityRadioStrip on /radio, Earnings tab on /r/p41-audit-test, non-owner gating) AFTER the news_radio /next bug is fixed."
+  ],
+  "critical_code_review_comments": [
+    "server.py:3865 — unconditional `seg['track_id']` will crash for any non-track segment kind (news_anchor confirmed; same risk for future ad/promo segment kinds). Use seg.get('track_id').",
+    "services/news_rj_script.py is wired but the only entry point to it (news_radio channel) is unreachable past lead-in due to the bug above — meaning the news_anchor segment build path is effectively untested in production traffic until /next is fixed.",
+    "Stripe Connect mock note: response field 'note' contains 'MOCKED activation.' on activate but no 'MOCKED' marker on the status endpoint — fine, but consider always echoing a `mock: true` flag (already present on payout doc) for client clarity.",
+    "/api/me/payouts payload uses {items,count} — inconsistent with the spec's {payouts}. Trivial fix."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase41_s6a_creator_revenue.py"],
+  "success_rate": {"backend": "14/16 hard-pass + 2 xfail (the 2 xfail are real product gaps, not test issues)", "frontend": "not exercised this iteration"},
+  "test_credentials": "test@bigfm.dubai / TestUser123!, demo@bigfm.dubai / DemoPass123!, admin@bigfm.dubai / AdminPass123! — all working. Auth = session_token from POST /api/auth/login passed as 'Authorization: Bearer <token>'.",
+  "seed_data_creation": "POST /api/admin/earnings/direct_deal created 1 ledger row (description='TEST_phase41_s6a_direct_deal', station=p41-audit-test, gross=500c). POST /api/me/payout/request created at least 1 mock payout doc per test run (currently 1 row in /api/me/payouts).",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Run /app/backend/tests/test_phase41_s6a_creator_revenue.py as the canonical regression. The two xfail markers document real product gaps — once the main agent fixes them, flip the pytest.xfail calls into hard asserts. For frontend: priority order is (1) confirm AppShell sidebar exposes nav-news and nav-community on desktop + overflow-news/overflow-community on mobile (data-testids already declared per the PRD), (2) /radio renders radio-community-strip BELOW the admin grid with radio-community-view-all → /community, (3) /r/p41-audit-test as test@bigfm.dubai shows station-tab-earnings and the dashboard with 4 KPI cards + 5 source-type breakdown + Stripe Connect pill + ledger rows, (4) demo@bigfm.dubai on same URL must NOT see station-tab-earnings. Skip TTS audio playback validations — ElevenLabs is globally broken per main agent note.",
+  "rca of the issue": "RCA for the radio/next 500: server.py:3865 `if seg['track_id'] not in played:` was written assuming seg always carries a track. The Phase 40 news_anchor branch (server.py:3036-3050) explicitly sets `'track': None` and does NOT include a 'track_id' key in the returned dict — so the dict subscript raises KeyError the moment that segment is consumed by /radio/next. Mitigation: change to `tid = seg.get('track_id'); if tid and tid not in played: played = played + [tid]` and similarly guard the recent_artists update with seg.get('track_artist'). Reproduction: login as test@bigfm.dubai → POST /api/radio/start {channel:'news_radio'} → GET /api/radio/next?session_id=<id> → observe 500."
+}

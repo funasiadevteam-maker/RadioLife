@@ -1,0 +1,33 @@
+{
+  "summary": "Phase AD.2 Sponsored Games Revenue Split — comprehensive backend + frontend testing. Wrote 13 pytest test cases covering all 13 acceptance criteria: split arithmetic (5¢ → 3¢ merchant / 2¢ platform banker's-rounded), idempotency (duplicate_event on same event_id), daily cap (4th impression same user rejected, different user's cap independent), wallet exhaustion (auto-pause + game_campaign unlink + subsequent not_sponsored), RBAC on both GET endpoints (403 for other users, 200 for owner + admin), admin PATCH commission-rules (upsert to 20/80 then restore to 30/70), non-sponsored game short-circuit. ALL 13 backend tests PASSED. Frontend UI verified via Playwright: /advertiser/dashboard/sponsored-games renders with active sidebar tab, all 4 total testids populated ($0.15 / $0.09 / $0.06), sg-row-{gc_id}-active badge shown, 3 sg-event-* rows rendered. Merchant dashboard shows merchant-game-sponsorship-widget with 30d + lifetime cent totals + 1 sponsor row + 1 game campaign row.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad2_sponsored_games.py",
+    "/app/test_reports/pytest/ad2_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SUGGESTION: The `stripe_payment_intent_id` field uses namespaced placeholder `ad2_{txn_id}` to bypass the non-sparse unique index — this is documented in-code and mirrors MER.3 pattern; acceptable but consider migrating that legacy index to sparse in a future cleanup.",
+    "SUGGESTION: `record_game_event` step 5 passes category='*' to commission_service intentionally (documented) — the fallback design is correct but tightly coupled to the seeded commission rule row. If the seed is ever deleted the split silently reverts to the 10% generic rule. Consider adding a boot-time assertion that the sponsored_game rule exists (seed script already does this idempotently on startup).",
+    "OBSERVATION: The event_type discriminator in `_fee_cents_for` returns 0 for CPM+entry or CPC+impression combos → these are silently no-billed with reason='no_billable_combo'. That is correct behavior but the client has no way to distinguish this from a misconfiguration; adding a warn log would help ops.",
+    "OBSERVATION: In `list_advertiser_game_transactions` the per-campaign enrichment does N+1 lookups (one game_campaigns + one businesses per row). Not a bug at current scale but flag for future denormalization if advertiser dashboards get slow."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad2_sponsored_games.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (owner of advertiser advv2_9fac10b21f5595 AND merchant biz_sc5_test_activated), admin@bigfm.dubai / AdminPass123!, test@bigfm.dubai / TestUser123! (used for RBAC negatives and different-user daily-cap reset test).",
+  "seed_data_creation": "The pytest suite includes a `_reset_fixture(db, budget_cents)` helper that resets advertiser budget, ad_campaign status, game_campaign sponsor linkage, and deletes ad2_sponsored_game_split payment_transactions_v2 rows before each test. Post-run state: advertiser budget=100¢ minus billed amount (~85¢), ad_campaign active, game_campaign sponsored, 3 fresh billable txns for FE screenshot.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test file at /app/backend/tests/test_ad2_sponsored_games.py is idempotent and re-runnable — the reset_all fixture wipes ad2 txns and restores advertiser + campaign state. NOTE: the test suite mutates the seeded commission_rule via the admin PATCH endpoint but restores it to merchant_share_pct=70 (commission_percent=30) in the same test. After a full run the demo user has 1-3 impressions counted against today's daily cap for gc_404c2699a52746; if manual FE screenshots are needed after tests, either wait until UTC midnight or reset payment_transactions_v2 for that campaign to clear the cap counter.",
+  "rca of the issue": "N/A — no bugs found. All 13 acceptance criteria pass on first run."
+}

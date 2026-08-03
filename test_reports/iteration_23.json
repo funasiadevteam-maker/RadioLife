@@ -1,0 +1,40 @@
+{
+  "summary": "Full test of Phase PREROLL.EXT (backend) + Phase ADMIN.NAV.1 (frontend). Backend: 9/9 new tests pass after fixing an admin-toggle resolver bug (see updated_files). AD.4 regression 10/10 pass, ADMOD.1 regression 11/11 pass. Frontend: sidebar accordion, multi-expand, localStorage persistence, deep-link auto-expand, Return-to-Home, bulk-upload single-sidebar, admin design isolation (Legacy dark on ?design=radiolife, user route respects variant), Ad Review Analytics + Top Spenders panel with priority bump (+5) / restrict (-5) working end-to-end. All 11 admin routes render with sidebar at exactly 220px offset, zero horizontal scroll, no page errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminSidebar", "issue": "Active item highlight: adnav-merchants-commissions has no aria-current attribute and class is empty when route matches. Visually the item DOES appear highlighted (pink) in screenshot, so styling works via NavLink 'active' internal state, but the automated a11y hint (aria-current) is not set. Minor.", "selector": "[data-testid=adnav-merchants-commissions]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cookies banner overlay", "issues": ["Cookies consent banner (bottom-right) overlays interactive area on all admin pages; can partially obscure the bottom-right table cells. Not part of this phase but flagging."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_preroll_ext_and_admin_nav.py",
+    "/app/test_reports/pytest/preroll_ext_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Add aria-current=\"page\" (or equivalent active class attribute) on the active nav sub-item in AdminSidebar for a11y and testability. Visual highlight already works.",
+    "NOTE: RBAC visibility test (Ad Manager sees only Overview + Ads) was NOT executed to avoid mutating test@bigfm.dubai's role. Main agent can self-verify or add a scripted role toggle in the sidebar test."
+  ],
+  "critical_code_review_comments": [
+    "BUG FIXED IN THIS ITERATION: admin_station_preroll.py's id_key selection was broken because resolve_station() always sets doc['id']=station_id, so 'if station.get(\"id\") == station_id else \"_id\"' always evaluated to 'id'. For the `channels` collection (bollywood_mehfil) the real matching field is '_id', so update_one({'id': ...}) matched 0 docs → 404 station_not_found. Fixed by exposing _source_id_field from resolve_station() and using it in admin_station_preroll.py, with ObjectId fallback for 24-hex ids.",
+    "AppShell.jsx still emits the pre-existing React key-spread warning (user directive: do not fix)."
+  ],
+  "updated_files": [
+    "/app/backend/services/preroll_ad_service.py (expose _source_id_field)",
+    "/app/backend/routes/admin_station_preroll.py (use _source_id_field with ObjectId fallback)",
+    "/app/backend/tests/test_preroll_ext_and_admin_nav.py (new)"
+  ],
+  "success_rate": {"backend": "100% (9/9 new + 10/10 AD.4 + 11/11 ADMOD.1)", "frontend": "~95% (14/15 assertions; only active-item aria-current missing)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!, demo@bigfm.dubai / DemoPass123!, test@bigfm.dubai / TestUser123! (used for preroll flows)",
+  "seed_data_creation": "None. Priority-adjust bump/restrict left advertiser advv2_9fac10b21f5595 at boost=0 (as at test start). Station preroll toggles for bollywood_mehfil restored to enabled=true.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend admin per-station preroll toggle now correctly resolves stations across all 4 collections (imported_radio_stations, community_radio_stations, channels, flagship-imported). AdminSidebar accordion is the single source of truth on /admin/*; AppShell primary sidebar is hidden and content is padded 220px on /admin/*. AdminSubNav returns null (no-op). useEffectivePageVariant() correctly forces Legacy dark on admin routes regardless of ?design=radiolife.",
+  "rca of the issue": "Admin per-station preroll toggle 404: resolve_station() overwrites doc['id']=station_id for all collections to normalize the shape for legacy callers. The admin route was inferring the DB id_field from `station.get('id') == station_id` which was always true → always used 'id', but the channels collection stores its id in '_id'. Fix: resolve_station now also returns the underlying '_source_id_field' it matched on, and the admin route consumes it (with a 24-char hex → ObjectId fallback for community_radio_stations)."
+}

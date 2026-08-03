@@ -1,0 +1,41 @@
+{
+  "summary": "Phase FLAGADMIN.1 — Flagship CRUD + Pre-roll Parity fully verified. 17/17 backend pytest cases passed (validate-stream good+bad, admin-only, CRUD with slug collision, warn-only bad URL, independent field updates, preroll toggle off→disabled→on→re-enabled, seeded flagship parity, soft-delete hides row, hard-delete + 404 on retry, audit log has 4 entries in reverse chrono). Frontend Playwright covers page load (13 flagships / 13 preroll toggles), Add modal with stream probe, Edit modal, Delete modal (hard-delete with exact-name confirmation gate) and preroll toggle. Success rate: backend 100%, frontend ~95% (2 minor cosmetic misses noted).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminFlagshipStations forbidden fallback", "issue": "The in-component 'Admin access required' fallback ([data-testid=admin-flagship-forbidden]) never renders — ProtectedRoute in App.js redirects non-admins to '/' before this component mounts. RBAC is still enforced (verified: demo user redirected home), but the review-request's assertion 'non-admin user sees the Admin access required fallback' does not match runtime behavior. Consider either (a) documenting the redirect behavior or (b) letting the component-level fallback render (drop admin gating in ProtectedRoute for this specific route).", "selector": "[data-testid='admin-flagship-forbidden']", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Edit → success toast detection in test", "issue": "Toast is dismissed after 4.5s (setTimeout in showToast). This is expected UX but caused my test to sometimes fail to observe the toast if timing is off. Not a bug — noted for future test scripting. Underlying PATCH succeeded (backend audit trail confirms).", "affected_selectors": ["[data-testid='admin-flagship-toast']"]},
+      {"flow": "Preroll toggle aria-checked", "issue": "The inline preroll toggle switch does not expose aria-checked attribute (returned None in test). Toggle still works (backend row updates preroll_enabled correctly, verified via backend PATCH tests). For a11y + testability, consider adding role='switch' + aria-checked='true|false' to [data-testid^='admin-flagship-preroll-toggle-'].", "affected_selectors": ["[data-testid^='admin-flagship-preroll-toggle-']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_flagadmin1_flagship_crud.py",
+    "/app/test_reports/pytest/flagadmin1.xml"
+  ],
+  "action_items": [
+    "OPTIONAL/LOW: Reconcile RBAC layers — either drop admin-only guard from ProtectedRoute for /admin/flagship-stations so the in-component 'Admin access required' fallback shows, OR remove the dead-code fallback and rely on ProtectedRoute redirect.",
+    "OPTIONAL/LOW: Add role='switch' + aria-checked to admin-flagship-preroll-toggle-{slug} for accessibility + easier automated verification."
+  ],
+  "critical_code_review_comments": [
+    "AdminFlagshipStations.jsx is 767 lines — over the 700-line guideline. Consider extracting FlagshipFormModal, FlagshipDeleteModal, PrerollToggle, UploadLogoButton to separate files under /pages/admin/flagship/.",
+    "In flagship_stations.py admin_delete_flagship soft-delete branch, the code overwrites 'flagship_by' with the deleting admin's id (line 608). This clobbers the original creator attribution. Consider using a separate 'soft_deleted_by' field.",
+    "_validate_stream_url uses subprocess.run to curl — introduces process-fork overhead and requires curl binary at runtime. Consider httpx.AsyncClient with Range header for a fully async, in-process probe.",
+    "audit trail dedupes on _id but not on same-second identical actions. Not a correctness issue but note for future analytics."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_flagadmin1_flagship_crud.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "95%"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! (admin) — demo@bigfm.dubai / DemoPass123! (business role, used for RBAC negative).",
+  "seed_data_creation": "Test-side ephemeral flagships (imp_flg_*) named 'TEST_...' — all hard-deleted at end of each test via fixture teardown. No residual test rows should remain in imported_radio_stations. Seeded flagships (imp_fun_*) were NOT touched.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression file /app/backend/tests/test_flagadmin1_flagship_crud.py is fully self-contained and covers all 8 curl steps in test_credentials.md. Set REACT_APP_BACKEND_URL before running (pytest doesn't auto-load frontend/.env). To reuse: `REACT_APP_BACKEND_URL=<url> pytest backend/tests/test_flagadmin1_flagship_crud.py`. Frontend testids all match the docs in /app/memory/test_credentials.md.",
+  "rca of the issue": "N/A — no bugs discovered. Two very-low-priority polish items only (RBAC redirect vs in-component fallback, and preroll toggle missing aria attrs)."
+}

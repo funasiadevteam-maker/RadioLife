@@ -1,0 +1,25 @@
+{
+  "summary": "Re-verified AD.11 fix delta after main-agent patch (stripe_payment_intent_id=tx_id sentinel on payment_transactions_v2 insert). Removed @pytest.mark.xfail from dedup test, added a new test asserting the full billing response shape + ledger row persistence with matching sentinel. All 8 tests in /app/backend/tests/test_ad11_banner_ui_delta.py now pass. Smoke checks on /api/coupon-campaigns/live (AD.4), /api/ad-pricing-hints (ADMOD.1), /api/admin/nav-counts and /api/openapi.json all green. Backend logs show no new DuplicateKeyError on payment_transactions_v2 during the run.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ad11_banner_ui_delta.py",
+    "/app/test_reports/pytest/ad11_ui_delta.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ad11_banner_service.record_impression still writes banner_impressions BEFORE the ledger row and BEFORE the wallet debit is compensated on failure — no functional bug now, but a saga/rollback wrap would harden future changes.",
+    "Unrelated: backend startup log continues to emit E11000 on advertisers.id_1 / advertiser_id_1 during index creation (pre-existing null-key collisions). Not caused by AD.11, but worth flagging for a future cleanup — either drop nulls or make the indexes sparse."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad11_banner_ui_delta.py — removed xfail, added test_fresh_impression_returns_full_billing_shape_and_ledger, tightened cap test to also require 200 on the first 3 fresh billings + current==3 in the 4th response"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "not tested this iteration (per request — frontend was fully verified in iter24)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!  ·  demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "Cap test creates 3 temp live banners cloned from bnr_079349a719cbde and deletes them + session impressions in teardown. Fresh-shape test cleans banner_impressions by session_id.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "AD.11 fix delta is verified. /api/banner/impression fresh path returns 200 with {ok:true, impression_id:'bimp_...', cost_cents, app_fee_cents, merchant_net_cents}. Dedup returns {already_billed:true, impression_id: <same>}. Session-zone cap of 3 triggers correctly on the 4th unique banner in same (session, zone) → {ok:true, capped:true, reason:'session_zone_cap_reached', cap:3, current:3}. Ledger row in payment_transactions_v2 has stripe_payment_intent_id == transaction_id (sentinel), avoiding the previous null-collision on the unique index.",
+  "rca of the issue": "Previous iteration's E11000 on payment_transactions_v2.stripe_payment_intent_id_1 (unique) was caused by inserting an ad11 ledger row without setting stripe_payment_intent_id — the null collided with an earlier null document. Fix set stripe_payment_intent_id explicitly to the freshly minted tx_id so every AD.11 ledger row carries a unique sentinel value, respecting the existing unique index without needing a schema migration."
+}

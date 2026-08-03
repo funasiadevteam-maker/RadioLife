@@ -1,0 +1,34 @@
+{
+  "summary": "Phase AD.4 re-test after main-agent fixes. Backend 10/10 pass including tightened test_04 asserting HTTP 410 + reason='inventory_exhausted' + campaign_paused=true (previously 409/campaign_paused). Frontend regressions confirmed the /offers market-filter fix — the seeded demo campaign now renders as offer-card-cc_ad4_demo_karak with title '10 AED off · Karak Cafe', save flow mints the coupon (saved badge visible, toast 'Saved to wallet — code ADV-9A0B1C'), and the wallet page shows the AD.4 coupon. Merchant sponsorship widget renders and shows non-zero 30-day revenue ($0.07 = 7¢ merchant net from 1 save). Advertiser /coupon-campaigns page renders under `?design=radiolife` (advertiser-coupon-page present). ONE NEW FRONTEND ISSUE FOUND: /offers?design=radiolife activates the light-theme variant (fuchsia hero gradient visible, localStorage.bigfm_design_variant='radiolife') but the offers-grid shows the offers-empty state ('No live offers in your area right now.') even though the legacy branch on the same session with the same seeded geo (AE) renders the demo card correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "/offers Radiolife variant grid", "issue": "Navigating to /offers?design=radiolife activates the light theme (hero shows white/fuchsia gradient, localStorage.bigfm_design_variant='radiolife') but the offers-grid is empty — 'No live offers in your area right now.' — despite the exact same session + geo (AE) rendering the demo card correctly on the legacy branch. Likely the radiolife branch of CouponOffers.jsx has a separate data path / different fetch params (market/city not applied, or the offers list is not wired at all in that branch).", "affected_selectors": ["offers-grid", "offer-card-cc_ad4_demo_karak", "offers-empty"], "priority": "MEDIUM"}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad4_coupon_pay_per_save.py",
+    "/app/test_reports/pytest/ad4_results_iter21.xml"
+  ],
+  "action_items": [
+    "MEDIUM: In the radiolife branch of /app/frontend/src/pages/CouponOffers.jsx, verify that the offers-fetch useEffect + grid renderer are wired the same as the legacy branch (or ensure a shared data hook feeds both). Currently /offers?design=radiolife shows offers-empty for a session where the legacy /offers renders the card.",
+    "None for backend — all AD.4 backend flows verified green."
+  ],
+  "critical_code_review_comments": [
+    "Inventory-exhaustion precedence fix in ad4_coupon_service.save_coupon_campaign() verified: 3rd save on inventory=3 succeeds (200), 4th save returns 410 with detail={reason:'inventory_exhausted', campaign_paused:true} and DB reflects auto_paused_reason='inventory_exhausted'. Order of checks now correctly places intrinsic guards before the paused-status short-circuit.",
+    "Split routing correctness re-verified via test_02: payment_transactions_v2 row has flow='ad4_coupon_save_split', gross_cents=10, application_fee_cents=3, merchant_net_cents=7, ad4_save_event_id unique-sparse index prevents duplicate billing (test_03).",
+    "CouponOffers.jsx market-filter fix (market=country_code from useGeoStore.country) is working in the legacy dark-theme branch. Ensure the radiolife branch (same file) applies the identical param construction."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad4_coupon_pay_per_save.py — test_04 now asserts HTTP 410 + reason='inventory_exhausted' + campaign_paused=true, as per the fixed precedence."
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "88% — /offers legacy card+save+wallet, advertiser+merchant widgets, and advertiser-radiolife all pass; only /offers?design=radiolife grid empty (1/8 sub-flows)."},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!, test@bigfm.dubai / TestUser123!, predictest@bigfm.dubai / PredictTest123!, premiumtest@bigfm.dubai / PremiumTest123!, admin@bigfm.dubai / AdminPass123! — all working.",
+  "seed_data_creation": "Used embedded _reset_state() harness in the pytest file for state-sensitive backend tests. Before the frontend pass, ran a one-off reset (wallet=100000¢, campaign live/8/0, purged AD.4 tx+coupon+wallet_item rows). Post-frontend state: 1 save (demo user), advertiser wallet=99990¢, campaign 1/8 saves, merchant sponsorship 7¢ visible.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend AD.4 fully green; test_ad4_coupon_pay_per_save.py is the regression suite (10 tests, 6 seconds). Two of the three iteration_20 blockers are fully resolved: (1) /offers market filter fix confirmed live-visible in the legacy dark theme, and (2) inventory-exhaustion now returns HTTP 410+inventory_exhausted+campaign_paused=true as spec requires. One remaining low-risk issue: the radiolife light-theme variant of /offers renders the shell but not the offers list — worth a quick main-agent code inspection of CouponOffers.jsx to ensure both branches share the same fetch/render pipeline. Pre-existing React key-spread warning in AppShell.jsx is present in every console log but per user directive is not to be touched. Cookies banner sometimes overlays widgets on the merchant dashboard — dismiss with Accept/Essential before deep interaction.",
+  "rca of the issue": "Radiolife /offers empty grid: after navigation to `/offers?design=radiolife` the query-param is written through to localStorage (verified: bigfm_design_variant='radiolife') and the hero swaps to the light-theme gradient. However the demo card that renders correctly on the legacy branch (same session, same localStorage.bigfm.geo.v1='{market:dubai,country:AE,...}', backend /api/coupon-campaigns/live?market=AE returns 1 item) is missing from the radiolife branch. Root cause likely lies in the light-theme JSX branch of CouponOffers.jsx — either the useEffect that fetches the offers is not attached, or it uses a stale/empty market/city param, or the grid render is guarded on a legacy-only state flag. Mitigation: extract the fetch + grid data source into a shared hook that both variant branches consume."
+}

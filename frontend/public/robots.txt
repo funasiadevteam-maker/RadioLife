@@ -1,0 +1,25 @@
+# BigFM — robots.txt
+# Phase Π.4 — Index public marketing, block admin + business + API.
+
+User-agent: *
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /business
+Disallow: /business/*
+Disallow: /advertiser
+Disallow: /advertiser/*
+Disallow: /api
+Disallow: /api/*
+Disallow: /checkout
+Disallow: /checkout/*
+Disallow: /settings
+
+Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /cookies
+Allow: /dmca
+Allow: /personas
+Allow: /pricing
+
+Sitemap: https://bigfantv.com/sitemap.xml

@@ -1,0 +1,44 @@
+{
+  "summary": "Phase ADMOD.1 (Ad Manager + Unified Creative Approval Workflow) end-to-end verification. Backend: 11/11 pytest cases pass in /app/backend/tests/test_admod1_ad_review.py covering /api/ad-pricing-hints, ad_manager RBAC (promote/gate/revert), publish→auto-moderation+review-row, approve→live, reject→advertiser badge, require_changes→draft→resubmit, bulk-approve, block/unblock (HTTP 403 detail.code='advertiser_blocked'), analytics, audit-log, and OpenAPI listing. AD.4 regression suite (test_ad4_coupon_pay_per_save.py) 10/10 green after rate-limit cooldown — no behavior change. Frontend: /admin/ad-review renders full 4-tab surface (queue with 4 pending rows, analytics with 4 KPI cards + 14-day bar, blocked, audit table), detail modal opens with advertiser/AI moderation/creative sections + approve/reject/require-changes/block buttons, approve action removes row from queue, bulk-approve toggles when >=2 checkboxes selected. Advertiser dashboard shows 12 advertiser-coupon-review-{id} badges (APPROVED/PENDING/REJECTED), rejected campaign displays reason inline, blocked banner appears after admin block AND new-campaign button becomes disabled — banner disappears and button re-enables on unblock. Auto-moderation confirmed running (action_taken='clean' on benign copy in DB). All test data cleaned up: advertiser unblocked, test user role reverted to business_partner, AD.4 demo fixture cc_ad4_demo_karak still live.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/login", "issue": "Rate limit (15/min) tripped when running AD.4 regression back-to-back with ADMOD.1 tests — one 60s cooldown resolves. Not a regression, pre-existing."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdvertiserCouponCampaigns wizard (step 4)", "issue": "Category tags input at line 555 has no data-testid='advertiser-coupon-wizard-categories' (spec required). Only cost_per_save/inventory inputs have testids. Impact: automated verification that hint value updates when categories change is not directly wireable through the input.", "selector": "advertiser-coupon-wizard-categories", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/ad-review?design=radiolife", "issues": ["Route renders but body background stays rgb(10,10,15) (same as legacy). Whether radiolife theme is meant to only affect certain screens (e.g. /offers, advertiser) and NOT admin ops screens is unclear from spec — flagging as observation, not a blocker."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admod1_ad_review.py",
+    "/app/backend/tests/test_ad4_coupon_pay_per_save.py",
+    "/app/test_reports/pytest/admod1_iter22.xml"
+  ],
+  "action_items": [
+    "LOW: Add data-testid='advertiser-coupon-wizard-categories' to the category tags input at AdvertiserCouponCampaigns.jsx:555 for E2E category→CPS-hint refresh verification.",
+    "OBSERVATION: Confirm whether /admin/ad-review is intentionally excluded from the radiolife light-theme variant; if it IS supposed to switch, the design=radiolife query param currently has no visible effect on body/background of that page."
+  ],
+  "critical_code_review_comments": [
+    "Auto-moderation implementation is clean: /api/ad-review/queue/{id} responses embed auto_moderation_result with action_taken ∈ {clean,flagged,error,skipped,empty_input,None} — verified 'clean' on benign copy. Graceful skip path is protected as spec requires.",
+    "Advertiser-blocked hard-gate on AD.4 publish returns HTTP 403 with detail={'code':'advertiser_blocked'} exactly as the frontend surfaces the banner and disables the new-button. Contract is coherent end-to-end.",
+    "ad_manager RBAC via require_ad_manager works: PATCH /api/admin/users/{id}/role now accepts 'ad_manager', re-login reflects new role, /api/ad-review/queue returns 200, /api/admin/users returns 403.",
+    "AD.4 regression fully green — publish→review flow does not disturb existing coupon-campaigns.live listing, save flow, split routing, or wallet accounting.",
+    "MINOR: `advertiser-coupon-wizard-categories` testid missing per ADMOD.1 spec — trivial fix but blocks that specific auto-test."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admod1_ad_review.py (new)"
+  ],
+  "success_rate": {"backend": "100% (11/11 ADMOD.1 + 10/10 AD.4 regression)", "frontend": "~95% — all 4 admin tabs, detail modal, approve action, bulk approve toggle, advertiser badges (12 rendered), blocked-banner + new-button disable, unblock re-enable all verified. Only wizard-step-3 CPS hint verified visually via code inspection (wizard requires merchant selection via non-native Select to advance past step 1; hint element + hints_payload consumption at lines 517-532 of AdvertiserCouponCampaigns.jsx confirmed correct)."},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!  ·  demo@bigfm.dubai / DemoPass123!  ·  test@bigfm.dubai / TestUser123! (temporarily promoted to ad_manager during test_02, reverted to business_partner at teardown).",
+  "seed_data_creation": "Test run created ~7 TEST_ADMOD coupon campaigns under advv2_9fac10b21f5595 (all sponsored by biz_sc5_test_activated). Some approved to 'live', one rejected, one requires_changes+resubmitted. Advertiser was briefly blocked+unblocked. All actions are additive; AD.4 fixture cc_ad4_demo_karak untouched and still live in /api/coupon-campaigns/live.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_admod1_ad_review.py is the regression suite for ADMOD.1 (11 tests, ~10s). AD.4 tests can hit login rate-limit if run back-to-back — insert a 60-70s sleep between suites. The advertiser dashboard has TEST_ADMOD_* rows visible now — do not seed additional TEST_ADMOD campaigns without cleanup. Pre-existing React 'key prop spread' warning in AppShell.jsx is present in every console dump — leave as-is per user directive.",
+  "rca of the issue": "N/A — no functional issues found. Two documentation-worthy items: (1) advertiser-coupon-wizard-categories data-testid missing on the category tags CSV input (line 555 of AdvertiserCouponCampaigns.jsx) — trivial add; (2) /admin/ad-review?design=radiolife query param has no visible effect on that page's chrome — likely by design (admin ops screens stay legacy dark) but should be confirmed with product intent."
+}

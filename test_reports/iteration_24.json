@@ -1,0 +1,42 @@
+{
+  "summary": "Phase AD.11 delta testing (frontend wiring + freq cap + admin badges + cookie banner suppression). Frontend rendering verified across landing_hero (with sponsored chip, data-ad-slot='ad11-landing_hero') and browse_row zones on /radio and /radio/browse. Zones without live banners (wallet, games, station_detail, now_playing, bottom_bar) correctly null-render per spec. Admin sidebar polls /api/admin/nav-counts and renders data-testid='adnav-section-badge-ads' with '4' when ad_review_pending > 0. Cookie banner is correctly suppressed on /admin/*. Advertiser wizard (5-step) opens, step 1 accepts title/url, and step 2 zone selection renders all 7 placement zones. Frequency cap logic correctly returns {ok:true, capped:true, reason:'session_zone_cap_reached', cap:3} on 4th call. HOWEVER — a CRITICAL backend bug was uncovered: /api/banner/impression returns HTTP 500 on every fresh (non-dedup) billing due to a DuplicateKey error on payment_transactions_v2.stripe_payment_intent_id unique index (null value collides). The banner_impressions row is still written (because that insert happens BEFORE the failing payment_transactions_v2 insert), so the cap short-circuit still triggers on the 4th call, but the client never sees a 200 for the first three fresh billings, and no ledger tx is persisted. This breaks revenue attribution and dedup response contract.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/banner/impression",
+        "issue": "Returns HTTP 500 on every fresh billing. pymongo.errors.DuplicateKeyError: E11000 on bigfm.payment_transactions_v2 index stripe_payment_intent_id_1 dup key {stripe_payment_intent_id: null}. The service inserts a payment_transactions_v2 doc (ad11_banner_service.py:418) without setting stripe_payment_intent_id, but that collection has a unique index on stripe_payment_intent_id — since another null already exists, MongoDB rejects. Consequence: (a) client receives 500 for the first N-1 impressions of every session+zone (only the 4th capped call succeeds because it short-circuits before insert); (b) banner_impressions row IS written (insert happens first at line 401) so cap counting still works but the response is lost; (c) no payment_transactions_v2 ledger row is ever written for AD.11 (only 1 exists in DB despite 1328 banner_impressions rows) — revenue reporting broken; (d) advertiser wallet is debited (line 371-376) before the crash, so wallet drains without a ledger record.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad11_banner_ui_delta.py",
+    "/app/test_reports/pytest/ad11_ui_delta.xml"
+  ],
+  "action_items": [
+    "FIX CRITICAL: In /app/backend/services/ad11_banner_service.py:418, either (a) do not insert into payment_transactions_v2 (create a separate collection e.g. banner_impression_ledger), or (b) set stripe_payment_intent_id to a unique sentinel per-impression (e.g. `ad11_{impression_id}`), or (c) make the mongo index sparse/partial so null values are ignored. Preferred fix: option (b) — set stripe_payment_intent_id to the impression_id/tx_id since it must be unique per row. This is a one-line change but currently breaks the entire /api/banner/impression endpoint.",
+    "After fixing the 500 bug, verify: (i) first fresh call returns 200 with ok:true and impression_id; (ii) 2nd call with same (session, banner, zone) within 5min returns already_billed:true; (iii) payment_transactions_v2 collection gains one ad11_banner_impression row per fresh billing.",
+    "Consider wrapping the wallet debit + banner_impressions insert + payment_transactions_v2 insert in a mongo transaction (or reverse the order and compensate on failure) to avoid the current inconsistency where wallet is debited + impression row inserted but tx insert fails silently to the client via HTTP 500."
+  ],
+  "critical_code_review_comments": [
+    "ad11_banner_service.record_impression writes banner_impressions BEFORE writing the ledger row and BEFORE the wallet debit is undone on failure. If any downstream step fails, the impression row + wallet debit remain but ledger is missing. Consider Saga pattern or ordered writes with rollback.",
+    "Frontend BannerZoneSlot correctly wraps POST calls in .catch(() => {}) per spec, which means the current 500 bug is completely invisible to end users — they just see missing analytics. Backend must be fixed at source; the .catch is only for adblock resilience."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad11_banner_ui_delta.py (new file — 7 tests, 6 pass, 1 xfail documenting the 500 bug)"
+  ],
+  "success_rate": {"backend": "86% (6/7 tests pass; 1 xfailed to document the CRITICAL /api/banner/impression 500 bug)", "frontend": "100% (all UI wiring verified: 7 zones, wizard, admin badges, cookie suppression)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!  ·  demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "Test creates 3 temp live banners tied to advertiser advv2_9fac10b21f5595 for the freq-cap test and deletes them + all TEST session impressions in the teardown block.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "The AD.11 /api/banner/impression 500 bug (DuplicateKeyError on payment_transactions_v2.stripe_payment_intent_id null) must be fixed by main agent. Once fixed, re-enable test_impression_dedup_returns_already_billed by removing the @pytest.mark.xfail decorator in /app/backend/tests/test_ad11_banner_ui_delta.py. Seed 'Weekend Karak special' banner (bnr_079349a719cbde) is live with placement_zones=[landing_hero, browse_row]. All other zones auction empty → correctly null-render on the frontend.",
+  "rca of the issue": "RCA: /app/backend/services/ad11_banner_service.py line 418 inserts a document into payment_transactions_v2 without specifying `stripe_payment_intent_id`. The collection has a UNIQUE index `stripe_payment_intent_id_1`. The first such insert (missing field ≡ null) succeeded historically, but every subsequent insert with null value collides with that first null row and raises DuplicateKeyError (E11000). REPRODUCTION: `curl -X POST $API/api/banner/impression -H 'Content-Type: application/json' -d '{\"banner_id\":\"bnr_079349a719cbde\",\"zone\":\"landing_hero\",\"session_id\":\"fresh_'$RANDOM'\"}'` → 500. MITIGATION (main agent): set `stripe_payment_intent_id: tx_id` in the insert body (line 418), OR drop and recreate the mongo index as sparse/partial: `db.payment_transactions_v2.dropIndex('stripe_payment_intent_id_1'); db.payment_transactions_v2.createIndex({stripe_payment_intent_id:1},{unique:true, partialFilterExpression:{stripe_payment_intent_id:{$type:'string'}}})`."
+}

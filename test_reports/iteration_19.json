@@ -1,0 +1,36 @@
+{
+  "summary": "Phase AD.6 (Advertiser Staff RBAC + Redemption Scanner) + Phase RL.2 (RadioLife /radio refresh) tested end-to-end. Backend: wrote 12 pytest cases in test_ad6_advertiser_scan.py covering invite→preview→accept→cleanup, RBAC (non-member 403 + admin bypass), redemption scoping (valid 200, duplicate 409, expired 410, wrong-scope 403/404), me/roles, live feed (owner 200, non-member 403), and MER.2 cashier no-regression — ALL 12 PASSED. Frontend (Playwright): verified /radio?design=radiolife renders every required testid (radio-home-page, radio-hero, radio-hero-headline='The only radio that pays YOU to listen.', 12 flagship cards, 4 game tiles, 8 browse-teaser cards, browse-teaser-cta); /radio?design=legacy renders with bg=rgb(2,6,23); mobile 390×844 loads; /radio/browse and /radio/discover both return 200 (no regression). AD.6 UI: /advertiser/dashboard/staff renders with all invite modal testids and 1 staff (owner) row; sidebar shows advertiser-nav-scan-redeem + advertiser-nav-staff; /advertiser/dashboard/scan renders with input + submit + feed; entering ADV-DEMO-EXPIRED surfaces the error state; /advertiser-app/staff/accept/bogus_xyz_token_123 renders advertiser-staff-accept-error-notfound; /advertiser/apply?prefill_game=…&game_name=BigFM+Weekend+Spin renders advertiser-apply-prefill-banner containing 'BigFM Weekend Spin'; /merchant/games shows 4 merchant-game-sponsor-cta-* buttons, clicking triggers 'Copied' toast + 'Sponsorship link copied' feedback.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (all routes)", "issues": ["React dev warning across every page: 'A props object containing a key prop is being spread into JSX' — appears from NavItem + BottomTab components. Non-blocking but pollutes the console and will become an error in a future React major. Fix by destructuring key out of props before spread."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad6_advertiser_scan.py",
+    "/app/test_reports/pytest/ad6_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL cleanup: destructure `key` out of props before {...props} spread in NavItem (AdvertiserShell.jsx) + BottomTab (RadioHome.jsx or bottom-strip component) to silence the React key-in-spread dev warning."
+  ],
+  "critical_code_review_comments": [
+    "OBSERVATION: /api/advertiser-app/{id}/scan endpoint returns HTTP 200 with {ok:false, reason:'wrong_advertiser_scope'} for scope mismatches instead of a 4xx status code. The /redeem twin correctly returns 403 for the same condition. This is intentional (preview is non-mutating and should not throw) but the asymmetry could confuse API consumers — consider documenting or adjusting to 200 with ok:false for both.",
+    "OBSERVATION: The `resolve_advertiser_with_role` helper returns 403 with code='not_advertiser_member' for the non-member case, but the FastAPI wrapper puts the payload under `detail`. Tests must unwrap `.get('detail').get('code')`. Consider a global exception handler that flattens the payload for simpler client parsing.",
+    "SUGGESTION: `advertiser_scan` route has multiple 200-with-ok:false branches (not_found / wrong_advertiser_scope / already_redeemed / revoked / expired / invalid_status_*). Consider extracting these into a shared enum + response wrapper for consistency with future scan surfaces (e.g., MER.2 cashier).",
+    "MINOR: `_lookup_coupon_by_code_or_qr` does `up = raw.upper()` and queries $or for both raw + up on coupon_id/code/short_code. That's 6 arms per lookup; a case-insensitive collation on the coupons.code index would be cleaner (and works with the existing index).",
+    "MINOR (RL.2): RadioHome.jsx BottomStrip iterates items with {...item} spread — that's the source of the React key-in-spread warning. Change to <BottomTab key={i} label={item.label} ... />."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad6_advertiser_scan.py",
+    "/app/test_reports/iteration_19.json"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (owns advv2_9fac10b21f5595 AND biz_sc5_test_activated), test@bigfm.dubai / TestUser123! (staff invitee), admin@bigfm.dubai / AdminPass123!, predictest@bigfm.dubai / PredictTest123! (non-member for RBAC negatives).",
+  "seed_data_creation": "Pre-test reset via Mongo: db.coupons.updateOne({code:'ADV-DEMO-VALID'},{$set:{status:'saved',redeemed_at:null}}), db.advertisers_v2.updateOne({advertiser_id:'advv2_9fac10b21f5595'},{$set:{staff_users:[]}}), db.advertiser_staff_invites.deleteMany({advertiser_id:'advv2_9fac10b21f5595',email:'test@bigfm.dubai'}). Post-run: ADV-DEMO-VALID is now 'redeemed' again; staff_users list back to []; a fresh advertiser_redemptions row exists. Test suite is idempotent — the invite-flow test auto-cleans the accepted staff row it created, and the duplicate-redeem test tolerates VALID being redeemed on re-runs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "AD.6 backend test file at /app/backend/tests/test_ad6_advertiser_scan.py is idempotent and re-runnable — invite test auto-detects prior pending/staff state and re-invites if needed, then cleans up. Redeem test tolerates ADV-DEMO-VALID being already redeemed (accepts 200 OR 409 on the first call). If you want a hard reset before re-run, use the Mongo one-liner in seed_data_creation. NOTE: merchant games list is at /merchant/games (NOT /merchant/dashboard/games) — the review request had a typo. Staff+Scan pages are correctly at /advertiser/dashboard/{staff,scan}. RL.2: variant is controlled by localStorage key 'bigfm_design_variant' — the ?design= query param is a bootstrap hint only; force a reload after setting localStorage to switch variants.",
+  "rca of the issue": "N/A — no bugs found."
+}

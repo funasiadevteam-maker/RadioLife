@@ -1,0 +1,56 @@
+{
+  "summary": "Phase AD.3 (Advertiser Predict & Win Sponsorship) validated. Backend: 27/27 pytest cases pass in /app/backend/tests/test_ad3_pw_sponsorships.py — covers available-campaigns endpoint (shape + seed parent inclusion), ad-pricing-hints (pw_sponsorship_default_cpe_cents=20, cpi=5, tiers with default/high_volume/niche), all create-body validation branches (invalid_pricing_model, cpe_cents_required, cpi_cents_required, budget too small, missing brand_name), full lifecycle (draft → brand-asset upload PNG happy + oversize 1MB+10 reject → publish w/o asset returns brand_asset_required → publish mints ADMOD.1 review with ad_type='advertiser_pw_sponsorship' → admin approve flips status='live' → admin_set_status?new_status=paused works), auction (/api/predict-win/{parent}/active-sponsorship returns seed Nike sponsor with all 6 fields, returns {sponsorship:null} for unknown parent), impression billing (per_entry entry event bills 20¢ or is already_billed idempotent, mismatched event_type=correct_impression on per_entry -> billed_cents=0, spend_cents>0 verified via analytics), cannot_edit_status guard on live+pending_admin, patch works on draft, analytics totals shape {spend_cents,entries,correct_impr,win_views}, regression /api/predict-win/active still returns PDX.1 parents. Frontend: /advertiser/dashboard/predict-win-sponsorships loads for demo user (advertiser-pw-page + advertiser-pw-new-button visible), wizard opens (advertiser-pw-wizard) with step-1 showing 30 parent radio options including advertiser-pw-wizard-parent-pwc_2f916cd9261047 (seeded Nike parent). Existing sponsorship list shows Nike (LIVE, CPE 20¢, spent $0.40/$1000, 2 entries/1 impression), plus 2 TEST rows created by this test iteration (TEST_Patch draft + TEST_Lifecycle paused).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Consumer /predict-win sponsor badge visual verification",
+        "issue": "Could not visually verify pw-sponsorship-badge-pwc_2f916cd9261047 badge OR pw-sponsorship-brand-asset-pwc_2f916cd9261047 modal block via automated Playwright. Root cause: /api/predict-win/active is paginated (20 items/page, has_more=true), the seeded Nike parent pwc_2f916cd9261047 lives on PAGE 4 of the consumer feed, and the /predict-win page does not appear to auto-paginate on scroll — after 8 window.scrollBy(0,2000) iterations the DOM still did NOT contain the seed parent ID, and the page tail rendered 'Browse all radio channels' (below-feed content). The badge component + testids are present in source (/app/frontend/src/components/PredictWinSponsorBadge.jsx and PredictWin.jsx ActiveCard/EnterModal). This is a testability/pagination gap — visual proof needs either (a) infinite-scroll fix on /predict-win, or (b) moving the seeded parent to page 1 (e.g., by boosting its start_time), or (c) opening the seed parent via a direct /predict-win/{id} URL if such a route exists.",
+        "affected_selectors": [
+          "pw-sponsorship-badge-pwc_2f916cd9261047",
+          "pw-sponsorship-brand-asset-pwc_2f916cd9261047"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "global",
+        "issues": [
+          "Pre-existing recurring React console warning: 'A props object containing a key prop is being spread into JSX' (NavItem in AdvertiserShell). Not AD.3-specific."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad3_pw_sponsorships.py",
+    "/app/test_reports/pytest/ad3_pw_sponsorships.xml"
+  ],
+  "action_items": [
+    "Consider adding infinite-scroll / load-more on /predict-win, OR bumping the seeded Nike-sponsored parent (pwc_2f916cd9261047) to page 1 of the consumer feed so the sponsor badge and EnterModal brand-asset block become visually reachable without deep pagination. This will unblock badge/modal visual verification in future test iterations."
+  ],
+  "critical_code_review_comments": [
+    "ad3_sponsorship_service.record_event: after a race that returns already_billed, the debit compensation uses $inc: budget_available_cents:+billed and budget_spent_cents:-billed — verified correct, but note the compensation is BEST-EFFORT and does not retry on transient failure. Under sustained wallet-drain races there is a theoretical risk of a leaked +billed wallet delta. Not exploitable in normal flow (idempotency prevents multi-fire per user/sponsorship/event_type), but worth a comment in the code.",
+    "ad3_sponsorship_service.active_sponsorship_for_parent auction: candidates.sort with random.random() in the key achieves random tiebreak but breaks total ordering — priority_boost/billing are the primary sorters so this is safe, but formally the key returns a mixed tuple where random appears at index 2. Consider (priority_boost, billing, random.random()) is fine given reverse=True and stable behavior — no functional issue observed in tests.",
+    "ad3_sponsorships route validation: create body enforces budget_cents>=100 via pydantic (Field ge=100) which returns HTTP 422, NOT the 400 budget_too_small error code specified in the AD.3 review request. Both are technically 'reject', but the code path never reaches _validate's budget_too_small ValueError. If the intent is a 400 with code=budget_too_small, drop the pydantic ge=100 constraint. Minor — matches HTTP semantics either way.",
+    "ad3_sponsorship_service publish_sponsorship does not check current status before flipping to pending_admin. An already-live or paused sponsorship could theoretically be re-published; consider adding: if doc['status'] not in ('draft','rejected','requires_changes'): raise cannot_publish_status.",
+    "Frontend PredictWin consumer feed pagination is not testable via scroll — pagination hook may need review to enable infinite scroll or a visible 'Load more' button (which today falls straight into 'Browse all radio channels' at the bottom without loading pages 2+)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad3_pw_sponsorships.py (NEW — 27 tests, all pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (27/27)",
+    "frontend": "Advertiser AD.3 dashboard + wizard step-1: 100% (page renders, new-button opens 5-step wizard, 30 parent options including seed parent visible). Consumer /predict-win sponsor badge + entry-modal brand-asset block: could NOT be visually verified via automation due to pagination (seed parent on page 4 of the paginated /api/predict-win/active feed; frontend does not auto-paginate on scroll)."
+  },
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!  ·  admin@bigfm.dubai / AdminPass123!",
+  "seed_data_creation": "This iteration created (via lifecycle tests) 3 test sponsorships on advertiser advv2_9fac10b21f5595 tied to parent pwc_2f916cd9261047: TEST_Lifecycle_* (paused, CPE 15¢), TEST_Patch_* (draft, CPE 10¢), plus 1 TEST_Brand rejected. Seed Nike sponsorship pws_af54ffb79a7f21 remains LIVE and untouched aside from 2 entry billing events during smoke + this iteration (spent_cents=40, advertiser wallet ~99808¢). Cleanup left to next iteration or a manual db.predict_win_sponsorships.delete_many({'brand_name': {'$regex':'^TEST_'}}).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "AD.3 backend is fully green (27/27 pytest). Auction + impression billing + idempotency + auto-pause + ADMOD.1 review minting all verified end-to-end via HTTP. Advertiser dashboard + step-1 wizard verified live in browser. Consumer /predict-win visual badge/modal proof deferred pending either (a) frontend infinite-scroll fix or (b) reseeding Nike sponsor onto a page-1 parent. AD.12 trigger-recipe upstream wiring (coupon_saved + predict_win_correct) was NOT re-tested this iteration — main agent's previous smoke-test confirmed both dispatchers are hooked in ads_public.py and predict_win_award_pipeline.py respectively; if next iteration needs to confirm, seed a live notification campaign with the two trigger_types and hit /api/ads/action/save_coupon + force-resolve a PW campaign. The remaining 8 recipes are TODO-documented in notification_trigger_dispatcher.py docstring per user directive — do not test.",
+  "rca of the issue": "Consumer badge/modal visual gap RCA: /api/predict-win/active returns paginated 20-per-page (total=63, has_more=true). Seed parent pwc_2f916cd9261047 is on page=4 by start_time DESC ordering. Playwright test scrolled window 8x by 2000px each but the DOM did not load additional pages — the /predict-win React page appears to not implement infinite-scroll / IntersectionObserver-based pagination. Reproduction: navigate to /predict-win as demo user, scroll to the bottom — you land on 'Browse all radio channels' section (below the feed) without ever loading pages 2-4. Mitigation: main agent to either wire infinite-scroll to the ActiveCards feed or bump the seed sponsor's parent start_time to be more recent so it lands on page 1."
+}

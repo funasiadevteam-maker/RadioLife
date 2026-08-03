@@ -1,0 +1,38 @@
+{
+  "summary": "Retested duplicate testid fix on /login?design=radiolife. LEGACY variant passes (count=1, data-variant='legacy', legacy 'google-signin-btn' present, click navigates to auth.emergentagent.com/oauth/?redirect=...%2Fdashboard). RADIOLIFE variant still FAILS — page.locator('[data-testid=\"sign-in-with-google-button\"]').count() == 2 (one from Login.js with data-variant='legacy', one from OnboardingRadioLife.jsx with data-variant='radiolife'). Root cause identified: Login.js destructures the hook incorrectly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Login.js",
+        "issue": "isRadioLife is always false. Line 19-20: `const { design } = useDesignVariant(); const isRadioLife = design === 'radiolife';` — but useDesignVariant() (see /app/frontend/src/hooks/useDesignVariant.js line 63-65) returns the variant STRING directly (via `useDesignVariantStore((s) => s.variant)`), NOT an object { design }. Destructuring `design` from a string yields undefined, so `!isRadioLife` is always true and the SignInWithGoogleButton + legacy `google-signin-btn` span are ALWAYS rendered, including under the RadioLife overlay. This is why count==2 on radiolife persists.",
+        "selector": "[data-testid=\"sign-in-with-google-button\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "RadioLife /login duplicate testid",
+        "issue": "Two elements match [data-testid=\"sign-in-with-google-button\"] on /login?design=radiolife (one legacy variant hidden under overlay auth-card, one radiolife variant visible in the overlay). Also legacy testid `google-signin-btn` still exists on RadioLife (count=1, hidden via display:none) which should be count=0 per spec.",
+        "affected_selectors": ["[data-testid=\"sign-in-with-google-button\"]", "[data-testid=\"google-signin-btn\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "In /app/frontend/src/Login.js, replace `const { design } = useDesignVariant();` with `const design = useDesignVariant();` (the hook returns a string, not an object). After that, `isRadioLife` will correctly be true on RadioLife and the `{!isRadioLife && (...)}` block will suppress both the SignInWithGoogleButton and the `data-testid=\"google-signin-btn\"` legacy span, yielding count=1 for sign-in-with-google-button and count=0 for google-signin-btn on RadioLife.",
+    "Alternatively (less preferred), change useDesignVariant to return `{ design: variant }`; but this would ripple through any other consumers currently using the string form."
+  ],
+  "critical_code_review_comments": [
+    "Login.js Line 19 destructures a scalar return value from useDesignVariant — silent bug (no runtime error), which is why the intended conditional never activates. Consider adding a JSDoc or TS type on the hook to prevent this class of mistake.",
+    "The 'legacy backward-compat' <span data-testid=\"google-signin-btn\" style=display:none> is fragile — using a hidden span solely to preserve automation selectors couples tests to implementation. Consider retiring the alias once callers are migrated."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "50% (1/2 variants pass — legacy OK, radiolife FAIL)"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent applies the one-line fix (`const design = useDesignVariant();`), re-run the same DOM checks: expect count==1 with data-variant='radiolife' on /login?design=radiolife and count==0 for google-signin-btn. Legacy path already regressions-clean (count==1, data-variant='legacy', google-signin-btn count==1, click → auth.emergentagent.com/oauth/?redirect=<origin>%2Fdashboard).",
+  "rca of the issue": "useDesignVariant() returns a plain string (the current variant). Login.js incorrectly destructures `{ design }` from that string, so `design` is always undefined and `isRadioLife` is always false. The intended conditional wrapper `{!isRadioLife && (...)}` never suppresses the Google button block under the RadioLife overlay, producing the observed duplicate testid. Reproduction: open /login?design=radiolife, run `document.querySelectorAll('[data-testid=\"sign-in-with-google-button\"]').length` → 2. Mitigation: use `const design = useDesignVariant()` (single-line change)."
+}

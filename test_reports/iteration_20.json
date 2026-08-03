@@ -1,0 +1,41 @@
+{
+  "summary": "Phase AD.4 — Coupon Pay-Per-Save. Wrote pytest suite of 10 backend tests covering all 5 prioritized scenarios (live listing, happy-path 70/30 split, duplicate save idempotency, inventory exhaustion + auto-pause, wallet-drain 402 + auto-pause, cross-scope scan + race, advertiser/merchant roll-ups, OpenAPI). All 10 pass. Frontend: verified advertiser Coupon Campaigns page + Spend History tab + Wizard modal + Merchant Sponsorship Revenue widget all render correctly and reflect real post-save data ($0.14 merchant share, 2 saves). Found 1 HIGH-priority integration bug on /offers page (market filter mismatch) and 2 minor deviations.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/coupon-campaigns/{id}/save", "issue": "4th save after inventory-exhaustion returns HTTP 409 {reason:'campaign_paused'} instead of HTTP 410 {reason:'inventory_exhausted'} as spec requires. Reason: post-save belt-and-suspenders auto-pause on the 3rd save flips status to 'paused' before the 4th request arrives, so the paused-status check short-circuits before the inventory guard runs. Data is still safe (no debit, no coupon), only the status code / reason differ. Consider re-ordering checks in save_coupon_campaign() or preserving auto_paused_reason in the 4xx body for observability."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Customer /offers page", "issue": "Frontend sends ?market=dubai (city string from useGeoStore) but backend /api/coupon-campaigns/live filters by targeting.country_codes (e.g. 'AE'). Result: /offers shows offers-empty state ('No live offers in your area right now.') even though the demo campaign cc_ad4_demo_karak is live and targeted to AE. Curl confirms: market=<empty> → 1 item, market=AE → 1 item, market=dubai → 0 items. Blocks the entire customer save-via-UI flow. FIX: either derive country_code from geo store and pass that, OR change backend to accept city and map city→country, OR make market param treat unknown values as no-filter.", "affected_selectors": ["offers-grid","offer-card-cc_ad4_demo_karak","offer-card-cc_ad4_demo_karak-save","offer-card-cc_ad4_demo_karak-saved","offers-toast"], "priority": "HIGH"},
+      {"flow": "Radiolife (light) variant on /offers", "issue": "Setting localStorage.design_variant='radiolife' and reloading /offers still renders in dark theme (background rgb(2,6,23)). Either the variant toggle mechanism is different (route-based? feature flag?) or useDesignVariant is not reading localStorage. Cannot confirm the 'radiolife' light-theme branch of CouponOffers.jsx renders correctly. Please document the variant switch or expose a data-testid toggle.", "affected_selectors": ["offers-page"], "priority": "MEDIUM"}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad4_coupon_pay_per_save.py",
+    "/app/test_reports/pytest/ad4_results.xml"
+  ],
+  "action_items": [
+    "HIGH: Fix /offers market filter mismatch — frontend market='dubai' vs backend country_codes=['AE']. Recommended: send both market (city) and country_code from geo store; backend should accept either.",
+    "MEDIUM: Document/expose a stable way to toggle 'radiolife' design variant so QA can validate the light-theme branch of CouponOffers.jsx.",
+    "LOW: Re-order checks in save_coupon_campaign() so that when saves_count==total_inventory the response is 410 inventory_exhausted (matches AD.4 spec), even if the campaign has already been auto-paused with reason=inventory_exhausted."
+  ],
+  "critical_code_review_comments": [
+    "CouponOffers.jsx line 33-39: axios.get uses only market param. If user's country is different from the geo store's city string, users will never see AD.4 offers. Recommend expanding params to include both city+country_code, or having backend do fallback matching.",
+    "ad4_coupon_service.py auto-pause hook order: paused-check fires before inventory-check in save flow, causing the spec-declared HTTP 410 to be masked as HTTP 409 for the marginal (N+1) request when N filled inventory. Consider surfacing auto_paused_reason in the 409 body so clients can distinguish inventory vs manual pause.",
+    "Split routing is verified correct: payment_transactions_v2 has flow='ad4_coupon_save_split', application_fee_cents=3, merchant_net_cents=7, ad4_save_event_id unique-sparse index prevents double-billing on retries (verified via idempotency test)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad4_coupon_pay_per_save.py (new pytest suite, 10 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "80% (advertiser+merchant flows verified, /offers card render blocked by market bug, radiolife variant unverified)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!, test@bigfm.dubai / TestUser123!, predictest@bigfm.dubai / PredictTest123!, premiumtest@bigfm.dubai / PremiumTest123!, admin@bigfm.dubai / AdminPass123! — all working.",
+  "seed_data_creation": "Used existing seeded campaign cc_ad4_demo_karak. Reset harness (advertiser wallet 100000¢/0 spent, campaign live/8 inv/0 saves, purged tx+coupon+wallet_item rows for source_type=ad4_coupon_save) was invoked at the start of each state-sensitive test via _reset_state() in the pytest suite. After all backend tests, 2 saves were left in the DB to exercise the merchant sponsorship revenue widget (14¢ merchant share, 2 saves visible on /merchant/dashboard).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend AD.4 endpoints and split routing all verified correct via /app/backend/tests/test_ad4_coupon_pay_per_save.py — re-run this file after any backend change. The reset harness is embedded in the test file itself (function _reset_state). Two frontend issues left open: (1) /offers market filter mismatch (city vs country_code) blocks the customer save flow — DO NOT retry the customer offers save via UI until main agent fixes the market param; (2) radiolife variant toggle mechanism is unclear. Advertiser dashboard, wizard, spend-history, and merchant sponsorship widget all pass and can be retested with the browser automation snippet in this iteration. The pre-existing React key-spread warning in AppShell.jsx is present but did not block any tests, per user directive it should NOT be fixed.",
+  "rca of the issue": "Bug 1 (/offers empty grid): CouponOffers.jsx line 36 calls axios.get(`${API}/coupon-campaigns/live?market=${market}`) where market comes from useGeoStore and is a city slug like 'dubai'. Backend service filters campaigns by targeting.country_codes containing the market value. Since 'dubai' != 'AE', no campaigns match. Repro: curl ...live?market=dubai → count=0; curl ...live?market=AE → count=1. Mitigation: (a) frontend sends country_code from geo store, or (b) backend upgrades filter to match city OR country. Bug 2 (inventory 410 vs 409): The 3rd save inside save_coupon_campaign triggers _auto_pause('inventory_exhausted') after the increment succeeds. The 4th save request enters the same function and hits the campaign.status=='paused' check FIRST, returning 409 campaign_paused. Re-order: check total_inventory <= saves_count and return 410 before status guard, or bubble auto_paused_reason into the 409 detail."
+}

@@ -1,0 +1,41 @@
+{
+  "summary": "Phase AD.8 finalisation E2E — 22 pytest tests + Playwright UI validation. 21/22 backend tests PASS. 1 backend integration failure: /api/wallet/me points_balance reads legacy users.bigcoin_balance, NOT the PointsService ledger balance — so daily-code claim points are NOT reflected in wallet/me even though the ledger is credited correctly. Frontend all correct: DailyCodeWidget renders in both ?design=legacy and ?design=radiolife, shows CLAIMED TODAY / 1-day streak / 1x multiplier state after prior claim (data-testid=daily-code-widget-already), Auction Insights page renders 2 rows + 2 boost buttons, clicking boost yields data-testid=auction-insights-boost-result-* successfully.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/wallet/me",
+        "issue": "points_balance is read from users.bigcoin_balance (legacy field), but PointsService.award (Phase F-2 ledger flip, BIGCOIN_LEGACY_DUAL_WRITE=0) NO LONGER mirrors to bigcoin_balance. Result: user's daily-code claim is credited in points_ledger (balance_after=1124) but wallet/me returns stale 4100. The user's Phase-AD.8 spec explicitly requires 'PointsService balance must increase by points_awarded — verify via GET /api/wallet/me points_balance' — this is broken. Fix: wallet_v2_service.py:166-172 should call PointsService(db).get_balance(user_id) instead of reading users.bigcoin_balance. Or re-enable dual-write for daily_code_claim.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ad8_daily_code_and_auction_boost.py",
+    "/app/test_reports/pytest/ad8_results.xml"
+  ],
+  "action_items": [
+    "Fix wallet_v2_service.py:166-172 — replace users.bigcoin_balance read with PointsService.get_balance() so wallet/me reflects ledger truth. Alternatively, re-mirror daily_code_claim awards to users.bigcoin_balance."
+  ],
+  "critical_code_review_comments": [
+    "wallet_v2_service.py points_balance sourcing is inconsistent with Phase F-2 ledger flip — it still reads the legacy mirror field. Any earn path that doesn't dual-write (like daily_code_claim) will be invisible in the wallet UI.",
+    "daily_code_service.claim() swallows PointsService.award exceptions with warning-only logging (line 332-333) — a hard failure to credit points would go unnoticed by the client (they see ok:true + points_awarded but no balance change). Consider surfacing this as a 500 or returning a credit_error field.",
+    "auction_insights_service.boost_campaign_bid — banner path (line 155) uses a confusing bool-and-max expression `(camp.get('per_zone_cpm_cents') or {}).values() and max(...) or 0` which is correct but fragile; refactor to `max(zones.values(), default=0)`.",
+    "daily_code service correctly enforces all streak ladder rungs including 2x cap and yesterday-check reset — verified via multi-day backdated seed tests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ad8_daily_code_and_auction_boost.py (new)"
+  ],
+  "success_rate": {"backend": "95% (21/22)", "frontend": "100%"},
+  "test_credentials": "admin@bigfm.dubai/AdminPass123!, demo@bigfm.dubai/DemoPass123!, test@bigfm.dubai/TestUser123! — all valid. Login returns session_token (not `token`) — updated fixture accordingly.",
+  "seed_data_creation": "Backdated daily_code_claims rows (1/3/7/14 days ago) for demo user + synthetic predict_win_sponsorships, banner_campaigns, notification_campaigns, auction_events (all prefixed *_test_/dcl_seed_ for cleanup). Session-scoped autouse fixture cleans them up.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "AD.8 backend logic (streak ladder, idempotency, admin CRUD, auction boost >20% pending_admin gating) is fully correct. The only failure is the wallet/me integration point which relies on the deprecated users.bigcoin_balance mirror. UI has daily-code-widget-{anon,loading,success,already,widget} testids and auction-insights-page/-row-{i}/-boost-{event_id}/-boost-result-{event_id} testids — all working. Banner zone slot for station_detail was NOT present in DOM during test (no active banner campaign → renders null); source-level DOM order (LiveRadioStation.jsx L409-412) is confirmed correct.",
+  "rca of the issue": "wallet_v2_service.py line 170 reads points_balance = users.bigcoin_balance. Phase F-2 ledger flip (services/points_service.py line 259-268) disabled the default legacy mirror to users.bigcoin_balance. Env BIGCOIN_LEGACY_DUAL_WRITE=0. Therefore new earn paths (including daily_code_claim) update points_ledger.balance_after but not the legacy field. Mitigation: switch wallet_v2_service to call PointsService.get_balance(user_id) OR set BIGCOIN_LEGACY_DUAL_WRITE=1 (rollback escape hatch). Repro: (1) DELETE existing claims for demo, (2) POST /api/daily-code/claim with today's code, (3) GET /api/wallet/me — points_balance UNCHANGED from pre-claim value, yet points_ledger has new row with delta=50 and balance_after incremented."
+}

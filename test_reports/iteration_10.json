@@ -1,0 +1,63 @@
+{
+  "summary": "Tested Combined Dispatch (UX.1 + Phase I + Phase F-2 + Mailgun Webhook). 14/14 backend pytest cases pass and 100% of critical frontend flows verified. Trivia auto-start, Business Portal login→dashboard, period toggle, stat tiles, ads-buy placements, redeem page entry, parity-check, ledger flip (bigcoin/me == me/points), Mailgun webhook ingest + admin endpoints all working. DEV signature-skip warning fires correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Business Redeem page",
+        "issue": "business-redeem-pin and business-redeem-confirm test-ids are not in the initial DOM on /business/redeem — they only render AFTER a valid code is entered+validated. This is acceptable UX (PIN gate appears after code validation passes), but main agent should confirm this is the intended two-step flow, OR add the testids to the empty state if a single-screen UX was desired.",
+        "affected_selectors": ["[data-testid=\"business-redeem-pin\"]", "[data-testid=\"business-redeem-confirm\"]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Business Portal (multiple pages)",
+        "issues": [
+          "React console warning: 'A props object containing a key prop is being spread into JSX' — non-blocking but should be cleaned up (likely a .map() in BusinessAdsBuy/BusinessRedeem/Dashboard list rendering).",
+          "Hydration warning: '<button> cannot be a descendant of <button>' on /business/login page (PageFrame children). Cosmetic but should be fixed."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dispatch_phase_i_f2_mailgun.py",
+    "/app/test_reports/pytest/dispatch_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Surface business-redeem-pin / business-redeem-confirm test-ids in the empty state for the redeem page if a single-screen flow is intended; otherwise document the two-step flow.",
+    "(Cosmetic) Fix React 'spread key prop' warning across BusinessDashboard/BusinessRedeem/BusinessAdsBuy list maps.",
+    "(Cosmetic) Fix nested <button> hydration warning on /business/login (PageFrame layout)."
+  ],
+  "critical_code_review_comments": [
+    "Phase F-2 ledger flip is verified — /api/bigcoin/me now matches /api/me/points (both ledger-sourced).",
+    "/api/admin/points/parity-check correctly returns ledger_authoritative=true with drift_count=0.",
+    "Mailgun signature-skip warning is correctly LOUD ('[mg_webhook] signature verification DISABLED (MAILGUN_WEBHOOK_VERIFY_SIGNATURE=0) — DEV ONLY') and fires on EVERY webhook hit — production-safe behavior confirmed.",
+    "RedeemCouponBody Pydantic constraint code: Field(min_length=4) — caller must send >=4-char codes; smoke test originally sent 3-char 'ANY' and got 422. Test corrected to 'ANYCODE'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dispatch_phase_i_f2_mailgun.py (new — 14 tests, all passing)"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14)",
+    "frontend": "~95% (Business Portal + UX.1 trivia auto-start all verified; only the conditional PIN/confirm testids on /business/redeem empty state missing)"
+  },
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! ; test@bigfm.dubai / TestUser123! ; demo@bigfm.dubai / DemoPass123! ; business PIN 4242 (seeded via seed_business_fixture.py)",
+  "seed_data_creation": "Re-ran /app/backend/scripts/seed_business_fixture.py — idempotent, biz_qa_e3_karak owner=user_4abd359ab5b94f0f pin=4242.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/test_dispatch_phase_i_f2_mailgun.py — re-run with `REACT_APP_BACKEND_URL=<public> pytest`. The pytest conftest.py at /app/backend/tests/conftest.py monkey-patches Stripe to mock. UX.1 trivia auto-start: clicking trivia-category-global-general goes directly to /trivia/play?cat=global-general and shows 'Generating your General Knowledge trivia… 10 questions, server-timed.' loading state — verified via screenshot. Business Portal pages all render via static React routes inserted before /business/:slug.",
+  "verified_evidence": {
+    "phase_i_login": "URL after login: /business; business-name='Karak Cafe (QA fixture)'; verified-chip visible; CTA buttons present.",
+    "phase_i_dashboard": "All 4 stat tiles render; today/week/month toggles all clickable.",
+    "phase_i_ads": "3 placement cards (miniplayer, commute_map, predict_win_list) + start-buy button all render.",
+    "phase_f2_parity": "Backend test: scanned>=1, drift_count=0, ledger_authoritative=true.",
+    "phase_f2_balance_match": "/api/bigcoin/me.balance == /api/me/points.balance for demo.",
+    "mailgun_ingest": "POST returned {ok:true, event_id:'mevt_...', event_type:'delivered'}; admin /events?since_hours=1 count>=1; /funnel?period=week returns sent/delivered/opened/clicked/open_rate.",
+    "mailgun_dev_warning": "Confirmed in backend logs: '[mg_webhook] signature verification DISABLED (MAILGUN_WEBHOOK_VERIFY_SIGNATURE=0) — DEV ONLY' on every hit.",
+    "ux1_trivia": "Screenshot confirms /trivia/play?cat=global-general loaded with 'Generating your General Knowledge trivia…' loading screen immediately after card click; no interstitial."
+  }
+}

@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────────────
+   Hotfix: the Emergent platform may inject a badge anchor element
+   server-side (id="emergent-badge"). We hide it fully and globally —
+   the source-side <a> + <script> were removed earlier; this is a
+   universal belt-and-suspenders covering future ingress re-injection.
+   Selector list covers: exact id, anchor variant, id-prefix variants,
+   any class containing the same token.
+   ────────────────────────────────────────────────────────────────────── */
+#emergent-badge,
+a#emergent-badge,
+[id^="emergent-badge"],
+[class*="emergent-badge"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Phase 15a — design tokens */
+:root {
+    /* core */
+    --bg-base:        #0A0A0F;
+    --bg-elevated:    #14141C;
+    --bg-glass:       rgba(255, 255, 255, 0.04);
+    --text-primary:   #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.62);
+    --line:           rgba(255, 255, 255, 0.08);
+
+    /* accents */
+    --accent-electric: #00D4FF;
+    --accent-magenta:  #FF2E8E;
+    --accent-gold:      #FFB400;
+    --accent-success:  #00E08A;
+    --accent-live:      #FF3B30;
+
+    /* radii */
+    --radius-md:      12px;
+    --radius-card:    20px;
+    --radius-hero:    28px;
+}
+
+body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle scrollbar */
+*::-webkit-scrollbar       { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Live dot pulse */
+@keyframes live-dot { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
+.live-dot { animation: live-dot 1200ms ease-in-out infinite; }
+
+/* Fade-up entrance */
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 360ms ease-out both; }
+
+/* Tracking utility used by the display font */
+.tracking-display-tight { letter-spacing: -0.022em; }
+
+/* Phase H v1 — style the Google PlaceAutocompleteElement to match dark theme */
+.commute-place-autocomplete gmp-place-autocomplete {
+  --gmpx-color-surface: transparent;
+  --gmpx-color-on-surface: #fff;
+  --gmpx-color-on-surface-variant: rgba(255, 255, 255, 0.65);
+  --gmpx-color-primary: #00D4FF;
+  --gmpx-font-family-base: inherit;
+  --gmpx-font-family-headings: inherit;
+  --gmpx-font-size-base: 14px;
+  background: transparent;
+  color: #fff;
+  border: none;
+  width: 100%;
+}
+.commute-place-autocomplete gmp-place-autocomplete input {
+  background: transparent !important;
+  color: #fff !important;
+  border: none !important;
+  outline: none !important;
+  padding: 8px 4px !important;
+  font-size: 14px !important;
+}
+
+/* Phase H v1 — custom map markers (avoids Google's strict PinElement
+    which throws InvalidValueError on unknown DOM attributes when the
+    Emergent visual-edits instrumentation leaks x-file-name etc). */
+.commute-marker {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px; font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+.commute-marker-origin { background: #00D4FF; }
+.commute-marker-dest { background: #FF3D71; }
+.commute-marker-offer { background: #FFD93D; color: #000; }

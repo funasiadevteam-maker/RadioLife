@@ -1,0 +1,508 @@
+/* Phase 10a — Social Passport · Listener's private profile.
+
+   Dark neon theme aligning with the existing /partner + /wallet pages.
+   No purple-on-white gradients; uses cyan/teal/violet accents over a
+   near-black background, with grain noise on the hero card to keep
+   the surface from feeling flat. */
+
+.psp-page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 18px 96px;
+  font-family: "Manrope", "Inter", system-ui, sans-serif;
+  color: #e8eef5;
+}
+.psp-loading {
+  text-align: center; padding: 64px 0;
+  color: #6c7888; font-size: 14px; letter-spacing: 0.04em;
+}
+
+/* ─── Hero ─────────────────────────────────────────────── */
+.psp-hero {
+  display: grid; grid-template-columns: 92px 1fr;
+  gap: 22px; align-items: center;
+  background:
+    radial-gradient(120% 240% at 0% 0%, rgba(120, 230, 255, 0.10) 0%, transparent 55%),
+    radial-gradient(80% 180% at 100% 0%, rgba(255, 120, 220, 0.07) 0%, transparent 60%),
+    #0f1115;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  padding: 22px 24px;
+  margin-bottom: 18px;
+  position: relative; overflow: hidden;
+}
+.psp-hero::after {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><filter id='n'><feTurbulence baseFrequency='1.2' numOctaves='2'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.04 0'/></filter><rect width='80' height='80' filter='url(%23n)'/></svg>");
+  opacity: 0.5; mix-blend-mode: overlay;
+}
+.psp-avatar {
+  width: 92px; height: 92px; border-radius: 22px;
+  display: grid; place-items: center;
+  font-size: 38px; font-weight: 700; color: #15171c;
+  position: relative; z-index: 1;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5),
+                  inset 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+.psp-avatar img {
+  width: 100%; height: 100%; border-radius: 22px; object-fit: cover;
+}
+.psp-hero-body { position: relative; z-index: 1; }
+.psp-hero-name {
+  font-size: 24px; font-weight: 700; letter-spacing: -0.01em;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.psp-city-pin {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 3px 10px; font-size: 11px; font-weight: 500;
+  color: #b5c0cf;
+}
+.psp-hero-bio {
+  color: #8d96a3; font-size: 13px; margin-top: 6px;
+  max-width: 540px; line-height: 1.5;
+}
+.psp-hero-stats {
+  display: flex; gap: 28px; margin-top: 14px;
+  flex-wrap: wrap;
+}
+.psp-hero-stats > div {
+  display: flex; flex-direction: column;
+}
+.psp-stat-num {
+  font-size: 22px; font-weight: 700; color: #fff;
+  letter-spacing: -0.01em;
+}
+.psp-stat-lbl {
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: #6c7888;
+}
+.psp-amb-progress { margin-top: 14px; max-width: 360px; }
+.psp-amb-progress-label {
+  font-size: 11px; color: #8d96a3; margin-top: 6px;
+}
+
+/* ─── Tabs ─────────────────────────────────────────────── */
+.psp-tabs {
+  display: flex; gap: 6px; margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.psp-tab {
+  background: transparent; border: 0;
+  padding: 10px 16px;
+  color: #6c7888;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: capitalize;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.psp-tab:hover { color: #c2cad6; }
+.psp-tab.is-active {
+  color: #79f2e6;
+  border-bottom-color: #79f2e6;
+}
+
+/* ─── Section + sec head ───────────────────────────────── */
+.psp-section { margin-bottom: 28px; }
+.psp-sec-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: #c2cad6; margin-bottom: 12px;
+}
+.psp-sec-count {
+  margin-left: 4px; font-weight: 500;
+  background: rgba(121, 242, 230, 0.10);
+  color: #79f2e6;
+  border-radius: 8px; padding: 1px 8px; font-size: 10px;
+}
+
+/* ─── Badge grid + card ────────────────────────────────── */
+.psp-badge-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.psp-badge-card {
+  background: #14171c;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+.psp-badge-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(121, 242, 230, 0.20);
+}
+.psp-badge-card.is-locked { opacity: 0.55; }
+.psp-badge-card.is-earned {
+  border-color: rgba(121, 242, 230, 0.30);
+  box-shadow: inset 0 0 0 1px rgba(121, 242, 230, 0.10);
+}
+.psp-badge-head {
+  display: grid; grid-template-columns: 44px 1fr auto;
+  gap: 10px; align-items: center;
+}
+.psp-tier-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: grid; place-items: center;
+  font-size: 18px; font-weight: 700; color: #1b1d22;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+                    0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.psp-badge-meta { display: flex; flex-direction: column; gap: 3px; }
+.psp-badge-name {
+  font-size: 14px; font-weight: 700; color: #e8eef5;
+}
+.psp-badge-pts {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #8d96a3;
+}
+.psp-tier-chip {
+  margin-left: 6px;
+  text-transform: capitalize;
+  font-size: 10px; font-weight: 600;
+  padding: 1px 7px; border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.psp-tier-chip[data-tier="gold"]    { color: #ffd75e; }
+.psp-tier-chip[data-tier="silver"]  { color: #d1d8e1; }
+.psp-tier-chip[data-tier="bronze"]  { color: #d29c6c; }
+.psp-tier-chip[data-tier="platinum"]{ color: #cfeefb; }
+.psp-tier-chip[data-tier="diamond"] { color: #c4f5ff; }
+.psp-tier-chip[data-tier="unique"]  { color: #ff8edd; }
+.psp-earned-tick { color: #79f2e6; }
+.psp-lock { color: #6c7888; }
+.psp-badge-desc {
+  font-size: 12px; color: #8d96a3; line-height: 1.5;
+}
+.psp-badge-criteria {
+  font-size: 11px; color: #6c7888;
+  border-top: 1px dashed rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
+}
+
+/* ─── Progress bar ─────────────────────────────────────── */
+.psp-bar {
+  position: relative;
+  height: 8px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.psp-bar-fill {
+  position: absolute; inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #79f2e6, #7873f5);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.psp-bar-label {
+  position: absolute; right: 4px; top: -16px;
+  font-size: 10px; color: #8d96a3;
+}
+
+/* ─── Stats tab ────────────────────────────────────────── */
+.psp-stat-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  margin-bottom: 28px;
+}
+.psp-stat-card {
+  background: #14171c;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.psp-stat-card svg { color: #79f2e6; }
+.psp-stat-card-num {
+  font-size: 26px; font-weight: 700; color: #fff;
+  letter-spacing: -0.01em;
+}
+.psp-stat-card-lbl {
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: #6c7888;
+}
+.psp-feed {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.psp-feed li {
+  display: grid; grid-template-columns: 36px 1fr;
+  gap: 12px; align-items: center;
+  background: #14171c;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.psp-feed li .psp-tier-icon {
+  width: 32px; height: 32px; font-size: 14px;
+}
+.psp-feed-name { font-size: 13px; font-weight: 600; }
+.psp-feed-date { font-size: 11px; color: #6c7888; }
+.psp-empty-small {
+  font-size: 12px; color: #6c7888;
+  padding: 14px; background: #14171c;
+  border: 1px dashed rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  text-align: center;
+}
+
+/* ─── Referrals tab ────────────────────────────────────── */
+.psp-ref-link {
+  font-family: "JetBrains Mono", "Courier New", monospace;
+  font-size: 13px;
+  background: #0f1115;
+  border: 1px dashed rgba(121, 242, 230, 0.25);
+  color: #79f2e6;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+.psp-actions { display: flex; gap: 8px; }
+.psp-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, #79f2e6, #57bff2);
+  color: #15171c; border: 0;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.04em; cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.psp-btn:hover { transform: translateY(-1px); }
+.psp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.psp-btn-ghost {
+  background: transparent;
+  color: #c2cad6;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+.psp-btn-primary {
+  background: linear-gradient(135deg, #7873f5, #57bff2);
+  color: #fff;
+}
+.psp-ghost {
+  background: transparent; border: 0;
+  color: #6c7888; cursor: pointer; margin-left: auto;
+  padding: 4px;
+}
+.psp-ghost:hover { color: #79f2e6; }
+
+.psp-funnel {
+  display: flex; align-items: center; gap: 12px;
+  background: #14171c;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 18px; margin-bottom: 8px;
+}
+.psp-funnel-step {
+  flex: 1; text-align: center;
+}
+.psp-funnel-step.is-conv {
+  background: rgba(121, 242, 230, 0.06);
+  border: 1px solid rgba(121, 242, 230, 0.20);
+  border-radius: 10px;
+  padding: 8px;
+}
+.psp-funnel-num {
+  font-size: 24px; font-weight: 700; color: #fff;
+}
+.psp-funnel-lbl {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: #6c7888;
+}
+.psp-funnel-arrow { color: #4b5563; }
+.psp-funnel-conv {
+  font-size: 11px; color: #8d96a3; text-align: right;
+}
+.psp-ref-recent {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.psp-ref-recent li {
+  display: grid; grid-template-columns: 92px 1fr auto;
+  gap: 12px; align-items: center;
+  background: #14171c;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.psp-ref-status {
+  text-transform: capitalize;
+  font-weight: 600; font-size: 10px;
+  padding: 3px 8px; border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06); color: #c2cad6;
+  text-align: center;
+}
+.psp-ref-status[data-st="clicked"] {
+  color: #fca5a5; background: rgba(252, 165, 165, 0.10);
+}
+.psp-ref-status[data-st="signed_up"] {
+  color: #fcd34d; background: rgba(252, 211, 77, 0.10);
+}
+.psp-ref-status[data-st="engaged"] {
+  color: #79f2e6; background: rgba(121, 242, 230, 0.10);
+}
+.psp-ref-status[data-st="expired"] {
+  color: #6c7888; background: rgba(255, 255, 255, 0.04);
+}
+.psp-ref-path { color: #c2cad6; font-family: "JetBrains Mono", monospace;
+                  font-size: 11px; }
+.psp-ref-time { color: #6c7888; font-size: 11px; }
+
+/* ─── Settings tab ─────────────────────────────────────── */
+.psp-field {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 14px;
+}
+.psp-field span {
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #6c7888;
+}
+.psp-field input, .psp-field textarea {
+  background: #0f1115;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e8eef5;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+.psp-field input:focus, .psp-field textarea:focus {
+  outline: none; border-color: rgba(121, 242, 230, 0.30);
+}
+.psp-priv-row {
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 16px; align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+.psp-priv-row:first-child { border-top: 0; }
+.psp-priv-name {
+  font-size: 13px; font-weight: 600; color: #e8eef5;
+}
+.psp-priv-help {
+  font-size: 11px; color: #6c7888; margin-top: 2px;
+}
+.psp-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #c2cad6;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.psp-toggle.is-on {
+  background: rgba(121, 242, 230, 0.10);
+  border-color: rgba(121, 242, 230, 0.30);
+  color: #79f2e6;
+}
+.psp-save-row {
+  display: flex; justify-content: flex-end;
+  margin-top: 18px;
+}
+
+/* ─── Empty state ─────────────────────────────────────── */
+.psp-empty {
+  text-align: center; padding: 64px 32px;
+  background: #14171c;
+  border: 1px dashed rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  color: #6c7888;
+}
+.psp-empty svg { color: #79f2e6; margin-bottom: 8px; }
+.psp-empty-title {
+  font-size: 18px; font-weight: 700;
+  color: #e8eef5; margin-bottom: 6px;
+}
+.psp-empty-sub { font-size: 13px; max-width: 380px; margin: 0 auto; }
+
+/* ─── Phase 10b — Level-up celebration modal ─────────────────────── */
+.psp-celebration-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15, 17, 21, 0.72);
+  backdrop-filter: blur(12px);
+  display: grid; place-items: center;
+  z-index: 9999;
+  animation: psp-celebration-fade 0.3s ease;
+}
+@keyframes psp-celebration-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.psp-celebration-card {
+  background:
+    radial-gradient(140% 200% at 0% 0%, rgba(255, 215, 94, 0.16) 0%, transparent 60%),
+    radial-gradient(140% 200% at 100% 100%, rgba(255, 110, 196, 0.10) 0%, transparent 60%),
+    #14171c;
+  border: 1px solid rgba(255, 215, 94, 0.30);
+  border-radius: 22px;
+  padding: 36px 32px 28px;
+  max-width: 420px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6),
+                    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  animation: psp-celebration-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+@keyframes psp-celebration-pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.psp-celebration-burst {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffd75e, #ff6ec4);
+  margin: 0 auto 16px;
+  display: grid; place-items: center;
+  color: #15171c;
+  box-shadow: 0 0 32px rgba(255, 215, 94, 0.50);
+  animation: psp-burst 1.4s ease-in-out infinite;
+}
+@keyframes psp-burst {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.12) rotate(8deg); }
+}
+.psp-celebration-eyebrow {
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: #ffd75e;
+  font-weight: 700; margin-bottom: 4px;
+}
+.psp-celebration-level {
+  font-size: 28px; font-weight: 800;
+  letter-spacing: -0.02em; color: #fff;
+  text-transform: capitalize; margin-bottom: 20px;
+}
+.psp-celebration-rewards {
+  list-style: none; padding: 0; margin: 0 0 22px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.psp-celebration-rewards li {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px; color: #e8eef5;
+  display: inline-flex; align-items: center; gap: 8px;
+  justify-content: center;
+}
+.psp-celebration-rewards li svg { color: #ffd75e; }
+@media (max-width: 640px) {
+  .psp-hero {
+    grid-template-columns: 1fr; gap: 14px; padding: 18px;
+  }
+  .psp-avatar { width: 72px; height: 72px; }
+  .psp-hero-stats { gap: 18px; }
+  .psp-stat-num { font-size: 18px; }
+}

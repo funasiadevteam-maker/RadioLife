@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>BigFM Ads · Weekly Digest</title>
+</head>
+<body style="margin:0;padding:0;background:#0a0a0f;font-family:'Helvetica Neue',Arial,sans-serif;color:#e2e8f0;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0a0a0f;padding:32px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background:#111827;border:1px solid rgba(255,255,255,0.06);border-radius:16px;overflow:hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding:32px 32px 20px;background:linear-gradient(135deg,#F72585 0%,#B5179E 60%,#7209B7 100%);color:#fff;">
+                            <div style="font:600 11px/1.5 monospace;letter-spacing:2px;text-transform:uppercase;opacity:0.85;">Weekly Advertiser Digest</div>
+                            <div style="font:800 24px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;margin-top:6px;">{{advertiser_name}}</div>
+                            <div style="font:400 12px/1.5 monospace;opacity:0.85;margin-top:8px;">{{window_start}} → {{window_end}}</div>
+                        </td>
+                    </tr>
+
+                    <!-- KPIs -->
+                    <tr>
+                        <td style="padding:28px 32px 12px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                <tr>
+                                    <td width="33%" style="padding:14px 8px 14px 0;">
+                                        <div style="font:400 10px/1.5 monospace;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8;">Spend</div>
+                                        <div style="font:800 22px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;color:#fbbf24;margin-top:4px;">{{total_spend}}</div>
+                                    </td>
+                                    <td width="33%" style="padding:14px 8px;">
+                                        <div style="font:400 10px/1.5 monospace;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8;">Impressions</div>
+                                        <div style="font:800 22px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;color:#e2e8f0;margin-top:4px;">{{total_impressions}}</div>
+                                    </td>
+                                    <td width="33%" style="padding:14px 0 14px 8px;">
+                                        <div style="font:400 10px/1.5 monospace;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8;">CTR</div>
+                                        <div style="font:800 22px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;color:#22d3ee;margin-top:4px;">{{ctr_percent}}%</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Spend split -->
+                    <tr>
+                        <td style="padding:8px 32px;">
+                            <div style="font:700 12px/1.5 -apple-system,sans-serif;letter-spacing:1px;text-transform:uppercase;color:#F72585;margin:16px 0 10px;">Spend by ad type</div>
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#0f172a;border-radius:10px;overflow:hidden;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left;padding:8px 12px;font:600 10px/1.5 monospace;letter-spacing:1.2px;text-transform:uppercase;color:#64748b;background:#1e293b;">Ad type</th>
+                                        <th style="text-align:right;padding:8px 12px;font:600 10px/1.5 monospace;letter-spacing:1.2px;text-transform:uppercase;color:#64748b;background:#1e293b;">Spend</th>
+                                    </tr>
+                                </thead>
+                                <tbody style="font:400 13px/1.5 -apple-system,sans-serif;color:#cbd5e1;">
+                                    {{spend_split_rows}}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Top creatives -->
+                    <tr>
+                        <td style="padding:8px 32px;">
+                            <div style="font:700 12px/1.5 -apple-system,sans-serif;letter-spacing:1px;text-transform:uppercase;color:#F72585;margin:20px 0 10px;">Top 3 creatives (by CTR)</div>
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#0f172a;border-radius:10px;overflow:hidden;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left;padding:8px 12px;font:600 10px/1.5 monospace;letter-spacing:1.2px;text-transform:uppercase;color:#64748b;background:#1e293b;">Creative</th>
+                                        <th style="text-align:left;padding:8px 12px;font:600 10px/1.5 monospace;letter-spacing:1.2px;text-transform:uppercase;color:#64748b;background:#1e293b;">Type</th>
+                                        <th style="text-align:right;padding:8px 12px;font:600 10px/1.5 monospace;letter-spacing:1.2px;text-transform:uppercase;color:#64748b;background:#1e293b;">CTR</th>
+                                    </tr>
+                                </thead>
+                                <tbody style="font:400 13px/1.5 -apple-system,sans-serif;color:#cbd5e1;">
+                                    {{top_creatives_rows}}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Recommendations -->
+                    <tr>
+                        <td style="padding:8px 32px 24px;">
+                            <div style="font:700 12px/1.5 -apple-system,sans-serif;letter-spacing:1px;text-transform:uppercase;color:#F72585;margin:20px 0 10px;">Recommendations</div>
+                            <ul style="margin:0;padding-left:20px;font:400 13px/1.6 -apple-system,sans-serif;color:#cbd5e1;">
+                                {{recommendations_list}}
+                            </ul>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding:20px 32px 28px;border-top:1px solid rgba(255,255,255,0.06);">
+                            <div style="font:400 11px/1.5 -apple-system,sans-serif;color:#64748b;">
+                                You&rsquo;re receiving this weekly summary because you&rsquo;re an active BigFM Ads advertiser.
+                                Prefer not to? <a href="{{opt_out_url}}" style="color:#22d3ee;">Manage digest preferences</a>.
+                            </div>
+                            <div style="font:400 10px/1.5 monospace;color:#475569;margin-top:14px;">
+                                BigFM Ads &middot; The only radio that pays listeners to tune in.
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
