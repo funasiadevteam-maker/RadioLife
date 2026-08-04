@@ -43,17 +43,17 @@ export default function TabLayout() {
         options={{ href: null }}
       />
       <Tabs.Screen
-        name="wallet"
-        options={{
-          title: 'Wallet',
-          tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="games"
         options={{
           title: 'Games',
           tabBarIcon: ({ color, size }) => <Ionicons name="game-controller-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="wallet"
+        options={{
+          title: 'Wallet',
+          tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

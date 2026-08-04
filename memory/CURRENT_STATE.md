@@ -1,3 +1,30 @@
+# BigFM Mobile — PDF Redesign Phase 1 (2026-08-04)
+
+Reference: RadioLife PDF used as LAYOUT/element blueprint; KEEP warm cream+orange
+colors (not PDF purple). Verified testing agent iteration_33 + screenshots.
+
+- NEW TAB BAR (app/(tabs)/_layout.tsx): Home · Listen · Games · Wallet · More
+  (outline icons, orange active). 'radio' now a hidden route (AI channel playback);
+  trivia/passport/news/podcasts hidden. NOTE: tab order = order of <Tabs.Screen>
+  declarations — games block must precede wallet block.
+- NEW 'Listen' tab (app/(tabs)/listen.tsx): Continue-listening card + rails:
+  Flagship (imported via /radio/browse?source=imported, tap→stream play),
+  AI stations (/channels, tap→/(tabs)/radio?channel=slug), 40k+ CTA→/stations,
+  Podcasts (/podcasts/discover — empty → graceful empty state).
+- src/services/playStation.ts: shared imported-stream play helper (uses
+  store getState()); used by Listen + Home continue card.
+- HOME: 'Start Listening'→/listen, Games quicklink→/(tabs)/games, added
+  'Continue Listening' card (home-continue).
+
+KNOWN COSMETIC (non-blocking): some Flagship tiles show generated purple favicon
+images (real, loaded) that clash slightly with warm theme.
+
+PHASE 2 TODO (agreed): restyle Wallet/Rewards, Games, Profile, Discover/Deals to
+match PDF element style.
+
+---
+
+
 # BigFM Mobile — Warm Re-skin + Now Playing/Favorites/Country/Skip (2026-08-04)
 
 User approved a full warm re-skin + 4 features (testing agent iteration_32; country
