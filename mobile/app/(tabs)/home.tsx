@@ -7,6 +7,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
+import { useStationsStore } from '../../src/stores/useStationsStore';
+import { playImportedStation } from '../../src/services/playStation';
 import api, { BACKEND } from '../../src/api/client';
 
 const resolveImg = (u?: string | null) =>
@@ -22,7 +24,10 @@ export default function HomeScreen() {
   const [wallet, setWallet] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { activeChannelName } = usePlayerStore();
+  const { activeChannelName, activeChannelThumb, currentSeg } = usePlayerStore();
+  const { recents, load: loadSaved } = useStationsStore();
+
+  useEffect(() => { loadSaved(); }, [loadSaved]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -73,7 +78,7 @@ export default function HomeScreen() {
         <View style={s.hero} testID="home-hero">
           <Text style={s.heroGreet}>Welcome back{firstName ? `, ${firstName}` : ''} 👋</Text>
           <Text style={s.heroTag}>DIL SE · DUBAI SE</Text>
-          <TouchableOpacity style={s.heroBtn} onPress={() => router.push('/(tabs)/radio')} testID="home-listen-cta">
+          <TouchableOpacity style={s.heroBtn} onPress={() => router.push('/(tabs)/listen')} testID="home-listen-cta">
             <Ionicons name="radio" size={18} color="#fff" />
             <Text style={s.heroBtnText}>{activeChannelName ? 'Now Playing' : 'Start Listening'}</Text>
           </TouchableOpacity>
@@ -104,6 +109,27 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
         )}
+
+        {/* Continue Listening */}
+        {(() => {
+          const cont = activeChannelName
+            ? { name: activeChannelName, sub: currentSeg?.track_artist || 'Live now', thumb: activeChannelThumb, onPress: () => router.push('/now-playing') }
+            : recents[0]
+            ? { name: recents[0].name, sub: [recents[0].country, recents[0].language].filter(Boolean).join(' · ') || 'Recently played', thumb: recents[0].favicon || recents[0].logo_url, onPress: () => playImportedStation(recents[0], router) }
+            : null;
+          if (!cont) return null;
+          return (
+            <TouchableOpacity style={s.continueCard} testID="home-continue" onPress={cont.onPress} activeOpacity={0.85}>
+              <SafeImage uri={resolveImg(cont.thumb)} fallbackText={cont.name} size={48} borderRadius={12} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.continueLabel}>CONTINUE LISTENING</Text>
+                <Text style={s.continueName} numberOfLines={1}>{cont.name}</Text>
+                <Text style={s.continueSub} numberOfLines={1}>{cont.sub}</Text>
+              </View>
+              <View style={s.continuePlay}><Ionicons name="play" size={18} color="#fff" /></View>
+            </TouchableOpacity>
+          );
+        })()}
 
         {/* Featured Stations */}
         <Text style={[common.sectionTitle, { marginTop: SPACING.lg, paddingHorizontal: SPACING.md }]}>FEATURED STATIONS</Text>
@@ -143,7 +169,7 @@ export default function HomeScreen() {
           <QuickLink icon="newspaper" label="News" color={COLORS.red} onPress={() => router.push('/(tabs)/news')} testID="home-quick-news" />
           <QuickLink icon="mic" label="Podcasts" color={COLORS.secondary} onPress={() => router.push('/(tabs)/podcasts')} testID="home-quick-podcasts" />
           <QuickLink icon="pricetag" label="Deals" color={COLORS.green} onPress={() => router.push('/coupons')} testID="home-quick-deals" />
-          <QuickLink icon="game-controller" label="Games" color={COLORS.orange} onPress={() => router.push('/(tabs)/trivia')} testID="home-quick-games" />
+          <QuickLink icon="game-controller" label="Games" color={COLORS.orange} onPress={() => router.push('/(tabs)/games')} testID="home-quick-games" />
           <QuickLink icon="grid" label="Channels" color={COLORS.purple} onPress={() => router.push('/channels')} testID="home-quick-channels" />
           <QuickLink icon="ribbon" label="Passport" color={COLORS.gold} onPress={() => router.push('/(tabs)/passport')} testID="home-quick-passport" />
         </View>
@@ -207,6 +233,16 @@ const s = StyleSheet.create({
   walletAmt: { color: COLORS.gold, fontSize: FONT.xl, fontWeight: '900', marginTop: 2 },
   walletMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   walletTier: { color: COLORS.gold, fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1.5 },
+  continueCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: SPACING.md, marginTop: SPACING.sm, padding: SPACING.sm + 2,
+    borderRadius: RADIUS.lg, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
+  },
+  continueLabel: { color: COLORS.primary, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  continueName: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800', marginTop: 2 },
+  continueSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+  continuePlay: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   stationCard: {
     width: 120, padding: SPACING.md, borderRadius: RADIUS.lg,
     backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,

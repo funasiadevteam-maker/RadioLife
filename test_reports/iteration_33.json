@@ -1,0 +1,95 @@
+{
+  "summary": "Phase 1 PDF-guided redesign QA on mobile Expo web preview (390x844). Verified 5 requested feature groups: (1) NEW TAB BAR — 5 tabs render with warm/orange active tint and outline Ionicons, every tab opens its screen without crashing; HOWEVER the tab ORDER is WRONG: currently 'Home · Listen · Wallet · Games · More' but the request specifies 'Home · Listen · Games · Wallet · More' (Games and Wallet are swapped). (2) LISTEN tab (/listen) works fully — title 'Listen' + subheader present, Flagship rail renders 10 tiles, AI rail renders 14 tiles, 'Explore 40,000+ live stations' CTA navigates to /stations, and Podcasts section correctly shows empty state 'No podcasts yet — check back soon.' via testID listen-podcasts-empty. (3) Tapping a Flagship tile (e.g. listen-flagship-imp_fun_talk_1003_uae → 'Talk 100.3 UAE') starts playback: MiniPlayer appears at the bottom showing station name, country · language, and pause button; Continue Listening cards then appear on BOTH Home (testID home-continue) and Listen (testID listen-continue) with the correct station; tapping listen-continue routes to /now-playing with title/artist/Stop button rendered. Tapping an AI tile (listen-ai-vip_lounge) navigates to /radio?channel=vip_lounge and the radio screen loads (channels visible, ON AIR ready). (4) HOME 'Start Listening' CTA (home-listen-cta) opens /listen; after playback it correctly relabels to 'Now Playing'. The Games quick link (home-quick-games) opens /games (Games hub). BigCoin card (122 BC), Featured Stations rail, and 'Explore 40,000+ live stations' CTA all still work. (5) NO REGRESSION: Wallet (/wallet), Games (/games), and More/Profile (/profile) tabs load correctly in the warm theme; /stations still browses/searches (search 'Talk' returned 30 rows) and Favorites/Recent mode segments switch fine. External audio itself is native-only in web preview as instructed — verified UI flow + MiniPlayer + navigation only.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "mobile": {
+      "ui_bugs": [
+        {
+          "component": "TabLayout (bottom tab bar)",
+          "issue": "Tab order does not match Phase 1 spec. Rendered order is 'Home · Listen · Wallet · Games · More' but requirement is 'Home · Listen · Games · Wallet · More'. In /app/mobile/app/(tabs)/_layout.tsx the Tabs.Screen for 'wallet' (lines 45-51) is declared before 'games' (lines 52-58); swap those two blocks so games precedes wallet.",
+          "testID": "n/a (tab bar order)",
+          "priority": "HIGH"
+        },
+        {
+          "component": "Flagship station tiles (Listen tab)",
+          "issue": "Real bigFM UAE flagship logos do not load — SafeImage falls back to letter initials ('TU', 'LU', 'BU', 'B9', 'F(', 'BM') because the favicon/logo_url on imported stations point to unreachable URLs (also occurs on the /stations Browse rail). Task expected 'real station logos'. Consider seeding proper flagship logo assets or add a curated logo map for the flagship set.",
+          "testID": "listen-flagship-<id>",
+          "priority": "MEDIUM"
+        }
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {
+          "screen": "listen",
+          "issues": [
+            "Flagship & AI tiles are 110×110 with 8px gap — feels visually OK, but the letter-fallback tiles are solid violet (SafeImage default) which visually clashes with the warm cream/orange theme; consider theming the fallback background to a soft cream/orange tone when a station has no image."
+          ]
+        }
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Console warning 'shadow* style props are deprecated. Use boxShadow.' — carryover from iter 31/32. Reference: /app/mobile/app/(tabs)/home.tsx:207,240,250 and /app/mobile/app/(tabs)/listen.tsx:166."},
+        {"component": "props.pointerEvents", "issue": "Console warning 'props.pointerEvents is deprecated. Use style.pointerEvents.' — carryover from iter 31/32."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "verification_details": {
+    "tab_bar": {
+      "rendered_order": ["Home","Listen","Wallet","Games","More"],
+      "expected_order": ["Home","Listen","Games","Wallet","More"],
+      "active_tint": "orange (COLORS.primary)",
+      "icons": "outline Ionicons (home-outline, radio-outline, wallet-outline, game-controller-outline, person-outline)",
+      "each_tab_opens_without_crash": true
+    },
+    "listen_tab": {
+      "title_and_subtitle": "'Listen' + 'Live radio, AI channels & podcasts' rendered",
+      "flagship_rail_count": 10,
+      "ai_rail_count": 14,
+      "worldwide_cta_navigates_to": "/stations",
+      "podcasts_section": "empty state via testID listen-podcasts-empty (No podcasts yet — check back soon.)",
+      "flagship_tap_result": "MiniPlayer appears; Continue Listening card populates on Listen and Home; audio stream not audible in web preview (expected — native only)",
+      "ai_tap_result": "navigates to /radio?channel=<slug>"
+    },
+    "continue_listening": {
+      "home_continue_present_after_play": true,
+      "listen_continue_present_after_play": true,
+      "tap_listen_continue_routes_to": "/now-playing (with station title/artist + Stop button)",
+      "hero_cta_relabels_to": "'Now Playing' when a channel/station is active"
+    },
+    "home_ctas": {
+      "home_listen_cta_opens": "/listen",
+      "home_quick_games_opens": "/games",
+      "home_all_stations_cta_opens": "/stations",
+      "bigcoin_card_visible": true,
+      "featured_stations_rail_visible": true
+    },
+    "no_regression": {
+      "wallet_tab_loads": true,
+      "games_tab_loads": true,
+      "more_profile_tab_loads": true,
+      "stations_search_returns_rows": "30 rows for 'Talk'",
+      "stations_favorites_segment_switch": true
+    }
+  },
+  "test_report_links": [],
+  "action_items": [
+    "HIGH: Swap the order of Tabs.Screen 'wallet' and 'games' in /app/mobile/app/(tabs)/_layout.tsx so the rendered order matches the Phase 1 spec: Home · Listen · Games · Wallet · More.",
+    "MEDIUM: Flagship logos for imported bigFM UAE stations don't load (SafeImage falls back to violet letter squares). Either supply a curated logo/favicon map for the flagship set or serve a warm-themed fallback tile so the Listen rail looks branded.",
+    "LOW / carryover: migrate shadow* style props to boxShadow and props.pointerEvents to style.pointerEvents (RN Web preview console warnings only)."
+  ],
+  "critical_code_review_comments": [
+    "listen.tsx: podcasts endpoint /api/podcasts/discover response is read as data.channels — verify the backend contract; if it ever returns items under a different key (e.g. `podcasts` or `items`) the tiles will silently disappear behind the empty state. Consider a defensive fallback to (data.channels || data.podcasts || data.items || []).",
+    "listen.tsx `continueStation`: when audio is active it uses activeChannelThumb which for imported stations is `st.favicon || st.logo_url` — but currentSeg.track_artist is used as the subtitle line. If a live station's segment gets stale artist metadata from a previous AI channel session, the subtitle may look wrong. Guard by preferring `[country, language]` join when the active source is imported.",
+    "home.tsx heroBtn: text flips to 'Now Playing' only based on `activeChannelName`. If a user has paused, the button still says 'Now Playing' which is arguably misleading — consider 'Resume' vs 'Now Playing' vs 'Start Listening' three-state logic keyed off `playing` too.",
+    "_layout.tsx tab order — see HIGH action item."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only per request)", "frontend": "~90% — every feature works functionally; the sole functional miss is the wrong tab order (Games/Wallet swapped) plus the flagship logo fallbacks."},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (verified working)",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 1 of PDF-guided redesign: Listen tab + Continue Listening + Home restyle all pass. The single functional miss to re-verify after main agent fix is the TAB BAR ORDER — after swapping wallet/games in /app/mobile/app/(tabs)/_layout.tsx, restart mobile (Expo does not hot-reload reliably) and re-screenshot the bottom nav to confirm the visual order becomes Home · Listen · Games · Wallet · More. Everything else in this iteration passed and does not need re-testing.",
+  "rca of the issue": "Tab order mismatch RCA: In /app/mobile/app/(tabs)/_layout.tsx the JSX Tabs.Screen order determines the render order in the bottom bar. Currently `home → listen → radio(hidden) → wallet → games → podcasts(hidden) → profile`; because wallet is declared before games, the bar renders Home · Listen · Wallet · Games · More. Fix: move the games <Tabs.Screen> block above the wallet <Tabs.Screen> block. No other code change required."
+}
