@@ -1,0 +1,80 @@
+{
+  "summary": "Phase 2 PDF-guided restyle QA on the 4 requested mobile screens (Expo web preview @ 390x844). ALL FOUR RESTYLES PASS. (1) WALLET (/(tabs)/wallet): orange gradient hero card renders with 'TOTAL BIGCOIN BALANCE', ₿ glyph, big amount (bc-balance='127'), white tier pill (bc-tier='🥉 Bronze'), streak + 'Lifetime 127 BC' (bc-lifetime), and a milestone progress bar reading '373 BC to next milestone'; all text on the orange card is white and clearly readable. Tab row (Overview/Activity/Rewards/Badges/Refer) present and switches content; Scan to Pay / My Splits / Deals action buttons present; Rewards tab shows redeemable rewards (50/100/200 BC), Refer tab shows referrer-code. (2) GAMES (/(tabs)/games): Quick Games render as a 2-column rounded tile grid — Spin & Win (quick-game-spin), Music Trivia (quick-game-trivia), Guess the Lyric (quick-game-lyric), each with a colored icon chip on top, label and description. Tapping the Music Trivia tile routes to /games/trivia-game and the trivia screen loads with question & options. Featured Spin card (featured-spin-card) and Predict & Win card (predict-win-card) unchanged; BigCoin chip shows '127'; 'More games live now' list still renders (BigFM Lyric Hunt, BigFM Music Trivia). (3) PROFILE (/(tabs)/profile, tab label 'More'): tidy rows with rounded icon chips render — Edit Preferences, Billing & Plans, Notifications, Advertise on BigFM, Re-do Onboarding, Help & Support, About BigFM, Sign Out (orange), Delete Account (red). Tapping Edit Preferences opens the preferences editor (profile-prefs) with all chip grids (Languages/Genres/Eras/Moods/Activities/Home area/RJ personality/Explicit) and the SAVE PREFERENCES button (save-prefs-btn). (4) NEARBY DEALS (/coupons): title reads 'Nearby Deals', subheader present, category filter chips (All/Food/Drinks/Entertainment/Wellness/Shopping) work — 'Food' filter correctly hides the non-food demo offer. The one seeded offer card shows a prominent orange '50% OFF' tile on the left plus category tag, title, description, expiry, inventory ('100 left'), terms, and a full-width orange 'Save coupon' CTA. Claiming the offer decremented inventory 100→99 (persistence confirmed). 'My Coupons' link navigates back to the Wallet screen. REGRESSION: bottom tab bar order is now correct — 'Home · Listen · Games · Wallet · More' (iter 33 tab-order bug is FIXED); warm cream+orange theme intact across all four screens; no crashes navigating between tabs.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {
+          "screen": "coupons (Nearby Deals)",
+          "issues": [
+            "Minor: the offer-type text ('percent off') renders in lowercase with a leading space because it is derived from o.offer_type.replace(/_/g,' ') without capitalization — cosmetically inconsistent with the surrounding UI which uses uppercase labels. Cosmetic only, not blocking.",
+            "Minor: the 'trending' source badge and the 'percent off' tag share the same row and both use small type + orange tint — slight visual competition but readable."
+          ]
+        }
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Console warning 'shadow* style props are deprecated. Use boxShadow.' still emitted on wallet points card / quick-game tiles / offer cards / featured card. Reference: /app/mobile/app/(tabs)/wallet.tsx:427, /app/mobile/app/(tabs)/games.tsx:333-334,371, /app/mobile/app/coupons.tsx:147. Carryover from iter 31–33; migration to `boxShadow` recommended but not blocking."},
+        {"component": "props.pointerEvents", "issue": "Console warning 'props.pointerEvents is deprecated. Use style.pointerEvents' — carryover from prior iterations, source not in the 4 restyled files."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "verification_details": {
+    "wallet": {
+      "hero_card_testid": "balance-card",
+      "bc_balance": "127",
+      "bc_tier_label": "🥉 Bronze",
+      "bc_lifetime": "Lifetime 127 BC",
+      "milestone_bar_rendered": true,
+      "milestone_hint": "373 BC to next milestone",
+      "tabs_switch": ["overview","balance","rewards","badges","refer"],
+      "action_buttons": ["wallet-scan-to-pay-btn","wallet-my-splits-btn","wallet-deals-btn"]
+    },
+    "games": {
+      "quick_grid_testids": ["quick-game-spin","quick-game-trivia","quick-game-lyric"],
+      "trivia_tile_route": "/games/trivia-game (verified)",
+      "featured_spin_card": true,
+      "predict_win_card": true,
+      "bigcoin_chip_balance": "127"
+    },
+    "profile": {
+      "menu_rows_with_icon_chips": ["menu-edit-prefs","menu-billing","menu-notifications","menu-advertiser","redo-onboarding-btn","menu-help","menu-about","signout-btn","menu-delete-account"],
+      "prefs_editor_opens": true,
+      "save_prefs_btn_present": true
+    },
+    "coupons": {
+      "title": "Nearby Deals",
+      "filter_chips_render": true,
+      "food_filter_works": true,
+      "offer_card_id": "offer-card-ofr_qa_onetime_demo",
+      "discount_tile_text": "50% OFF",
+      "save_coupon_cta_text": "Save coupon",
+      "claim_persistence": "inventory 100 → 99 after Save coupon",
+      "my_coupons_link_routes_to_wallet": true
+    },
+    "tab_bar_order_rendered": ["Home","Listen","Games","Wallet","More"],
+    "tab_bar_order_expected": ["Home","Listen","Games","Wallet","More"],
+    "iter33_tab_order_bug_fixed": true
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional/cosmetic) In /app/mobile/app/coupons.tsx around line 103, capitalize/normalize the offer_type label so 'percent_off' renders as 'Percent Off' (or hide it when the discount tile already shows the % value) — small readability polish.",
+    "(Optional/tech-debt) Migrate remaining shadow* style props to boxShadow across wallet.tsx / games.tsx / coupons.tsx to silence React Native web console warnings."
+  ],
+  "critical_code_review_comments": [
+    "wallet.tsx (505 lines) is bordering on the >700 threshold but still readable; consider splitting the sub-tab renderers (OverviewTab / BalanceTab / RewardsTab / BadgesTab / ReferTab) into files under src/components/wallet/ if it keeps growing.",
+    "In coupons.tsx `discountTile` uses `alignSelf: 'flex-start'` which correctly keeps the tile from stretching, and `flex: 1, minWidth: 0` on the info column is correctly set to prevent overflow — good.",
+    "In games.tsx the third quick tile occupies a single row of its own (only 3 tiles across 2 columns) which matches the PDF; `flexGrow: 1` on the tile means when it's alone on the second row it stretches full width — this is intentional and looks OK visually."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% (all 4 restyled screens + regression pass)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "None. Reused existing user + seeded 'ofr_qa_onetime_demo' offer.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 2 restyle of Wallet + Games + Profile + Coupons/Nearby Deals is fully verified on mobile web preview. Tab bar order regression from iter 33 is fixed. Only cosmetic residuals remain (offer_type label case in coupons.tsx; carryover shadow* / pointerEvents web warnings). Do not re-verify unless E1 changes any of these 4 files.",
+  "rca of the issue": "N/A — no functional bugs found in this iteration."
+}

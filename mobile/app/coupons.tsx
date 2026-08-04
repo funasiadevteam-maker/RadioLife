@@ -65,7 +65,7 @@ export default function CouponsScreen() {
             <Text style={st.myCouponsText}>My Coupons</Text>
           </TouchableOpacity>
         </View>
-        <Text style={st.title}>Local Offers</Text>
+        <Text style={st.title}>Nearby Deals</Text>
         <Text style={st.sub}>Deals from businesses near you. Claim → redeem in-store.</Text>
 
         {/* Filter chips */}
@@ -89,30 +89,37 @@ export default function CouponsScreen() {
         ) : filtered.map(o => (
           <TouchableOpacity key={o.offer_id} style={st.offerCard} testID={`offer-card-${o.offer_id}`}
             onPress={() => router.push(`/offer/${o.offer_id}`)} activeOpacity={0.8}>
-            <View style={st.offerHeader}>
-              <View style={st.offerType}>
-                <Ionicons name="pricetag" size={10} color={COLORS.gold} />
-                <Text style={st.offerTypeText}>{(o.offer_type || '').replace(/_/g, ' ')}</Text>
+            <View style={st.offerRow}>
+              <View style={st.discountTile}>
+                <Text style={st.discountValue}>
+                  {o.value_amount != null ? (o.offer_type === 'percent_off' ? `${o.value_amount}%` : `${o.value_amount}`) : 'DEAL'}
+                </Text>
+                <Text style={st.discountLabel}>{o.value_amount != null ? (o.offer_type === 'percent_off' ? 'OFF' : (o.value_currency || 'AED')) : ''}</Text>
               </View>
-              {o.source && <Text style={st.sourceBadge}>{o.source}</Text>}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={st.offerHeader}>
+                  <View style={st.offerType}>
+                    <Ionicons name="pricetag" size={10} color={COLORS.gold} />
+                    <Text style={st.offerTypeText}>{(o.offer_type || '').replace(/_/g, ' ')}</Text>
+                  </View>
+                  {o.source && <Text style={st.sourceBadge}>{o.source}</Text>}
+                </View>
+                <Text style={st.offerTitle} numberOfLines={2}>{o.title}</Text>
+                {o.description ? <Text style={st.offerDesc} numberOfLines={2}>{o.description}</Text> : null}
+                <View style={st.offerMeta}>
+                  {o.end_at && <Text style={st.offerExpiry}><Ionicons name="time" size={10} color={COLORS.textDim} /> exp {new Date(o.end_at).toLocaleDateString()}</Text>}
+                  {o.inventory_remaining != null && <Text style={[st.offerExpiry, o.inventory_remaining === 0 && { color: COLORS.red }]}>{o.inventory_remaining === 0 ? 'Sold out' : `${o.inventory_remaining} left`}</Text>}
+                </View>
+              </View>
             </View>
-            <Text style={st.offerTitle}>{o.title}</Text>
-            {o.description ? <Text style={st.offerDesc}>{o.description}</Text> : null}
-            <View style={st.offerMeta}>
-              {o.value_amount != null && <Text style={st.offerValue}>{o.value_amount}{o.offer_type === 'percent_off' ? '%' : ` ${o.value_currency || 'AED'}`} off</Text>}
-              {o.end_at && <Text style={st.offerExpiry}><Ionicons name="time" size={10} color={COLORS.textDim} /> {new Date(o.end_at).toLocaleDateString()}</Text>}
-              {o.inventory_remaining != null && <Text style={[st.offerExpiry, o.inventory_remaining === 0 && { color: COLORS.red }]}>{o.inventory_remaining === 0 ? 'Sold out' : `${o.inventory_remaining} left`}</Text>}
-            </View>
-            {o.terms_text ? <Text style={st.terms}>{o.terms_text}</Text> : null}
-            <View style={st.offerActions}>
-              <TouchableOpacity style={[st.claimBtn, (o.inventory_remaining === 0 || claiming === o.offer_id) && { opacity: 0.4 }]}
-                onPress={() => claimOffer(o.offer_id)}
-                disabled={o.inventory_remaining === 0 || claiming === o.offer_id}
-                testID={`claim-offer-${o.offer_id}`}>
-                {claiming === o.offer_id ? <ActivityIndicator size={12} color="#fff" /> :
-                  <><Ionicons name="gift" size={13} color="#fff" /><Text style={st.claimText}>Save coupon</Text></>}
-              </TouchableOpacity>
-            </View>
+            {o.terms_text ? <Text style={st.terms} numberOfLines={2}>{o.terms_text}</Text> : null}
+            <TouchableOpacity style={[st.claimBtn, (o.inventory_remaining === 0 || claiming === o.offer_id) && { opacity: 0.4 }]}
+              onPress={() => claimOffer(o.offer_id)}
+              disabled={o.inventory_remaining === 0 || claiming === o.offer_id}
+              testID={`claim-offer-${o.offer_id}`}>
+              {claiming === o.offer_id ? <ActivityIndicator size={12} color="#fff" /> :
+                <><Ionicons name="gift" size={13} color="#fff" /><Text style={st.claimText}>Save coupon</Text></>}
+            </TouchableOpacity>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -137,8 +144,12 @@ const st = StyleSheet.create({
   filterText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600' },
   emptyWrap: { alignItems: 'center', padding: SPACING.xl },
   emptyText: { color: COLORS.textDim, fontSize: FONT.sm, marginTop: SPACING.sm },
-  offerCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.cardBorder },
-  offerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  offerCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  offerRow: { flexDirection: 'row', gap: SPACING.md },
+  discountTile: { width: 68, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.sm, alignSelf: 'flex-start' },
+  discountValue: { color: '#fff', fontSize: 20, fontWeight: '900' },
+  discountLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  offerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   offerType: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   offerTypeText: { color: COLORS.gold, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   sourceBadge: { backgroundColor: 'rgba(242,107,42,0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: RADIUS.full },

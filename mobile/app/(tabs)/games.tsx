@@ -196,19 +196,16 @@ export default function GamesHub() {
           {QUICK_GAMES.map((g) => (
             <TouchableOpacity
               key={g.id}
-              style={s.quickCard}
+              style={s.quickTile}
               onPress={() => router.push(g.route as any)}
               activeOpacity={0.85}
               testID={`quick-game-${g.id}`}
             >
-              <View style={[s.quickIconWrap, { backgroundColor: `${g.color}15` }]}>
-                <Ionicons name={g.icon as any} size={24} color={g.color} />
+              <View style={[s.quickIconWrap, { backgroundColor: `${g.color}18` }]}>
+                <Ionicons name={g.icon as any} size={26} color={g.color} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.quickLabel}>{g.label}</Text>
-                <Text style={s.quickDesc}>{g.desc}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
+              <Text style={s.quickLabel} numberOfLines={1}>{g.label}</Text>
+              <Text style={s.quickDesc} numberOfLines={2}>{g.desc}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -365,19 +362,20 @@ const s = StyleSheet.create({
   },
 
   // Quick games
-  quickGrid: { gap: 8, marginBottom: SPACING.lg },
-  quickCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: SPACING.lg },
+  quickTile: {
+    width: '47.5%', flexGrow: 1,
     backgroundColor: COLORS.card, borderRadius: RADIUS.lg,
     borderWidth: 1, borderColor: COLORS.cardBorder,
     padding: SPACING.md,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
   },
   quickIconWrap: {
-    width: 44, height: 44, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
+    width: 52, height: 52, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
   },
-  quickLabel: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
-  quickDesc: { fontSize: FONT.xs, fontWeight: '500', color: COLORS.textMuted, marginTop: 2 },
+  quickLabel: { fontSize: FONT.md, fontWeight: '800', color: COLORS.text },
+  quickDesc: { fontSize: FONT.xs, fontWeight: '500', color: COLORS.textMuted, marginTop: 3, lineHeight: 15 },
 
   // Predict card
   predictCard: {

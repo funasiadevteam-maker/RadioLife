@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import api from '../../src/api/client';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -80,31 +81,39 @@ export default function WalletScreen() {
           <Text style={st.headerSub}>Earn by listening · Spend on rewards · Refer friends</Text>
         </View>
 
-        {/* Balance card */}
-        <View style={st.balanceCard} testID="balance-card">
-          <View style={st.balanceTop}>
-            <Text style={st.balanceIcon}>₿</Text>
+        {/* Points hero card */}
+        <LinearGradient
+          colors={['#F26B2A', '#F59E0B']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={st.pointsCard} testID="balance-card"
+        >
+          <View style={st.pointsTop}>
             <View style={{ flex: 1 }}>
-              <Text style={st.balanceLabel}>CURRENT BALANCE</Text>
-              <Text style={st.balanceAmount} testID="bc-balance">{me?.balance ?? 0}</Text>
+              <Text style={st.pointsLabel}>TOTAL BIGCOIN BALANCE</Text>
+              <View style={st.pointsAmountRow}>
+                <Text style={st.pointsGlyph}>₿</Text>
+                <Text style={st.pointsAmount} testID="bc-balance">{me?.balance ?? 0}</Text>
+              </View>
+            </View>
+            <View style={st.tierPill} testID="bc-tier">
+              <Text style={st.tierPillText}>{TIER_ICONS[me?.tier] || '🥉'} {me?.tier_label || me?.tier || 'Bronze'}</Text>
             </View>
           </View>
-          <View style={st.balanceMeta}>
-            <Text style={st.tierBadge} testID="bc-tier">{TIER_ICONS[me?.tier] || '🥉'} {me?.tier_label}</Text>
-            <Text style={st.metaItem}>🔥 <Text style={{ color: COLORS.text, fontWeight: '700' }}>{me?.streak_days || 0}</Text>-day streak</Text>
-            <Text style={st.metaItem}>Lifetime <Text style={{ color: COLORS.text, fontWeight: '700' }} testID="bc-lifetime">{me?.lifetime_earned || 0}</Text></Text>
+          <View style={st.pointsMetaRow}>
+            <Text style={st.pointsMeta}>🔥 {me?.streak_days || 0}-day streak</Text>
+            <Text style={st.pointsMeta} testID="bc-lifetime">Lifetime {me?.lifetime_earned || 0} BC</Text>
           </View>
-          {/* Milestone bar */}
-          <View style={st.milestoneWrap}>
-            <Text style={st.milestoneLabel}>NEXT MILESTONE{me?.next_milestone ? ` — ${me.balance}/${me.next_milestone}` : ''}</Text>
-            <View style={st.milestoneBar}>
-              <View style={[st.milestoneFill, { width: `${Math.min(100, me?.milestone_progress || 0)}%` }]} />
+          {me?.next_milestone ? (
+            <View style={st.pointsProgressWrap}>
+              <View style={st.pointsProgressBar}>
+                <View style={[st.pointsProgressFill, { width: `${Math.min(100, me?.milestone_progress || 0)}%` }]} />
+              </View>
+              <Text style={st.pointsProgressHint}>
+                {Math.max(0, me.next_milestone - (me.lifetime_earned || 0))} BC to next milestone
+              </Text>
             </View>
-            <Text style={st.milestoneHint}>
-              {me?.next_milestone ? `${me.next_milestone - (me.lifetime_earned || 0)} BC to milestone` : 'Max milestone reached!'}
-            </Text>
-          </View>
-        </View>
+          ) : null}
+        </LinearGradient>
 
         {/* Action Buttons */}
         <View style={st.actionRow}>
@@ -415,19 +424,20 @@ const st = StyleSheet.create({
   headerTitle: { fontSize: 24, fontWeight: '900', color: COLORS.text, letterSpacing: -1 },
   headerSub: { fontSize: 12, color: COLORS.textDim, marginTop: 4 },
   /* Balance Card */
-  balanceCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: SPACING.md },
-  balanceTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  balanceIcon: { fontSize: 36, color: COLORS.gold },
-  balanceLabel: { fontSize: 10, color: COLORS.textDim, fontWeight: '700', letterSpacing: 1 },
-  balanceAmount: { fontSize: 32, fontWeight: '900', color: COLORS.text },
-  balanceMeta: { flexDirection: 'row', gap: SPACING.md, marginTop: 10, flexWrap: 'wrap' },
-  tierBadge: { fontSize: 12, color: COLORS.gold, fontWeight: '700' },
-  metaItem: { fontSize: 12, color: COLORS.textDim },
-  milestoneWrap: { marginTop: SPACING.sm },
-  milestoneLabel: { fontSize: 9, color: COLORS.textDim, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
-  milestoneBar: { height: 6, backgroundColor: COLORS.surface, borderRadius: 3, overflow: 'hidden' },
-  milestoneFill: { height: 6, backgroundColor: COLORS.primary, borderRadius: 3 },
-  milestoneHint: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  pointsCard: { borderRadius: RADIUS.xl, padding: SPACING.lg, marginBottom: SPACING.md, shadowColor: '#F26B2A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 6 },
+  pointsTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  pointsLabel: { fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: '800', letterSpacing: 1 },
+  pointsAmountRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: 4 },
+  pointsGlyph: { fontSize: 26, fontWeight: '900', color: '#fff', marginBottom: 3 },
+  pointsAmount: { fontSize: 42, fontWeight: '900', color: '#fff', lineHeight: 46 },
+  tierPill: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 6 },
+  tierPillText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  pointsMetaRow: { flexDirection: 'row', gap: SPACING.md, marginTop: 10 },
+  pointsMeta: { fontSize: 12, color: 'rgba(255,255,255,0.92)', fontWeight: '600' },
+  pointsProgressWrap: { marginTop: SPACING.md },
+  pointsProgressBar: { height: 7, backgroundColor: 'rgba(255,255,255,0.28)', borderRadius: 4, overflow: 'hidden' },
+  pointsProgressFill: { height: 7, backgroundColor: '#fff', borderRadius: 4 },
+  pointsProgressHint: { fontSize: 11, color: 'rgba(255,255,255,0.92)', fontWeight: '600', marginTop: 5 },
   /* Action Row */
   actionRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
   actionBtn: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },

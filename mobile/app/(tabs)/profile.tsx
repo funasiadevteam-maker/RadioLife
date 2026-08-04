@@ -211,13 +211,15 @@ function MenuItem({ icon, label, sub, color, onPress, loading: busy, testID }: {
 }) {
   return (
     <TouchableOpacity style={st.menuItem} onPress={onPress} testID={testID} activeOpacity={0.7}>
-      {busy ? <ActivityIndicator size="small" color={COLORS.textDim} /> :
-        <Ionicons name={icon as any} size={18} color={color || COLORS.textDim} />}
+      <View style={[st.menuIconChip, color ? { backgroundColor: `${color}18` } : null]}>
+        {busy ? <ActivityIndicator size="small" color={COLORS.textDim} /> :
+          <Ionicons name={icon as any} size={18} color={color || COLORS.primary} />}
+      </View>
       <View style={{ flex: 1, marginLeft: 12 }}>
         <Text style={[st.menuItemLabel, color ? { color } : null]}>{label}</Text>
         {sub && <Text style={st.menuItemSub}>{sub}</Text>}
       </View>
-      <Ionicons name="chevron-forward" size={14} color={COLORS.textDim} />
+      <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -235,8 +237,9 @@ const st = StyleSheet.create({
   profileTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.surfaceBorder },
   profileTagText: { fontSize: 9, fontWeight: '700', color: COLORS.textDim, letterSpacing: 1 },
   menuLabel: { color: COLORS.textDim, fontSize: 10, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', marginBottom: SPACING.sm },
-  menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 6 },
-  menuItemLabel: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.sm + 2, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 8 },
+  menuIconChip: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
+  menuItemLabel: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
   menuItemSub: { color: COLORS.textDim, fontSize: 11, marginTop: 2 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.sm },
   backText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
