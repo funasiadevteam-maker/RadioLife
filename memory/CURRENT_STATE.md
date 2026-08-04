@@ -1,3 +1,34 @@
+# BigFM — Mobile Readability + MiniPlayer Fix (2026-08-04)
+
+Fixed user-reported mobile (Expo) bugs. Root cause of unreadable text:
+theme.ts migrated to RadioLife LIGHT mode (bg #f8fafc, text #0f172a) but
+many screens still hardcoded dark-theme `color:'#fff'` on light backgrounds.
+
+Fixed + verified (testing agent iteration_30 — all PASS):
+- `app/(tabs)/radio.tsx` — brandName, onAirLabel, trackTitle `#fff` → COLORS.text
+  (Midnight Lounge / BigFM Dubai / ON AIR now readable). Registers its
+  expo-audio player with the new audioController.
+- `app/lobbies.tsx` — title, cardName, emptyTitle, modalTitle, input,
+  selectText, pickerText `#fff` → COLORS.text. Also added missing
+  `Pressable` import (create-lobby modal submit was a latent crash).
+- `app/channels.tsx` — headerTitle, searchInput, cardName `#fff` → COLORS.text;
+  filterRow maxHeight 40→52 + alignItems:center (LANG/MOOD/VIBE chips were clipped).
+- `src/services/audioController.ts` — NEW singleton holding the active
+  expo-audio player so transport works outside the Radio screen.
+- `src/components/MiniPlayer.tsx` — play/pause now calls togglePlayback()
+  + nativePlay/nativePause (was only flipping a zustand flag → no-op audio).
+
+STILL OPEN (same theme bug, NOT yet swept — offered to user as next step):
+~35 other mobile screens still contain hardcoded `#fff` text on light bg
+(wallet, passport, profile, news, leaderboard, coupons, offer, play-and-win,
+notifications, trivia/*, game/*, advertiser/*, creator/*, billing, commute,
+onboarding, shared components QuizGame/RewardModal/ChannelGateModal).
+Also deferred: Home "featured stations" show letter placeholders (no cover
+art data); Games screen visual polish; 40K imported radio stations browsing.
+
+---
+
+
 # BigFM — Current State (Phase T — Admin Dashboard Expansion, 2026-07-28)
 
 ## Phase T — Admin Dashboard Expansion (2026-07-28)
