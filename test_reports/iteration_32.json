@@ -1,0 +1,101 @@
+{
+  "summary": "Mobile QA for Phase 39M.5 — warm theme re-skin + 4 features (Now Playing stop, Recent/Favorites, Country filter, Skip onboarding). 4 of 5 features PASS, 1 FAIL. THEME re-skin verified across Home, Radio, Wallet, Games, More/Profile, Stations, Now Playing, Passport, Play & Win, Trivia — warm cream bg (#FBF5EC), coral-orange primary (#F26B2A), blue secondary, golden BigCoin, warm near-black text; no white-on-white regressions detected; tab bar uses outline Ionicons with orange active tint. NOW PLAYING flow works end-to-end via MiniPlayer tap — title 'Talk 100.3 UAE', artist 'United Arab Emirates · english hindi', LIVE pill, play/pause toggle works (icon flips), red 'Stop' button releases the player, clears MiniPlayer, and navigates back. RECENT/FAVORITES persisted store works — heart on a Browse row favorites the station (heart fills, Favorites tab shows 1 entry with header count), playing a station records it under Recent (verified 'Talk 100.3 UAE' appears in Recent with header '1 recently played'). SKIP ONBOARDING works — onboarding-skip-btn renders on step 1, tapping it routes to /(tabs)/radio (URL after skip = /radio). COUNTRY FILTER BROKEN: selecting any specific country (UAE/India/USA/UK/etc.) returns 0 stations because the shared backend GET /api/radio/browse?source=imported&country=<full name> returns total=0 for every value tried, even though the same endpoint w/o country returns stations whose 'country' field IS those exact strings (United Arab Emirates, United States, India). Verified via direct curl. Language chip + search still work correctly.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/radio/browse?source=imported&country=<full_country>",
+        "issue": "Country filter returns total=0 for every country the mobile UI sends (United Arab Emirates, India, United States, United Kingdom, Pakistan, Saudi Arabia, Germany) although the same endpoint w/o country returns stations whose country field is literally 'United Arab Emirates', 'United States', 'India'. So the imported-station filter is not matching against the country field. As a result the new COUNTRY FILTER on /stations always produces an empty list.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "mobile": {
+      "ui_bugs": [
+        {
+          "component": "StationsScreen country filter integration",
+          "issue": "Selecting any country chip (stations-country-uae/india/usa/uk/pakistan/saudi/germany) always yields the empty state 'No stations found — Try a different search, country or language.' and the header sub loses its count and shows 'Browse live radio worldwide'. Root cause is backend, but UX-wise there is no client-side hint that the filter is unsupported.",
+          "testID": "stations-country-<label>",
+          "priority": "HIGH"
+        }
+      ],
+      "integration_issues": [
+        {
+          "flow": "Country filter on /stations Browse",
+          "issue": "Chip -> /api/radio/browse?source=imported&country=<full name> -> total=0. Feature is unusable end-to-end until backend country-match for imported stations is fixed.",
+          "affected_testIDs": ["stations-country-uae","stations-country-india","stations-country-usa","stations-country-uk","stations-country-pakistan","stations-country-saudi","stations-country-germany"]
+        }
+      ],
+      "design_issues": [
+        {
+          "screen": "stations (Browse mode)",
+          "issues": ["Country chip row + Language chip row are stacked with only ~6px between them; on 390px viewport they sit right up against each other which looks like one visually crowded band. Consider a small vertical gap or a subtle divider/label ('COUNTRY'/'LANGUAGE') between the two horizontal filter strips."]
+        }
+      ],
+      "react_native_issues": [
+        {"component": "Unknown <View> child", "issue": "Runtime console error: 'Unexpected text node: . A text node cannot be a child of a <View>.' — indicates a stray whitespace/string somewhere inside a View (likely a conditional render leaking a space). Non-fatal but should be tracked down."},
+        {"component": "shadow* style props", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Carryover from iter 31; cosmetic on RN Web preview only."},
+        {"component": "pointerEvents prop", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents.' Carryover from iter 31; cosmetic on RN Web preview only."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "verification_details": {
+    "theme_re_skin": {
+      "body_bg": "warm cream (#FBF5EC) — confirmed via computed style and screenshots on Home/Radio/Wallet/Games/More/Stations/Now Playing/Passport/Play & Win/Trivia.",
+      "primary": "coral orange (#F26B2A) — Sign in button, Start Listening CTA, active tab tint, active mode segment (Browse/Favorites/Recent), active country/language chips, Now Playing play button, Now Playing artwork gradient, orange BigFM dot.",
+      "secondary": "blue (#3B82F6) — 'Dubai' text in brand, voice preview button tint on onboarding step 8.",
+      "gold": "amber (#F59E0B) — BigCoin balance label, FLAGSHIP badge accent.",
+      "text": "warm near-black readable across all screens; no white-on-white regressions found (iter 31 Passport 'City Leaderboard' + Play & Win LOSE badge no longer white-on-white).",
+      "tab_bar": "outline Ionicons (home-outline/radio-outline/wallet-outline/game-controller-outline/person-outline), active tint orange, inactive tint stone-400, white tab bar bg with warm border."
+    },
+    "all_stations_modes": {
+      "segments_render": {"stations-mode-browse": true, "stations-mode-favorites": true, "stations-mode-recent": true},
+      "favorite_toggle": "Tapping station-fav-<id> in Browse fills the heart red; switching to Favorites tab lists that station and header shows '1 favorite'.",
+      "recent_auto_record": "After playing 'Talk 100.3 UAE' the Recent tab shows the station and header sub reads '1 recently played'.",
+      "persistence": "Both lists are backed by AsyncStorage (localStorage on Expo web) via useStationsStore -> load() runs on mount."
+    },
+    "country_filter": {
+      "chips_render": ["All","UAE","India","USA","UK","Pakistan","Saudi","Germany"],
+      "mobile_ui_wiring": "OK — chip onPress sets country to the full backend value (e.g. 'United Arab Emirates') and passes it as ?country=... on /api/radio/browse.",
+      "backend_response": "total=0 for every specific country; only 'All' (which omits the param) returns rows. Verified: curl /api/radio/browse?source=imported&country=United%20Arab%20Emirates -> total 0 while /api/radio/browse?source=imported -> total 2012 and first rows have country='United Arab Emirates'."
+    },
+    "now_playing": {
+      "opened_via": "MiniPlayer tap after playing a station",
+      "title": "Talk 100.3 UAE",
+      "artist": "United Arab Emirates · english hindi",
+      "live_pill": "present (green dot + channel name)",
+      "play_pause_toggle": "icon flips play <-> pause on tap (audio itself is native-only in web preview, as instructed)",
+      "stop_btn": "red 'Stop' — testID now-playing-stop. Tap -> releaseCurrent + nativePause + clears session/seg/channel -> MiniPlayer disappears + router.back() runs.",
+      "note": "When Now Playing is opened by DIRECT URL nav (not via MiniPlayer), title/artist fall back to 'Live Radio' / 'BigFM' because Zustand state is reset on page reload — expected in real usage (users arrive from MiniPlayer)."
+    },
+    "skip_onboarding": {
+      "button_present_step_1": true,
+      "tap_result": "URL routes to https://.../radio (route /(tabs)/radio) — best-effort POST /users/preferences may run in the background.",
+      "condition": "Rendered when step < 10 (steps 1-10)."
+    }
+  },
+  "test_report_links": [],
+  "action_items": [
+    "HIGH: Fix backend /api/radio/browse country filter for source=imported. Country chips send full names ('United Arab Emirates', 'India', 'United States', 'United Kingdom', 'Pakistan', 'Saudi Arabia', 'Germany') but backend returns total=0 for each. Either add a case-insensitive contains/exact match on the country field of imported stations OR change the chip values on mobile to the token the backend actually indexes on (e.g. ISO code or 'UAE'/'US' short form). Currently the whole new country-filter feature is a no-op.",
+    "MEDIUM: Add a small vertical gap or divider between the country chip strip and the language chip strip on /stations Browse — they are visually flush right now.",
+    "LOW: Track down 'Unexpected text node' console error — likely a stray whitespace inside a <View> conditional render.",
+    "OPTIONAL (carryover): migrate shadow* style props to boxShadow and props.pointerEvents to style.pointerEvents to silence RN Web console warnings."
+  ],
+  "critical_code_review_comments": [
+    "stations.tsx COUNTRIES table: values are full country names (e.g. 'United Arab Emirates'). If the backend indexes country_code / short code (e.g. 'AE', 'UAE') for imported stations the filter will never match. Confirm the imported-station schema field before choosing between fixing backend match or shortening the chip values.",
+    "now-playing.tsx: stop() cleanly releases the player, clears session/seg/channel and calls router.back(). If the user reaches /now-playing via URL directly there is no history to pop and RN Web warns 'GO_BACK not handled' — consider router.canGoBack ? back() : router.replace('/(tabs)/radio') as a defensive fallback.",
+    "useStationsStore: FAV_KEY/REC_KEY are hardcoded strings scoped per-device only (no user-id namespace). Two users sharing the same browser/profile would see each other's favorites & recents. Minor concern for a demo build but worth noting.",
+    "audioController.togglePlayback() returns true/false based on p.playing after the toggle — on some expo-audio versions the property lags the actual state until the next event; watch for a case where the Now Playing icon and the actual audio drift. Not observed in this run but structurally possible."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request; noted 1 endpoint bug via curl)", "frontend": "80% — 4/5 features pass; country filter fails end-to-end due to backend"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (verified working)",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 39M.5 verification: theme re-skin + Now Playing Stop + Favorites/Recent + Skip Onboarding all pass. The single blocker is the COUNTRY FILTER — mobile UI wiring is correct (chip -> full country name -> /api/radio/browse?source=imported&country=...) but the backend returns total=0 for every specific country. This needs a backend fix (or a change to the mobile chip values to match whatever the backend indexes on). After the fix, only re-run: /stations -> tap 'UAE' -> expect header count > 0 and first row a UAE flagship; then tap 'India' -> expect header count > 0. Everything else in this iteration passed and does not need re-testing.",
+  "rca of the issue": "Backend /api/radio/browse endpoint accepts the ?country= query param and evidently applies it as an exact match against a column that is NOT set to the full country name for imported (radio-browser) stations, even though the response BODY for those same rows contains the full name in the country field. Likely the backend column for imported rows is either NULL, or a code/slug (e.g. 'AE'), or the filter is applied against a different collection than the one returned. Reproduction: (1) GET /api/radio/browse?source=imported returns 2012 rows with country='United Arab Emirates' etc. (2) GET /api/radio/browse?source=imported&country=United%20Arab%20Emirates returns total=0. Same for India / United States. Mitigation options: (a) fix backend filter to a case-insensitive contains match on the same country field returned in the response, or (b) expose a country_code/tag field on imported stations and switch the mobile COUNTRIES table values to the same tokens."
+}

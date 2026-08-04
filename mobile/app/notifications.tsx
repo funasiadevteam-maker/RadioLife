@@ -128,7 +128,7 @@ const st = StyleSheet.create({
   backText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
   title: { color: COLORS.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
   sub: { color: COLORS.textDim, fontSize: FONT.sm, marginBottom: SPACING.lg },
-  webBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(0,217,255,0.06)', borderWidth: 1, borderColor: 'rgba(0,217,255,0.2)', borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.lg },
+  webBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(59,130,246,0.06)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)', borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.lg },
   webBannerText: { color: COLORS.textDim, fontSize: 12, flex: 1, lineHeight: 18 },
   card: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md, marginBottom: SPACING.md },
   toggleRow: { flexDirection: 'row', alignItems: 'center' },

@@ -217,7 +217,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: RADIUS.full,
     borderWidth: 1, borderColor: COLORS.surfaceBorder,
   },
-  marketChipActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(0,217,255,0.08)' },
+  marketChipActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },
   marketChipText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '600' },
   marketChipTextActive: { color: COLORS.secondary },
   cardText: { color: COLORS.textDim, fontSize: FONT.sm, lineHeight: 20 },

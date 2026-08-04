@@ -310,7 +310,7 @@ function ReferralsSection({ data }: any) {
           <Ionicons name="chevron-forward" size={14} color={COLORS.textDim} />
           <View style={st.funnelStep}><Text style={st.funnelNum}>{stats.funnel?.signed_up || 0}</Text><Text style={st.funnelLabel}>signed up</Text></View>
           <Ionicons name="chevron-forward" size={14} color={COLORS.textDim} />
-          <View style={[st.funnelStep, { backgroundColor: 'rgba(0,217,255,0.1)' }]}><Text style={[st.funnelNum, { color: COLORS.secondary }]}>{stats.funnel?.engaged || 0}</Text><Text style={st.funnelLabel}>engaged</Text></View>
+          <View style={[st.funnelStep, { backgroundColor: 'rgba(59,130,246,0.1)' }]}><Text style={[st.funnelNum, { color: COLORS.secondary }]}>{stats.funnel?.engaged || 0}</Text><Text style={st.funnelLabel}>engaged</Text></View>
         </View>
         <Text style={[st.emptySub, { marginTop: 8 }]}>{stats.conversion_to_engaged_pct ?? 0}% engaged conversion</Text>
       </View>
@@ -319,7 +319,7 @@ function ReferralsSection({ data }: any) {
           <Text style={st.sectionHead}>Recent activity</Text>
           {stats.recent.map((r: any, i: number) => (
             <View key={i} style={st.feedRow}>
-              <View style={[st.statusChip, r.status === 'engaged' && { backgroundColor: 'rgba(0,217,255,0.15)' }]}>
+              <View style={[st.statusChip, r.status === 'engaged' && { backgroundColor: 'rgba(59,130,246,0.15)' }]}>
                 <Text style={[st.statusText, r.status === 'engaged' && { color: COLORS.secondary }]}>{r.status}</Text>
               </View>
               <Text style={{ color: COLORS.textDim, fontSize: 11, flex: 1 }}>{r.landing_path}</Text>
@@ -400,7 +400,7 @@ const st = StyleSheet.create({
   leaderSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   tabs: { flexDirection: 'row', gap: 4, marginBottom: SPACING.md },
   tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.surfaceBorder },
-  tabActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(255,45,149,0.08)' },
+  tabActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(242,107,42,0.08)' },
   tabText: { fontSize: 12, color: COLORS.textDim, fontWeight: '600', textTransform: 'capitalize' },
   tabTextActive: { color: COLORS.primary },
   section: { marginBottom: SPACING.lg },

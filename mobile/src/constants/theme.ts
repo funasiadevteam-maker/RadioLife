@@ -1,37 +1,38 @@
 import { StyleSheet } from 'react-native';
 
-/* ── RadioLife Light-Mode Design Tokens ──
-   Matches the web RadioLife palette: slate-50 bg, white cards,
-   slate-900 text, pink brand accent, teal secondary. */
+/* ── BigFM Warm Design Tokens ──
+   Friendly, high-readability palette: warm cream bg, white rounded cards,
+   warm near-black text, coral-orange brand accent, golden BigCoin, soft shadows.
+   Icons use clean outline (line) style across the app. */
 
 export const COLORS = {
-  bg: '#f8fafc',           // slate-50
-  primary: '#ff2d95',      // BigFM magenta
-  secondary: '#00d9ff',    // BigFM teal
-  gold: '#d97706',         // amber-600 (readable on light)
-  text: '#0f172a',         // slate-900
-  textDim: '#475569',      // slate-600
-  textMuted: '#94a3b8',    // slate-400
+  bg: '#FBF5EC',           // warm cream
+  primary: '#F26B2A',      // coral orange (brand accent)
+  secondary: '#3B82F6',    // blue accent (predict / links)
+  gold: '#F59E0B',         // amber-500 — BigCoin
+  text: '#1C1917',         // warm near-black (stone-900)
+  textDim: '#57534E',      // stone-600
+  textMuted: '#A8A29E',    // stone-400
   surface: 'rgba(0,0,0,0.02)',
-  surfaceBorder: '#e2e8f0', // slate-200
-  card: '#ffffff',
-  cardBorder: '#e2e8f0',   // slate-200
-  green: '#16a34a',        // green-600
-  red: '#e11d48',          // rose-600
-  orange: '#ea580c',       // orange-600
-  purple: '#7c3aed',       // violet-600
-  inputBg: '#f1f5f9',      // slate-100
-  inputBorder: '#cbd5e1',  // slate-300
+  surfaceBorder: '#EFE6DA', // warm border
+  card: '#FFFFFF',
+  cardBorder: '#EFE6DA',   // warm border
+  green: '#16A34A',        // green-600
+  red: '#E11D48',          // rose-600
+  orange: '#F26B2A',       // aligned with primary
+  purple: '#7C3AED',       // violet-600
+  inputBg: '#F6EFE5',      // warm input
+  inputBorder: '#E4D8C8',  // warm input border
 
   /* extras */
-  cardShadow: 'rgba(0,0,0,0.06)',
-  tabBarBg: '#ffffff',
-  tabBarBorder: '#e2e8f0',
+  cardShadow: 'rgba(120,72,32,0.10)',
+  tabBarBg: '#FFFFFF',
+  tabBarBorder: '#EFE6DA',
   statusBarStyle: 'dark' as const,
 };
 
 export const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 };
-export const RADIUS = { sm: 8, md: 12, lg: 16, xl: 24, full: 999 };
+export const RADIUS = { sm: 10, md: 14, lg: 18, xl: 24, full: 999 };
 export const FONT = { xs: 10, sm: 12, md: 14, lg: 16, xl: 20, xxl: 28, hero: 36 };
 
 export const common = StyleSheet.create({

@@ -600,7 +600,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full,
     borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.card,
   },
-  chipActive: { borderColor: COLORS.primary, backgroundColor: '#ff2d9510' },
+  chipActive: { borderColor: COLORS.primary, backgroundColor: '#F26B2A10' },
   chipText: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted },
   chipTextActive: { color: COLORS.primary, fontWeight: '700' },
   emptyCard: {
@@ -698,7 +698,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.cardBorder,
     borderRadius: 8, padding: 12, backgroundColor: COLORS.bg,
   },
-  modalOptionSel: { borderColor: COLORS.primary, backgroundColor: '#ff2d9508' },
+  modalOptionSel: { borderColor: COLORS.primary, backgroundColor: '#F26B2A08' },
   radio: {
     width: 20, height: 20, borderRadius: 10, borderWidth: 2,
     borderColor: COLORS.inputBorder, alignItems: 'center', justifyContent: 'center',

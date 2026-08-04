@@ -9,7 +9,7 @@ export default function LyricGameScreen() {
     <QuizGame
       campaignId={HOUSE_CAMPAIGNS.lyric}
       headerTitle="Guess the Lyric"
-      accent="#ec4899"
+      accent="#6366F1"
       icon="mic"
       testIDPrefix="lyric"
     />

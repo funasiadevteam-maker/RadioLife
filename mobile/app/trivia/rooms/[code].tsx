@@ -210,7 +210,7 @@ export default function TriviaRoomScreen() {
                   const isWrongPick = reveal && isChosen && !isCorrect;
                   const bg = phase === 'reveal'
                     ? (isCorrect ? 'rgba(74,222,128,0.12)' : isWrongPick ? 'rgba(251,113,133,0.12)' : COLORS.surface)
-                    : (isChosen ? 'rgba(0,217,255,0.1)' : COLORS.surface);
+                    : (isChosen ? 'rgba(59,130,246,0.1)' : COLORS.surface);
                   const border = phase === 'reveal'
                     ? (isCorrect ? COLORS.green : isWrongPick ? COLORS.red : COLORS.surfaceBorder)
                     : (isChosen ? COLORS.secondary : COLORS.surfaceBorder);
@@ -291,7 +291,7 @@ const st = StyleSheet.create({
   scroll: { padding: SPACING.md, paddingBottom: 100 },
   announcement: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    backgroundColor: 'rgba(255,45,149,0.08)', borderWidth: 2, borderColor: COLORS.primary,
+    backgroundColor: 'rgba(242,107,42,0.08)', borderWidth: 2, borderColor: COLORS.primary,
     borderRadius: RADIUS.lg, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
     marginBottom: SPACING.md,
   },

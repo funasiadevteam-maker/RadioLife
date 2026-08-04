@@ -436,7 +436,7 @@ const st = StyleSheet.create({
   /* Tabs */
   tabs: { flexDirection: 'row', gap: 4 },
   tab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: RADIUS.md, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.surfaceBorder },
-  tabActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(255,45,149,0.08)' },
+  tabActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(242,107,42,0.08)' },
   tabText: { fontSize: 11, color: COLORS.textDim, fontWeight: '600' },
   tabTextActive: { color: COLORS.primary },
   /* Shared */
@@ -450,7 +450,7 @@ const st = StyleSheet.create({
   couponMeta: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   couponStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  browseOffersCta: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,45,149,0.06)', borderWidth: 1, borderColor: 'rgba(255,45,149,0.2)', borderRadius: RADIUS.lg, padding: SPACING.md, marginTop: SPACING.sm, marginBottom: SPACING.sm },
+  browseOffersCta: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(242,107,42,0.06)', borderWidth: 1, borderColor: 'rgba(242,107,42,0.2)', borderRadius: RADIUS.lg, padding: SPACING.md, marginTop: SPACING.sm, marginBottom: SPACING.sm },
   browseOffersTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700' },
   browseOffersSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   /* Wallet Items */

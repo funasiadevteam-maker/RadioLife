@@ -186,7 +186,7 @@ export default function ChannelsScreen() {
               {(ch.moods || ch.mood_tags || ch.genre_tags || []).length > 0 && (
                 <View style={s.tagRow}>
                   {(ch.moods || ch.mood_tags || ch.genre_tags || []).slice(0, 2).map((m: string) => (
-                    <View key={m} style={[s.tag, { borderColor: 'rgba(255,45,149,0.3)' }]}>
+                    <View key={m} style={[s.tag, { borderColor: 'rgba(242,107,42,0.3)' }]}>
                       <Text style={[s.tagText, { color: COLORS.primary }]}>{m}</Text>
                     </View>
                   ))}
@@ -281,7 +281,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: SPACING.md, marginBottom: SPACING.sm,
     paddingVertical: 10, paddingHorizontal: 12, borderRadius: RADIUS.md,
-    backgroundColor: 'rgba(0,217,255,0.08)', borderWidth: 1, borderColor: 'rgba(0,217,255,0.3)',
+    backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.3)',
   },
   allStationsBannerText: { flex: 1, color: COLORS.secondary, fontSize: FONT.xs, fontWeight: '700' },
 });

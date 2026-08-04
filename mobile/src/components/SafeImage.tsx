@@ -28,7 +28,7 @@ export default function SafeImage({
       .join('');
     return (
       <LinearGradient
-        colors={['#ff2d95', '#c026d3', '#7c3aed']}
+        colors={['#F26B2A', '#FB923C', '#F59E0B']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[s.fallback, { width: size, height: size, borderRadius }, style]}

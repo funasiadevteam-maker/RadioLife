@@ -182,14 +182,14 @@ const s = StyleSheet.create({
   },
   catIcon: {
     width: 48, height: 48, borderRadius: RADIUS.md,
-    backgroundColor: 'rgba(255,45,149,0.12)',
+    backgroundColor: 'rgba(242,107,42,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
   catIconText: { fontSize: 24 },
   catName: { fontSize: 16, fontWeight: '800', color: COLORS.text },
   catTagline: { fontSize: 11, color: COLORS.textDim, marginTop: 2 },
   marketChip: {
-    backgroundColor: 'rgba(0,217,255,0.12)',
+    backgroundColor: 'rgba(59,130,246,0.12)',
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full,
   },
   marketChipText: { fontSize: 9, fontWeight: '700', color: COLORS.secondary },

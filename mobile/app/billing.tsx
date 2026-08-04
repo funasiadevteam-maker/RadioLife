@@ -373,6 +373,6 @@ const st = StyleSheet.create({
   familyInput: { backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 10, color: COLORS.text, fontSize: 13 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.primary, paddingHorizontal: 16, borderRadius: RADIUS.md },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
-  iosNote: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(0,217,255,0.06)', padding: SPACING.md, borderRadius: RADIUS.md, marginTop: SPACING.md },
+  iosNote: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(59,130,246,0.06)', padding: SPACING.md, borderRadius: RADIUS.md, marginTop: SPACING.md },
   iosNoteText: { color: COLORS.textDim, fontSize: 11, flex: 1 },
 });

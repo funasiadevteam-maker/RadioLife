@@ -170,6 +170,14 @@ export default function Onboarding() {
   };
 
   const back = () => { if (step > 0) setStep(s => s - 1); };
+
+  const skip = async () => {
+    stopPreview();
+    // Best-effort save of whatever's been picked; enter the app regardless.
+    try { await api.post('/users/preferences', pv); } catch {}
+    try { await refresh(); } catch {}
+    router.replace('/(tabs)/radio');
+  };
   const addArtist = () => {
     const t = artistDraft.trim();
     if (!t) return;
@@ -189,6 +197,11 @@ export default function Onboarding() {
             <View style={s.dot} /><Text style={s.brandName}>BigFM <Text style={{ color: COLORS.secondary }}>Dubai</Text></Text>
           </View>
           <Text style={s.stepLabel} testID="wizard-step">STEP {step + 1} / 11 · {STEP_TITLES[step].toUpperCase()}</Text>
+          {step < 10 && (
+            <TouchableOpacity style={s.skipBtn} onPress={skip} disabled={saving} testID="onboarding-skip-btn">
+              <Text style={s.skipBtnText}>Skip for now</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={s.progressTrack}><View style={[s.progressFill, { width: `${progress}%` }]} /></View>
 
@@ -326,6 +339,8 @@ const s = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary },
   brandName: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900' },
   stepLabel: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1.5 },
+  skipBtn: { position: 'absolute', right: SPACING.md, top: SPACING.md, paddingVertical: 6, paddingHorizontal: 10, borderRadius: RADIUS.full, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder },
+  skipBtnText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
   progressTrack: { height: 3, backgroundColor: COLORS.cardBorder },
   progressFill: { height: 3, backgroundColor: COLORS.primary },
   main: { padding: SPACING.lg, paddingBottom: 100 },

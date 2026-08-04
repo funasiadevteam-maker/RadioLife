@@ -12,6 +12,8 @@ import { usePlayerStore } from '../src/stores/usePlayerStore';
 import { registerPlayer, releaseCurrent } from '../src/services/audioController';
 import { updateNowPlaying } from '../src/services/nativePlayerBridge';
 
+import { useStationsStore } from '../src/stores/useStationsStore';
+
 let createAudioPlayer: any;
 try {
   const mod = require('expo-audio');
@@ -19,6 +21,21 @@ try {
 } catch {}
 
 const LANGS = ['All', 'hindi', 'english', 'arabic', 'urdu', 'punjabi', 'tamil', 'malayalam'];
+const COUNTRIES: { label: string; value: string }[] = [
+  { label: 'All', value: 'All' },
+  { label: 'UAE', value: 'United Arab Emirates' },
+  { label: 'India', value: 'India' },
+  { label: 'USA', value: 'United States' },
+  { label: 'UK', value: 'United Kingdom' },
+  { label: 'Pakistan', value: 'Pakistan' },
+  { label: 'Saudi', value: 'Saudi Arabia' },
+  { label: 'Germany', value: 'Germany' },
+];
+const MODES = [
+  { id: 'browse', label: 'Browse', icon: 'globe-outline' },
+  { id: 'favorites', label: 'Favorites', icon: 'heart-outline' },
+  { id: 'recent', label: 'Recent', icon: 'time-outline' },
+] as const;
 const PAGE_SIZE = 30;
 
 type Station = {
@@ -39,6 +56,8 @@ export default function StationsScreen() {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [lang, setLang] = useState('All');
+  const [country, setCountry] = useState('All');
+  const [mode, setMode] = useState<'browse' | 'favorites' | 'recent'>('browse');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -47,6 +66,9 @@ export default function StationsScreen() {
   const [nowPlayingId, setNowPlayingId] = useState<string | null>(null);
 
   const { setActiveChannel, setCurrentSeg, setPlaying, setSession } = usePlayerStore();
+  const { favorites, recents, load: loadSaved, isFavorite, toggleFavorite, addRecent } = useStationsStore();
+
+  useEffect(() => { loadSaved(); }, [loadSaved]);
 
   // Debounce the search box
   useEffect(() => {
@@ -60,6 +82,7 @@ export default function StationsScreen() {
       const params: any = { source: 'imported', page: pg, limit: PAGE_SIZE };
       if (debounced) params.q = debounced;
       if (lang !== 'All') params.language = lang;
+      if (country !== 'All') params.country = country;
       const r = await api.get('/radio/browse', { params });
       const next = (r.data.items || []) as Station[];
       setTotal(r.data.total || 0);
@@ -71,7 +94,7 @@ export default function StationsScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [debounced, lang]);
+  }, [debounced, lang, country]);
 
   // Reload when search/lang changes
   useEffect(() => { setPage(1); fetchPage(1, true); }, [fetchPage]);
@@ -119,6 +142,10 @@ export default function StationsScreen() {
       });
       setPlaying(true);
       setNowPlayingId(st.id);
+      addRecent({
+        id: st.id, name: data.name || st.name, favicon: st.favicon, logo_url: st.logo_url,
+        country: st.country, language: st.language, source: st.source, is_flagship: st.is_flagship,
+      });
       updateNowPlaying(streamUrl, data.name || st.name, subtitle, data.name || st.name, null);
     } catch {
       Alert.alert('Error', 'Could not play this station. Try another.');
@@ -127,6 +154,7 @@ export default function StationsScreen() {
 
   const renderItem = ({ item }: { item: Station }) => {
     const isPlaying = nowPlayingId === item.id;
+    const fav = isFavorite(item.id);
     const subtitle = [item.country, item.language].filter(Boolean).join(' · ');
     return (
       <TouchableOpacity
@@ -145,6 +173,17 @@ export default function StationsScreen() {
           </View>
           {!!subtitle && <Text style={s.stationSub} numberOfLines={1}>{subtitle}</Text>}
         </View>
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation?.(); toggleFavorite({
+            id: item.id, name: item.name, favicon: item.favicon, logo_url: item.logo_url,
+            country: item.country, language: item.language, source: item.source, is_flagship: item.is_flagship,
+          }); }}
+          style={s.heartBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          testID={`station-fav-${item.id}`}
+        >
+          <Ionicons name={fav ? 'heart' : 'heart-outline'} size={20} color={fav ? COLORS.red : COLORS.textMuted} />
+        </TouchableOpacity>
         <View style={[s.playCircle, isPlaying && s.playCircleActive]}>
           <Ionicons name={isPlaying ? 'volume-high' : 'play'} size={16} color="#fff" />
         </View>
@@ -162,63 +201,107 @@ export default function StationsScreen() {
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>All Stations</Text>
           <Text style={s.headerSub}>
-            {total > 0 ? `${total.toLocaleString()} live stations worldwide` : 'Browse live radio worldwide'}
+            {mode === 'favorites' ? `${favorites.length} favorite${favorites.length !== 1 ? 's' : ''}`
+              : mode === 'recent' ? `${recents.length} recently played`
+              : total > 0 ? `${total.toLocaleString()} live stations worldwide` : 'Browse live radio worldwide'}
           </Text>
         </View>
       </View>
 
-      {/* Search */}
-      <View style={s.searchRow}>
-        <Ionicons name="search" size={16} color={COLORS.textMuted} />
-        <TextInput
-          style={s.searchInput}
-          placeholder="Search stations, cities, genres..."
-          placeholderTextColor={COLORS.textMuted}
-          value={query}
-          onChangeText={setQuery}
-          autoCorrect={false}
-          testID="stations-search-input"
-        />
-        {query.length > 0 && (
-          <TouchableOpacity onPress={() => setQuery('')} testID="stations-search-clear">
-            <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Language filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow}
-        contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
-        {LANGS.map((l) => (
-          <TouchableOpacity key={l} style={[s.chip, lang === l && s.chipActive]}
-            onPress={() => setLang(l)} testID={`stations-lang-${l.toLowerCase()}`}>
-            <Text style={[s.chipText, lang === l && s.chipTextActive]}>
-              {l === 'All' ? 'All' : l.charAt(0).toUpperCase() + l.slice(1)}
-            </Text>
+      {/* Mode: Browse / Favorites / Recent */}
+      <View style={s.segRow}>
+        {MODES.map((m) => (
+          <TouchableOpacity key={m.id} style={[s.seg, mode === m.id && s.segActive]}
+            onPress={() => setMode(m.id)} testID={`stations-mode-${m.id}`}>
+            <Ionicons name={m.icon as any} size={15} color={mode === m.id ? '#fff' : COLORS.textDim} />
+            <Text style={[s.segText, mode === m.id && s.segTextActive]}>{m.label}</Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
+
+      {mode === 'browse' && (
+        <>
+          {/* Search */}
+          <View style={s.searchRow}>
+            <Ionicons name="search" size={16} color={COLORS.textMuted} />
+            <TextInput
+              style={s.searchInput}
+              placeholder="Search stations, cities, genres..."
+              placeholderTextColor={COLORS.textMuted}
+              value={query}
+              onChangeText={setQuery}
+              autoCorrect={false}
+              testID="stations-search-input"
+            />
+            {query.length > 0 && (
+              <TouchableOpacity onPress={() => setQuery('')} testID="stations-search-clear">
+                <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Country filter */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow}
+            contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
+            {COUNTRIES.map((c) => (
+              <TouchableOpacity key={c.value} style={[s.chip, country === c.value && s.chipActive]}
+                onPress={() => setCountry(c.value)} testID={`stations-country-${c.label.toLowerCase()}`}>
+                <Text style={[s.chipText, country === c.value && s.chipTextActive]}>{c.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Language filter */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow}
+            contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
+            {LANGS.map((l) => (
+              <TouchableOpacity key={l} style={[s.chip, lang === l && s.chipActive]}
+                onPress={() => setLang(l)} testID={`stations-lang-${l.toLowerCase()}`}>
+                <Text style={[s.chipText, lang === l && s.chipTextActive]}>
+                  {l === 'All' ? 'All' : l.charAt(0).toUpperCase() + l.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </>
+      )}
 
       {/* List */}
-      {loading ? (
+      {mode === 'browse' && loading ? (
         <View style={s.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
       ) : (
         <FlatList
-          data={items}
+          data={mode === 'favorites' ? favorites : mode === 'recent' ? recents : items}
+          extraData={`${nowPlayingId}-${favorites.length}-${mode}`}
           keyExtractor={(i) => i.id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: 100 }}
-          onEndReached={loadMore}
+          contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: 100, paddingTop: SPACING.xs }}
+          onEndReached={mode === 'browse' ? loadMore : undefined}
           onEndReachedThreshold={0.5}
           ListEmptyComponent={
             <View style={s.empty} testID="stations-empty">
-              <Ionicons name={failed ? 'cloud-offline-outline' : 'radio-outline'} size={40} color={COLORS.textMuted} />
-              <Text style={s.emptyTitle}>{failed ? "Couldn't load stations" : 'No stations found'}</Text>
-              <Text style={s.emptySub}>{failed ? 'Check your connection and try again.' : 'Try a different search or language.'}</Text>
+              <Ionicons name={
+                failed ? 'cloud-offline-outline'
+                : mode === 'favorites' ? 'heart-outline'
+                : mode === 'recent' ? 'time-outline' : 'radio-outline'
+              } size={40} color={COLORS.textMuted} />
+              <Text style={s.emptyTitle}>{
+                failed ? "Couldn't load stations"
+                : mode === 'favorites' ? 'No favorites yet'
+                : mode === 'recent' ? 'Nothing played yet'
+                : 'No stations found'
+              }</Text>
+              <Text style={s.emptySub}>{
+                failed ? 'Check your connection and try again.'
+                : mode === 'favorites' ? 'Tap the heart on any station to save it here.'
+                : mode === 'recent' ? 'Stations you play will show up here.'
+                : 'Try a different search, country or language.'
+              }</Text>
             </View>
           }
           ListFooterComponent={
-            loadingMore ? (
+            mode !== 'browse' ? null
+            : loadingMore ? (
               <View style={{ paddingVertical: SPACING.lg }}>
                 <ActivityIndicator size="small" color={COLORS.primary} />
               </View>
@@ -244,6 +327,18 @@ const s = StyleSheet.create({
   backBtn: { padding: 8, borderRadius: RADIUS.sm, backgroundColor: COLORS.card },
   headerTitle: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900' },
   headerSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+  segRow: {
+    flexDirection: 'row', gap: 6, marginHorizontal: SPACING.md, marginBottom: SPACING.sm,
+    backgroundColor: COLORS.inputBg, borderRadius: RADIUS.full, padding: 4,
+  },
+  seg: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 8, borderRadius: RADIUS.full,
+  },
+  segActive: { backgroundColor: COLORS.primary },
+  segText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
+  segTextActive: { color: '#fff' },
+  heartBtn: { padding: 6 },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: SPACING.md, marginBottom: SPACING.sm,

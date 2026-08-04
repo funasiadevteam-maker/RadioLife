@@ -195,7 +195,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.cardBorder, marginBottom: 8,
   },
   channelIcon: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,217,255,0.1)',
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(59,130,246,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
   channelName: { color: COLORS.text, fontSize: FONT.md, fontWeight: '700' },

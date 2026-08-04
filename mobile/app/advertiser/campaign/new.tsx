@@ -372,7 +372,7 @@ const st = StyleSheet.create({
     width: '48%' as any, borderRadius: RADIUS.lg, padding: SPACING.md,
     borderWidth: 1, borderColor: COLORS.surfaceBorder,
   },
-  objCardActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(0,217,255,0.08)' },
+  objCardActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },
   objTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '700', marginTop: SPACING.xs },
   objBlurb: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   takeoverCard: {
@@ -388,7 +388,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: RADIUS.full,
     borderWidth: 1, borderColor: COLORS.surfaceBorder,
   },
-  chipActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(0,217,255,0.08)' },
+  chipActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },
   chipText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600' },
   chipTextActive: { color: COLORS.secondary },
   estValue: { color: COLORS.secondary, fontSize: FONT.xxl, fontWeight: '800', marginTop: 4 },

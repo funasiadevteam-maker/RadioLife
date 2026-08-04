@@ -141,7 +141,7 @@ const st = StyleSheet.create({
   offerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   offerType: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   offerTypeText: { color: COLORS.gold, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  sourceBadge: { backgroundColor: 'rgba(255,45,149,0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: RADIUS.full },
+  sourceBadge: { backgroundColor: 'rgba(242,107,42,0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: RADIUS.full },
   offerTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '800', marginBottom: 4 },
   offerDesc: { color: COLORS.textDim, fontSize: FONT.sm, marginBottom: 6 },
   offerMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },

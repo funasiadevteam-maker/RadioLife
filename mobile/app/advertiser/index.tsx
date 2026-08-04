@@ -220,7 +220,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full,
     borderWidth: 1, borderColor: COLORS.surfaceBorder,
   },
-  presetChipActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(0,217,255,0.08)' },
+  presetChipActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },
   presetText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600' },
   presetTextActive: { color: COLORS.secondary },
   topupRow: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' },

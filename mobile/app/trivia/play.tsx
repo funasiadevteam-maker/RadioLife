@@ -183,7 +183,7 @@ export default function TriviaPlayScreen() {
               const isWrongPick = reveal && isChosen && !reveal.correct;
               const bg = reveal
                 ? (isCorrect ? 'rgba(74,222,128,0.12)' : isWrongPick ? 'rgba(251,113,133,0.12)' : COLORS.surface)
-                : (isChosen ? 'rgba(0,217,255,0.1)' : COLORS.surface);
+                : (isChosen ? 'rgba(59,130,246,0.1)' : COLORS.surface);
               const border = reveal
                 ? (isCorrect ? COLORS.green : isWrongPick ? COLORS.red : COLORS.surfaceBorder)
                 : (isChosen ? COLORS.secondary : COLORS.surfaceBorder);

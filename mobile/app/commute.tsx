@@ -497,7 +497,7 @@ const st = StyleSheet.create({
   oppTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700' },
   oppSponsor: { color: COLORS.textDim, fontSize: FONT.xs },
   oppChips: { flexDirection: 'row', gap: 6, marginTop: 6 },
-  voiceTile: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(0,217,255,0.08)', padding: 12, borderRadius: RADIUS.md, marginVertical: SPACING.sm },
+  voiceTile: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(59,130,246,0.08)', padding: 12, borderRadius: RADIUS.md, marginVertical: SPACING.sm },
   voiceText: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '600', flex: 1 },
   catChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.surfaceBorder },
   catChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },

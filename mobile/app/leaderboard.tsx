@@ -177,7 +177,7 @@ const st = StyleSheet.create({
   cityPop: { color: COLORS.textDim, fontSize: 11 },
   metricScroll: { marginBottom: SPACING.md },
   metricTab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.surfaceBorder },
-  metricActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(255,45,149,0.08)' },
+  metricActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(242,107,42,0.08)' },
   metricLabel: { color: COLORS.textDim, fontSize: 11, fontWeight: '600' },
   loadingBox: { alignItems: 'center', paddingVertical: SPACING.xxl },
   loadingText: { color: COLORS.textDim, fontSize: FONT.sm, marginTop: SPACING.sm },

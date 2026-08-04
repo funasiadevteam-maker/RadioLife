@@ -200,7 +200,7 @@ const s = StyleSheet.create({
   cardTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', marginBottom: 4, lineHeight: 18 },
   cardPrize: { color: COLORS.gold, fontSize: FONT.xs, fontWeight: '700', marginBottom: 4 },
   cardDesc: { color: COLORS.textMuted, fontSize: 10, lineHeight: 14, marginBottom: 6 },
-  houseTag: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm, backgroundColor: 'rgba(255,45,149,0.1)', marginBottom: 6 },
+  houseTag: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm, backgroundColor: 'rgba(242,107,42,0.1)', marginBottom: 6 },
   houseTagText: { color: COLORS.primary, fontSize: 8, fontWeight: '800', letterSpacing: 1 },
   playBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,

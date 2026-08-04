@@ -37,7 +37,7 @@ type PlayedRow = { campaign_id: string; result?: string; status?: string };
 const TEMPLATE_META: Record<string, { label: string; icon: string; color: string }> = {
   tpl_spin_wheel: { label: 'SPIN & WIN', icon: 'aperture', color: '#a855f7' },
   tpl_quiz: { label: 'QUIZ', icon: 'help-circle', color: '#f59e0b' },
-  tpl_scratch_card: { label: 'SCRATCH CARD', icon: 'gift', color: '#ec4899' },
+  tpl_scratch_card: { label: 'SCRATCH CARD', icon: 'gift', color: '#6366F1' },
   tpl_slot_machine: { label: 'SLOTS', icon: 'apps', color: '#3b82f6' },
   tpl_memory_match: { label: 'MEMORY MATCH', icon: 'grid', color: '#14b8a6' },
   tpl_word_puzzle: { label: 'WORD PUZZLE', icon: 'text', color: '#8b5cf6' },
@@ -105,7 +105,7 @@ export default function GamesHub() {
   const QUICK_GAMES = [
     { id: 'spin', icon: 'aperture-outline', label: 'Spin & Win', desc: 'Spin the wheel for BigCoin & coupons', color: '#a855f7', route: '/games/spin' },
     { id: 'trivia', icon: 'musical-notes-outline', label: 'Music Trivia', desc: 'Guess the song and earn BigCoin', color: '#f59e0b', route: '/games/trivia-game' },
-    { id: 'lyric', icon: 'mic-outline', label: 'Guess the Lyric', desc: 'Finish the lyric to win rewards', color: '#ec4899', route: '/games/lyric-game' },
+    { id: 'lyric', icon: 'mic-outline', label: 'Guess the Lyric', desc: 'Finish the lyric to win rewards', color: '#6366F1', route: '/games/lyric-game' },
   ];
 
   if (loading) {

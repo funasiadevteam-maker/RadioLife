@@ -22,7 +22,7 @@ import RewardModal from '../../src/components/RewardModal';
    always mirrors the real prize table. */
 
 const CAMPAIGN_ID = HOUSE_CAMPAIGNS.spin;
-const FALLBACK_COLORS = ['#ff2d95', '#7BD3F7', '#fdb756', '#a855f7', '#4ade80', '#fb7185'];
+const FALLBACK_COLORS = ['#F26B2A', '#7BD3F7', '#fdb756', '#a855f7', '#4ade80', '#fb7185'];
 
 const WHEEL_SIZE = 280;
 const CX = WHEEL_SIZE / 2;

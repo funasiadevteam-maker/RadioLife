@@ -95,7 +95,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md,
     marginBottom: SPACING.sm,
   },
-  catCardSelected: { borderColor: COLORS.secondary, backgroundColor: 'rgba(0,217,255,0.05)' },
+  catCardSelected: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.05)' },
   catIcon: { fontSize: 24 },
   catName: { fontSize: 15, fontWeight: '800', color: COLORS.text },
   catTag: { fontSize: 11, color: COLORS.textDim, marginTop: 2 },

@@ -5,6 +5,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayerStore } from '../src/stores/usePlayerStore';
+import { togglePlayback, releaseCurrent } from '../src/services/audioController';
+import { nativePlay, nativePause } from '../src/services/nativePlayerBridge';
 import SafeImage from '../src/components/SafeImage';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../src/constants/theme';
 
@@ -13,11 +15,28 @@ export default function NowPlayingScreen() {
   const {
     playing, activeChannelName, activeChannelThumb, activeChannel,
     currentSeg, setPlaying, history, skipUsed, skipLimit,
+    setActiveChannel, setCurrentSeg, setSession,
   } = usePlayerStore();
 
   const title = currentSeg?.track_title || 'Live Radio';
   const artist = currentSeg?.track_artist || activeChannelName || 'BigFM';
   const rjName = currentSeg?.rj_voice_name || currentSeg?.rj_hosts?.[0]?.name;
+
+  const togglePlay = () => {
+    const nowPlaying = togglePlayback();
+    setPlaying(nowPlaying);
+    if (nowPlaying) nativePlay(); else nativePause();
+  };
+
+  const stop = () => {
+    releaseCurrent();
+    nativePause();
+    setPlaying(false);
+    setSession(null);
+    setCurrentSeg(null);
+    setActiveChannel(null, null, null);
+    router.back();
+  };
 
   return (
     <SafeAreaView style={common.screen}>
@@ -62,7 +81,7 @@ export default function NowPlayingScreen() {
           <TouchableOpacity
             testID="now-playing-play-pause"
             style={s.playBtn}
-            onPress={() => setPlaying(!playing)}
+            onPress={togglePlay}
           >
             <Ionicons name={playing ? 'pause' : 'play'} size={30} color="#fff" />
           </TouchableOpacity>
@@ -70,6 +89,12 @@ export default function NowPlayingScreen() {
             <Ionicons name="play-skip-forward" size={24} color={COLORS.textDim} />
           </TouchableOpacity>
         </View>
+
+        {/* Stop */}
+        <TouchableOpacity testID="now-playing-stop" style={s.stopBtn} onPress={stop}>
+          <Ionicons name="stop" size={16} color={COLORS.red} />
+          <Text style={s.stopText}>Stop</Text>
+        </TouchableOpacity>
 
         {/* Skip counter */}
         <Text style={s.skipText}>
@@ -112,7 +137,7 @@ const s = StyleSheet.create({
   artist: { fontSize: FONT.lg, color: COLORS.textDim, marginTop: 4, textAlign: 'center' },
   rjBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8,
-    backgroundColor: 'rgba(255,45,149,0.08)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(242,107,42,0.08)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full,
   },
   rjText: { fontSize: FONT.xs, color: COLORS.primary, fontWeight: '700' },
   channelPill: {
@@ -132,6 +157,12 @@ const s = StyleSheet.create({
     shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
   },
   skipText: { color: COLORS.textMuted, fontSize: FONT.xs, marginTop: SPACING.md },
+  stopBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.lg,
+    paddingHorizontal: 20, paddingVertical: 10, borderRadius: RADIUS.full,
+    borderWidth: 1.5, borderColor: COLORS.red,
+  },
+  stopText: { color: COLORS.red, fontSize: FONT.sm, fontWeight: '800' },
   historySection: { width: '100%', marginTop: SPACING.xl },
   histRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 10,

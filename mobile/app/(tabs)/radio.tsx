@@ -567,7 +567,7 @@ const s = StyleSheet.create({
   npStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.md, flexWrap: 'wrap' },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.green },
   npStatusText: { color: COLORS.textDim, fontSize: FONT.xs, letterSpacing: 1.5, fontWeight: '700' },
-  duoBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,217,255,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm },
+  duoBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(59,130,246,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm },
   duoBadgeText: { color: COLORS.secondary, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   channelTag: { backgroundColor: COLORS.card, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.sm },
   channelTagText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
