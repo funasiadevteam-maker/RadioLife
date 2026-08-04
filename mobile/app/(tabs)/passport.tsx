@@ -396,7 +396,7 @@ const st = StyleSheet.create({
   progressFill: { height: 4, backgroundColor: COLORS.secondary, borderRadius: 2 },
   progressLabel: { fontSize: 10, color: COLORS.textDim, marginTop: 4 },
   leaderboardCta: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,215,0,0.06)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.2)', borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
-  leaderCta: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
+  leaderCta: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700' },
   leaderSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   tabs: { flexDirection: 'row', gap: 4, marginBottom: SPACING.md },
   tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.surfaceBorder },

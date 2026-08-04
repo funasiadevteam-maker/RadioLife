@@ -212,7 +212,7 @@ const s = StyleSheet.create({
     paddingHorizontal: SPACING.md, paddingVertical: 6,
     borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder,
   },
-  resultTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.sm, backgroundColor: COLORS.card },
+  resultTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.sm, backgroundColor: COLORS.textMuted },
   resultTagText: { color: '#fff', fontSize: FONT.xs, fontWeight: '800' },
   historyMeta: { color: COLORS.textMuted, fontSize: FONT.xs },
 });

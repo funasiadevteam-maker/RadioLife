@@ -1,3 +1,37 @@
+# BigFM Mobile — Readability Sweep + All Stations + Artwork + Games Polish (2026-08-04)
+
+Four approved tasks — all done & verified (testing agent iteration_31 + self-screenshots):
+
+1. READABILITY SWEEP — converted ~118 hardcoded dark-theme `color:'#fff'`
+   text styles to `COLORS.text` across 28 screens (theme is light mode).
+   Kept legit whites on buttons / avatars / active chips / badges / genuinely
+   dark screens (scan-to-pay, creator/*, podcast paywall, ai-create orange card).
+   Residual misses fixed after QA: passport `leaderCta` (City Leaderboard CTA on
+   amber-6% bg), play-and-win `resultTag` LOSE badge (white bg+white text →
+   bg now COLORS.textMuted), onboarding artist chip name.
+
+2. STATION ARTWORK — Home "Featured Stations" now use
+   `cover_image_url||thumbnail_url` (BACKEND-prefixed) instead of the wrong
+   `cover_art_url/artwork_url` fields → real cover images render.
+
+3. ALL STATIONS — NEW `app/mobile/app/stations.tsx`: browse/search the 40k+
+   imported radio library via `GET /api/radio/browse` (source=imported, q,
+   language, page/limit) with debounced search + language chips + pagination.
+   Tap → `POST /api/radio/play/{id}` → plays stream via expo-audio, registered
+   with shared `audioController`, MiniPlayer shows the station.
+   Entry points: Home CTA `home-all-stations-cta` + All-Channels banner
+   `channels-all-stations-cta`. NOTE: browse returns a large working set
+   (~2k cap per query) but search hits the full DB.
+
+4. GAMES POLISH — Games tab section headings enlarged/darkened; each quick game
+   now shows label + description line.
+
+NOTE: external radio stream audio is native-only (won't be audible in Expo web
+preview) — verified play FLOW/UI, not sound. Backend untouched.
+
+---
+
+
 # BigFM — Mobile Readability + MiniPlayer Fix (2026-08-04)
 
 Fixed user-reported mobile (Expo) bugs. Root cause of unreadable text:

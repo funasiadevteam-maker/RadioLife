@@ -242,7 +242,7 @@ export default function Onboarding() {
               <View style={cs.grid} testID="artist-chips">
                 {pv.favorite_artists.map(a => (
                   <View key={a} style={cs.artistChip} testID={`artist-chip-${a}`}>
-                    <Text style={{ color: '#fff', fontSize: 13 }}>{a}</Text>
+                    <Text style={{ color: COLORS.text, fontSize: 13 }}>{a}</Text>
                     <TouchableOpacity onPress={() => setPv(p => ({ ...p, favorite_artists: p.favorite_artists.filter(x => x !== a) }))}><Ionicons name="close" size={14} color={COLORS.textDim} /></TouchableOpacity>
                   </View>
                 ))}
