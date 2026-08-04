@@ -1,3 +1,23 @@
+# BigFM Mobile — PDF Redesign Phase 2 (2026-08-04)
+
+Restyle 4 screens to PDF element look, warm cream+orange kept. Verified iteration_34 (all PASS).
+
+- WALLET (app/(tabs)/wallet.tsx): balance card → ORANGE GRADIENT points hero card
+  (LinearGradient, ₿ + big amount, white tier pill, streak/lifetime, milestone bar).
+  testIDs preserved: bc-balance, bc-tier, bc-lifetime. Old balance* styles removed.
+- GAMES (app/(tabs)/games.tsx): quick games → rounded 2-col tile grid (quickTile).
+- PROFILE (app/(tabs)/profile.tsx): menu rows get rounded icon chips (menuIconChip).
+- DEALS (app/coupons.tsx): renamed 'Nearby Deals'; offer card has orange discount
+  tile (50% OFF). NOTE: offers feed has NO rating/distance/points fields — not added
+  (no mock data). Unused styles offerValue/offerActions remain (harmless).
+
+Non-blocking: coupons offer_type lowercase; RN-web shadow*/pointerEvents deprecation warns.
+
+Redesign COMPLETE (Phase 1 tabs+Listen+Home, Phase 2 Wallet/Games/Profile/Deals).
+
+---
+
+
 # BigFM Mobile — PDF Redesign Phase 1 (2026-08-04)
 
 Reference: RadioLife PDF used as LAYOUT/element blueprint; KEEP warm cream+orange
