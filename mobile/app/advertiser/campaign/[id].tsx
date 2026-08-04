@@ -167,7 +167,7 @@ export default function CampaignDetail() {
                   <View key={cr.id} style={s.creativeRow}>
                     <Ionicons name="musical-notes" size={16} color={COLORS.secondary} />
                     <View style={{ flex: 1, marginLeft: 8 }}>
-                      <Text style={{ color: '#fff', fontSize: FONT.sm }}>{cr.title}</Text>
+                      <Text style={{ color: COLORS.text, fontSize: FONT.sm }}>{cr.title}</Text>
                       <Text style={{ color: COLORS.textDim, fontSize: FONT.xs }}>
                         {cr.status} · {cr.duration_sec}s
                       </Text>
@@ -197,7 +197,7 @@ export default function CampaignDetail() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <Text style={{ color: '#fff', fontSize: FONT.lg, fontWeight: '700' }}>
+                <Text style={{ color: COLORS.text, fontSize: FONT.lg, fontWeight: '700' }}>
                   {c.attribution_window_hours || 24}h
                 </Text>
               )}
@@ -265,7 +265,7 @@ export default function CampaignDetail() {
                 {pacing.projected_end_date && (
                   <View style={[common.card, { marginTop: SPACING.sm }]}>
                     <Text style={common.label}>PROJECTED END-OF-BUDGET</Text>
-                    <Text style={{ color: '#fff', fontSize: FONT.md, fontWeight: '700' }}>
+                    <Text style={{ color: COLORS.text, fontSize: FONT.md, fontWeight: '700' }}>
                       {new Date(pacing.projected_end_date).toLocaleDateString()}
                     </Text>
                   </View>
@@ -291,7 +291,7 @@ function KpiCard({ label, value, testID }: { label: string; value: any; testID?:
 const s = StyleSheet.create({
   scroll: { padding: SPACING.lg, paddingBottom: 80 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  title: { color: '#fff', fontSize: FONT.xxl, fontWeight: '800' },
+  title: { color: COLORS.text, fontSize: FONT.xxl, fontWeight: '800' },
   meta: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 4 },
   tabBar: {
     flexDirection: 'row', marginTop: SPACING.lg, borderBottomWidth: 1,
@@ -302,7 +302,7 @@ const s = StyleSheet.create({
   tabText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '600' },
   tabTextActive: { color: COLORS.secondary },
   kpiRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
-  kpiValue: { color: '#fff', fontSize: FONT.xl, fontWeight: '800', marginTop: 4 },
+  kpiValue: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '800', marginTop: 4 },
   creativeRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
   pacingStatus: { fontSize: FONT.xxl, fontWeight: '800', marginTop: 4, letterSpacing: 1 },
   progressBarBg: { height: 8, backgroundColor: COLORS.surfaceBorder, borderRadius: 4, marginTop: SPACING.sm },

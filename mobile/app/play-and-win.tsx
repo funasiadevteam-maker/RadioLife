@@ -170,7 +170,7 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', padding: SPACING.md, paddingTop: SPACING.lg, gap: SPACING.md },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   backText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
-  title: { color: '#fff', fontSize: 28, fontWeight: '900' },
+  title: { color: COLORS.text, fontSize: 28, fontWeight: '900' },
   sub: { color: COLORS.textDim, fontSize: FONT.sm, lineHeight: 18, marginTop: 4 },
   drivingBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -187,7 +187,7 @@ const s = StyleSheet.create({
   drivingBannerText: { color: COLORS.green, fontSize: FONT.xs, fontWeight: '600', flex: 1 },
   loadWrap: { paddingVertical: 60, alignItems: 'center' },
   section: { marginBottom: SPACING.lg },
-  sectionTitle: { color: '#fff', fontSize: FONT.md, fontWeight: '800', paddingHorizontal: SPACING.md, marginBottom: SPACING.sm },
+  sectionTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800', paddingHorizontal: SPACING.md, marginBottom: SPACING.sm },
   badge: { color: COLORS.textMuted, fontWeight: '600' },
   emptyText: { color: COLORS.textMuted, fontSize: FONT.sm, paddingVertical: 20 },
   card: {
@@ -197,7 +197,7 @@ const s = StyleSheet.create({
   },
   cardIcon: { width: 48, height: 48, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   cardSponsor: { color: COLORS.textDim, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 2 },
-  cardTitle: { color: '#fff', fontSize: FONT.sm, fontWeight: '800', marginBottom: 4, lineHeight: 18 },
+  cardTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', marginBottom: 4, lineHeight: 18 },
   cardPrize: { color: COLORS.gold, fontSize: FONT.xs, fontWeight: '700', marginBottom: 4 },
   cardDesc: { color: COLORS.textMuted, fontSize: 10, lineHeight: 14, marginBottom: 6 },
   houseTag: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm, backgroundColor: 'rgba(255,45,149,0.1)', marginBottom: 6 },

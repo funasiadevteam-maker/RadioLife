@@ -202,7 +202,7 @@ export default function AdvertiserOnboard() {
 const s = StyleSheet.create({
   scroll: { padding: SPACING.lg, paddingBottom: 80 },
   backBtn: { marginBottom: SPACING.md },
-  title: { color: '#fff', fontSize: FONT.xxl, fontWeight: '800', marginBottom: SPACING.xs },
+  title: { color: COLORS.text, fontSize: FONT.xxl, fontWeight: '800', marginBottom: SPACING.xs },
   subtitle: { color: COLORS.textDim, fontSize: FONT.md, lineHeight: 22, marginBottom: SPACING.lg },
   stepRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
   stepPill: {

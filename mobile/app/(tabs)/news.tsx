@@ -158,7 +158,7 @@ export default function NewsScreen() {
 
 const s = StyleSheet.create({
   scroll: { padding: SPACING.lg, paddingBottom: 40 },
-  title: { color: '#fff', fontSize: FONT.xxl, fontWeight: '900' },
+  title: { color: COLORS.text, fontSize: FONT.xxl, fontWeight: '900' },
   subtitle: { color: COLORS.textDim, fontSize: FONT.md, marginBottom: SPACING.md },
   breakingStrip: { marginBottom: SPACING.md },
   breakingCard: {
@@ -169,7 +169,7 @@ const s = StyleSheet.create({
   breakingBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   breakingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.red },
   breakingBadgeText: { color: COLORS.red, fontSize: 9, fontWeight: '800', letterSpacing: 2 },
-  breakingHeadline: { color: '#fff', fontSize: FONT.md, fontWeight: '700', marginBottom: 4 },
+  breakingHeadline: { color: COLORS.text, fontSize: FONT.md, fontWeight: '700', marginBottom: 4 },
   breakingSummary: { color: COLORS.textDim, fontSize: FONT.sm, lineHeight: 18, marginBottom: 6 },
   breakingSource: { color: COLORS.textMuted, fontSize: FONT.xs },
   chipRow: { marginBottom: SPACING.md, flexGrow: 0 },
@@ -183,7 +183,7 @@ const s = StyleSheet.create({
   },
   headlineTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   breakingDotSmall: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.red, marginTop: 6 },
-  headlineText: { color: '#fff', fontSize: FONT.md, fontWeight: '600', flex: 1 },
+  headlineText: { color: COLORS.text, fontSize: FONT.md, fontWeight: '600', flex: 1 },
   headlineSummary: { color: COLORS.textDim, fontSize: FONT.sm, lineHeight: 18, marginTop: 6 },
   headlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   headlineSource: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
@@ -198,7 +198,7 @@ const s = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,217,255,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
-  channelName: { color: '#fff', fontSize: FONT.md, fontWeight: '700' },
+  channelName: { color: COLORS.text, fontSize: FONT.md, fontWeight: '700' },
   channelTag: { color: COLORS.textMuted, fontSize: FONT.xs, marginTop: 2 },
   liveBadge: { backgroundColor: 'rgba(74,222,128,0.15)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   liveText: { color: COLORS.green, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },

@@ -312,7 +312,7 @@ function FamilySection({ family, onReload }: { family: any; onReload: () => void
       {family.members?.map((m: any) => (
         <View key={m.user_id} style={st.memberRow} testID={`family-member-${m.user_id}`}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{m.name || m.email}</Text>
+            <Text style={{ color: COLORS.text, fontSize: 13, fontWeight: '600' }}>{m.name || m.email}</Text>
             <Text style={{ color: COLORS.textDim, fontSize: 11 }}>{m.email}</Text>
           </View>
           <TouchableOpacity onPress={() => remove(m.user_id)} testID={`family-remove-${m.user_id}`}>
@@ -326,7 +326,7 @@ function FamilySection({ family, onReload }: { family: any; onReload: () => void
       {family.pending_invites?.map((p: any) => (
         <View key={p.token} style={[st.memberRow, { opacity: 0.6 }]}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#fff', fontSize: 12 }}>{p.email}</Text>
+            <Text style={{ color: COLORS.text, fontSize: 12 }}>{p.email}</Text>
             <Text style={{ color: COLORS.textDim, fontSize: 10 }}>Expires {new Date(p.expires_at).toLocaleDateString()}</Text>
           </View>
         </View>
@@ -341,11 +341,11 @@ const st = StyleSheet.create({
   scroll: { padding: SPACING.md, paddingBottom: 120 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.sm },
   backText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
-  pageTitle: { color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  pageTitle: { color: COLORS.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
   pageSub: { color: COLORS.textDim, fontSize: FONT.sm, marginBottom: SPACING.lg },
   emptyText: { color: COLORS.textDim, fontSize: FONT.sm, marginTop: SPACING.sm },
   retryBtn: { marginTop: SPACING.md, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: COLORS.primary, borderRadius: RADIUS.md },
-  retryText: { color: '#fff', fontWeight: '700' },
+  retryText: { color: COLORS.text, fontWeight: '700' },
   pastDueBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251,113,133,0.08)', borderWidth: 1, borderColor: COLORS.red, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.lg },
   pastDueTitle: { color: COLORS.red, fontSize: 13, fontWeight: '700' },
   pastDueSub: { color: COLORS.textDim, fontSize: 11, marginTop: 2 },
@@ -353,7 +353,7 @@ const st = StyleSheet.create({
   pastDueBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   planCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: SPACING.lg },
   metaLabel: { color: COLORS.textDim, fontSize: 9, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
-  planName: { color: '#fff', fontSize: 28, fontWeight: '900', marginTop: 2 },
+  planName: { color: COLORS.text, fontSize: 28, fontWeight: '900', marginTop: 2 },
   planMeta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' },
   tierChip: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   metaSmall: { color: COLORS.textDim, fontSize: 11 },
@@ -361,16 +361,16 @@ const st = StyleSheet.create({
   planRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: SPACING.sm },
   savingsBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: COLORS.green, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, zIndex: 1 },
   savingsText: { color: '#0a1a0a', fontSize: 9, fontWeight: '800' },
-  planRowName: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  planRowName: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
   planRowPrice: { color: COLORS.gold, fontSize: 13, fontWeight: '800', marginTop: 2 },
   planRowDesc: { color: COLORS.textDim, fontSize: 11, marginTop: 2 },
   featureText: { color: COLORS.textDim, fontSize: 10 },
   switchBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 4 },
-  switchText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  switchText: { color: COLORS.text, fontSize: 11, fontWeight: '700' },
   manageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.lg },
   manageBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: RADIUS.md, backgroundColor: COLORS.primary },
   manageBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  familyInput: { backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 10, color: '#fff', fontSize: 13 },
+  familyInput: { backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 10, color: COLORS.text, fontSize: 13 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.primary, paddingHorizontal: 16, borderRadius: RADIUS.md },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
   iosNote: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(0,217,255,0.06)', padding: SPACING.md, borderRadius: RADIUS.md, marginTop: SPACING.md },

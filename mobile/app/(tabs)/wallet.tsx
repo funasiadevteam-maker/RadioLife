@@ -359,7 +359,7 @@ function BadgesTab() {
   if (!data) return <ActivityIndicator size="small" color={COLORS.primary} />;
   return (
     <View testID="tab-badges-content">
-      <Text style={st.sectionTitle}>Unlocked <Text style={{ color: '#fff' }}>{data.unlocked_count}</Text> of {data.total}</Text>
+      <Text style={st.sectionTitle}>Unlocked <Text style={{ color: COLORS.text }}>{data.unlocked_count}</Text> of {data.total}</Text>
       <View style={st.badgeGrid}>
         {(data.items || []).map((b: any) => (
           <View key={b.badge_id} style={[st.badgeCard, !b.unlocked && { opacity: 0.35 }]} testID={`badge-${b.slug}`}>
@@ -446,31 +446,31 @@ const st = StyleSheet.create({
   /* Coupons */
   couponRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, padding: SPACING.sm, borderRadius: RADIUS.md, marginBottom: 6, borderWidth: 1, borderColor: COLORS.cardBorder },
   couponBiz: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
-  couponCode: { color: '#fff', fontSize: FONT.sm, fontWeight: '700', letterSpacing: 1 },
+  couponCode: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700', letterSpacing: 1 },
   couponMeta: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   couponStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   browseOffersCta: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,45,149,0.06)', borderWidth: 1, borderColor: 'rgba(255,45,149,0.2)', borderRadius: RADIUS.lg, padding: SPACING.md, marginTop: SPACING.sm, marginBottom: SPACING.sm },
-  browseOffersTitle: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
+  browseOffersTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700' },
   browseOffersSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   /* Wallet Items */
   walletItemRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, padding: SPACING.sm, borderRadius: RADIUS.md, marginBottom: 6, borderWidth: 1, borderColor: COLORS.cardBorder },
-  walletItemTitle: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
+  walletItemTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700' },
   walletItemMeta: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   /* Redemptions */
   redemptionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
-  redemptionName: { color: '#fff', fontSize: FONT.sm, fontWeight: '600' },
+  redemptionName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '600' },
   redemptionMeta: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   redemptionCost: { color: COLORS.red, fontSize: FONT.sm, fontWeight: '700' },
   /* Transactions */
   txnRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
-  txnSource: { fontSize: 13, color: '#fff', fontWeight: '600' },
+  txnSource: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
   txnDate: { fontSize: 11, color: COLORS.textDim, marginTop: 2 },
   txnAmount: { fontSize: 14, fontWeight: '800' },
   /* Rewards */
   rewardCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.cardBorder },
   rewardCost: { fontSize: 12, color: COLORS.gold, fontWeight: '700', marginBottom: 8 },
-  rewardName: { fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  rewardName: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
   rewardDesc: { fontSize: 12, color: COLORS.textDim, marginBottom: SPACING.sm },
   stockText: { fontSize: 10, color: COLORS.textDim, marginBottom: 6 },
   rewardBtn: { backgroundColor: COLORS.primary, paddingVertical: 10, borderRadius: RADIUS.md, alignItems: 'center' },
@@ -479,16 +479,16 @@ const st = StyleSheet.create({
   badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   badgeCard: { width: '47%', backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder },
   badgeIcon: { fontSize: 24, marginBottom: 6 },
-  badgeName: { fontSize: 12, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  badgeName: { fontSize: 12, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
   badgeDesc: { fontSize: 10, color: COLORS.textDim, lineHeight: 14 },
   /* Refer */
   referCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' },
   referText: { fontSize: 13, color: COLORS.textDim, textAlign: 'center', lineHeight: 20 },
   referReward: { fontSize: 20, fontWeight: '800', color: COLORS.gold, marginVertical: SPACING.sm },
   referCodeBox: { backgroundColor: 'rgba(255,255,255,0.06)', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, marginBottom: SPACING.md },
-  referCode: { fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: 3 },
+  referCode: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: 3 },
   referStats: { flexDirection: 'row', gap: SPACING.xl, marginTop: SPACING.md },
   referStat: { alignItems: 'center' },
-  referStatNum: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  referStatNum: { fontSize: 22, fontWeight: '800', color: COLORS.text },
   referStatLabel: { fontSize: 10, color: COLORS.textDim, fontWeight: '700', letterSpacing: 1, marginTop: 4 },
 });

@@ -138,7 +138,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', marginBottom: SPACING.sm,
   },
   headline: {
-    color: '#fff', fontSize: FONT.lg, fontWeight: '700', textAlign: 'center',
+    color: COLORS.text, fontSize: FONT.lg, fontWeight: '700', textAlign: 'center',
     lineHeight: 24, marginBottom: SPACING.lg,
   },
   progressBlock: { width: '100%', marginBottom: SPACING.lg },

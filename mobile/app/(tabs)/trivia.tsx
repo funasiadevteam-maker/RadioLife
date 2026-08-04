@@ -169,7 +169,7 @@ const s = StyleSheet.create({
   liveChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.green },
   liveText: { fontSize: 10, color: COLORS.textDim, fontWeight: '700', letterSpacing: 2 },
-  heroTitle: { fontSize: 28, fontWeight: '900', color: '#fff', lineHeight: 34, marginBottom: 8 },
+  heroTitle: { fontSize: 28, fontWeight: '900', color: COLORS.text, lineHeight: 34, marginBottom: 8 },
   heroSub: { fontSize: 13, color: COLORS.textDim, lineHeight: 18, marginBottom: SPACING.md },
   actionRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
   emptyCard: { alignItems: 'center', gap: 8 },
@@ -186,7 +186,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   catIconText: { fontSize: 24 },
-  catName: { fontSize: 16, fontWeight: '800', color: '#fff' },
+  catName: { fontSize: 16, fontWeight: '800', color: COLORS.text },
   catTagline: { fontSize: 11, color: COLORS.textDim, marginTop: 2 },
   marketChip: {
     backgroundColor: 'rgba(0,217,255,0.12)',

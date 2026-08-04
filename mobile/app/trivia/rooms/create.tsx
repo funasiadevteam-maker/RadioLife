@@ -87,7 +87,7 @@ const s = StyleSheet.create({
   scroll: { padding: SPACING.md, paddingBottom: 100 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.md },
   backText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '600' },
-  title: { fontSize: 28, fontWeight: '900', color: '#fff', marginBottom: 8 },
+  title: { fontSize: 28, fontWeight: '900', color: COLORS.text, marginBottom: 8 },
   sub: { fontSize: 13, color: COLORS.textDim, marginBottom: SPACING.lg, lineHeight: 18 },
   catCard: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
@@ -97,6 +97,6 @@ const s = StyleSheet.create({
   },
   catCardSelected: { borderColor: COLORS.secondary, backgroundColor: 'rgba(0,217,255,0.05)' },
   catIcon: { fontSize: 24 },
-  catName: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  catName: { fontSize: 15, fontWeight: '800', color: COLORS.text },
   catTag: { fontSize: 11, color: COLORS.textDim, marginTop: 2 },
 });

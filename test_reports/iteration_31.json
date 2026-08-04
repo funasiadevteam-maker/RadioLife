@@ -1,0 +1,92 @@
+{
+  "summary": "Mobile QA pass for Phase 39M.4: readability sweep, station artwork on Home, new /stations browser, and Games polish. 3 of 4 tasks PASS. Readability sweep is 95% clean but TWO regressions remain: (1) Passport screen 'City Leaderboard' CTA text is white on an amber-6% tinted (effectively white) row -> invisible. (2) Play & Win 'LOSE' history badge is white text on white card bg -> invisible (only the WIN case overrides the tag bg to green). All other requested screens (Home, Wallet, Games, More, News, Leaderboard, Notifications, Coupons, Play & Win *headers*, Commute, Trivia picker, Lobbies, Onboarding, Offer/Coupons list) render dark slate text on light bg with no white-on-light offenders. Station artwork on Home now shows real cover images (VIP Lounge / Premium Mehfil / DFW Bollywood). /stations end-to-end works: 88 imported stations load with favicons + FLAGSHIP badges + country/language subtitles; search 'bollywood' narrows total to 41; language chip 'hindi' broadens total to 2,012; tapping a row starts playback (POST /api/radio/play/{id}) and the persistent MiniPlayer appears with station name, subtitle and pause icon. Home 'home-all-stations-cta' and Channels 'channels-all-stations-cta' both navigate to /stations. Games tab section headings render at 12px weight 800 slate-600 (enlarged/darkened vs old 10px muted style) and each quick-game row shows label (14px slate-900) + description line (10px slate-400): Spin & Win / Music Trivia / Guess the Lyric all show correct descriptions.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "mobile": {
+      "ui_bugs": [
+        {
+          "component": "PassportScreen leaderCta",
+          "issue": "'City Leaderboard' CTA text is color '#fff' on a parent card whose backgroundColor is rgba(255,215,0,0.06) — effectively white on white, so the label is INVISIBLE. Only the trophy icon and the sub-line 'See top ambassadors in your city' are legible. Reference: /app/mobile/app/(tabs)/passport.tsx:399  ->  leaderCta: { color: '#fff', ... }. Fix: use COLORS.gold or COLORS.text (or give the row a solid amber fill if the white text is intentional).",
+          "testID": "n/a (Text inside passport row)",
+          "priority": "HIGH"
+        },
+        {
+          "component": "PlayAndWinScreen resultTag / resultTagText",
+          "issue": "In Played history rows the LOSE badge renders white text on a white card. The style is resultTag: { backgroundColor: COLORS.card } (which is #ffffff) and resultTagText: { color: '#fff' }. The WIN case overrides the bg to COLORS.green so WIN badges are visible, but the LOSE fallback keeps the white card bg — result: two INVISIBLE 'LOSE' pills in the history list. Reference: /app/mobile/app/play-and-win.tsx:215-216. Fix: give the lose branch a colored bg (e.g. COLORS.red or slate-200) OR set resultTagText.color to COLORS.text and only flip to '#fff' when a colored bg is applied.",
+          "testID": "n/a",
+          "priority": "HIGH"
+        }
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {
+          "screen": "onboarding",
+          "issues": ["No 'Skip' affordance found on the visible onboarding step — only BACK / CONTINUE. Task item said 'Onboarding is skippable'; if that refers to a Skip button, it is currently missing. Text itself is readable (0 white-on-light offenders)."]
+        }
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Non-blocking, cosmetic on RN Web preview only."},
+        {"component": "pointerEvents prop", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents.' Non-blocking, cosmetic on RN Web preview only."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "verification_details": {
+    "readability_sweep": {
+      "method": "Walked the DOM on each screen after login; flagged text elements with color >= rgb(235,235,235) whose nearest ancestor with a solid backgroundColor summed to >= 550 (i.e. near-white). Ignored elements sitting on a backgroundImage/gradient (avatars, hero art) since gradient fills can't be inspected via computed style.",
+      "clean_screens": ["home","wallet","games","more(profile)","news","leaderboard","notifications","coupons","commute","trivia","lobbies","onboarding","offer/coupons list"],
+      "offender_screens": {
+        "passport": "1 offender -> DIV 'City Leaderboard' color=rgb(255,255,255) eff_bg=rgb(248,250,252) (amber-6% tint reads as white)",
+        "play-and-win": "2 offenders -> DIV 'LOSE' color=rgb(255,255,255) eff_bg=rgb(255,255,255)"
+      }
+    },
+    "station_artwork_home": {
+      "featured_stations": "VIP Lounge / Premium Mehfil (truncated 'Premium Me...') / DFW Bollywood all render REAL cover images (thumbnails visible) — no letter-tile fallback for channels with artwork."
+    },
+    "all_stations_screen": {
+      "load": "GET /api/radio/browse?source=imported returned 88 live stations on default view; 30 rows rendered per page (PAGE_SIZE=30).",
+      "search_bollywood": "Total dropped from 88 to 41 live stations; 30 rows visible; results include 'Bollywood Gaane Purane', 'Hits Of Bollywood', 'Hits Of Lata Mangeshkar', 'Mirchi Top 20' etc.",
+      "language_chip_hindi": "Total = 2,012 live stations worldwide; 30 rows visible.",
+      "flagship_badges": "Confirmed on Big 106.2 UAE, Talk 100.3 UAE, Beat 97.8, FunAsia FM Dallas, Radio Caravan, Big Melodies, Urban Beat, Luv Legends etc.",
+      "favicons_subtitles": "Favicons render (with SafeImage initials fallback for missing artwork). Subtitle format 'Country · language' correct (e.g. 'United Arab Emirates · hindi', 'India · bengali,hindi').",
+      "play_flow": "Tapping first row 'Big 106.2 UAE' -> POST /api/radio/play/{id} succeeded, MiniPlayer appeared with data-testid=mini-player, mini-player-title='Big 106.2 UAE', mini-player-artist='United Arab Emirates · hindi', mini-player-toggle showing PAUSE icon (\\uf493). External stream audio is not audible in the web preview (native-only) — verified play-flow/UI as instructed."
+    },
+    "entry_ctas": {
+      "home-all-stations-cta": "present on /home",
+      "channels-all-stations-cta": "present on /channels; tapping it navigates to /stations"
+    },
+    "games_polish": {
+      "section_headings": {
+        "QUICK GAMES":       "fontSize 12px, weight 800, color rgb(71,85,105) slate-600  -- enlarged & darkened",
+        "PREDICTIONS":       "fontSize 12px, weight 800, color rgb(71,85,105) slate-600",
+        "MORE GAMES LIVE NOW":"fontSize 12px, weight 800, color rgb(71,85,105) slate-600"
+      },
+      "quick_game_rows": {
+        "Spin & Win":       "label 14px w700 slate-900 + desc 'Spin the wheel for BigCoin & coupons' 10px w500 slate-400",
+        "Music Trivia":     "label 14px w700 slate-900 + desc 'Guess the song and earn BigCoin' 10px w500 slate-400",
+        "Guess the Lyric":  "label 14px w700 slate-900 + desc 'Finish the lyric to win rewards' 10px w500 slate-400"
+      }
+    }
+  },
+  "test_report_links": [],
+  "action_items": [
+    "FIX passport.tsx:399 leaderCta color '#fff' -> change to COLORS.gold or COLORS.text (or give the row a solid amber fill). Currently 'City Leaderboard' label is invisible.",
+    "FIX play-and-win.tsx:215-216 LOSE badge: either give the non-win branch a colored backgroundColor (e.g. COLORS.red / slate-200) or change resultTagText.color to COLORS.text with a conditional flip to '#fff' only when a colored bg is applied. LOSE badges are currently invisible white-on-white.",
+    "REVIEW onboarding.tsx: task list mentioned 'Onboarding is skippable' but no Skip button exists on the visible step (only BACK / CONTINUE). Confirm whether a Skip affordance is expected.",
+    "OPTIONAL (carryover from iter 30): migrate 'shadow*' props to 'boxShadow' and 'props.pointerEvents' to 'style.pointerEvents' to silence RN Web console warnings."
+  ],
+  "critical_code_review_comments": [
+    "stations.tsx: clean singleton flow — releaseCurrent() before creating a new expo-audio player, setSession(null) so Radio screen's segment logic stays dormant on direct-stream stations, registerPlayer + audioController + updateNowPlaying all invoked so MiniPlayer/lockscreen state stays in sync.",
+    "stations.tsx: PAGE_SIZE=30 pagination + onEndReached loadMore + 400ms debounced search look correct; empty & failed states have distinct icon/title/copy.",
+    "The two remaining readability regressions have the same root cause pattern the sweep missed: hardcoded color:'#fff' on Text that ISN'T sitting on a colored button/gradient — the parent has either an amber-6% tint (passport) or COLORS.card=#ffffff (play-and-win LOSE). A grep for `color: '#fff'` in /app/mobile/app/**/*.tsx would surface the last remaining offenders quickly."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "90% (12/14 requested screens clean; 2 residual white-on-light regressions)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (from /app/memory/test_credentials.md, verified working)",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 39M.4 verification: Station artwork on Home + /stations screen (browse/search/play + MiniPlayer wiring) + Games polish are all working. Two readability regressions still remain and are the only blockers: (a) passport.tsx:399 leaderCta color='#fff' (invisible City Leaderboard CTA), (b) play-and-win.tsx:215-216 LOSE badge white-on-white. Both are 1-line style fixes. After fixes, re-run just those two screens plus a quick grep for any remaining `color: '#fff'` on Text outside of buttons/avatars/active chips/badges/dark screens.",
+  "rca of the issue": "The Phase 39M.4 sweep converted title/name/label/value/input/prompt style keys to COLORS.text but preserved '#fff' on any element the author judged to be sitting on a colored button, avatar, active chip, badge, or dark screen. Two elements were misclassified: (1) passport.leaderCta LOOKS like a badge-style CTA but its parent row uses a very faint amber tint (alpha 0.06) which resolves to near-white when composited over the slate-50 screen bg. (2) play-and-win.resultTag defaults to backgroundColor: COLORS.card (#ffffff) and only the WIN branch overrides it to green; the LOSE branch inherits white bg while the text color stays '#fff'. Both are pure style fixes with no functional change required."
+}

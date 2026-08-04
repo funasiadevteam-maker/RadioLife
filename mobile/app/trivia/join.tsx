@@ -74,11 +74,11 @@ const s = StyleSheet.create({
   container: { padding: SPACING.md, paddingTop: SPACING.lg },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.md },
   backText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '600' },
-  title: { fontSize: 28, fontWeight: '900', color: '#fff', marginBottom: 8 },
+  title: { fontSize: 28, fontWeight: '900', color: COLORS.text, marginBottom: 8 },
   sub: { fontSize: 13, color: COLORS.textDim, marginBottom: SPACING.lg, lineHeight: 18 },
   input: {
     backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder,
-    borderRadius: RADIUS.md, padding: 16, color: '#fff', fontSize: 22,
+    borderRadius: RADIUS.md, padding: 16, color: COLORS.text, fontSize: 22,
     fontWeight: '700', letterSpacing: 3, textAlign: 'center', marginBottom: SPACING.sm,
   },
   preview: { fontSize: 11, color: COLORS.textDim, textAlign: 'center', marginBottom: SPACING.lg },

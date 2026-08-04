@@ -124,6 +124,14 @@ export default function ChannelsScreen() {
 
       <Text style={s.countLabel}>{filtered.length} channel{filtered.length !== 1 ? 's' : ''}</Text>
 
+      {/* CTA into the full 40k+ imported station library */}
+      <TouchableOpacity style={s.allStationsBanner} onPress={() => router.push('/stations')}
+        testID="channels-all-stations-cta" activeOpacity={0.85}>
+        <Ionicons name="globe" size={16} color={COLORS.secondary} />
+        <Text style={s.allStationsBannerText}>Browse 40,000+ live radio stations worldwide</Text>
+        <Ionicons name="chevron-forward" size={14} color={COLORS.secondary} />
+      </TouchableOpacity>
+
       {/* Channel Grid */}
       <ScrollView contentContainerStyle={s.grid}>
         {filtered.map((ch) => {
@@ -269,4 +277,11 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
   lockedText: { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  allStationsBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: SPACING.md, marginBottom: SPACING.sm,
+    paddingVertical: 10, paddingHorizontal: 12, borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(0,217,255,0.08)', borderWidth: 1, borderColor: 'rgba(0,217,255,0.3)',
+  },
+  allStationsBannerText: { flex: 1, color: COLORS.secondary, fontSize: FONT.xs, fontWeight: '700' },
 });

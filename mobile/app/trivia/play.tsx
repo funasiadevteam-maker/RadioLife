@@ -259,13 +259,13 @@ const s = StyleSheet.create({
   timerTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: SPACING.md, overflow: 'hidden' },
   timerFill: { height: '100%', borderRadius: 2 },
   catLabel: { fontSize: 10, color: COLORS.textDim, fontWeight: '700', letterSpacing: 1.5 },
-  prompt: { fontSize: 22, fontWeight: '900', color: '#fff', lineHeight: 28 },
+  prompt: { fontSize: 22, fontWeight: '900', color: COLORS.text, lineHeight: 28 },
   choiceBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderWidth: 1, borderRadius: RADIUS.md, paddingHorizontal: 16, paddingVertical: 14,
   },
   choiceLabel: { fontSize: 10, color: COLORS.textDim, fontWeight: '700', width: 20 },
-  choiceText: { flex: 1, fontSize: 14, color: '#fff' },
+  choiceText: { flex: 1, fontSize: 14, color: COLORS.text },
   waitingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: SPACING.md },
   waitingText: { color: COLORS.textDim, fontSize: FONT.sm },
   revealBar: {

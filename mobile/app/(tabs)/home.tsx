@@ -7,7 +7,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
-import api from '../../src/api/client';
+import api, { BACKEND } from '../../src/api/client';
+
+const resolveImg = (u?: string | null) =>
+  u ? (u.startsWith('http') ? u : `${BACKEND}${u}`) : null;
 import SafeImage from '../../src/components/SafeImage';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
@@ -110,7 +113,7 @@ export default function HomeScreen() {
               style={s.stationCard}
               onPress={() => router.push({ pathname: '/(tabs)/radio', params: { channel: ch.slug } })}>
               <SafeImage
-                uri={ch.cover_art_url || ch.artwork_url}
+                uri={resolveImg(ch.cover_image_url || ch.thumbnail_url)}
                 fallbackText={ch.name || ch.slug}
                 size={52}
                 borderRadius={14}
@@ -120,6 +123,19 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        {/* All Stations CTA — the full 40k+ imported library */}
+        <TouchableOpacity style={s.allStationsCta} testID="home-all-stations-cta"
+          onPress={() => router.push('/stations')}>
+          <View style={s.allStationsIcon}>
+            <Ionicons name="globe" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.allStationsTitle}>Explore 40,000+ live stations</Text>
+            <Text style={s.allStationsSub}>Search radio from around the world</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+        </TouchableOpacity>
 
         {/* Quick Links Grid */}
         <Text style={[common.sectionTitle, { marginTop: SPACING.lg, paddingHorizontal: SPACING.md }]}>EXPLORE</Text>
@@ -208,4 +224,16 @@ const s = StyleSheet.create({
     paddingVertical: 10, marginHorizontal: SPACING.md,
   },
   seeAllText: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '700' },
+  allStationsCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: SPACING.md, marginTop: SPACING.lg, padding: SPACING.md,
+    borderRadius: RADIUS.lg, backgroundColor: COLORS.card,
+    borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  allStationsIcon: {
+    width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.secondary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  allStationsTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800' },
+  allStationsSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
 });

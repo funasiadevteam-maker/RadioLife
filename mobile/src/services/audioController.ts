@@ -23,6 +23,13 @@ export function clearPlayer(player?: any): void {
   if (!player || player === currentPlayer) currentPlayer = null;
 }
 
+/** Hard-stop + release the currently registered player (used before starting a new source). */
+export function releaseCurrent(): void {
+  try { currentPlayer?.pause?.(); } catch {}
+  try { currentPlayer?.release?.(); } catch {}
+  currentPlayer = null;
+}
+
 /** True if there is a live player instance that is currently playing. */
 export function playerIsPlaying(): boolean {
   try {

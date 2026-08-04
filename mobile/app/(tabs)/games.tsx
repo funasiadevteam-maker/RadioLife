@@ -103,9 +103,9 @@ export default function GamesHub() {
   const others = campaigns.filter((c) => c.campaign_id !== HOUSE_CAMPAIGNS.spin);
 
   const QUICK_GAMES = [
-    { id: 'spin', icon: 'aperture-outline', label: 'Spin & Win', color: '#a855f7', route: '/games/spin' },
-    { id: 'trivia', icon: 'musical-notes-outline', label: 'Music Trivia', color: '#f59e0b', route: '/games/trivia-game' },
-    { id: 'lyric', icon: 'mic-outline', label: 'Guess Lyric', color: '#ec4899', route: '/games/lyric-game' },
+    { id: 'spin', icon: 'aperture-outline', label: 'Spin & Win', desc: 'Spin the wheel for BigCoin & coupons', color: '#a855f7', route: '/games/spin' },
+    { id: 'trivia', icon: 'musical-notes-outline', label: 'Music Trivia', desc: 'Guess the song and earn BigCoin', color: '#f59e0b', route: '/games/trivia-game' },
+    { id: 'lyric', icon: 'mic-outline', label: 'Guess the Lyric', desc: 'Finish the lyric to win rewards', color: '#ec4899', route: '/games/lyric-game' },
   ];
 
   if (loading) {
@@ -204,7 +204,10 @@ export default function GamesHub() {
               <View style={[s.quickIconWrap, { backgroundColor: `${g.color}15` }]}>
                 <Ionicons name={g.icon as any} size={24} color={g.color} />
               </View>
-              <Text style={s.quickLabel}>{g.label}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.quickLabel}>{g.label}</Text>
+                <Text style={s.quickDesc}>{g.desc}</Text>
+              </View>
               <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
             </TouchableOpacity>
           ))}
@@ -357,8 +360,8 @@ const s = StyleSheet.create({
 
   // Section
   sectionTitle: {
-    fontSize: FONT.xs, fontWeight: '700', color: COLORS.textMuted,
-    letterSpacing: 2, marginBottom: SPACING.md, marginTop: SPACING.sm,
+    fontSize: FONT.sm, fontWeight: '800', color: COLORS.textDim,
+    letterSpacing: 1, marginBottom: SPACING.md, marginTop: SPACING.sm,
   },
 
   // Quick games
@@ -373,7 +376,8 @@ const s = StyleSheet.create({
     width: 44, height: 44, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
-  quickLabel: { flex: 1, fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
+  quickLabel: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
+  quickDesc: { fontSize: FONT.xs, fontWeight: '500', color: COLORS.textMuted, marginTop: 2 },
 
   // Predict card
   predictCard: {
@@ -403,7 +407,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   campaignType: {
-    fontSize: 9, fontWeight: '700', color: '#a855f7',
+    fontSize: 10, fontWeight: '800', color: '#a855f7',
     letterSpacing: 0.6, marginBottom: 2,
   },
   campaignName: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
