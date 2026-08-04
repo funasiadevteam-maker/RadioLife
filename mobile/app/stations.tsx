@@ -23,13 +23,13 @@ try {
 const LANGS = ['All', 'hindi', 'english', 'arabic', 'urdu', 'punjabi', 'tamil', 'malayalam'];
 const COUNTRIES: { label: string; value: string }[] = [
   { label: 'All', value: 'All' },
-  { label: 'UAE', value: 'United Arab Emirates' },
-  { label: 'India', value: 'India' },
-  { label: 'USA', value: 'United States' },
-  { label: 'UK', value: 'United Kingdom' },
-  { label: 'Pakistan', value: 'Pakistan' },
-  { label: 'Saudi', value: 'Saudi Arabia' },
-  { label: 'Germany', value: 'Germany' },
+  { label: 'UAE', value: 'AE' },
+  { label: 'India', value: 'IN' },
+  { label: 'USA', value: 'US' },
+  { label: 'UK', value: 'GB' },
+  { label: 'Pakistan', value: 'PK' },
+  { label: 'Saudi', value: 'SA' },
+  { label: 'Germany', value: 'DE' },
 ];
 const MODES = [
   { id: 'browse', label: 'Browse', icon: 'globe-outline' },

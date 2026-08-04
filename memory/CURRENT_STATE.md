@@ -1,3 +1,31 @@
+# BigFM Mobile — Warm Re-skin + Now Playing/Favorites/Country/Skip (2026-08-04)
+
+User approved a full warm re-skin + 4 features (testing agent iteration_32; country
+filter fixed & re-verified after):
+
+THEME RE-SKIN (src/constants/theme.ts tokens → cascades to all screens):
+- bg cream #FBF5EC, primary coral-orange #F26B2A (was pink), secondary blue
+  #3B82F6 (was teal), gold #F59E0B, text warm-black #1C1917, softer radii.
+- Tab-bar icons → Ionicons outline variants.
+- Global recolor of hardcoded tints: rgba(255,45,149,*)→orange, rgba(0,217,255,*)
+  →blue, #ff2d95→#F26B2A, #ec4899→#6366F1; SafeImage avatar gradient warmed.
+
+FEATURES:
+- Now Playing (app/now-playing.tsx): real play/pause via audioController +
+  new red STOP button (releases player, clears MiniPlayer, back).
+- Recent & Favorites: src/stores/useStationsStore.ts (AsyncStorage). Stations
+  screen has Browse/Favorites/Recent segmented control + per-row heart; playing
+  auto-records recents.
+- Country filter (stations.tsx): chip row sends ISO country_code (AE/IN/US/GB/
+  PK/SA/DE) to /api/radio/browse — NOTE backend indexes on country_code, NOT
+  full name (initial bug: full names returned 0).
+- Skip Onboarding: 'Skip for now' button (onboarding-skip-btn) on steps 1-10.
+
+Backend untouched. External stream audio is native-only (not audible in web preview).
+
+---
+
+
 # BigFM Mobile — Readability Sweep + All Stations + Artwork + Games Polish (2026-08-04)
 
 Four approved tasks — all done & verified (testing agent iteration_31 + self-screenshots):
