@@ -94,7 +94,7 @@ export default function ChannelsScreen() {
       </View>
 
       {/* Filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
         <Text style={s.filterLabel}>LANG</Text>
         {FILTER_LANGS.map((l) => (
           <TouchableOpacity key={l} style={[s.filterChip, filterLang === l && s.filterChipActive]}
@@ -103,7 +103,7 @@ export default function ChannelsScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
         <Text style={s.filterLabel}>MOOD</Text>
         {FILTER_MOODS.map((m) => (
           <TouchableOpacity key={m} style={[s.filterChip, filterMood === m && s.filterChipActive]}
@@ -112,7 +112,7 @@ export default function ChannelsScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.filterRow, { marginBottom: SPACING.md }]} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.filterRow, { marginBottom: SPACING.md }]} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
         <Text style={s.filterLabel}>VIBE</Text>
         {FILTER_ACTS.map((a) => (
           <TouchableOpacity key={a} style={[s.filterChip, filterAct === a && s.filterChipActive]}
@@ -213,15 +213,15 @@ const s = StyleSheet.create({
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
   },
   backBtn: { padding: 8, borderRadius: RADIUS.sm, backgroundColor: COLORS.card },
-  headerTitle: { color: '#fff', fontSize: FONT.lg, fontWeight: '900' },
+  headerTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900' },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: SPACING.md, marginBottom: SPACING.sm,
     backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder,
     borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10,
   },
-  searchInput: { flex: 1, color: '#fff', fontSize: FONT.md },
-  filterRow: { maxHeight: 40, marginBottom: 4 },
+  searchInput: { flex: 1, color: COLORS.text, fontSize: FONT.md },
+  filterRow: { maxHeight: 52, marginBottom: 4 },
   filterLabel: {
     color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1.5,
     alignSelf: 'center', marginRight: 4,
@@ -254,7 +254,7 @@ const s = StyleSheet.create({
   tierBadgePremium: { borderColor: 'rgba(255,215,0,0.4)', backgroundColor: 'rgba(255,215,0,0.08)' },
   tierBadgeAmbassador: { borderColor: 'rgba(34,211,238,0.4)', backgroundColor: 'rgba(34,211,238,0.08)' },
   tierBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
-  cardName: { color: '#fff', fontSize: FONT.sm, fontWeight: '800', marginBottom: 2 },
+  cardName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', marginBottom: 2 },
   cardTagline: { color: COLORS.textDim, fontSize: 10, marginBottom: 4 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 4 },
   tag: {

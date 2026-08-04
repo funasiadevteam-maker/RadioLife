@@ -12,6 +12,7 @@ import ChannelSwitcher from '../../src/components/ChannelSwitcher';
 import { useGateStore } from '../../src/stores/gateStore';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { updateNowPlaying, nativePlay, nativePause, subscribeRemoteEvents } from '../../src/services/nativePlayerBridge';
+import { registerPlayer, clearPlayer } from '../../src/services/audioController';
 
 let createAudioPlayer: any;
 try {
@@ -111,6 +112,7 @@ export default function RadioScreen() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       try { playerRef.current?.release?.(); } catch {}
+      clearPlayer();
     };
   }, []);
 
@@ -168,6 +170,7 @@ export default function RadioScreen() {
       const url = `${BACKEND}${seg.segment_url}`;
       const player = createAudioPlayer(url);
       playerRef.current = player;
+      registerPlayer(player);
       player.play();
       setPlaying(true);
 
@@ -542,7 +545,7 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.md, paddingTop: SPACING.lg },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary },
-  brandName: { color: '#fff', fontSize: FONT.xl, fontWeight: '900' },
+  brandName: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900' },
   brandDxb: { color: COLORS.secondary },
   headerRight: { flexDirection: 'row', gap: 8 },
   headerBtn: { padding: 8, borderRadius: RADIUS.sm, backgroundColor: COLORS.card },
@@ -557,7 +560,7 @@ const s = StyleSheet.create({
     width: 200, height: 200, borderRadius: 100, alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.primary,
   },
-  onAirLabel: { color: '#fff', fontSize: FONT.xl, fontWeight: '900', marginTop: SPACING.sm },
+  onAirLabel: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900', marginTop: SPACING.sm },
   onAirSub: { color: COLORS.textMuted, fontSize: FONT.xs, letterSpacing: 1, fontWeight: '700', marginTop: 4, textAlign: 'center' },
   welcomeText: { color: COLORS.textDim, fontSize: FONT.md, textAlign: 'center', marginTop: SPACING.lg, lineHeight: 22 },
   nowPlaying: { padding: SPACING.lg },
@@ -569,7 +572,7 @@ const s = StyleSheet.create({
   channelTag: { backgroundColor: COLORS.card, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.sm },
   channelTagText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
   duoHosts: { color: COLORS.textDim, fontSize: FONT.xs, letterSpacing: 1, marginBottom: SPACING.sm },
-  trackTitle: { color: '#fff', fontSize: FONT.xxl, fontWeight: '900', marginBottom: 4 },
+  trackTitle: { color: COLORS.text, fontSize: FONT.xxl, fontWeight: '900', marginBottom: 4 },
   trackArtist: { color: COLORS.textDim, fontSize: FONT.lg, marginBottom: SPACING.lg },
   progressBar: { height: 4, backgroundColor: COLORS.cardBorder, borderRadius: 2 },
   progressFill: { height: 4, backgroundColor: COLORS.primary, borderRadius: 2 },

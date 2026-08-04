@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView, FlatList,
-  ActivityIndicator, RefreshControl, Modal, TextInput, Switch, ScrollView, Alert,
+  ActivityIndicator, RefreshControl, Modal, TextInput, Switch, ScrollView, Alert, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -383,7 +383,7 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', padding: SPACING.md, paddingTop: SPACING.lg, gap: SPACING.md },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   backText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
-  title: { color: '#fff', fontSize: 28, fontWeight: '900' },
+  title: { color: COLORS.text, fontSize: 28, fontWeight: '900' },
   sub: { color: COLORS.textDim, fontSize: FONT.sm, lineHeight: 18, marginTop: 4 },
   hostBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -412,7 +412,7 @@ const s = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
   },
   avatarLetter: { color: '#fff', fontSize: FONT.md, fontWeight: '800' },
-  cardName: { color: '#fff', fontSize: FONT.md, fontWeight: '800' },
+  cardName: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800' },
   cardHost: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600' },
   cardDesc: { color: COLORS.textDim, fontSize: FONT.sm, marginBottom: 8, lineHeight: 18 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
@@ -432,7 +432,7 @@ const s = StyleSheet.create({
   },
   joinText: { color: '#fff', fontWeight: '700', fontSize: FONT.sm },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyTitle: { color: '#fff', fontSize: FONT.lg, fontWeight: '800' },
+  emptyTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '800' },
   emptySub: { color: COLORS.textDim, fontSize: FONT.sm, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
   /* Modal */
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
@@ -440,13 +440,13 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.card, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
     padding: SPACING.xl, maxHeight: '85%',
   },
-  modalTitle: { color: '#fff', fontSize: FONT.xl, fontWeight: '900', marginBottom: 4 },
+  modalTitle: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900', marginBottom: 4 },
   modalSub: { color: COLORS.textDim, fontSize: FONT.sm, marginBottom: SPACING.md, lineHeight: 18 },
   fieldLabel: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1, marginBottom: 4, marginTop: 8 },
   input: {
     backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder,
     borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10,
-    color: '#fff', fontSize: FONT.sm,
+    color: COLORS.text, fontSize: FONT.sm,
   },
   row: { flexDirection: 'row', gap: SPACING.sm },
   select: {
@@ -454,7 +454,7 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder,
     borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10,
   },
-  selectText: { color: '#fff', fontSize: FONT.sm, flex: 1 },
+  selectText: { color: COLORS.text, fontSize: FONT.sm, flex: 1 },
   lockRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   lockText: { color: COLORS.gold, fontSize: FONT.xs, fontWeight: '700' },
   moodChip: {
@@ -464,7 +464,7 @@ const s = StyleSheet.create({
   moodChipText: { color: COLORS.textDim, fontSize: 10, fontWeight: '600' },
   pickerList: { maxHeight: 150, backgroundColor: COLORS.bg, borderRadius: RADIUS.md, marginTop: 4, padding: 4 },
   pickerItem: { paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder },
-  pickerText: { color: '#fff', fontSize: FONT.sm },
+  pickerText: { color: COLORS.text, fontSize: FONT.sm },
   modalActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg },
   cancelBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.bg },
   cancelText: { color: COLORS.textDim, fontWeight: '700' },

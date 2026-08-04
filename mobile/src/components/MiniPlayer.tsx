@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayerStore } from '../stores/usePlayerStore';
+import { togglePlayback, hasPlayer } from '../services/audioController';
+import { nativePlay, nativePause } from '../services/nativePlayerBridge';
 import SafeImage from './SafeImage';
 import { COLORS, FONT, SPACING } from '../constants/theme';
 
@@ -45,7 +47,14 @@ export default function MiniPlayer() {
         style={s.playBtn}
         onPress={(e) => {
           e.stopPropagation?.();
-          setPlaying(!playing);
+          if (!hasPlayer()) {
+            // No live audio session yet — open the full player to start one.
+            router.push('/now-playing');
+            return;
+          }
+          const nowPlaying = togglePlayback();
+          setPlaying(nowPlaying);
+          if (nowPlaying) nativePlay(); else nativePause();
         }}
       >
         <Ionicons name={playing ? 'pause' : 'play'} size={22} color="#fff" />
