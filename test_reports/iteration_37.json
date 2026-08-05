@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend-only mobile testing of Phase 39M.x Listen/Home/Stations/AdBanner deltas via Expo web preview. Login (demo@bigfm.dubai / DemoPass123!) works. LISTEN tab (all rails Made-for-you, Trending, AI, Flagship, Local, 40k+ CTA, and Podcasts 'coming soon' empty state) renders correctly with real station data; Explore-more testIDs present. Home 6-icon EXPLORE row is intact and each icon navigates. AdBanners are absent as expected (no live campaign) on Home/Listen/Games/Wallet and screens do NOT crash. Regression: navigation across Home/Listen/Games/Wallet/More/stations works. TWO functional issues found: (1) Home is MISSING the 'TOP PLAYED STATIONS' rail — the topStations state is fetched from /radio/discover but is NEVER rendered in home.tsx JSX, so the review-required rail is entirely absent from the UI; (2) Stations GENRE filter is BROKEN — selecting a genre chip does NOT refilter results (30 rows before, 30 rows after tapping 'Bollywood') because stations.tsx never passes a `category` param to /radio/browse and `genre` is not in the fetchPage useCallback deps. Also a minor visual layout issue: the three filter chip rows (Country/Language/Genre) appear vertically overlapped in the current maxHeight:48 filterRow.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "mobile": {
+      "ui_bugs": [
+        {"component": "HomeScreen TOP PLAYED STATIONS rail", "issue": "The rail described in the review request is MISSING. home.tsx defines `topStations` state (line 27) and populates it from /radio/discover (line 57), but nothing in the JSX (lines 72-218) renders these stations. Nowhere in the screen is a 'TOP PLAYED STATIONS' rail visible. Text search for 'TOP PLAYED STATIONS' on the rendered page returned false. Reference: /app/mobile/app/(tabs)/home.tsx:27,57 (state defined but never used).", "testID": "n/a (rail not rendered)", "priority": "HIGH"},
+        {"component": "StationsScreen Genre filter", "issue": "Selecting a genre chip does NOT filter results. Rows before selecting 'Bollywood' = 30, rows after = 30 (identical top-of-list stations shown). Two root causes in /app/mobile/app/stations.tsx:81-102 — (a) the API request payload never includes a `category` (or any genre) param, only source/page/limit/q/language/country; (b) `genre` is not in the useCallback deps for fetchPage (line 99), so even if it were sent, the effect at line 102 (`useEffect(() => { setPage(1); fetchPage(1, true); }, [fetchPage])`) wouldn't refire on genre change. The review request explicitly states genre must pass `category` to /api/radio/browse.", "testID": "stations-genre-<slug>", "priority": "HIGH"},
+        {"component": "StationsScreen filter row layout", "issue": "The three chip filter ScrollViews (Country / Language / Genre) visually overlap in the Browse view (see /tmp/stations.png). The Language chips (Hindi/English/Arabic/…) and Genre chips (Genre: All/Bollywood/…) are stacked on top of each other — the maxHeight:48 on filterRow at /app/mobile/app/stations.tsx:364 appears too tight for chip vertical padding, so successive rows are clipped/overlapping.", "testID": "stations-country-*, stations-lang-*, stations-genre-*", "priority": "MEDIUM"},
+        {"component": "HomeScreen StyleSheet duplicate key `seeAll`", "issue": "/app/mobile/app/(tabs)/home.tsx defines `seeAll` twice in the same StyleSheet.create — once as a text color string (line 284: `seeAll: { color: COLORS.secondary, … }`) and again as a View container style (line 306: `seeAll: { flexDirection: 'row', … }`). The second overrides the first, so the 'See all' Text at line 184 no longer gets its intended color style and the 'Browse all channels' TouchableOpacity's inner Text (line 216) may render with unintended styling. Cosmetic but wrong.", "testID": "n/a", "priority": "LOW"}
+      ],
+      "integration_issues": [
+        {"flow": "Stations genre filtering", "issue": "Tapping stations-genre-bollywood makes the chip visually 'active' but does not change results. /api/radio/browse is not called with a category, so the backend is never asked to filter.", "affected_testIDs": ["stations-genre-bollywood","stations-genre-hindi","stations-genre-news","stations-genre-punjabi"]}
+      ],
+      "design_issues": [
+        {"screen": "Stations", "issues": ["Country/Language/Genre chip rows overlap vertically due to maxHeight:48"]}
+      ],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": ["/tmp/home.png", "/tmp/listen.png", "/tmp/listen_bottom.png", "/tmp/stations.png"],
+  "action_items": [
+    "HIGH: Render the TOP PLAYED STATIONS rail in home.tsx JSX. The topStations array is already populated from /radio/discover (trending || for_you); add a horizontal rail (e.g. between BREAKING/Wallet and FEATURED STATIONS, or above the all-stations CTA) that maps topStations to station tiles and calls playImportedStation on tap. Ensure it hides when topStations is empty.",
+    "HIGH: Fix the Genre filter in /app/mobile/app/stations.tsx — (a) include `if (genre !== 'All') params.category = genre;` (or the exact param name the backend expects; the review says `category`) inside fetchPage, and (b) add `genre` to the useCallback deps array so refetch re-fires on chip change.",
+    "MEDIUM: Fix filter row overlap. Either remove `maxHeight: 48` on the shared `filterRow` style, give each ScrollView its own container height that accounts for chip vertical padding (~34px content + margin), or stack the three rows in a parent View with explicit marginBottom so they don't collide.",
+    "LOW: In home.tsx StyleSheet, rename one of the two `seeAll` keys (e.g. keep `seeAllRow` for the container at line 306 and `seeAllLink` for the text color at line 284) and update the two consumer sites (lines 184 and 214-216) accordingly."
+  ],
+  "critical_code_review_comments": [
+    "home.tsx has unused/dangling state (topStations) — indicative that the rail was implemented but the JSX was never added.",
+    "stations.tsx GENRES chip UI was added but the corresponding query-param wiring is missing; both symptoms (missing param + missing dep) point to an incomplete edit.",
+    "Duplicate StyleSheet key `seeAll` in home.tsx (a code-quality bug, silent override).",
+    "AdBanner correctly returns null when no ad is served — this behavior matches the review request and should NOT be treated as a failure."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested", "frontend": "~70% (Listen + AdBanner + tab navigation OK; Home rail + Stations genre broken)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (worked)",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two real functional bugs identified in Phase 39M.x delta: (1) Home missing TOP PLAYED STATIONS rail (state fetched, never rendered); (2) Stations genre filter is a no-op (category param not sent, dep missing). Everything else in the delta — Listen rails + 40k CTA + Podcasts empty state + AdBanner render-nothing behavior + 6-icon Explore + tab navigation — was verified working. After main agent fixes those two, retest by: tapping Listen tab (should still show 5 rails), tapping Home tab (should now show a TOP PLAYED STATIONS rail with tiles), tapping stations from /stations and picking Genre=Bollywood (rows count should change).",
+  "rca of the issue": "Home: topStations is set via setTopStations(railMap.trending || railMap.for_you) at home.tsx line 57 but the JSX simply never references topStations — the rail component was omitted. Stations: fetchPage builds params without any genre/category field (line 84-87 in stations.tsx) and the useCallback dep array (line 99) only lists [debounced, lang, country], so changing `genre` neither triggers a refetch nor affects the payload — the chip UI is effectively decorative."
+}

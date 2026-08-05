@@ -6,6 +6,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import AdBanner from '../../src/components/AdBanner';
 import { fetchPlayAndWin, HOUSE_CAMPAIGNS } from '../../src/api/gamesApi';
 import useBigCoinStore from '../../src/stores/useBigCoinStore';
 
@@ -189,6 +190,9 @@ export default function GamesHub() {
             </View>
           </View>
         </TouchableOpacity>
+
+        {/* Sponsored banner */}
+        <AdBanner zone="games" />
 
         {/* Quick Games Grid */}
         <Text style={s.sectionTitle}>QUICK GAMES</Text>

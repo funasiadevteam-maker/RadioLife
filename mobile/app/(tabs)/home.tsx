@@ -9,6 +9,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { useStationsStore } from '../../src/stores/useStationsStore';
 import { playImportedStation } from '../../src/services/playStation';
+import AdBanner from '../../src/components/AdBanner';
 import api, { BACKEND } from '../../src/api/client';
 
 const resolveImg = (u?: string | null) =>
@@ -23,6 +24,7 @@ export default function HomeScreen() {
   const [breaking, setBreaking] = useState<any[]>([]);
   const [wallet, setWallet] = useState<any>(null);
   const [deals, setDeals] = useState<any[]>([]);
+  const [topStations, setTopStations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { activeChannelName, activeChannelThumb, currentSeg } = usePlayerStore();
@@ -37,16 +39,23 @@ export default function HomeScreen() {
 
   const load = async () => {
     try {
-      const [chRes, brRes, wRes, dRes] = await Promise.allSettled([
+      const [chRes, brRes, wRes, dRes, dscRes] = await Promise.allSettled([
         api.get('/channels'),
         api.get('/news/headlines/breaking'),
         api.get('/bigcoin/me'),
         api.get('/commerce/offers/feed'),
+        api.get('/radio/discover'),
       ]);
       if (chRes.status === 'fulfilled') setChannels((chRes.value as any).data?.channels || []);
       if (brRes.status === 'fulfilled') setBreaking((brRes.value as any).data?.items || []);
       if (wRes.status === 'fulfilled') setWallet((wRes.value as any).data);
       if (dRes.status === 'fulfilled') setDeals((dRes.value as any).data?.items || []);
+      if (dscRes.status === 'fulfilled') {
+        const rails = (dscRes.value as any).data?.rails || [];
+        const railMap: Record<string, any[]> = {};
+        rails.forEach((r: any) => { railMap[r.id] = r.stations || []; });
+        setTopStations((railMap.trending?.length ? railMap.trending : railMap.for_you) || []);
+      }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -191,9 +200,9 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* Quick Links Grid */}
+        {/* Quick Links — 6 icons in one line */}
         <Text style={[common.sectionTitle, { marginTop: SPACING.lg, paddingHorizontal: SPACING.md }]}>EXPLORE</Text>
-        <View style={s.quickGrid}>
+        <View style={s.exploreRow}>
           <QuickLink icon="newspaper" label="News" color={COLORS.red} onPress={() => router.push('/(tabs)/news')} testID="home-quick-news" />
           <QuickLink icon="mic" label="Podcasts" color={COLORS.secondary} onPress={() => router.push('/(tabs)/podcasts')} testID="home-quick-podcasts" />
           <QuickLink icon="pricetag" label="Deals" color={COLORS.green} onPress={() => router.push('/coupons')} testID="home-quick-deals" />
@@ -287,9 +296,13 @@ const s = StyleSheet.create({
   stationName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700', textAlign: 'center', marginTop: 8 },
   stationSub: { color: COLORS.textMuted, fontSize: 9, marginTop: 2, textAlign: 'center' },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: SPACING.md, marginBottom: SPACING.lg },
-  qlItem: { width: '33.33%', alignItems: 'center', paddingVertical: SPACING.md },
-  qlIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  qlLabel: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
+  exploreRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: SPACING.sm, marginBottom: SPACING.lg },
+  qlItem: { flex: 1, alignItems: 'center', paddingVertical: SPACING.sm },
+  qlIcon: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  qlLabel: { color: COLORS.textDim, fontSize: 10, fontWeight: '700' },
+  topStationTile: { width: 92 },
+  topStationName: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '700', marginTop: 5 },
+  topStationSub: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600', marginTop: 1 },
   seeAll: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 10, marginHorizontal: SPACING.md,

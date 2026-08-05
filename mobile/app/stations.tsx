@@ -21,6 +21,7 @@ try {
 } catch {}
 
 const LANGS = ['All', 'hindi', 'english', 'arabic', 'urdu', 'punjabi', 'tamil', 'malayalam'];
+const GENRES = ['All', 'bollywood', 'punjabi', 'hindi', 'news', 'talk', 'sports', 'devotional', 'pop', 'rock', 'edm', 'classical', 'jazz'];
 const COUNTRIES: { label: string; value: string }[] = [
   { label: 'All', value: 'All' },
   { label: 'UAE', value: 'AE' },
@@ -57,6 +58,7 @@ export default function StationsScreen() {
   const [debounced, setDebounced] = useState('');
   const [lang, setLang] = useState('All');
   const [country, setCountry] = useState('All');
+  const [genre, setGenre] = useState('All');
   const [mode, setMode] = useState<'browse' | 'favorites' | 'recent'>('browse');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -259,6 +261,19 @@ export default function StationsScreen() {
                 onPress={() => setLang(l)} testID={`stations-lang-${l.toLowerCase()}`}>
                 <Text style={[s.chipText, lang === l && s.chipTextActive]}>
                   {l === 'All' ? 'All' : l.charAt(0).toUpperCase() + l.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Genre filter */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow}
+            contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
+            {GENRES.map((g) => (
+              <TouchableOpacity key={g} style={[s.chip, genre === g && s.chipActive]}
+                onPress={() => setGenre(g)} testID={`stations-genre-${g.toLowerCase()}`}>
+                <Text style={[s.chipText, genre === g && s.chipTextActive]}>
+                  {g === 'All' ? 'Genre: All' : g.charAt(0).toUpperCase() + g.slice(1)}
                 </Text>
               </TouchableOpacity>
             ))}

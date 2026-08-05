@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import AdBanner from '../../src/components/AdBanner';
 import api from '../../src/api/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import useBigCoinStore from '../../src/stores/useBigCoinStore';
@@ -119,6 +120,9 @@ export default function WalletScreen() {
             </View>
           ) : null}
         </LinearGradient>
+
+        {/* Sponsored banner */}
+        <AdBanner zone="wallet" />
 
         {/* Action Buttons */}
         <View style={st.actionRow}>
