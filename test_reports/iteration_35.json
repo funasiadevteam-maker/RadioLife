@@ -1,0 +1,78 @@
+{
+  "summary": "Iteration 35 mobile QA (Expo web preview @ 390x844) — all FOUR PDF-polish items PASS. (1) LISTEN FLAGSHIP LOGOS: /(tabs)/listen 'Flagship stations' rail renders 10 tiles; DOM audit shows 3 real <img> logos (e.g. Radio Sangam / Bea…) and 7 warm-orange gradient fallback tiles ([data-testid=safe-image-fallback] with initials T1, L1, B1, etc.). ZERO ui-avatars.com placeholder images found — SafeImage correctly filters ui-avatars URLs and swaps in the branded orange gradient. AI Stations rail and other imagery still render normally. (2) WALLET TIER PROGRESS: /(tabs)/wallet orange points card now shows '373 BC to Silver' in the milestone hint area (matches ladder: lifetime 127 → Silver at 500 → 500-127=373). balance-card text captured verbatim: 'TOTAL BIGCOIN BALANCE / ₿ 127 / 🥉 Bronze / 🔥 1-day streak / Lifetime 127 BC / 373 BC to Silver'. bc-balance=127, bc-tier='🥉 Bronze', bc-lifetime='Lifetime 127 BC' — pill/streak/gradient intact. (3) NEARBY DEALS ENRICHMENT: /coupons offer card for ofr_qa_onetime_demo shows the enriched business row 'Karak Cafe Dubai (QA Demo)' + 'Cafe' category under the offer-type/source line. Rating pill correctly ABSENT (merchant has no average_rating — real-data-only rule respected). 50% OFF discount tile + 'Save coupon' CTA + 99-left inventory + terms all still render. (4) HOME NEARBY DEALS RAIL: /(tabs)/home shows 'NEARBY DEALS' section header + 'See all' link (testID home-deals-seeall → tapping navigates to /coupons and coupons-screen renders). One horizontal card home-deal-ofr_qa_onetime_demo renders with '50% OFF' discount tile + title 'QA Demo — One-time 50% off Karak' + expiry 'exp 2/1/2027'. Home also still renders home-hero, home-listen-cta, home-wallet-card (BIGCOIN 127 · BRONZE), home-all-stations-cta, home-quick-deals, Featured Stations rail (VIP Lounge, Premium Mehfil, DFW Bollywood, etc.). REGRESSION: warm cream+orange theme intact; bottom tab bar rendered as 'Home · Listen · Games · Wallet · More' in that order (confirmed via role=tablist DOM inspection AND screenshot); no crashes navigating Home → Listen → Wallet → Deals; 'See all' → /coupons navigation works.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Carryover: React Native web console still emits '\"shadow*\" style props are deprecated. Use \"boxShadow\".' warnings from wallet.tsx points card, coupons.tsx offer card, and home.tsx deal card shadows. Reference: /app/mobile/app/(tabs)/wallet.tsx:432 (pointsCard shadowColor/shadowOffset), /app/mobile/app/coupons.tsx:170 (offerCard shadow*), /app/mobile/app/(tabs)/home.tsx (dealCard/walletCard shadow*). Not blocking; migrate to boxShadow when convenient."},
+        {"component": "props.pointerEvents", "issue": "Carryover: 'props.pointerEvents is deprecated. Use style.pointerEvents' — same as prior iterations, source not in the 4 modified files this round."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "verification_details": {
+    "listen_flagship": {
+      "tiles_total": 10,
+      "real_logos_count": 3,
+      "safe_image_fallback_count": 7,
+      "ui_avatars_placeholder_count": 0,
+      "sample_fallback_initials": ["T1", "L1", "B1"]
+    },
+    "wallet_tier": {
+      "balance_card_testid": "balance-card",
+      "bc_balance": "127",
+      "bc_tier": "🥉 Bronze",
+      "bc_lifetime": "Lifetime 127 BC",
+      "milestone_hint_text": "373 BC to Silver",
+      "milestone_math_ok": "true (500 - 127 = 373)",
+      "action_buttons": ["wallet-scan-to-pay-btn (Scan to Pay)", "wallet-my-splits-btn (My Splits)", "wallet-deals-btn (Deals)"]
+    },
+    "coupons_enrichment": {
+      "offer_card_id": "offer-card-ofr_qa_onetime_demo",
+      "biz_name_shown": "Karak Cafe Dubai (QA Demo)",
+      "biz_category_shown": "Cafe",
+      "rating_pill_shown": false,
+      "rating_pill_absent_reason": "merchant has no average_rating (intentional per real-data-only spec)",
+      "discount_tile": "50% OFF",
+      "save_coupon_cta_visible": true
+    },
+    "home_deals_rail": {
+      "section_header": "NEARBY DEALS",
+      "see_all_testid": "home-deals-seeall",
+      "see_all_route": "/coupons (verified)",
+      "deal_card_testids": ["home-deal-ofr_qa_onetime_demo"],
+      "deal_card_content": "50% OFF + 'QA Demo — One-time 50% off Karak' + 'exp 2/1/2027'"
+    },
+    "regression": {
+      "tab_bar_order_rendered": ["Home", "Listen", "Games", "Wallet", "More"],
+      "tab_bar_order_expected": ["Home", "Listen", "Games", "Wallet", "More"],
+      "theme": "warm cream+orange intact",
+      "home_sections_present": ["home-header", "home-hero", "home-listen-cta", "home-wallet-card", "home-all-stations-cta", "home-quick-deals (Explore grid)", "NEARBY DEALS rail", "Featured Stations rail"],
+      "home_continue_listening_present": false,
+      "home_continue_listening_note": "home-continue not rendered this session (no active playback + no saved recents) — expected per the guarded (cont ?) code path in home.tsx"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(No blocker action items for this iteration.)",
+    "(Optional/tech-debt carryover) Migrate remaining shadow* style props to boxShadow in wallet.tsx/coupons.tsx/home.tsx to silence RN-web console warnings."
+  ],
+  "critical_code_review_comments": [
+    "coupons.tsx bizRow: `bizName` uses `maxWidth: '55%'` alongside `numberOfLines={1}`, so a long merchant name gets ellipsised (currently visible as 'Karak Cafe Dubai (QA De…' in the /coupons list). Fine on desktop-width mobile viewport but on the home rail (68px discount tile + info column ~250px) the truncation kicks in early. Consider bumping to `flex: 1, minWidth: 0` if merchant names get longer in production seed.",
+    "home.tsx: the NEARBY DEALS rail is only rendered when `deals.length > 0` — good defensive check; also the See all link is only visible if the rail is shown, which is consistent with UX intent.",
+    "SafeImage.tsx: the `isPlaceholder` heuristic keys off `ui-avatars.com` substring only. If backend adds other placeholder providers (e.g. dicebear, avatars.dicebear.com) the same purple/off-brand look will re-appear. Consider a generic `.includes('avatars')` or an explicit denylist array constant.",
+    "wallet.tsx: TIERS thresholds are hardcoded inline in the JSX (Silver=500 / Gold=2500 / Platinum=10000). This is duplicated from backend logic — extract to `src/constants/tiers.ts` so future ladder changes are one-touch."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% (all 4 polish items + regression pass)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "None. Re-used existing user (balance 127, Bronze, lifetime 127) and existing offer ofr_qa_onetime_demo (Karak Cafe Dubai) with 99 remaining inventory.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 39M.4 (post-PDF) 4-polish batch is fully verified on mobile Expo web preview. SafeImage placeholder filter, wallet tier ladder text ('373 BC to Silver'), coupons business-name/category enrichment (no rating pill unless average_rating exists), and Home NEARBY DEALS horizontal rail with home-deals-seeall + home-deal-<id> testIDs — all in place. Only carryover shadow*/pointerEvents web console warnings remain. Do not re-verify unless E1 changes SafeImage.tsx, wallet.tsx tier text, coupons.tsx bizRow, or home.tsx deals rail.",
+  "rca of the issue": "N/A — no functional bugs found in this iteration."
+}

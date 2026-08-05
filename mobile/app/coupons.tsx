@@ -19,13 +19,26 @@ export default function CouponsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [cat, setCat] = useState('all');
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [bizMap, setBizMap] = useState<Record<string, any>>({});
 
   useEffect(() => { if (!authLoading && !user) router.replace('/login'); }, [user, authLoading]);
 
   const loadFeed = async () => {
     try {
       const r = await api.get('/commerce/offers/feed');
-      setOffers(r.data.items || []);
+      const items = r.data.items || [];
+      setOffers(items);
+      // Enrich with business name / category / rating (real data only)
+      const ids = [...new Set(items.map((o: any) => o.business_id).filter(Boolean))];
+      const results = await Promise.allSettled(ids.map((id) => api.get(`/business/${id}/profile`)));
+      const map: Record<string, any> = {};
+      results.forEach((res, i) => {
+        if (res.status === 'fulfilled') {
+          const m = res.value.data?.merchant || {};
+          map[ids[i] as string] = { name: m.name, category: m.category, rating: m.average_rating, logo: m.logo_url };
+        }
+      });
+      setBizMap(map);
     } catch { /* */ }
     finally { setLoading(false); }
   };
@@ -104,6 +117,16 @@ export default function CouponsScreen() {
                   </View>
                   {o.source && <Text style={st.sourceBadge}>{o.source}</Text>}
                 </View>
+                {bizMap[o.business_id]?.name ? (
+                  <View style={st.bizRow}>
+                    <Ionicons name="storefront" size={12} color={COLORS.primary} />
+                    <Text style={st.bizName} numberOfLines={1}>{bizMap[o.business_id].name}</Text>
+                    {bizMap[o.business_id].category ? <Text style={st.bizCat}>{bizMap[o.business_id].category}</Text> : null}
+                    {bizMap[o.business_id].rating ? (
+                      <View style={st.ratingPill}><Ionicons name="star" size={9} color={COLORS.gold} /><Text style={st.ratingText}>{Number(bizMap[o.business_id].rating).toFixed(1)}</Text></View>
+                    ) : null}
+                  </View>
+                ) : null}
                 <Text style={st.offerTitle} numberOfLines={2}>{o.title}</Text>
                 {o.description ? <Text style={st.offerDesc} numberOfLines={2}>{o.description}</Text> : null}
                 <View style={st.offerMeta}>
@@ -150,6 +173,11 @@ const st = StyleSheet.create({
   discountValue: { color: '#fff', fontSize: 20, fontWeight: '900' },
   discountLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   offerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  bizRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+  bizName: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '800', maxWidth: '55%' },
+  bizCat: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
+  ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#fef3c7', borderRadius: RADIUS.sm, paddingHorizontal: 5, paddingVertical: 1 },
+  ratingText: { color: COLORS.gold, fontSize: 10, fontWeight: '800' },
   offerType: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   offerTypeText: { color: COLORS.gold, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   sourceBadge: { backgroundColor: 'rgba(242,107,42,0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: RADIUS.full },

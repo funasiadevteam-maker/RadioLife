@@ -109,7 +109,12 @@ export default function WalletScreen() {
                 <View style={[st.pointsProgressFill, { width: `${Math.min(100, me?.milestone_progress || 0)}%` }]} />
               </View>
               <Text style={st.pointsProgressHint}>
-                {Math.max(0, me.next_milestone - (me.lifetime_earned || 0))} BC to next milestone
+                {(() => {
+                  const TIERS = [{ name: 'Silver', min: 500 }, { name: 'Gold', min: 2500 }, { name: 'Platinum', min: 10000 }];
+                  const life = me.lifetime_earned || 0;
+                  const nt = TIERS.find(t => t.min > life);
+                  return nt ? `${nt.min - life} BC to ${nt.name}` : 'Platinum tier — top rank reached 🎉';
+                })()}
               </Text>
             </View>
           ) : null}

@@ -22,6 +22,7 @@ export default function HomeScreen() {
   const [channels, setChannels] = useState<any[]>([]);
   const [breaking, setBreaking] = useState<any[]>([]);
   const [wallet, setWallet] = useState<any>(null);
+  const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { activeChannelName, activeChannelThumb, currentSeg } = usePlayerStore();
@@ -36,14 +37,16 @@ export default function HomeScreen() {
 
   const load = async () => {
     try {
-      const [chRes, brRes, wRes] = await Promise.allSettled([
+      const [chRes, brRes, wRes, dRes] = await Promise.allSettled([
         api.get('/channels'),
         api.get('/news/headlines/breaking'),
         api.get('/bigcoin/me'),
+        api.get('/commerce/offers/feed'),
       ]);
       if (chRes.status === 'fulfilled') setChannels((chRes.value as any).data?.channels || []);
       if (brRes.status === 'fulfilled') setBreaking((brRes.value as any).data?.items || []);
       if (wRes.status === 'fulfilled') setWallet((wRes.value as any).data);
+      if (dRes.status === 'fulfilled') setDeals((dRes.value as any).data?.items || []);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -163,6 +166,31 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
         </TouchableOpacity>
 
+        {/* Nearby Deals rail */}
+        {deals.length > 0 && (
+          <>
+            <View style={s.dealsHead}>
+              <Text style={[common.sectionTitle, { marginTop: 0, paddingHorizontal: 0 }]}>NEARBY DEALS</Text>
+              <TouchableOpacity onPress={() => router.push('/coupons')} testID="home-deals-seeall">
+                <Text style={s.seeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}>
+              {deals.slice(0, 6).map((o) => (
+                <TouchableOpacity key={o.offer_id} style={s.dealCard} onPress={() => router.push(`/offer/${o.offer_id}`)} testID={`home-deal-${o.offer_id}`} activeOpacity={0.85}>
+                  <View style={s.dealDiscount}>
+                    <Text style={s.dealDiscountText}>
+                      {o.value_amount != null ? (o.offer_type === 'percent_off' ? `${o.value_amount}% OFF` : `${o.value_amount} ${o.value_currency || 'AED'} OFF`) : 'DEAL'}
+                    </Text>
+                  </View>
+                  <Text style={s.dealTitle} numberOfLines={2}>{o.title}</Text>
+                  {o.end_at ? <Text style={s.dealMeta}>exp {new Date(o.end_at).toLocaleDateString()}</Text> : null}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
         {/* Quick Links Grid */}
         <Text style={[common.sectionTitle, { marginTop: SPACING.lg, paddingHorizontal: SPACING.md }]}>EXPLORE</Text>
         <View style={s.quickGrid}>
@@ -243,6 +271,13 @@ const s = StyleSheet.create({
   continueName: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800', marginTop: 2 },
   continueSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
   continuePlay: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  dealsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, marginTop: SPACING.lg, marginBottom: SPACING.sm },
+  seeAll: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '700' },
+  dealCard: { width: 160, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md },
+  dealDiscount: { alignSelf: 'flex-start', backgroundColor: COLORS.primary, borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 4, marginBottom: 8 },
+  dealDiscountText: { color: '#fff', fontSize: FONT.xs, fontWeight: '900' },
+  dealTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', lineHeight: 18 },
+  dealMeta: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 4 },
   stationCard: {
     width: 120, padding: SPACING.md, borderRadius: RADIUS.lg,
     backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,

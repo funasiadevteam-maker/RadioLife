@@ -19,7 +19,12 @@ export default function SafeImage({
 }: SafeImageProps) {
   const [failed, setFailed] = useState(false);
 
-  if (!uri || failed) {
+  // Generated ui-avatars placeholders aren't real brand logos — render our
+  // own warm branded initials fallback instead so tiles stay on-brand.
+  const isPlaceholder = !!uri && uri.includes('ui-avatars.com');
+  const src = isPlaceholder ? null : uri;
+
+  if (!src || failed) {
     const initials = fallbackText
       .split(/[\s-]+/)
       .filter(Boolean)
@@ -41,7 +46,7 @@ export default function SafeImage({
 
   return (
     <Image
-      source={{ uri } as ImageURISource}
+      source={{ uri: src } as ImageURISource}
       onError={() => setFailed(true)}
       style={[{ width: size, height: size, borderRadius }, style]}
       testID="safe-image"
