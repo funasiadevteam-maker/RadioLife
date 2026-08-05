@@ -1,0 +1,27 @@
+{
+  "summary": "Focused retest of bottom tab bar label truncation fix on Expo web preview at 390x844 mobile viewport. All five tab labels — Home, Listen, Games, Wallet, More — render fully with fontSize 11px, whiteSpace nowrap, and scrollWidth === clientWidth (truncated=false) on the /home screen. The active Home tab is tinted orange (rgb(242,107,42)) and the inactive tabs use rgb(168,162,158). Tapping Listen/Wallet/More/Home navigates to /listen, /wallet, /profile and /home respectively without JS errors. Tab bar sits above the safe-area bottom (labels y=826, viewport 844). The fix works — no truncation, no crash, no red screen, warm cream+orange theme preserved.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "_layout.tsx: tabBarStyle height 58+insets.bottom + paddingBottom (insets.bottom || 8) correctly respects safe area; tabBarAllowFontScaling:false prevents OS large-font overflow; letterSpacing:0 and fontSize:11 give ample horizontal room for the longest label (Listen/Wallet ~30px)."
+  ],
+  "updated_files": [],
+  "success_rate": {"frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug-fix retest for tab bar labels only. Verified via DOM measurement (scrollW===clientW for all 5 labels) and tap-navigation on a 390x844 viewport. Note: text='Games' matches both the tab label AND an Explore tile in the Home screen; when scripting future tab-tap tests filter by getBoundingClientRect().y > 780 or use a testID on Tabs.Screen options.",
+  "rca of the issue": "Original truncation was because tab bar had a fixed height and no bottom-safe-area padding on notched devices — content was pushed into the home indicator strip, and letterSpacing:0.5 with fontSize:10 made 'Listen'/'Wallet' exceed the per-tab item width causing ellipsis. Fix respects insets.bottom (dynamic height/padding), disables tabBarAllowFontScaling (OS large-font protection), reduces letterSpacing to 0 and bumps fontSize to 11, and tightens tabBarItemStyle paddingHorizontal to 2 to widen the label slot. Verified: all 5 labels non-truncated at 390x844."
+}
