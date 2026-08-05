@@ -1,3 +1,24 @@
+# BigFM Mobile — PDF Redesign Polish (2026-08-05)
+
+4 polish items, warm theme kept. Verified iteration_35 (all PASS).
+
+- FLAGSHIP LOGOS: SafeImage.tsx now treats ui-avatars.com URLs as placeholders →
+  renders warm orange gradient+initials fallback (uses `src` not `uri`). On-brand
+  Listen flagship rail (no purple tiles); real logos still load.
+- WALLET TIER: points card milestone hint shows next TIER (ladder Silver 500/
+  Gold 2500/Platinum 10000 vs lifetime_earned) e.g. '373 BC to Silver'.
+- DEAL LOCATIONS: coupons.tsx fetches /business/{business_id}/profile → shows
+  merchant.name + category (rating only if average_rating present; distance/area
+  NOT available in data, omitted). bizMap state.
+- HOME DEALS RAIL: home.tsx new 'NEARBY DEALS' horizontal rail from
+  /commerce/offers/feed (deals state) + 'See all' (home-deals-seeall)→/coupons;
+  cards home-deal-<id>→/offer/<id>.
+
+Only 1 demo offer (Karak Cafe) exists so deals show a single card (expected).
+
+---
+
+
 # BigFM Mobile — PDF Redesign Phase 2 (2026-08-04)
 
 Restyle 4 screens to PDF element look, warm cream+orange kept. Verified iteration_34 (all PASS).
