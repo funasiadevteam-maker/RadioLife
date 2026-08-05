@@ -185,7 +185,7 @@ export default function BannerAdSlot({ slotKey, pageRoute, className,
               style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
       ) : (
         <div style={{ textAlign: "center", padding: 12 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>{data.headline || "BigFM"}</div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{data.headline || "RadioLife"}</div>
           {data.sub_text && (
             <div style={{ fontSize: 12, color: "#cbd5e1", marginTop: 4 }}>
               {data.sub_text}

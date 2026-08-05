@@ -35,9 +35,9 @@ export default function OGMeta({
 }) {
   const cardUrl = buildCardUrl(entityType, entityId);
   const pageUrl = url || currentPageUrl();
-  const safeTitle      = (title || "BigFM").slice(0, 120);
+  const safeTitle      = (title || "RadioLife").slice(0, 120);
   const safeDesc        = (description || "Personalized radio, news, "
-                                                  + "games and rewards on BigFM.").slice(0, 200);
+                                                  + "games and rewards on RadioLife.").slice(0, 200);
   return (
     <Helmet prioritizeSeoTags>
       <title>{safeTitle}</title>
@@ -45,7 +45,7 @@ export default function OGMeta({
 
       {/* Open Graph */}
       <meta property="og:type" content="website" />
-      <meta property="og:site_name" content="BigFM" />
+      <meta property="og:site_name" content="RadioLife" />
       <meta property="og:title" content={safeTitle} />
       <meta property="og:description" content={safeDesc} />
       <meta property="og:image" content={cardUrl} />

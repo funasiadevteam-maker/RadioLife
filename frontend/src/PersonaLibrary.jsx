@@ -203,8 +203,8 @@ export default function PersonaLibrary() {
                   compact
                   featureType="persona"
                   contentId={p.persona_id}
-                  title={`${p.display_name} on BigFM`}
-                  text={`Meet ${p.display_name} — ${p.archetype?.replace(/_/g, " ")} on BigFM. Tap to chat:`} />
+                  title={`${p.display_name} on RadioLife`}
+                  text={`Meet ${p.display_name} — ${p.archetype?.replace(/_/g, " ")} on RadioLife. Tap to chat:`} />
                 <button
                   data-testid={`persona-select-btn-${p.persona_id}`}
                   onClick={() => select(p)}

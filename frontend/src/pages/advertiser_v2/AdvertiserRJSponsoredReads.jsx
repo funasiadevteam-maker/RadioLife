@@ -73,7 +73,7 @@ export default function AdvertiserRJSponsoredReads() {
         </button>
       </div>
       <p className={`text-sm ${muted} mb-6`}>
-        Buy short, scripted host reads voiced by a BigFM persona.  Reads
+        Buy short, scripted host reads voiced by a RadioLife persona.  Reads
         get injected between songs on the AI-RJ stream on the stations
         you pick.  Total budget = plays × cost/play + 30% platform fee.
       </p>

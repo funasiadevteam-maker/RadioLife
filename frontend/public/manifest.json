@@ -1,7 +1,7 @@
 {
-  "name": "BigFM — AI Radio",
-  "short_name": "BigFM",
-  "description": "BigFM is the personalised AI radio for the South Asian diaspora — channels, RJs, games, and rewards in one continuous stream.",
+  "name": "RadioLife.app — AI Radio",
+  "short_name": "RadioLife",
+  "description": "RadioLife.app is the personalised AI radio for the South Asian diaspora — channels, RJs, games, and rewards in one continuous stream.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",

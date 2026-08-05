@@ -41,7 +41,7 @@ export default function PublicPassportScreen() {
     const url = `${BACKEND}/passport/${userId}?ref=${data?.referral_code || ''}`;
     try {
       await Share.share({
-        message: `Check out ${data?.display_name}'s profile on BigFM! ${url}`,
+        message: `Check out ${data?.display_name}'s profile on RadioLife! ${url}`,
         url,
       });
     } catch {

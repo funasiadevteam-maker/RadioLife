@@ -1,4 +1,4 @@
-/** Phase 42-D3 — Station favorites store (BigFM AI channels + imported live radio).
+/** Phase 42-D3 — Station favorites store (RadioLife AI channels + imported live radio).
  *
  *  Drives the Heart toggle on every station card AND the favorites
  *  strip exposed via MiniPlayer.  Backed by /api/me/favorite-stations

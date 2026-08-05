@@ -149,7 +149,7 @@ export default function RadioScreen() {
   const getChannelMeta = (slug: string | null) => {
     const ch = channels.find((c: any) => c.slug === slug);
     return {
-      name: ch?.name || 'BigFM Radio',
+      name: ch?.name || 'RadioLife Radio',
       thumb: ch?.thumbnail_url || null,
     };
   };
@@ -179,7 +179,7 @@ export default function RadioScreen() {
       updateNowPlaying(
         url,
         seg.track_title || 'Now playing',
-        seg.track_artist || 'BigFM',
+        seg.track_artist || 'RadioLife',
         chMeta.name,           // dynamic — never hardcoded "Dubai"
         chMeta.thumb,
       );
@@ -361,7 +361,7 @@ export default function RadioScreen() {
         <View style={s.header} testID="radio-header">
           <View style={s.brandRow}>
             <View style={s.dot} />
-            <Text style={s.brandName} testID="brand-bigfm">BigFM <Text style={s.brandDxb}>Dubai</Text></Text>
+            <Text style={s.brandName} testID="brand-bigfm">RadioLife <Text style={s.brandDxb}>Dubai</Text></Text>
           </View>
           <View style={s.headerRight}>
             <TouchableOpacity onPress={() => router.push('/channels')} testID="nav-channels" style={s.headerBtn}>

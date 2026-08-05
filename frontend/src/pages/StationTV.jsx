@@ -115,9 +115,9 @@ export default function StationTV() {
   // Browser TAB color
   useEffect(() => {
     if (state?.station?.name) {
-      document.title = `${state.station.name} · BigFM TV`;
+      document.title = `${state.station.name} · RadioLife TV`;
     } else {
-      document.title = "BigFM · TV Display";
+      document.title = "RadioLife · TV Display";
     }
   }, [state?.station?.name]);
 

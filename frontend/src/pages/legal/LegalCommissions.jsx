@@ -45,7 +45,7 @@ export default function LegalCommissions() {
                               : "text-slate-400 hover:text-cyan-400"
                   }`}
                   data-testid="legal-commissions-back">
-          <ArrowLeft size={16}/> Back to BigFM
+          <ArrowLeft size={16}/> Back to RadioLife
         </Link>
 
         <div className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${

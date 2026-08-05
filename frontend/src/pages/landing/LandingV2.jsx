@@ -123,7 +123,7 @@ export default function LandingV2() {
                               overflowX: "hidden" }}
               className="min-h-screen">
       <Helmet>
-        <title>BigFM — Radio that knows you</title>
+        <title>RadioLife — Radio that knows you</title>
         {/* Preview experiment — do not index yet. */}
         <meta name="robots" content="noindex, nofollow" />
         <meta name="description" content="Personal AI radio stations tuned by your mood, city, and time of day. Every song earns coins you can spend on real things." />
@@ -202,7 +202,7 @@ function TopBar() {
                         style={{ background: PALETTE.coral, color: "#fff" }}>
             <Radio size={18} strokeWidth={2.4} />
           </span>
-          <span>BigFM<span style={{ color: PALETTE.coral }}>.AI</span></span>
+          <span>RadioLife<span style={{ color: PALETTE.coral }}>.app</span></span>
         </Link>
         <div className="flex-1" />
         <Link to="/login"
@@ -315,9 +315,9 @@ function Hero({ onSeeHow }) {
                                               border: `1px solid ${PALETTE.hairline}` }}>
             <SafeImage
               src={mobileHero}
-              alt="BigFM app — a phone streaming personal radio"
+              alt="RadioLife app — a phone streaming personal radio"
               fallbackKind="generic"
-              fallbackText="BigFM Radio"
+              fallbackText="RadioLife Radio"
               className="w-full h-full object-cover" />
           </div>
           {/* Floating station-card mockup */}
@@ -748,7 +748,7 @@ function FooterMini() {
                         style={{ background: PALETTE.coral, color: "#fff" }}>
             <Radio size={14} strokeWidth={2.5} />
           </span>
-          BigFM<span style={{ color: PALETTE.coral }}>.AI</span>
+          RadioLife<span style={{ color: PALETTE.coral }}>.app</span>
         </div>
         <div className="flex flex-wrap gap-5 text-sm"
                     style={{ color: PALETTE.inkSoft }}>
@@ -762,7 +762,12 @@ function FooterMini() {
           </Link>
         </div>
         <div className="text-xs" style={{ color: PALETTE.inkSoft }}>
-          © {new Date().getFullYear()} BigFM AI Radio
+          © {new Date().getFullYear()} RadioLife.app · part of{" "}
+          <a href="https://funasianetwork.com" target="_blank" rel="noreferrer"
+             data-testid="funasia-footer-link"
+             className="underline hover:opacity-70" style={{ color: PALETTE.coral }}>
+            funasianetwork.com
+          </a>
         </div>
       </div>
     </footer>

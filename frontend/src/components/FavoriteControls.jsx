@@ -106,7 +106,7 @@ export function FavoritesFlyout({ open, onClose }) {
         }
       }
     } else {
-      // BigFM AI channel — route to /radio?ch=<slug> autoplay.
+      // RadioLife AI channel — route to /radio?ch=<slug> autoplay.
       window.location.href = `/radio?ch=${encodeURIComponent(fav.station_id)}&autoplay=1`;
       return;
     }

@@ -182,7 +182,7 @@ export default function Profile() {
           <div className="billing-active">
             <div className="billing-row">
               <span className="mono dim">PLAN</span>
-              <span data-testid="billing-plan-name">BigFM Premium · Annual</span>
+              <span data-testid="billing-plan-name">RadioLife Premium · Annual</span>
             </div>
             <div className="billing-row">
               <span className="mono dim">STATUS</span>
@@ -361,7 +361,7 @@ export default function Profile() {
               const url = `${window.location.origin}/?ref=${user?.id || ""}`;
               try {
                 if (navigator.share) {
-                  await navigator.share({ title: "Join me on BigFM", url });
+                  await navigator.share({ title: "Join me on RadioLife", url });
                 } else {
                   await navigator.clipboard.writeText(url);
                   toast.success("Invite link copied");
@@ -372,7 +372,7 @@ export default function Profile() {
             <div className="ac-icon"><Share2 size={18} /></div>
             <div className="ac-body">
               <div className="ac-eyebrow mono">REFER A FRIEND</div>
-              <div className="ac-title">Share BigFM, earn BigCoin</div>
+              <div className="ac-title">Share RadioLife, earn BigCoin</div>
               <div className="ac-meta">Both of you get bonus coins on signup.</div>
             </div>
             <ChevronRight size={16} className="ac-chev" />
@@ -499,7 +499,7 @@ function AdPreferencesSection() {
                                   background: "rgba(255,255,255,0.03)",
                                   border: "1px solid rgba(255,255,255,0.06)" }}>
         {settings.disclosure_text || (
-          "Premium removes BigFM platform ads. Some third-party live "
+          "Premium removes RadioLife platform ads. Some third-party live "
           + "stations may still include ads within their original "
           + "broadcast stream."
         )}

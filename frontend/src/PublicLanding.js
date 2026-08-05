@@ -31,8 +31,8 @@ export default function PublicLanding() {
         <div className="public-landing-error">
           <AlertTriangle size={40} />
           <h1>That campaign is no longer active.</h1>
-          <p>Head back to BigFM to find more games to play.</p>
-          <Link to="/" className="public-landing-cta">Go to BigFM</Link>
+          <p>Head back to RadioLife to find more games to play.</p>
+          <Link to="/" className="public-landing-cta">Go to RadioLife</Link>
         </div>
       </div>
     );
@@ -57,7 +57,7 @@ export default function PublicLanding() {
           <span className="mono dim">PRESENTED BY {data.sponsor_name?.toUpperCase()}</span>
         </div>
         <h1 data-testid="public-landing-title">{data.title}</h1>
-        <p className="pl-desc">{data.description || "Play & win on BigFM"}</p>
+        <p className="pl-desc">{data.description || "Play & win on RadioLife"}</p>
         <div className="pl-prizes" data-testid="public-landing-prizes">
           <div className="mono dim">PRIZES UP FOR GRABS</div>
           {(data.prizes || []).slice(0, 6).map((p, i) => (

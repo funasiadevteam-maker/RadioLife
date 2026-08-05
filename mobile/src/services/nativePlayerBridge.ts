@@ -71,8 +71,8 @@ export async function updateNowPlaying(
     await TrackPlayer.add({
       url: segmentUrl,
       title: title || 'Now playing',
-      artist: artist || 'BigFM',
-      album: `BigFM · ${channelName}`,
+      artist: artist || 'RadioLife',
+      album: `RadioLife · ${channelName}`,
       artwork: channelThumbUrl ? `${BACKEND}${channelThumbUrl}` : undefined,
     });
     await TrackPlayer.play();

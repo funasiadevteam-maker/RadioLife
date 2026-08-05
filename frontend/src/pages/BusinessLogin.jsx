@@ -65,7 +65,7 @@ export default function BusinessLogin() {
             Business <span className="text-accent-gold">Portal</span>
           </h1>
           <p className="text-text-secondary text-sm">
-            Redeem customer coupons, see your foot traffic, run BigFM ads.
+            Redeem customer coupons, see your foot traffic, run RadioLife ads.
           </p>
         </header>
 

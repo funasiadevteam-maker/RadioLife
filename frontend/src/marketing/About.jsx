@@ -14,7 +14,7 @@ export default function About() {
   return (
     <MarketingShell>
       <SEO title="About"
-              description="BigFM is rebuilding internet radio for the AI era — personalized hosts, live trivia, and a wallet that rewards listening." />
+              description="RadioLife is rebuilding internet radio for the AI era — personalized hosts, live trivia, and a wallet that rewards listening." />
       <section className="max-w-5xl mx-auto px-6 lg:px-10 py-20 space-y-6"
                   data-testid="about-hero">
         <div className="text-[10px] font-mono uppercase tracking-widest
@@ -25,7 +25,7 @@ export default function About() {
         </h1>
         <p className="text-text-secondary text-lg max-w-2xl">
           Streaming told us what we wanted to hear. Radio told us what we
-          didn’t know we wanted yet. BigFM is the second one — rebuilt with
+          didn’t know we wanted yet. RadioLife is the second one — rebuilt with
           an AI host that knows your city, your mood, and the café two
           blocks away.
         </p>

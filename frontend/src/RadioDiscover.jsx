@@ -102,7 +102,7 @@ function UnifiedCard({ station, onActivate }) {
       </div>
       <div className="text-xs text-white/50 truncate mt-0.5">
         {src === "bigfm_ai"
-          ? "BigFM AI-Curated"
+          ? "RadioLife AI-Curated"
           : src === "community"
             ? "Community Station"
             : [station.country, station.language].filter(Boolean).join(" · ") || "Live"}
@@ -280,7 +280,7 @@ export default function RadioDiscover() {
           </h1>
         </div>
         <p className="text-sm text-white/60 mb-5 max-w-[640px]">
-          BigFM AI-curated stations · Community creators · 58,000+ live
+          RadioLife AI-curated stations · Community creators · 58,000+ live
           stations from around the world — one search, every source.
         </p>
         <Link

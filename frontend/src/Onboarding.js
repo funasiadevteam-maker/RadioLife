@@ -75,7 +75,7 @@ const VOICES = [
   { id: "aarti_morning",  name: "Aarti",         blurb: "Bubbly morning-show, Delhi peppy energy.",   fits: "medium · high" },
   { id: "kishore_retro",  name: "Kishore Da",    blurb: "Classic late-80s AIR broadcaster nostalgia.",fits: "chill · medium" },
   { id: "simran_punjabi", name: "Simran",        blurb: "Punjabi female co-host, playful + warm.",    fits: "medium · high · party" },
-  { id: "auto",           name: "Auto",          blurb: "Let BigFM pick based on the vibe.",          fits: "smart routing" },
+  { id: "auto",           name: "Auto",          blurb: "Let RadioLife pick based on the vibe.",          fits: "smart routing" },
 ];
 
 const STEP_TITLES = [
@@ -373,7 +373,7 @@ export default function Onboarding() {
         {step === 6 && (
           <section className="step-section">
             <h1 className="step-title">
-              Which BigFM are you on?
+              Which RadioLife are you on?
             </h1>
             <p className="step-lede">
               Pick your market — Dubai or DFW. Voices, drops &amp; offers tune accordingly.
@@ -427,7 +427,7 @@ export default function Onboarding() {
             <h1 className="step-title">Favorite artists?</h1>
             <p className="step-lede">
               Up to 10. We use these as <em>hints</em>, not exact picks.
-              (BigFM is non-interactive radio — server picks the queue.)
+              (RadioLife is non-interactive radio — server picks the queue.)
             </p>
             <div className="artist-input-row">
               <input
@@ -507,7 +507,7 @@ export default function Onboarding() {
           <section className="step-section" data-testid="step-done">
             <h1 className="step-title">Sab set, {user?.name || "yaar"}!</h1>
             <p className="step-lede">
-              Aapka personalized BigFM ready hai. Tap below to start listening.
+              Aapka personalized RadioLife ready hai. Tap below to start listening.
             </p>
             <div className="summary-grid" data-testid="summary-grid">
               <SummaryRow label="LANGUAGES" value={pv.languages.join(" · ") || "—"} />

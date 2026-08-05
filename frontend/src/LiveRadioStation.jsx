@@ -236,9 +236,9 @@ export default function LiveRadioStation() {
       <OGMeta
         entityType="station"
         entityId={s.slug || s.id || id}
-        title={`${s.name} on BigFM`}
+        title={`${s.name} on RadioLife`}
         description={s.tagline || s.description
-                            || `Listen to ${s.name} live on BigFM.`} />
+                            || `Listen to ${s.name} live on RadioLife.`} />
       <Link to="/radio"
             data-testid="live-radio-station-back"
             className="inline-flex items-center gap-1 text-xs
@@ -284,7 +284,7 @@ export default function LiveRadioStation() {
         <div className="flex-grow min-w-0">
           <div className="text-xs font-mono uppercase tracking-widest
                           text-cyan-400/80 mb-1">
-            {isAI ? "BigFM AI Channel" : "Live Radio Station"}
+            {isAI ? "RadioLife AI Channel" : "Live Radio Station"}
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight
                          leading-tight mb-3"
@@ -387,8 +387,8 @@ export default function LiveRadioStation() {
             <ShareButton
               featureType="station"
               contentId={s.id}
-              title={`${s.name} on BigFM`}
-              text={`I'm tuned to ${s.name} on BigFM. Listen with me:`} />
+              title={`${s.name} on RadioLife`}
+              text={`I'm tuned to ${s.name} on RadioLife. Listen with me:`} />
           </div>
 
           {/* Phase 42-B2 hotfix — local <audio> removed.  The global
@@ -438,7 +438,7 @@ export default function LiveRadioStation() {
                  className="mb-8">
           <div className="text-xs uppercase tracking-widest text-white/40
                           font-mono mb-2">
-            BigFM categories
+            RadioLife categories
           </div>
           <div className="flex flex-wrap gap-2">
             {cats.map((c) => (
@@ -468,7 +468,7 @@ export default function LiveRadioStation() {
                             border border-cyan-400/20">
           <div className="text-xs uppercase tracking-widest text-cyan-300
                           font-mono mb-3 inline-flex items-center gap-1.5">
-            <Sparkles size={11} /> You might like a BigFM AI channel
+            <Sparkles size={11} /> You might like a RadioLife AI channel
           </div>
           <button
             type="button"

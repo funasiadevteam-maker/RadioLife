@@ -261,7 +261,7 @@ export default function GamesHub() {
                       <Text style={s.campaignMerchant} numberOfLines={1}>
                         {g.top_prize_title
                           ? `Top prize: ${g.top_prize_title}`
-                          : (g.sponsor_name || 'BigFM')}
+                          : (g.sponsor_name || 'RadioLife')}
                         {plays > 0 ? ` · played ${plays}×` : ''}
                       </Text>
                     </View>

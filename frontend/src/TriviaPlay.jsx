@@ -145,7 +145,7 @@ export default function TriviaPlay() {
               const url = window.location.origin + "/trivia";
               try {
                 if (navigator.share) await navigator.share({
-                  title: "BigFM Trivia", text: `I scored ${finished.final_score} on BigFM Trivia.`, url,
+                  title: "RadioLife Trivia", text: `I scored ${finished.final_score} on RadioLife Trivia.`, url,
                 });
                 else {
                   await navigator.clipboard.writeText(url);

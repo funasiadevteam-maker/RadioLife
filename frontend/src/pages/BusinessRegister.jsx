@@ -65,14 +65,14 @@ export default function BusinessRegister() {
         <header className="space-y-2">
           <div className="inline-flex items-center gap-2 text-[10px]
                                   font-mono uppercase tracking-widest text-accent-gold">
-            <Store size={11} /> BigFM Business Portal
+            <Store size={11} /> RadioLife Business Portal
           </div>
           <h1 className="font-display font-bold text-3xl tracking-display-tight">
             Register your <span className="text-accent-gold">storefront</span>
           </h1>
           <p className="text-text-secondary text-sm">
             One PIN at your counter is all you need to redeem coupons.
-            BigFM never charges per redemption.
+            RadioLife never charges per redemption.
           </p>
         </header>
 

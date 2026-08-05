@@ -139,7 +139,7 @@ export default function AdvertiserBannerCampaigns() {
             <ImageIcon className={`w-10 h-10 mx-auto mb-3 ${muted}`} />
             <div className="font-semibold">No banner campaigns yet.</div>
             <p className={`text-sm mt-1 ${muted}`}>
-              Create your first campaign to reach BigFM listeners across 7 placement zones.
+              Create your first campaign to reach RadioLife listeners across 7 placement zones.
             </p>
           </div>
         ) : (

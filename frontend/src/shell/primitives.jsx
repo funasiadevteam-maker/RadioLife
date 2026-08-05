@@ -314,7 +314,7 @@ export function MiniPlayer({ className = "" }) {
     (currentRjSegment || podcastEpisode) ? null : _stationIdForPersona);
 
   let activeSource = null;        // "AI" | "LIVE" | "COMMUNITY" | "AI_RJ" | "PODCAST" | null
-  let displayTrack = `BigFM${channelName ? " · " + channelName : ""}`;
+  let displayTrack = `RadioLife${channelName ? " · " + channelName : ""}`;
   let displayArtist = currentSeg?.track_artist
                                               || channelName || "Tap a station to start";
   if (currentRjSegment) {
@@ -323,7 +323,7 @@ export function MiniPlayer({ className = "" }) {
     displayArtist = (currentRjSegment.persona_name
                                               || currentRjSegment.voice_id
                                               || channelName
-                                              || "BigFM");
+                                              || "RadioLife");
   } else if (podcastEpisode) {
     // Phase B — podcast episode is playing.  Show episode title +
     // podcast name.
@@ -521,16 +521,16 @@ export function MiniPlayer({ className = "" }) {
             ? `${window.location.origin}/radio/station/${encodeURIComponent(slug)}?autoplay=1`
             : (typeof window !== "undefined" ? window.location.origin : "");
           const text = trackTitle
-            ? `Now playing: ${trackTitle}${stationName ? " on " + stationName : ""}. Listen on BigFM →`
+            ? `Now playing: ${trackTitle}${stationName ? " on " + stationName : ""}. Listen on RadioLife →`
             : (stationName
-                ? `I'm tuned to ${stationName} on BigFM. Listen with me →`
-                : "I'm listening on BigFM — tune in →");
+                ? `I'm tuned to ${stationName} on RadioLife. Listen with me →`
+                : "I'm listening on RadioLife — tune in →");
           return (
             <ShareButton
               compact
               featureType="miniplayer"
               contentId={slug || "current"}
-              title={trackTitle || stationName || "BigFM"}
+              title={trackTitle || stationName || "RadioLife"}
               text={text}
               url={deepLink}
               iconSize={13} />

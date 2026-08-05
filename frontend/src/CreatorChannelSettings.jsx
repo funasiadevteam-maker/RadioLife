@@ -93,7 +93,7 @@ export default function CreatorChannelSettings() {
           )}
         </div>
         <p style={{fontSize: 12, color: "#9aa3af", marginTop: 8, lineHeight: 1.5}}>
-          When enabled, BigFM auto-generates draft highlight clips after each
+          When enabled, RadioLife auto-generates draft highlight clips after each
           episode finalizes. You'll review and publish them from the episode page.
         </p>
       </section>
@@ -114,7 +114,7 @@ export default function CreatorChannelSettings() {
             testIdPrefix="lightning"
             loadUrl={`${API}/podcasts/channels/${channel_id}/lightning-splits`}
             saveUrl={`${API}/podcasts/channels/${channel_id}/lightning-splits`}
-            helperText={"This is a placeholder schema. BigFM does not currently process Lightning payments — these values are emitted in the RSS feed so listeners using Podcasting 2.0 apps (Fountain, Podverse, etc.) can stream sats to your recipients directly. Real Lightning settlement is on the roadmap."}
+            helperText={"This is a placeholder schema. RadioLife does not currently process Lightning payments — these values are emitted in the RSS feed so listeners using Podcasting 2.0 apps (Fountain, Podverse, etc.) can stream sats to your recipients directly. Real Lightning settlement is on the roadmap."}
           />
         )}
         {!draft.lightning_enabled && (

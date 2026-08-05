@@ -81,7 +81,7 @@ export default function BusinessAdsBuy() {
           Reach <span className="text-accent-magenta">your neighbourhood</span>.
         </h1>
         <p className="text-text-secondary text-sm max-w-xl">
-          Direct-sold placements across BigFM&apos;s listening surfaces.
+          Direct-sold placements across RadioLife&apos;s listening surfaces.
           Budget, creative, and targeting are configured in the advertiser
           console — this just hands the keys over.
         </p>

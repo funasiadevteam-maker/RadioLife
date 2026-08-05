@@ -66,7 +66,7 @@ export default function CityChip() {
             Change your city
           </SheetTitle>
           <SheetDescription className="text-text-secondary">
-            BigFM personalises hosts, news and offers per market.
+            RadioLife personalises hosts, news and offers per market.
             Pick one — we'll remember it for you.
           </SheetDescription>
         </SheetHeader>

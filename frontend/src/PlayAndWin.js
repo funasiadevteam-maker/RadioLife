@@ -196,7 +196,7 @@ function CampaignCard({ campaign, drivingMode }) {
           <p className="paw-card-desc">{campaign.description}</p>
         )}
         {campaign.is_platform_funded && (
-          <span className="paw-house-tag mono">BIGFM HOUSE</span>
+          <span className="paw-house-tag mono">RADIOLIFE HOUSE</span>
         )}
       </div>
       <button
@@ -217,8 +217,8 @@ function CampaignCard({ campaign, drivingMode }) {
           compact
           featureType="game"
           contentId={campaign.campaign_id}
-          title={`${campaign.title} on BigFM`}
-          text={`Play "${campaign.title}" on BigFM and win ${campaign.top_prize_title || "rewards"} →`} />
+          title={`${campaign.title} on RadioLife`}
+          text={`Play "${campaign.title}" on RadioLife and win ${campaign.top_prize_title || "rewards"} →`} />
       </div>
     </div>
   );

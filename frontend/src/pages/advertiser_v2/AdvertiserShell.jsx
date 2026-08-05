@@ -158,7 +158,7 @@ export default function AdvertiserShell() {
                                         w-60 hidden lg:flex flex-col fixed inset-y-0 left-0 z-30`}
                           data-testid="advertiser-shell-sidebar">
             <div className="px-6 py-5 border-b border-inherit">
-              <div className="text-xs uppercase tracking-widest font-mono text-amber-500">BigFM Ads</div>
+              <div className="text-xs uppercase tracking-widest font-mono text-amber-500">RadioLife Ads</div>
               <div className="font-bold text-lg mt-1 truncate" data-testid="advertiser-shell-name">
                 {active.name}
               </div>
@@ -195,7 +195,7 @@ export default function AdvertiserShell() {
                                               "bg-slate-900 border-b border-slate-800"
                               } px-4 py-3 flex items-center justify-between`}>
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono text-amber-500">BigFM Ads</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono text-amber-500">RadioLife Ads</div>
               <div className="font-bold text-sm">{active.name}</div>
             </div>
             <button onClick={() => setMobileOpen(!mobileOpen)}

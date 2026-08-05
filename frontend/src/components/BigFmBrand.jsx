@@ -1,10 +1,10 @@
-// Phase 15d.2 — single source of truth for the "BigFM <city>" brand lockup.
+// Phase 15d.2 — single source of truth for the "RadioLife <city>" brand lockup.
 // Reads `geoCity` from useGeoStore so every page renders the listener's
 // resolved market consistently. Anon visitors / marketing pages can omit
 // the city suffix via `showCity={false}` (default true) — they fall back
-// to plain "BigFM" with no city, since we don't know the market yet.
+// to plain "RadioLife" with no city, since we don't know the market yet.
 //
-// Replaces 5+ hardcoded `<h1>BigFM Dubai</h1>` lockups across the app.
+// Replaces 5+ hardcoded `<h1>RadioLife Dubai</h1>` lockups across the app.
 import React from "react";
 import { useGeoStore } from "@/store/useGeoStore";
 
@@ -26,13 +26,13 @@ export default function BigFmBrand({
   if (variant === "lockup") {
     return (
       <h1 className={className} data-testid={testId}>
-        BigFM{cityNode ? " " : ""}{cityNode}
+        RadioLife{cityNode ? " " : ""}{cityNode}
       </h1>
     );
   }
   return (
     <span className={`brand-name ${className}`} data-testid={testId}>
-      BigFM{cityNode ? " " : ""}{cityNode}
+      RadioLife{cityNode ? " " : ""}{cityNode}
     </span>
   );
 }

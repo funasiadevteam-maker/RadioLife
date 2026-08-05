@@ -200,7 +200,7 @@ export default function BusinessRedeem() {
       </Card>
 
       <p className="text-xs text-text-secondary text-center max-w-md mx-auto">
-        Tip — your PIN is hashed on the server, never visible to BigFM
+        Tip — your PIN is hashed on the server, never visible to RadioLife
         staff. Rotate it from the dashboard anytime.
       </p>
     </div>

@@ -401,7 +401,7 @@ function ActiveCard({ campaign, onPick }) {
           featureType="predict_win"
           contentId={campaign.campaign_id}
           title={campaign.title}
-          text={`I'm playing "${campaign.title}" on BigFM — predict & win. Join me:`} />
+          text={`I'm playing "${campaign.title}" on RadioLife — predict & win. Join me:`} />
       </div>
     </div>
   );

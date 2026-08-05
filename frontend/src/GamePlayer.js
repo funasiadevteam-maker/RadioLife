@@ -49,7 +49,7 @@ function adaptOutcomeForGame(outcome, gameType) {
     server_seed: outcome.playId,
     client_seed: "",
     share_text: outcome.won
-      ? `I just won ${outcome.prizeTitle} on BigFM!`
+      ? `I just won ${outcome.prizeTitle} on RadioLife!`
       : "",
   };
   if (gameType === "spin_wheel") {

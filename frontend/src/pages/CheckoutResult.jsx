@@ -112,7 +112,7 @@ export function CheckoutSuccess() {
             </h1>
             <Button variant="outline" onClick={() => navigate("/")}
                             data-testid="checkout-success-cta">
-              Back to BigFM
+              Back to RadioLife
             </Button>
           </>
         )}

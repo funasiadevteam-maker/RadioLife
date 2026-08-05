@@ -77,7 +77,7 @@ export default function AdvertiserCampaigns() {
           <Megaphone className="w-10 h-10 text-slate-500 mx-auto" />
           <div className="mt-3 font-bold">No campaigns yet</div>
           <p className={`mt-1 text-sm ${light ? "text-slate-600" : "text-slate-400"}`}>
-            Create your first ad campaign to reach BigFM listeners.
+            Create your first ad campaign to reach RadioLife listeners.
           </p>
         </div>
       ) : (

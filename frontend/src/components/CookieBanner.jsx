@@ -68,7 +68,7 @@ export default function CookieBanner() {
       <header className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 text-accent-gold
                                 font-display font-bold tracking-display-tight">
-          <Cookie size={16} /> Cookies on BigFM
+          <Cookie size={16} /> Cookies on RadioLife
         </div>
         <button onClick={acceptEssentialOnly}
                         aria-label="Dismiss with essential cookies only"
@@ -78,7 +78,7 @@ export default function CookieBanner() {
         </button>
       </header>
       <p className="text-text-secondary text-xs leading-relaxed">
-        We use essential cookies to keep BigFM working. With your permission,
+        We use essential cookies to keep RadioLife working. With your permission,
         we&apos;ll also use analytics + advertising cookies to make the
         experience smarter and partly fund free radio.{" "}
         <Link to="/cookies" className="underline text-accent-electric">

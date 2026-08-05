@@ -5,9 +5,9 @@ import React from "react";
 import MarketingShell, { SEO } from "./MarketingShell";
 
 const SECTIONS_TERMS = [
-  ["Acceptance",           "By accessing or using BigFM you agree to these Terms. If you do not agree, do not use the service."],
-  ["The service",           "BigFM provides a non-interactive personalized internet radio service, AI-hosted segments, games, and a rewards wallet."],
-  ["Eligibility",           "You must be at least 13 years old, or the minimum age required in your country, to use BigFM. Some features require 18+."],
+  ["Acceptance",           "By accessing or using RadioLife you agree to these Terms. If you do not agree, do not use the service."],
+  ["The service",           "RadioLife provides a non-interactive personalized internet radio service, AI-hosted segments, games, and a rewards wallet."],
+  ["Eligibility",           "You must be at least 13 years old, or the minimum age required in your country, to use RadioLife. Some features require 18+."],
   ["Content & licenses",   "Music is licensed for non-interactive streaming via partnered rights bodies. You may not download, copy, or rebroadcast without permission."],
   ["Wallet & rewards",     "BigCoin is a non-transferable in-product reward unit. It has no cash value, cannot be sold, and may expire per the Wallet Terms."],
   ["Termination",           "We may suspend or terminate accounts that violate these Terms or applicable law."],
@@ -20,7 +20,7 @@ const SECTIONS_PRIVACY = [
   ["How we use it",         "To deliver radio recommendations, run games and rewards, measure ad effectiveness, and improve the service."],
   ["Who we share with",    "Authorized service providers (hosting, audio synthesis, analytics) under contract. We do not sell your data."],
   ["Your choices",          "You can edit your profile, opt out of location-based offers, and request export/deletion at any time."],
-  ["Children",                "BigFM is not designed for children under 13. We do not knowingly collect data from anyone under 13."],
+  ["Children",                "RadioLife is not designed for children under 13. We do not knowingly collect data from anyone under 13."],
   ["International transfers", "Data may be processed in the US, EU, or UAE depending on your market. We use appropriate safeguards."],
   ["Retention",               "We retain account data for as long as your account is active and for a limited period after closure for legal/operational needs."],
   ["Contact",                "Privacy questions? Reach us at privacy@bigfm.example."],
@@ -63,7 +63,7 @@ export function LegalTerms() {
   return (
     <MarketingShell>
       <SEO title="Terms of Service"
-              description="The terms that govern your use of BigFM — radio, wallet, games, and rewards." />
+              description="The terms that govern your use of RadioLife — radio, wallet, games, and rewards." />
       <LegalScaffold testId="legal-terms" eyebrow="Legal"
                               title="Terms of Service" sections={SECTIONS_TERMS} />
     </MarketingShell>
@@ -74,7 +74,7 @@ export function LegalPrivacy() {
   return (
     <MarketingShell>
       <SEO title="Privacy Policy"
-              description="What BigFM collects, how it's used, and the choices you control." />
+              description="What RadioLife collects, how it's used, and the choices you control." />
       <LegalScaffold testId="legal-privacy" eyebrow="Legal"
                               title="Privacy Policy" sections={SECTIONS_PRIVACY} />
     </MarketingShell>

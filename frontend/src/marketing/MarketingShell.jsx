@@ -14,7 +14,7 @@ const NAV = [
 ];
 
 export function SEO({ title, description, image }) {
-  const fullTitle = title ? `${title} · BigFM` : "BigFM · AI Radio · Rewards · Local Commerce";
+  const fullTitle = title ? `${title} · RadioLife` : "RadioLife · AI Radio · Rewards · Local Commerce";
   const desc = description || "Non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigCoin rewards, and a wallet of real coupons.";
   return (
     <Helmet>
@@ -55,7 +55,7 @@ function TopNav({ open, setOpen }) {
         <Link to="/" data-testid="marketing-logo"
                   className="font-display font-extrabold text-xl
                                   tracking-display-tight">
-          BigFM<span className="text-accent-electric">.AI</span>
+          RadioLife<span className="text-accent-electric">.AI</span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm">
           {NAV.map((n) => (
@@ -132,7 +132,7 @@ function Footer() {
     {
       title: "Company",
       links: [
-        ["About BigFM",   "/about"],
+        ["About RadioLife",   "/about"],
         ["Pricing",       "/pricing"],
         ["Contact",       "/about"],
       ],
@@ -154,7 +154,7 @@ function Footer() {
         <div className="col-span-2 md:col-span-1">
           <div className="font-display font-extrabold text-lg
                                 tracking-display-tight">
-            BigFM<span className="text-accent-electric">.AI</span>
+            RadioLife<span className="text-accent-electric">.AI</span>
           </div>
           <p className="mt-3 text-sm text-text-secondary max-w-xs">
             Internet radio, reimagined. AI hosts, live trivia in your
@@ -183,7 +183,7 @@ function Footer() {
                               flex flex-wrap items-center gap-3
                               justify-between text-xs text-text-secondary
                               font-mono">
-          <div>© {new Date().getFullYear()} BigFM AI Radio</div>
+          <div>© {new Date().getFullYear()} RadioLife AI Radio</div>
           <select aria-label="Language"
                         data-testid="marketing-lang-switcher"
                         className="bg-bg-elevated border border-white/[0.06]

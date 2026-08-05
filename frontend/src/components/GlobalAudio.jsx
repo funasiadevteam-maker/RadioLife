@@ -7,7 +7,7 @@
 //       anywhere in the app.
 //   2.  Wires the Media Session API so browser-level media hubs (Chrome
 //       URL-bar media button, macOS Touch Bar, Android lock screen,
-//       Windows volume mixer) all see BigFM track metadata + transport
+//       Windows volume mixer) all see RadioLife track metadata + transport
 //       controls.
 //   3.  Listens for the `bigfm:player:toggle` window event (dispatched
 //       by the keyboard shortcuts AND the MiniPlayer ▶/❚❚ button) and
@@ -539,8 +539,8 @@ export default function GlobalAudio() {
   // ─── Media Session API (browser/OS-level media controls) ────────────
   // Sets metadata that surfaces on Chrome media hub, macOS Touch Bar /
   // lock screen, Android lock screen, Windows volume mixer.  Album text
-  // intentionally uses the dynamic channel name ("BigFM · Bollywood Mehfil",
-  // "BigFM · VIP Lounge", etc.) — never hardcoded.
+  // intentionally uses the dynamic channel name ("RadioLife · Bollywood Mehfil",
+  // "RadioLife · VIP Lounge", etc.) — never hardcoded.
   //
   // Phase 15d.3 race fix — we publish on TWO triggers:
   //   (a) currentSeg changes (new track within the same channel), and
@@ -555,14 +555,14 @@ export default function GlobalAudio() {
       navigator.mediaSession.metadata = null;
       return;
     }
-    const albumLabel = channelName ? `BigFM · ${channelName}` : "BigFM";
+    const albumLabel = channelName ? `RadioLife · ${channelName}` : "RadioLife";
     const artworkSrc = channelThumb
       ? (channelThumb.startsWith("http") ? channelThumb : `${BACKEND_URL}${channelThumb}`)
       : null;
     try {
       navigator.mediaSession.metadata = new window.MediaMetadata({
         title:  currentSeg?.track_title  || channelName || "On Air",
-        artist: currentSeg?.track_artist || channelName || "BigFM",
+        artist: currentSeg?.track_artist || channelName || "RadioLife",
         album:  albumLabel,
         artwork: artworkSrc
           ? [{ src: artworkSrc, sizes: "1024x1024", type: "image/webp" }]

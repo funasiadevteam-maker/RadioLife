@@ -599,7 +599,7 @@ export function VenueOnboard() {
       <form onSubmit={submit} className="max-w-xl mx-auto space-y-6"
               data-testid="venue-onboard">
         <h1 className="font-display font-bold text-4xl tracking-display-tight">
-          Become a <span className="text-accent-magenta">BigFM venue</span>.
+          Become a <span className="text-accent-magenta">RadioLife venue</span>.
         </h1>
         <p className="text-text-secondary text-sm">
           Hook up a TV, host live trivia, push tonight's specials to every phone

@@ -33,7 +33,7 @@ export default function Styleguide() {
             phase 15a · dev only
           </div>
           <h1 className="font-display font-bold text-4xl tracking-display-tight">
-            BigFM.AI <span className="text-accent-electric">styleguide</span>
+            RadioLife.app <span className="text-accent-electric">styleguide</span>
           </h1>
           <p className="text-text-secondary text-sm max-w-xl">
             Lock-in for tokens + primitives. Edit the values in

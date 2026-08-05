@@ -34,8 +34,8 @@ export default function ShareButton({
   compact = false, className = "", iconSize = 14,
 }) {
   const shareUrl = _buildShareUrl(url);
-  const shareText = text || title || "Check out BigFM";
-  const shareTitle = title || "BigFM";
+  const shareText = text || title || "Check out RadioLife";
+  const shareTitle = title || "RadioLife";
   const [open, setOpen] = useState(false);
   const popRef = useRef(null);
 

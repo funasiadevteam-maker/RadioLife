@@ -121,7 +121,7 @@ export default function AdvertiserPayouts() {
           {status && !status.connected && (
             <section className="img-station-card" data-testid="connect-cta" style={{ borderColor: "#ff2d95" }}>
               <div className="meta-label" style={{ fontSize: 11 }}><ShieldCheck size={11} /> NOT CONNECTED</div>
-              <h2 style={{ fontSize: 18, color: "#fff", marginTop: 8 }}>Get paid out from BigFM Action Cards</h2>
+              <h2 style={{ fontSize: 18, color: "#fff", marginTop: 8 }}>Get paid out from RadioLife Action Cards</h2>
               <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.6, marginTop: 8 }}>
                 Connect a Stripe Express account so when a listener taps "Buy now" on your sponsor read,
                 we route payment directly to your bank with a 10% platform fee. Onboarding takes ~5 minutes

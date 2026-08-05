@@ -111,13 +111,13 @@ export default function News() {
                 style={{ maxWidth: 1080, margin: "0 auto", padding: "24px 20px" }}>
       {/* Phase 42-E2.4 — OG meta for News-feed share. */}
       <OGMeta entityType="news_article" entityId="feed"
-                          title="BigFM News — your headlines, your voice"
-                          description="Local + national news, refreshed continuously and read aloud on BigFM News Radio." />
+                          title="RadioLife News — your headlines, your voice"
+                          description="Local + national news, refreshed continuously and read aloud on RadioLife News Radio." />
       <div style={{ display: "flex", alignItems: "center",
                               justifyContent: "space-between", marginBottom: 18 }}>
         <h1 style={{ display: "flex", alignItems: "center", gap: 10,
                                 color: "#fff", fontSize: 26, fontWeight: 700, margin: 0 }}>
-          <Newspaper size={22} color="#00d9ff" /> BigFM News
+          <Newspaper size={22} color="#00d9ff" /> RadioLife News
         </h1>
         <Link to="/radio/news" data-testid="news-tune-radio"
                     style={{ display: "inline-flex", alignItems: "center", gap: 6,
@@ -291,7 +291,7 @@ export default function News() {
                 featureType="news_article"
                 contentId={n.news_id}
                 title={n.title}
-                text={`${n.title} — read on BigFM`}
+                text={`${n.title} — read on RadioLife`}
                 url={typeof window !== "undefined"
                   ? `${window.location.origin}/news/${n.news_id}`
                   : `/news/${n.news_id}`} />

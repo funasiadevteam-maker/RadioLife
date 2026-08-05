@@ -57,7 +57,7 @@ export default function AdvertiserOnboard() {
             <Ionicons name="arrow-back" size={20} color={COLORS.textDim} />
           </TouchableOpacity>
 
-          <Text style={s.title}>Start advertising on BigFM</Text>
+          <Text style={s.title}>Start advertising on RadioLife</Text>
           <Text style={s.subtitle}>
             Reach the diaspora through AI radio. Top up your ad wallet, build a
             campaign in 5 steps, go live in minutes.

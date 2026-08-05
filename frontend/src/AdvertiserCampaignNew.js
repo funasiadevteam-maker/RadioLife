@@ -480,7 +480,7 @@ export default function AdvertiserCampaignNew() {
             </tbody>
           </table>
           <p style={{ color: "#fdb756", fontSize: 12, marginTop: 16 }}>
-            Once submitted, your campaign goes to <b>pending_approval</b> status. A BigFM admin
+            Once submitted, your campaign goes to <b>pending_approval</b> status. A RadioLife admin
             reviews the brief and creative; once approved, the campaign starts spending against
             the daily budget on matching listener segments.
           </p>

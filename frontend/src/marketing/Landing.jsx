@@ -22,7 +22,7 @@ export default function Landing() {
   return (
     <MarketingShell>
       <SEO title="AI Radio · Live Trivia · Real Rewards"
-              description="BigFM is a non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigCoin rewards, and a wallet of real coupons." />
+              description="RadioLife is a non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigCoin rewards, and a wallet of real coupons." />
       <Hero />
       {/* Phase FUN.1-v2 — Flagship strip on the landing hero for cross-promo. */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8"
@@ -102,7 +102,7 @@ function Hero() {
           </h1>
           <p className="text-text-secondary text-lg max-w-xl">
             An AI host, a wallet that pays you to listen, and live trivia at
-            the café down the street. BigFM is internet radio rebuilt for
+            the café down the street. RadioLife is internet radio rebuilt for
             the next decade.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
@@ -314,7 +314,7 @@ function AppDownload({ urlFor }) {
           <SectionEyebrow>Mobile</SectionEyebrow>
           <SectionTitle>One tap, one stream, one home.</SectionTitle>
           <p className="mt-4 text-text-secondary max-w-md">
-            The BigFM app picks up where the web left off. Tap into your
+            The RadioLife app picks up where the web left off. Tap into your
             station while you walk, drive, or wait in line.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -339,7 +339,7 @@ function AppDownload({ urlFor }) {
             <>
               <img
                 src={mobileHero}
-                alt="BigFM mobile preview"
+                alt="RadioLife mobile preview"
                 loading="lazy"
                 onError={(e) => { e.currentTarget.style.display = "none"; }}
                 className="absolute inset-0 w-full h-full object-cover"

@@ -25,9 +25,9 @@ export function updateMediaSession({ title, artist, album, artwork, handlers }) 
     if (title || artist || album || artwork) {
       // eslint-disable-next-line no-undef
       navigator.mediaSession.metadata = new MediaMetadata({
-        title:    title  || "BigFM",
+        title:    title  || "RadioLife",
         artist:  artist || "",
-        album:    album  || "BigFM",
+        album:    album  || "RadioLife",
         artwork: Array.isArray(artwork) ? artwork : [],
       });
     }

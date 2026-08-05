@@ -382,7 +382,7 @@ function StepWelcome({ light, advance, merchant, merchantId, setMerchantId,
   return (
     <Card light={light} data-testid="merchant-step-welcome">
       <Title light={light} eyebrow="Step 1 of 9"
-                  title="Become a BigFM Partner"
+                  title="Become a RadioLife Partner"
                   sub="Pick a category and tell us your business name. You can edit everything before submitting." />
 
       <div className="mb-6">
@@ -1184,10 +1184,10 @@ function StepTerms({ light, advance, back, merchant, merchantId,
                 }`}>
         <p className="mb-3">By accepting these terms you agree that:</p>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li>BigFM charges a platform commission on transactions processed through the merchant Pay flow.  Current rates are set by the commission rules engine (SC.3) and are subject to change with 30 days notice.</li>
+          <li>RadioLife charges a platform commission on transactions processed through the merchant Pay flow.  Current rates are set by the commission rules engine (SC.3) and are subject to change with 30 days notice.</li>
           <li>You&apos;ll receive payouts via your connected Stripe account, on Stripe&apos;s standard payout schedule.</li>
-          <li>Coupons, offers, and promotions issued to BigFM users are honoured at your listed price.</li>
-          <li>BigFM may audit merchant activity for compliance with the platform&apos;s community + trust policies.</li>
+          <li>Coupons, offers, and promotions issued to RadioLife users are honoured at your listed price.</li>
+          <li>RadioLife may audit merchant activity for compliance with the platform&apos;s community + trust policies.</li>
           <li>You may deactivate your merchant account at any time.  Existing payouts and receipts remain accessible.</li>
           {fallback && (
             <li>Uncategorised transactions default to <b>{fallback.commission_percent.toFixed(1)}%</b>.</li>
@@ -1279,7 +1279,7 @@ function StepStripe({ light, advance, back, merchant, merchantId,
     <Card light={light} data-testid="merchant-step-stripe">
       <Title light={light} eyebrow="Step 8 of 9"
                   title="Set up payments"
-                  sub="We use Stripe Connect Standard so you get your own dashboard, direct payouts, and refund control.  You keep your Stripe account even if you leave BigFM." />
+                  sub="We use Stripe Connect Standard so you get your own dashboard, direct payouts, and refund control.  You keep your Stripe account even if you leave RadioLife." />
 
       <div className={`rounded-2xl p-5 mb-6 ${
         light ? "bg-slate-50 border border-slate-200"

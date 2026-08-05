@@ -188,7 +188,7 @@ function MarketingHero({ light, onStartListening, onSeeRewards,
           {/* Copy */}
           <div>
             <div className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${accent}`}>
-              <Sparkles className="w-3 h-3" /> Only on BigFM
+              <Sparkles className="w-3 h-3" /> Only on RadioLife
             </div>
             <h1 data-testid="radio-hero-headline"
                     className={`mt-3 text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] ${headlineCls}`}>

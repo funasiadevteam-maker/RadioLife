@@ -380,7 +380,7 @@ function VoucherRedeemSection({ onRedeemed }) {
       </h3>
       <div className="bc-balance-card" style={{ display: "block" }}>
         <div style={{ color: "#aaa", fontSize: 12, marginBottom: 12 }}>
-          Enter a BigFM voucher code to unlock Premium or extend an
+          Enter a RadioLife voucher code to unlock Premium or extend an
           active trial. Codes are case-insensitive.
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

@@ -1,4 +1,4 @@
-// /pricing — BigFM Premium upgrade page. Free vs Premium comparison, currency
+// /pricing — RadioLife Premium upgrade page. Free vs Premium comparison, currency
 // auto-detected with `?currency=` override, test-mode banner when applicable.
 //
 // The pricing page is intentionally aspirational: gold accent on premium card,
@@ -140,7 +140,7 @@ export default function Pricing() {
       )}
 
       <section className="pricing-hero">
-        <div className="hero-eyebrow mono">PHASE 3 · BIGFM PREMIUM</div>
+        <div className="hero-eyebrow mono">PHASE 3 · RADIOLIFE PREMIUM</div>
         <h1 className="hero-h1">
           Skip without limits.<br/>
           <span className="hero-accent">Mehfil, on gold standard.</span>
@@ -254,7 +254,7 @@ export default function Pricing() {
       </section>
 
       <footer className="pricing-foot">
-        <span>BIGFM · PHASE 3 · BILLING</span>
+        <span>RADIOLIFE · PHASE 3 · BILLING</span>
         <span>Stripe-secured · {config?.mode?.toUpperCase()} MODE</span>
       </footer>
     </div>

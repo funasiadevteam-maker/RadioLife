@@ -44,9 +44,9 @@ export default function AdvertiserApply() {
                 data-testid="advertiser-apply-anon">
         <div className="max-w-md w-full text-center">
           <div className="text-xs uppercase tracking-widest text-amber-500 font-mono">Sign in required</div>
-          <h1 className="text-3xl font-bold mt-3">Become a BigFM Advertiser</h1>
+          <h1 className="text-3xl font-bold mt-3">Become a RadioLife Advertiser</h1>
           <p className={`mt-3 text-sm ${light ? "text-slate-600" : "text-slate-400"}`}>
-            Sign in with your BigFM account to apply for the advertiser dashboard.
+            Sign in with your RadioLife account to apply for the advertiser dashboard.
           </p>
           <button onClick={() => navigate(`/login?next=/advertiser/apply`)}
                           data-testid="advertiser-apply-login-cta"
@@ -95,7 +95,7 @@ export default function AdvertiserApply() {
               data-testid="advertiser-apply-page">
       <div className="max-w-2xl mx-auto px-6 py-12">
         <div className="text-xs uppercase tracking-widest font-mono text-amber-500">Phase AD.1</div>
-        <h1 className="text-4xl font-bold mt-2">Advertise on BigFM</h1>
+        <h1 className="text-4xl font-bold mt-2">Advertise on RadioLife</h1>
         <p className={`mt-3 text-sm ${light ? "text-slate-600" : "text-slate-400"}`}>
           Reach commuting listeners across cities.  Register your brand — an admin will review and activate your account.
         </p>

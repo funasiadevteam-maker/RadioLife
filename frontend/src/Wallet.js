@@ -88,8 +88,8 @@ export default function Wallet() {
 
       {/* Phase 42-E2.4 — OG meta for the Wallet surface. */}
       <OGMeta entityType="wallet" entityId="me"
-                          title="My BigFM Wallet"
-                          description="Listen more. Earn more. Cash in rewards on BigFM." />
+                          title="My RadioLife Wallet"
+                          description="Listen more. Earn more. Cash in rewards on RadioLife." />
 
       <BalanceCard me={me} />
 
@@ -821,7 +821,7 @@ function ReferTab({ me }) {
   const share = async () => {
     if (navigator.share) {
       try { await navigator.share({
-        title: "Join me on BigFM",
+        title: "Join me on RadioLife",
         text: "Listen to AI-curated radio with me. Sign up via my link and we both earn BigCoin:",
         url: inviteUrl,
       }); } catch {}

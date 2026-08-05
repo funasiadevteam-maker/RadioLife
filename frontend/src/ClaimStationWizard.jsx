@@ -143,7 +143,7 @@ export default function ClaimStationWizard() {
            className="text-white max-w-[640px] mx-auto px-5 py-16">
         <h1 className="text-2xl font-bold mb-3">Sign in to claim this station</h1>
         <p className="text-sm text-white/60 mb-6">
-          Station ownership is tied to your BigFM account. Sign in or create
+          Station ownership is tied to your RadioLife account. Sign in or create
           an account to continue with the claim.
         </p>
         <Link to={`/?next=/claim/station/${station_id}`}
@@ -189,9 +189,9 @@ export default function ClaimStationWizard() {
     return (
       <div data-testid="claim-wizard-not-claimable-ai"
            className="text-white max-w-[760px] mx-auto px-5 py-16">
-        <h1 className="text-xl font-bold mb-2">This is a BigFM AI channel</h1>
+        <h1 className="text-xl font-bold mb-2">This is a RadioLife AI channel</h1>
         <p className="text-sm text-white/60 mb-4">
-          AI-curated channels are operated by BigFM and aren't available to
+          AI-curated channels are operated by RadioLife and aren't available to
           claim. Only imported live radio stations (Radio Browser catalog)
           can be claimed.
         </p>
@@ -485,9 +485,9 @@ export default function ClaimStationWizard() {
                           space-y-2.5">
             <p><strong className="text-white/90">1. Eligibility.</strong> You
             represent that you are an authorized agent of the radio station,
-            with legal authority to manage its presence on BigFM.</p>
+            with legal authority to manage its presence on RadioLife.</p>
             <p><strong className="text-white/90">2. Content.</strong> You
-            consent to BigFM displaying the station's public metadata
+            consent to RadioLife displaying the station's public metadata
             (name, logo, country, language, homepage, stream URL) sourced
             from Radio Browser and any owner-supplied overrides you publish.</p>
             <p><strong className="text-white/90">3. Stream rights.</strong> You
@@ -499,11 +499,11 @@ export default function ClaimStationWizard() {
             metrics. No personally-identifying data is shared with station
             owners.</p>
             <p><strong className="text-white/90">5. Ad revenue.</strong> Once
-            you complete payout setup (Phase 42-D), BigFM will share net
+            you complete payout setup (Phase 42-D), RadioLife will share net
             advertising revenue earned against your station per the rate
             card published in your owner dashboard.</p>
             <p><strong className="text-white/90">6. Compliance.</strong> Your
-            station must remain in good standing with BigFM's content
+            station must remain in good standing with RadioLife's content
             guidelines (no hate speech, no copyright infringement, no
             illegal content). Violations may result in claim revocation.</p>
             <p><strong className="text-white/90">7. Termination.</strong> Either
@@ -520,7 +520,7 @@ export default function ClaimStationWizard() {
               data-testid="claim-wizard-agree"
               className="mt-0.5 accent-cyan-400" />
             <span className="text-xs text-white/80">
-              I have read and agree to the BigFM Partner Terms (v1.0). I
+              I have read and agree to the RadioLife Partner Terms (v1.0). I
               confirm that I am authorized to act on behalf of this station.
             </span>
           </label>
@@ -639,7 +639,7 @@ export default function ClaimStationWizard() {
                                             ? "bg-amber-50 border border-amber-200 text-amber-800"
                                             : "bg-amber-400/[0.06] border border-amber-400/20 text-amber-200")}>
             <AlertTriangle size={11} className="inline mr-1" />
-            Proof documents are stored privately and only visible to BigFM
+            Proof documents are stored privately and only visible to RadioLife
             admins during review.  Max 8 MB per file (PNG / JPG / PDF).
           </div>
           <div className="flex justify-between">
@@ -764,7 +764,7 @@ export default function ClaimStationWizard() {
               </h2>
               <p className="text-sm text-white/70 mb-4">
                 We weren't able to auto-verify because your contact email's
-                domain doesn't match the station homepage. A BigFM partner
+                domain doesn't match the station homepage. A RadioLife partner
                 manager will review your submission within{" "}
                 <strong className="text-white">1–3 business days</strong> and
                 reach out at <strong className="text-white">{result.contact_email}</strong>.

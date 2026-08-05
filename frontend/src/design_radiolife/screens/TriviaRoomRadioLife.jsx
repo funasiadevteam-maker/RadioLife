@@ -84,7 +84,7 @@ export default function TriviaRoomRadioLife() {
   const shareInvite = async () => {
     try {
       if (navigator.share)
-        await navigator.share({ title: "Join my BigFM trivia room",
+        await navigator.share({ title: "Join my RadioLife trivia room",
                                                         text: `Code: ${code}`, url: inviteUrl });
       else {
         await navigator.clipboard.writeText(inviteUrl);

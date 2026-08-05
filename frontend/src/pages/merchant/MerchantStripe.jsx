@@ -195,7 +195,7 @@ export default function MerchantStripe() {
             <p className={`text-xs mt-1 ${
               light ? "text-purple-800/80" : "text-slate-400"
             }`}>
-              BigFM uses Stripe Connect Standard.  Customer payments are
+              RadioLife uses Stripe Connect Standard.  Customer payments are
               routed directly to your Stripe account &mdash; we retain only
               the platform commission.  Payouts follow your Stripe payout
               schedule (typically daily or weekly).

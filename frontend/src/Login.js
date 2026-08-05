@@ -97,7 +97,7 @@ export default function Login() {
       <div className="auth-card" data-testid="login-card">
         <div className="auth-brand">
           <span className="brand-dot" />
-          <span className="brand-name">BigFM</span>
+          <span className="brand-name">RadioLife</span>
         </div>
 
         <h1 className="auth-h1" data-testid="login-title">
@@ -233,7 +233,7 @@ export default function Login() {
             setBusy(true);
             try {
               const u = await demoLogin();
-              toast.success("Welcome to the BigFM demo — sign up to save your progress.");
+              toast.success("Welcome to the RadioLife demo — sign up to save your progress.");
               navigate(u.onboarding_complete ? "/" : "/onboarding", { replace: true });
             } catch (e2) {
               const status = e2?.response?.status;
@@ -266,7 +266,7 @@ export default function Login() {
         <div className="auth-switch">
           {mode === "login" ? (
             <>
-              <span>New to BigFM?</span>{" "}
+              <span>New to RadioLife?</span>{" "}
               <button type="button" className="linkish" onClick={() => setMode("register")}
                       data-testid="switch-to-register">Create an account</button>
             </>
@@ -280,7 +280,7 @@ export default function Login() {
         </div>
 
         <p className="auth-footer mono">
-          BIGFM · PHASE 1 · <Link to="/" className="back-link">BACK TO RADIO</Link>
+          RADIOLIFE · PHASE 1 · <Link to="/" className="back-link">BACK TO RADIO</Link>
         </p>
       </div>
     </div>

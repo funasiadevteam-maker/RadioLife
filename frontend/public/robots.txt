@@ -1,4 +1,4 @@
-# BigFM — robots.txt
+# RadioLife.app — robots.txt
 # Phase Π.4 — Index public marketing, block admin + business + API.
 
 User-agent: *

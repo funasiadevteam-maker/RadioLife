@@ -124,7 +124,7 @@ function GridCard({ s, onActivate }) {
       <div className="text-sm font-semibold text-white truncate"
                   title={s.name}>{s.name}</div>
       <div className="text-xs text-white/50 truncate mt-0.5">
-        {src === "bigfm_ai" ? "BigFM AI" :
+        {src === "bigfm_ai" ? "RadioLife AI" :
           src === "community" ? "Community" :
           [s.country, s.language].filter(Boolean).join(" · ") || "Live"}
       </div>

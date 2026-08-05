@@ -180,7 +180,7 @@ export default function HomeRadioLife() {
             For business owners
           </div>
           <div className="mt-1 text-lg font-black tracking-tight">
-            Become a BigFM Partner →
+            Become a RadioLife Partner →
           </div>
           <div className="mt-1 text-sm opacity-95">
             List your business, mint coupons, and get on the map.

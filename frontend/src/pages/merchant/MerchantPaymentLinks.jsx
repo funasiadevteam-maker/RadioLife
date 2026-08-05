@@ -1127,7 +1127,7 @@ function RefundModal({ light, merchantId, tx, onClose, onSuccess }) {
           light ? "bg-amber-50 text-amber-700 border border-amber-100"
                   : "bg-amber-500/10 text-amber-300 border border-amber-500/20"
         }`}>
-          Note: BigFM commission on the refunded portion is retained by
+          Note: RadioLife commission on the refunded portion is retained by
           the platform.  Ask an admin if you need a full fee reversal.
         </div>
 

@@ -233,7 +233,7 @@ function Sidebar({ collapsed, onToggle }) {
                             border-white/[0.06]">
         {!collapsed && (
           <div className="font-display font-bold text-lg tracking-display-tight">
-            BigFM<span className="text-accent-electric">.AI</span>
+            RadioLife<span className="text-accent-electric">.app</span>
           </div>
         )}
         <button
@@ -314,6 +314,15 @@ function Sidebar({ collapsed, onToggle }) {
       <div className="border-t border-white/[0.06] p-2">
         <NavItem key="profile" label="Profile" icon={UserIcon}
                       path="/profile" collapsed={collapsed} />
+        {!collapsed && (
+          <div data-testid="funasia-footer"
+               className="px-3 pt-2 text-[10px] text-text-secondary">
+            part of{" "}
+            <a href="https://funasianetwork.com" target="_blank" rel="noreferrer"
+               data-testid="funasia-footer-link"
+               className="underline hover:text-white">funasianetwork.com</a>
+          </div>
+        )}
       </div>
     </aside>
   );
@@ -416,7 +425,7 @@ function TryNewLookToggle() {
       onClick={toggle}
       data-testid="try-new-look-toggle"
       aria-pressed={active}
-      title={active ? "Switch back to the classic BigFM design"
+      title={active ? "Switch back to the classic RadioLife design"
                           : "Try the new RadioLife design"}
       className={[
         "h-9 px-3 rounded-full border text-[11px] font-semibold uppercase",

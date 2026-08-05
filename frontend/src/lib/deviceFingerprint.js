@@ -2,7 +2,7 @@
  *
  * Produces a stable per-browser identifier used to dedupe coupon
  * redemptions for anonymous (logged-out) listeners. NEVER shared
- * with third parties — only used by the BigFM backend's
+ * with third parties — only used by the RadioLife backend's
  * `(announcement_id, device_fingerprint)` unique compound index to
  * make `POST /api/announcements/{id}/redeem` idempotent.
  *

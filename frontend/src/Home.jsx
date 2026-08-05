@@ -112,7 +112,7 @@ export default function Home() {
       <OGMeta
         entityType="home"
         entityId="x"
-        title="BigFM — Personalized radio, news, and rewards"
+        title="RadioLife — Personalized radio, news, and rewards"
         description="Six ways to play tonight: predict & win, games, news radio, points, commute, social passport." />
 
       {/* Phase FUN.1 — Flagship (FunAsia Network) stations, always at the top.
@@ -123,7 +123,7 @@ export default function Home() {
                                         testId="home-flagship-strip" />
 
       {/* ── Phase K.8 — Featured stations MOVED to the very top.
-            The 4 BigFM AI station tiles are the first thing visitors
+            The 4 RadioLife AI station tiles are the first thing visitors
             see — real images, live indicators, immediate tap-to-play. */}
       {featured.length > 0 && (
         <section data-testid="home-stations">
@@ -222,7 +222,7 @@ export default function Home() {
             <div className="space-y-5 max-w-2xl">
               <div className="text-[10px] font-mono uppercase tracking-widest
                                       text-text-secondary flex items-center gap-2">
-                <LiveDot /> Now on BigFM · {daypart}
+                <LiveDot /> Now on RadioLife · {daypart}
               </div>
               {/* Phase B — personalized city pill row.  Replaces the
                     long-standing hardcoded "Live in Dubai · Mumbai · Dallas"
@@ -297,22 +297,22 @@ export default function Home() {
                 </Button>
                 {/* Phase 42-E2.2 — Universal share button on the hero. */}
                 <ShareButton featureType="home"
-                                          title="BigFM — your personalized radio"
-                                          text="I'm vibing on BigFM — personalized radio, games, news, and rewards. Tune in:" />
+                                          title="RadioLife — your personalized radio"
+                                          text="I'm vibing on RadioLife — personalized radio, games, news, and rewards. Tune in:" />
               </div>
             </div>
           </div>
         </Card>
       </section>
 
-      {/* ── Phase 42-E2.1 — Explore BigFM (6 cinematic feature tiles) ── */}
+      {/* ── Phase 42-E2.1 — Explore RadioLife (6 cinematic feature tiles) ── */}
       {tiles.length > 0 && (
         <section data-testid="home-feature-tiles" data-tile-count={tiles.length}>
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-[10px] font-mono uppercase tracking-widest
                                           text-accent-electric/80 mb-1">
-                Explore BigFM
+                Explore RadioLife
               </div>
               <h2 className="font-display font-bold text-xl
                                           tracking-display-tight">
@@ -593,7 +593,7 @@ export default function Home() {
           <div className="text-xs uppercase tracking-widest font-bold"
                     style={{ color: "#c4b5fd" }}>For business owners</div>
           <div className="mt-1 text-sm text-text-secondary">
-            Own a spot? Bring foot traffic through BigFM offers, deals, and
+            Own a spot? Bring foot traffic through RadioLife offers, deals, and
             live plays.
           </div>
         </div>

@@ -81,7 +81,7 @@ export default function OnboardingRadioLife() {
             </RLButton>
           </Link>
           <div className="text-center text-white/70 text-xs mt-3">
-            By continuing you agree to BigFM&apos;s{" "}
+            By continuing you agree to RadioLife&apos;s{" "}
             <Link to="/terms" className="underline">Terms</Link> &{" "}
             <Link to="/privacy" className="underline">Privacy</Link>.
           </div>

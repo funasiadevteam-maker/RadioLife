@@ -10,6 +10,7 @@ import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { useStationsStore } from '../../src/stores/useStationsStore';
 import { playImportedStation } from '../../src/services/playStation';
 import AdBanner from '../../src/components/AdBanner';
+import FunAsiaFooter from '../../src/components/FunAsiaFooter';
 import api, { BACKEND } from '../../src/api/client';
 
 const resolveImg = (u?: string | null) =>
@@ -79,7 +80,7 @@ export default function HomeScreen() {
         <View style={s.header} testID="home-header">
           <View style={s.brandRow}>
             <View style={s.dot} />
-            <Text style={s.brand}>BigFM</Text>
+            <Text style={s.brand}>RadioLife<Text style={{ color: COLORS.secondary }}>.app</Text></Text>
           </View>
           <TouchableOpacity onPress={() => router.push('/notifications')} testID="home-notif-btn" style={s.iconBtn}>
             <Ionicons name="notifications-outline" size={20} color={COLORS.textDim} />
@@ -233,6 +234,8 @@ export default function HomeScreen() {
           <Text style={s.seeAllText}>Browse all channels</Text>
           <Ionicons name="chevron-forward" size={14} color={COLORS.secondary} />
         </TouchableOpacity>
+
+        <FunAsiaFooter />
       </ScrollView>
     </SafeAreaView>
   );

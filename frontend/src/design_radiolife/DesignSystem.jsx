@@ -1,6 +1,6 @@
 // Phase R.1 — RadioLife design tokens + primitives.  LIGHT MODE by design.
 // Every RadioLife screen wraps its outer container in `.rl-root` so tailwind
-// utility classes resolve against light-mode colours instead of BigFM's
+// utility classes resolve against light-mode colours instead of RadioLife's
 // dark-mode CSS variables.
 import React from "react";
 import { cn } from "@/lib/utils";

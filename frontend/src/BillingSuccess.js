@@ -93,7 +93,7 @@ export default function BillingSuccess() {
             <Sparkles size={26} />
           </div>
           <div className="success-eyebrow mono">WELCOME TO</div>
-          <h1>BigFM <span className="hero-accent">Premium</span></h1>
+          <h1>RadioLife <span className="hero-accent">Premium</span></h1>
           <p className="success-sub">
             Unlimited skips, two VIP channels, and a gold badge — all yours.
           </p>

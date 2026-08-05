@@ -310,7 +310,7 @@ function SidebarInner({ light, merchant, permissions, role, onLogout, onNav }) {
                       light ? "text-slate-600 hover:bg-slate-50"
                               : "text-slate-400 hover:bg-slate-800"
                     }`}>
-          <ExternalLink size={12}/> Explore BigFM
+          <ExternalLink size={12}/> Explore RadioLife
         </Link>
         <button onClick={onLogout} data-testid="merchant-shell-logout"
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold ${

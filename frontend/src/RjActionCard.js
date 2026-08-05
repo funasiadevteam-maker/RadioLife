@@ -75,7 +75,7 @@ export default function RjActionCard({ user }) {
         </div>
         <div className="rj-action-title">{announce.title}</div>
         <div className="rj-action-sub mono">
-          BY {(announce.sponsor_name || "BigFM").toUpperCase()}
+          BY {(announce.sponsor_name || "RadioLife").toUpperCase()}
         </div>
         {announce.description && (
           <p className="rj-action-desc">{announce.description}</p>

@@ -19,7 +19,7 @@ export default function NowPlayingScreen() {
   } = usePlayerStore();
 
   const title = currentSeg?.track_title || 'Live Radio';
-  const artist = currentSeg?.track_artist || activeChannelName || 'BigFM';
+  const artist = currentSeg?.track_artist || activeChannelName || 'RadioLife';
   const rjName = currentSeg?.rj_voice_name || currentSeg?.rj_hosts?.[0]?.name;
 
   const togglePlay = () => {

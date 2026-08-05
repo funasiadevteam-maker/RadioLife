@@ -71,7 +71,7 @@ export default function ProfileRadioLife() {
       </div>
       <div className="text-center text-[11px] uppercase tracking-widest text-slate-400
                               font-semibold pt-2">
-        BigFM · RadioLife design
+        RadioLife · RadioLife design
       </div>
     </div>
   );

@@ -60,14 +60,14 @@ export default function NotificationsScreen() {
           <Text style={st.backText}>back</Text>
         </TouchableOpacity>
         <Text style={st.title}>Notifications</Text>
-        <Text style={st.sub}>Control what BigFM can notify you about.</Text>
+        <Text style={st.sub}>Control what RadioLife can notify you about.</Text>
 
         {/* Web info banner */}
         {isWeb && (
           <View style={st.webBanner} testID="notif-web-banner">
             <Ionicons name="information-circle" size={18} color={COLORS.secondary} />
             <Text style={st.webBannerText}>
-              Push notifications are available on the BigFM mobile app for iOS/Android. This preview runs in a web browser where native push is not supported.
+              Push notifications are available on the RadioLife mobile app for iOS/Android. This preview runs in a web browser where native push is not supported.
             </Text>
           </View>
         )}

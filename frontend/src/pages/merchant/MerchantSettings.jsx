@@ -59,7 +59,7 @@ export default function MerchantSettings() {
       <div className={`text-center text-[10px] font-black uppercase tracking-widest ${
         light ? "text-slate-500" : "text-slate-500"
       }`}>
-        BigFM Merchant Portal · Track 2
+        RadioLife Merchant Portal · Track 2
       </div>
     </div>
   );

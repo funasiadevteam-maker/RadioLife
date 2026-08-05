@@ -43,7 +43,7 @@ export default function PodcastsTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
         <Text testID="podcasts-title" style={s.title}>Podcasts</Text>
-        <Text style={s.subtitle}>On-demand shows from BigFM creators.</Text>
+        <Text style={s.subtitle}>On-demand shows from RadioLife creators.</Text>
 
         {/* Search */}
         <View style={s.searchRow}>

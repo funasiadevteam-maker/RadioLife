@@ -289,7 +289,7 @@ function PageShell({children}) {
     <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-8">
       <div className="max-w-2xl mx-auto" data-testid="gjoin-shell">
         <header className="mb-6">
-          <div className="text-xs text-zinc-500 tracking-widest uppercase">BigFM Studio · Guest</div>
+          <div className="text-xs text-zinc-500 tracking-widest uppercase">RadioLife Studio · Guest</div>
         </header>
         {children}
       </div>

@@ -54,7 +54,7 @@ export default function HighlightsScreen() {
         </TouchableOpacity>
         <View>
           <Text style={s.title}>Highlights</Text>
-          <Text style={s.subtitle}>Best moments across BigFM channels.</Text>
+          <Text style={s.subtitle}>Best moments across RadioLife channels.</Text>
         </View>
       </View>
 

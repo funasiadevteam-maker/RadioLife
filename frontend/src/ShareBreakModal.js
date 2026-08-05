@@ -35,7 +35,7 @@ export default function ShareBreakModal({ share, onClose }) {
   };
 
   const whatsapp = () => {
-    const text = `Sun lo ye banter on BigFM 🎙️ ${shareUrl}`;
+    const text = `Sun lo ye banter on RadioLife 🎙️ ${shareUrl}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 

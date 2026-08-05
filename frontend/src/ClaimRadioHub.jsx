@@ -69,7 +69,7 @@ function ClaimSignInModal({ redirectPath, onClose, variant }) {
           Sign in to claim a station
         </h2>
         <p className={"text-sm mb-6 " + (light ? "text-slate-600" : "text-white/60")}>
-          Station ownership is tied to your BigFM account. Continue with
+          Station ownership is tied to your RadioLife account. Continue with
           Google or use email &amp; password.
         </p>
         <div className="mb-4">
@@ -541,7 +541,7 @@ export default function ClaimRadioHub() {
           </div>
           <h1 className={"text-3xl sm:text-4xl font-bold tracking-tight " +
                                         (light ? "text-slate-900" : "text-white")}>
-            Claim your radio station on BigFM
+            Claim your radio station on RadioLife
           </h1>
           <p className={"text-sm mt-2 max-w-prose " +
                                     (light ? "text-slate-600" : "text-white/60")}>

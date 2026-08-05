@@ -100,7 +100,7 @@ export default function PublicBusiness() {
           : `linear-gradient(135deg, rgba(255,45,149,0.35), rgba(216,37,255,0.20)), #0a0d12`,
       }}>
         <Link to="/" className="biz-back" data-testid="biz-back-link">
-          <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> BigFM
+          <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> RadioLife
         </Link>
         <button type="button" onClick={share} className="biz-share-btn"
                   data-testid="biz-share-btn">

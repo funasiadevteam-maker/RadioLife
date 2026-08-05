@@ -42,7 +42,7 @@ export default function ScanEntry() {
     const m = String(raw).match(SCAN_URL_RE);
     const token = m ? m[1] : (raw.startsWith("stq_") ? raw : null);
     if (!token) {
-      setError("Not a BigFM scan-to-pay QR.");
+      setError("Not a RadioLife scan-to-pay QR.");
       return;
     }
     cleanup();

@@ -46,7 +46,7 @@ function PairingPrompt() {
           data-testid="tv-pairing">
       <div className="max-w-3xl w-full text-center space-y-10">
         <div className="text-accent-magenta uppercase tracking-[0.4em] text-sm font-mono">
-          BigFM · TV mode
+          RadioLife · TV mode
         </div>
         <h1 className="font-display font-bold text-[clamp(48px,9vw,128px)] tracking-display-tight leading-[0.95]">
           Pair this <span className="text-accent-electric">TV.</span>
@@ -102,7 +102,7 @@ function VenueWelcome({ venue }) {
           </div>
           <h1 className="font-display font-bold leading-[0.92] tracking-display-tight"
                 style={{ fontSize: "clamp(64px,10vw,168px)" }}>
-            {venue?.name || "BigFM Venue"}
+            {venue?.name || "RadioLife Venue"}
           </h1>
           <p className="text-text-secondary text-3xl max-w-2xl leading-snug">
             Live trivia, every hour.  Win drinks, food, and on-house perks
@@ -111,7 +111,7 @@ function VenueWelcome({ venue }) {
           <div className="pt-4 flex items-center gap-6">
             <div className="h-3 w-32 rounded-full bg-accent-electric" />
             <span className="font-mono text-text-secondary text-lg uppercase tracking-widest">
-              {venue?.market || "dubai"} · powered by BigFM
+              {venue?.market || "dubai"} · powered by RadioLife
             </span>
           </div>
         </div>

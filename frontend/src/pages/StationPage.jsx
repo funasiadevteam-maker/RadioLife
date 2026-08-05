@@ -390,7 +390,7 @@ function TabButton({ testId, active, onClick, icon, label }) {
 function VerifiedChip() {
   return (
     <span data-testid="station-verified-chip"
-          title="Verified by BigFM"
+          title="Verified by RadioLife"
           style={{ display: "inline-flex", alignItems: "center", gap: 4,
                     background: "rgba(0,217,255,0.15)",
                     color: "#00d9ff",
