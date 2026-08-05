@@ -162,6 +162,24 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
+        {/* Top Played Stations rail */}
+        {topStations.length > 0 && (
+          <>
+            <Text style={[common.sectionTitle, { marginTop: SPACING.lg, paddingHorizontal: SPACING.md }]}>TOP PLAYED STATIONS</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}>
+              {topStations.slice(0, 10).map((st, idx) => (
+                <TouchableOpacity key={st.id || idx} style={s.topStationTile}
+                  testID={`home-top-station-${st.id || idx}`}
+                  onPress={() => playImportedStation(st, router)} activeOpacity={0.85}>
+                  <SafeImage uri={resolveImg(st.favicon || st.logo_url || st.cover_image_url)} fallbackText={st.name} size={92} borderRadius={16} />
+                  <Text style={s.topStationName} numberOfLines={1}>{st.name}</Text>
+                  <Text style={s.topStationSub} numberOfLines={1}>{[st.country, st.language].filter(Boolean).join(' · ') || 'Live'}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
         {/* All Stations CTA — the full 40k+ imported library */}
         <TouchableOpacity style={s.allStationsCta} testID="home-all-stations-cta"
           onPress={() => router.push('/stations')}>
@@ -181,7 +199,7 @@ export default function HomeScreen() {
             <View style={s.dealsHead}>
               <Text style={[common.sectionTitle, { marginTop: 0, paddingHorizontal: 0 }]}>NEARBY DEALS</Text>
               <TouchableOpacity onPress={() => router.push('/coupons')} testID="home-deals-seeall">
-                <Text style={s.seeAll}>See all</Text>
+                <Text style={s.dealsSeeAll}>See all</Text>
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}>
@@ -281,7 +299,7 @@ const s = StyleSheet.create({
   continueSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
   continuePlay: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   dealsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, marginTop: SPACING.lg, marginBottom: SPACING.sm },
-  seeAll: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '700' },
+  dealsSeeAll: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '700' },
   dealCard: { width: 160, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md },
   dealDiscount: { alignSelf: 'flex-start', backgroundColor: COLORS.primary, borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 4, marginBottom: 8 },
   dealDiscountText: { color: '#fff', fontSize: FONT.xs, fontWeight: '900' },

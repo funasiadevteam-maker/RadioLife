@@ -85,6 +85,7 @@ export default function StationsScreen() {
       if (debounced) params.q = debounced;
       if (lang !== 'All') params.language = lang;
       if (country !== 'All') params.country = country;
+      if (genre !== 'All') params.category = genre;
       const r = await api.get('/radio/browse', { params });
       const next = (r.data.items || []) as Station[];
       setTotal(r.data.total || 0);
@@ -96,7 +97,7 @@ export default function StationsScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [debounced, lang, country]);
+  }, [debounced, lang, country, genre]);
 
   // Reload when search/lang changes
   useEffect(() => { setPage(1); fetchPage(1, true); }, [fetchPage]);
