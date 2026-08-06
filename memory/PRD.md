@@ -1,5 +1,15 @@
 # BigFM — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-06 (Phase 2/3: AI rewards, coupon fraud, merchant portal, game limits)
+- **AI Reward Engine** (`routes/rewards_merchant.py`): `POST /api/rewards/scan-earn` awards BigCoin = amount × base × AI multiplier (Emergent LLM gpt-5.4, bounded 1.0–3.0, deterministic fallback); lifetime thresholds grant one-off bonus points + unlock bonus games + concert pass (idempotent via `users.rewards_thresholds_hit`). Mobile: Profile → "Scan & Earn" (`/scan-earn`).
+- **Coupon-Fraud Tracking**: `POST /api/coupon-events/show` logs customer shows; `POST /api/merchant/redeem` reconciles the latest unredeemed show; `GET /api/admin/coupon-fraud` flags merchants with low redemption rate (dodging scans).
+- **Restaurant Portal**: mobile `/merchant/redeem` (Profile → "Redeem & Loyalty") — redeem coupons + loyalty tier card; `GET /api/merchant/loyalty` tiers Standard/Silver/Gold (0/10/25 daily → 10/12/15%).
+- **Game Frequency Limits**: admin `GET/PUT /api/games/limits` (per day/month/every-N-days); `GET /api/games/play-eligibility/{key}` + `POST /api/games/record-play` (429 when exceeded).
+- **Admin provisioning**: `GET/PUT /api/rewards/config` (base rate, thresholds, merchant tiers) + game limits, all `require_admin`.
+- **Testing**: iteration_42.json — backend 12/12 pass (`tests/test_iter42_rewards_merchant.py`); mobile verified; live gpt-5.4 output confirmed. Fixed loyalty-card refresh (inline flash vs blocking Alert).
+- **Known limitations**: `/api/merchant/redeem` has no merchant-ownership RBAC yet (MVP — any authed user can redeem for a merchant_id); admin config UI is API-only (no web admin screen yet); some seeded game/coupon DB records still say "BigFM".
+
+
 ## Changelog — 2026-08-06 (Phase 1 of 3: filters, news reader+points, ads/premium)
 - **Iconized Explore filters**: Country/Language/Genre are now 3 labeled iconized rows (earth/language/musical-notes) with larger readable chips. ('EDM' cased correctly, promo keys namespaced.)
 - **Tappable news + native reader**: News cards + breaking cards open `/news-article` (native in-app reader: image, title, summary, source, 'Read full article' via in-app browser). Reading awards **+1 BigCoin per unique article**, server-capped at 10/day via `POST /api/news/read` (atomic claim + unique `{user_id,date}` index → no double-credit).

@@ -15,6 +15,7 @@ export default function MerchantRedeem() {
   const [user, setUser] = useState('');
   const [busy, setBusy] = useState(false);
   const [loyalty, setLoyalty] = useState<any>(null);
+  const [flash, setFlash] = useState<string>('');
 
   const loadLoyalty = useCallback(async (m: string) => {
     if (!m) return;
@@ -33,12 +34,12 @@ export default function MerchantRedeem() {
         user_id: user || undefined,
       });
       setLoyalty(r.data.loyalty);
-      Alert.alert(
-        r.data.matched_show_event ? 'Redeemed ✓' : 'Recorded',
-        r.data.matched_show_event
-          ? 'Coupon matched a customer show and was redeemed.'
-          : 'Redemption recorded (no matching customer show found).');
+      setFlash(r.data.matched_show_event
+        ? 'Redeemed ✓ — matched a customer show'
+        : 'Recorded — no matching customer show found');
       setCode(''); setUser('');
+      await loadLoyalty(merchant);
+      setTimeout(() => setFlash(''), 3500);
     } catch { Alert.alert('Error', 'Could not redeem.'); }
     finally { setBusy(false); }
   };
@@ -72,6 +73,13 @@ export default function MerchantRedeem() {
         <TouchableOpacity style={[common.btnPrimary, { marginTop: SPACING.lg }, busy && { opacity: 0.5 }]} onPress={redeem} disabled={busy} testID="merchant-redeem-btn">
           {busy ? <ActivityIndicator color="#fff" /> : (<><Ionicons name="qr-code" size={16} color="#fff" /><Text style={common.btnPrimaryText}>Scan / Redeem</Text></>)}
         </TouchableOpacity>
+
+        {!!flash && (
+          <View style={s.flash} testID="merchant-redeem-flash">
+            <Ionicons name="checkmark-circle" size={16} color={COLORS.green} />
+            <Text style={s.flashText}>{flash}</Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -87,4 +95,6 @@ const s = StyleSheet.create({
   loyaltyNext: { color: 'rgba(255,255,255,0.85)', fontSize: FONT.xs, marginTop: 4 },
   label: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1, marginTop: SPACING.md, marginBottom: 6 },
   input: { backgroundColor: COLORS.inputBg, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontSize: FONT.md, fontWeight: '600' },
+  flash: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0' },
+  flashText: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700', flex: 1 },
 });
