@@ -5,8 +5,11 @@ and `current_user`-less public access for /api/news/*.
 """
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
@@ -16,6 +19,95 @@ from services import news_api_provider as _newsapi
 from services import geo as _geo_svc
 
 router = APIRouter(tags=["phase-r-news"])
+
+# ── Local strip (weather + prayer times) — keyless public APIs, lightly cached
+_WMO = {
+    0: "Clear", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+    45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle",
+    55: "Heavy drizzle", 61: "Light rain", 63: "Rain", 65: "Heavy rain",
+    71: "Light snow", 73: "Snow", 75: "Heavy snow", 80: "Rain showers",
+    81: "Rain showers", 82: "Violent showers", 95: "Thunderstorm",
+    96: "Thunderstorm", 99: "Thunderstorm",
+}
+_STRIP_CACHE: Dict[str, Any] = {}
+_STRIP_TTL = 600  # 10 minutes
+
+
+async def _fetch_weather(lat: float, lng: float) -> Optional[Dict[str, Any]]:
+    try:
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get("https://api.open-meteo.com/v1/forecast", params={
+                "latitude": lat, "longitude": lng,
+                "current": "temperature_2m,weather_code,is_day",
+            })
+            r.raise_for_status()
+            cur = (r.json() or {}).get("current") or {}
+        code = int(cur.get("weather_code", 0))
+        return {
+            "temp_c": round(float(cur.get("temperature_2m", 0))),
+            "code": code, "label": _WMO.get(code, "—"),
+            "is_day": bool(cur.get("is_day", 1)),
+        }
+    except Exception:
+        return None
+
+
+async def _fetch_prayer(lat: float, lng: float) -> Optional[Dict[str, Any]]:
+    try:
+        day = datetime.now(timezone.utc).strftime("%d-%m-%Y")
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get(f"https://api.aladhan.com/v1/timings/{day}", params={
+                "latitude": lat, "longitude": lng, "method": 2,
+            })
+            r.raise_for_status()
+            data = (r.json() or {}).get("data") or {}
+        t = data.get("timings") or {}
+        keys = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
+        times = {k: (t.get(k) or "").split(" ")[0] for k in keys if t.get(k)}
+        # next prayer vs current local time
+        now_local = datetime.now(timezone.utc)
+        offset = (((data.get("meta") or {}).get("timezone")) or "")
+        nxt = None
+        try:
+            from zoneinfo import ZoneInfo
+            if offset:
+                now_local = datetime.now(ZoneInfo(offset))
+        except Exception:
+            pass
+        hhmm_now = now_local.strftime("%H:%M")
+        for k in keys:
+            if times.get(k) and times[k] > hhmm_now:
+                nxt = {"name": k, "time": times[k]}
+                break
+        if not nxt and times:
+            nxt = {"name": "Fajr", "time": times.get("Fajr", "")}
+        return {"timings": times, "next": nxt}
+    except Exception:
+        return None
+
+
+@router.get("/api/news/local-strip")
+async def local_strip(request: Request):
+    """Live local weather + prayer times for the listener's resolved city."""
+    try:
+        geo = await _geo_svc.resolve_for_user(request, None, request.app.state.db)
+    except Exception:
+        geo = {}
+    city = geo.get("city") or "Your city"
+    lat = float(geo.get("latitude") or 0) or 25.2048
+    lng = float(geo.get("longitude") or 0) or 55.2708
+    ck = f"{round(lat,2)},{round(lng,2)}"
+    cached = _STRIP_CACHE.get(ck)
+    if cached and (time.time() - cached["ts"] < _STRIP_TTL):
+        payload = dict(cached["data"]); payload["city"] = city
+        return payload
+    weather = await _fetch_weather(lat, lng)
+    prayer = await _fetch_prayer(lat, lng)
+    data = {"city": city, "country": geo.get("country_name") or geo.get("country") or "",
+            "weather": weather, "prayer": prayer}
+    _STRIP_CACHE[ck] = {"ts": time.time(), "data": data}
+    return data
+
 
 
 def _live_article_to_public(a: Dict[str, Any], is_breaking: bool = False) -> Dict[str, Any]:

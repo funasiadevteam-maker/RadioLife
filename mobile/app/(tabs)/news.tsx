@@ -20,6 +20,7 @@ export default function NewsScreen() {
   const [breaking, setBreaking] = useState<any[]>([]);
   const [category, setCategory] = useState('');
   const [scope, setScope] = useState<'local' | 'national'>('local');
+  const [strip, setStrip] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState('');
@@ -43,6 +44,7 @@ export default function NewsScreen() {
   }, [category, scope]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { api.get('/news/local-strip').then((r) => setStrip(r.data)).catch(() => {}); }, []);
 
   const grouped = useMemo(() => {
     const buckets: Record<string, any[]> = {};
@@ -65,6 +67,23 @@ export default function NewsScreen() {
       >
         <Text testID="news-title" style={s.title}>News</Text>
         <Text style={s.subtitle}>Breaking headlines & local stories</Text>
+
+        {/* Local weather + prayer-times strip */}
+        {strip && (strip.weather || strip.prayer?.next) && (
+          <View style={s.strip} testID="news-local-strip">
+            <View style={s.stripSide}>
+              <Ionicons name={strip.weather?.is_day ? 'sunny' : 'moon'} size={16} color={COLORS.orange} />
+              <Text style={s.stripCity} numberOfLines={1}>{strip.city}</Text>
+              {strip.weather && <Text style={s.stripTemp}>{strip.weather.temp_c}° · {strip.weather.label}</Text>}
+            </View>
+            {strip.prayer?.next && (
+              <View style={s.stripSide}>
+                <Ionicons name="moon-outline" size={13} color={COLORS.secondary} />
+                <Text style={s.stripPrayer}>{strip.prayer.next.name} {strip.prayer.next.time}</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Local / National scope tabs */}
         <View style={s.scopeRow}>
@@ -193,6 +212,11 @@ const s = StyleSheet.create({
   breakingSource: { color: COLORS.textMuted, fontSize: FONT.xs },
   chipRow: { marginBottom: SPACING.md, flexGrow: 0 },
   scopeRow: { flexDirection: 'row', gap: 8, marginBottom: SPACING.md },
+  strip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.inputBg, borderRadius: RADIUS.lg, paddingVertical: 10, paddingHorizontal: 14, marginBottom: SPACING.md },
+  stripSide: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  stripCity: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  stripTemp: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
+  stripPrayer: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '800' },
   scopeTab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 999, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.border },
   scopeTabActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   scopeTabText: { color: COLORS.textMuted, fontSize: FONT.sm, fontWeight: '800' },

@@ -29,21 +29,25 @@ export default function PromoteStation() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [selected, setSelected] = useState<any>(null);
   const [model, setModel] = useState<'cpm' | 'cpc'>('cpm');
+  const [daily, setDaily] = useState(0);
+  const [leaders, setLeaders] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [topupBusy, setTopupBusy] = useState('');
 
   const load = useCallback(async () => {
     try {
-      const [wRes, mRes, dRes] = await Promise.allSettled([
+      const [wRes, mRes, dRes, lRes] = await Promise.allSettled([
         api.get('/promoted/wallet'),
         api.get('/promoted/mine'),
         api.get('/radio/discover'),
+        api.get('/promoted/leaderboard?days=7'),
       ]);
       if (wRes.status === 'fulfilled') setBalance((wRes.value as any).data?.balance_cents || 0);
       if (mRes.status === 'fulfilled') {
         setMine((mRes.value as any).data?.items || []);
         setTotals((mRes.value as any).data?.totals || {});
       }
+      if (lRes.status === 'fulfilled') setLeaders((lRes.value as any).data?.items || []);
       if (dRes.status === 'fulfilled') {
         const rails = (dRes.value as any).data?.rails || [];
         const flat: any[] = [];
@@ -87,6 +91,7 @@ export default function PromoteStation() {
         pricing_model: model,
         cpm_bid_cents: 500,
         cpc_bid_cents: 25,
+        daily_budget_cents: daily,
       });
       setSelected(null);
       Alert.alert('Promoted', balance > 0
@@ -163,9 +168,38 @@ export default function PromoteStation() {
           ))}
         </View>
 
+        <Text style={s.sectionTitle}>Daily budget cap</Text>
+        <View style={s.modelRow}>
+          {[{ v: 0, l: 'No cap' }, { v: 500, l: '$5/day' }, { v: 1000, l: '$10/day' }, { v: 2500, l: '$25/day' }].map((d) => (
+            <TouchableOpacity key={d.v} style={[s.modelTab, daily === d.v && s.modelTabActive]} onPress={() => setDaily(d.v)} testID={`promo-daily-${d.v}`}>
+              <Text style={[s.modelText, daily === d.v && s.modelTextActive]}>{d.l}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <TouchableOpacity style={[common.btnPrimary, { marginTop: SPACING.md }, busy && { opacity: 0.5 }]} onPress={promote} disabled={busy} testID="promo-create-btn">
           {busy ? <ActivityIndicator size="small" color="#fff" /> : <Text style={common.btnPrimaryText}>Promote station</Text>}
         </TouchableOpacity>
+
+        {/* This week's leaderboard */}
+        {leaders.length > 0 && (
+          <>
+            <Text style={[s.sectionTitle, { marginTop: SPACING.xl }]}>This week&apos;s top promoted</Text>
+            {leaders.map((l, i) => (
+              <View key={l.promo_id} style={[common.card, { marginTop: SPACING.sm }]} testID={`promo-leader-${l.promo_id}`}>
+                <View style={s.mineRow}>
+                  <Text style={s.rank}>{i + 1}</Text>
+                  <SafeImage uri={l.logo_url} fallbackText={l.station_name} size={36} borderRadius={9} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.mineName} numberOfLines={1}>{l.station_name}</Text>
+                    <Text style={s.mineMeta}>{l.listens} listens · {l.impressions} views</Text>
+                  </View>
+                  <Ionicons name="trophy" size={18} color={i === 0 ? COLORS.orange : COLORS.textMuted} />
+                </View>
+              </View>
+            ))}
+          </>
+        )}
 
         {/* My promotions */}
         <Text style={[s.sectionTitle, { marginTop: SPACING.xl }]}>My promotions</Text>
@@ -235,4 +269,5 @@ const s = StyleSheet.create({
   mineMeta: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   mineStats: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, marginTop: SPACING.sm },
   mineStat: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
+  rank: { color: COLORS.textMuted, fontSize: FONT.md, fontWeight: '900', width: 18, textAlign: 'center' },
 });

@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 40 — Auto-Bidding Rules + Sponsor Leaderboard + Local Weather Card. Backend pytest 14/14 pass (GET /api/promoted/leaderboard?days=7 returns 200 with items carrying promo_id/station_id/station_name/logo_url/listens/impressions/pricing_model and window_days; ?days=0 and ?days=31 correctly return 422; POST /api/promoted/self-serve accepts daily_budget_cents and is echoed in the /mine payload; default daily_budget_cents=0 works; auto-bidding cap: with a funded wallet (10000c) and a CPC promo at 25c bid × 50c daily cap, firing 4 clicks flips promoted_stations.status=budget_capped active=false and /mine reflects it; house promo (no advertiser_id) is NOT auto-paused by daily cap logic; GET /api/news/local-strip returns {city, weather:{temp_c,label,is_day}, prayer:{timings,next}} with keyless Open-Meteo + Aladhan responding within 25s; regression: /wallet, /mine, /toggle 404, /wallet/topup (real Stripe TEST checkout URL), /self-serve all still 200). Mobile (Expo web preview @ 390x844): 'Try the demo' logs in and lands on /home with RadioLife.app wordmark + 'Welcome back, Demo · DIL SE · DALLAS SE' + BREAKING headline + TOP PLAYED STATIONS + featured stations. News tab renders news-local-strip ABOVE the Local/National tabs showing 'Council Bluffs 18° · Mainly clear · Fajr 04:56' (real live Open-Meteo + Aladhan data for the pod's resolved geo). /advertiser/promote-station renders all 4 new 'Daily budget cap' selectors (promo-daily-0 'No cap', promo-daily-500 '$5/day', promo-daily-1000 '$10/day', promo-daily-2500 '$25/day') with correct highlighted state on tap, and the 'This week's top promoted' leaderboard section renders 4 promo-leader-{id} rows with rank/logo/listens/views/trophy (top ranked shows 'Talk 100.3 UAE · 4 listens · 4 views'). Wallet balance card shows $99.00 (from prior test top-ups + auto-bidding fixture funding). All 4 top-up chips, CPM/CPC tabs, and 'Promote station' button still functional.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Home", "issues": ["Mixed-content warnings persist for http:// station logos (cdn-profiles.tunein.com). Non-blocking, carried over from iter38/39."]}
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props are deprecated in React Native Web — use 'boxShadow'. Repeated console warning on load. Carried over from iter38/39."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' Warning fires after demo login. Carried over from iter38/39."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter40_autobid_leaderboard_localstrip.py",
+    "/app/test_reports/pytest/iter40.xml",
+    "/tmp/iter40_home.png",
+    "/tmp/iter40_news.png",
+    "/tmp/iter40_promote.png",
+    "/tmp/iter40_promote_bottom.png"
+  ],
+  "action_items": [
+    "LOW (carried over): Replace deprecated shadow* RN style props with boxShadow across mobile styles.",
+    "LOW (carried over): Replace props.pointerEvents with style.pointerEvents in mobile RN components.",
+    "OPTIONAL: In _record_daily_and_cap the read-back to check cap uses find_one() immediately after upsert; this is fine for single-writer but under concurrent clicks two writers can both see spent<cap and both accrue past the cap by up to 1 bid unit. Consider a single findOneAndUpdate with a conditional or a small atomic gate. Reference: /app/backend/routes/promoted_stations.py:50-65.",
+    "OPTIONAL: /api/promoted/leaderboard aggregates the promo_daily collection but does not filter by status — recently-paused (budget_capped or awaiting_funds) promos still appear in the leaderboard. That's arguably fine for a 'top listens this week' view but may mislead sponsors. Consider a $lookup to filter to active-only if the product intent is 'buy-now' targeting."
+  ],
+  "critical_code_review_comments": [
+    "Auto-bid cap check runs INSIDE the impression/click hot path (2 extra Mongo round-trips per event: upsert promo_daily + find_one). Under high traffic this doubles the DB latency of impression/click. Consider batching via a nightly rollup + in-memory cap or moving the read-back to a background sweep. Reference: /app/backend/routes/promoted_stations.py:50-65.",
+    "_resume_capped_promos runs on every /leaderboard and /stations call and does a full-collection scan of {status: 'budget_capped'}. That's fine at MVP scale but creates surprising write amplification on hot public endpoints. Consider a cron/scheduled job or a compound index on status+daily.",
+    "Leaderboard $group + $lookup pattern is O(n_promos_in_daily); no index guidance in the file. Add an index on promo_daily {date:1, promo_id:1} to keep the aggregate cheap as data grows.",
+    "Local-strip in-memory _STRIP_CACHE (module-level dict) is per-worker; under a multi-worker deployment cache hit rate drops linearly with worker count. Fine at 1 worker; call out in scaling docs.",
+    "news_phase_r._fetch_prayer swallows all exceptions to None — good for reliability but the endpoint returns 200 with weather=None+prayer=None if both upstreams fail. Consider a soft-warn field so the client can render a placeholder rather than hiding the whole strip.",
+    "MOCKED: CPM/CPC spend accrual + wallet debit is accounting-only. Only real money moves through Stripe wallet top-ups. Auto-pause via daily cap fires against the same accounting model."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter40_autobid_leaderboard_localstrip.py"],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% of spec items verified on mobile (web not in scope for iter40's new features — all mobile-first)"},
+  "test_credentials": "Mobile: 'Try the demo' (testID demo-login-btn). Auto-bid test funds the demo advertiser's wallet by upserting promo_wallets.balance_cents=10000 directly in Mongo (bigfm DB).",
+  "seed_data_creation": "Test creates one TEST_iter40_daily_budget, one TEST_iter40_nocap, one TEST_iter40_autobid (budget_capped after test), one TEST_iter40_regression promo per run under the demo user's advertiser_id. Fires ~4 clicks + 1 impression on the top house promo to populate promo_daily. Wallet funded to 10000c (~$100) as part of auto-bid test — this is why the mobile screenshot shows $99.00.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend: 14/14 tests in /app/backend/tests/test_iter40_autobid_leaderboard_localstrip.py cover leaderboard/daily_budget/auto-bid/local-strip + iter39 regression. The auto-bid test uses pymongo to seed wallet balance and to reset promo_daily rollups for the test promo — required because /api/promoted/wallet/topup requires real Stripe checkout completion. Local-strip depends on pod egress reaching api.open-meteo.com + api.aladhan.com (both keyless, both reachable). Weather city depends on geo resolver — currently 'Council Bluffs' (US pod egress). Screenshots at /tmp/iter40_*.png.",
+  "rca of the issue": "N/A — all 3 approved code features (auto-bidding cap, sponsor leaderboard, local weather+prayer strip) work end-to-end on backend + mobile."
+}

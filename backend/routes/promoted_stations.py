@@ -43,6 +43,34 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _today() -> str:
+    return _now().strftime("%Y-%m-%d")
+
+
+async def _record_daily_and_cap(db, promo: Dict[str, Any], accrue: int) -> None:
+    """Roll up per-day impressions/clicks/spend and auto-pause the promo when
+    its `daily_budget_cents` cap is hit for the current UTC day."""
+    promo_id = promo.get("promo_id")
+    await db.promo_daily.update_one(
+        {"promo_id": promo_id, "date": _today()},
+        {"$inc": {"spend_cents": accrue}, "$setOnInsert": {"created_at": _now()}},
+        upsert=True)
+    cap = int(promo.get("daily_budget_cents") or 0)
+    if cap <= 0:
+        return
+    row = await db.promo_daily.find_one({"promo_id": promo_id, "date": _today()})
+    if row and int(row.get("spend_cents", 0)) >= cap and promo.get("active"):
+        await db.promoted_stations.update_one(
+            {"promo_id": promo_id},
+            {"$set": {"active": False, "status": "budget_capped", "updated_at": _now()}})
+
+
+async def _bump_daily_counter(db, promo_id: str, field: str) -> None:
+    await db.promo_daily.update_one(
+        {"promo_id": promo_id, "date": _today()},
+        {"$inc": {field: 1}, "$setOnInsert": {"created_at": _now()}}, upsert=True)
+
+
 class PromoCreateBody(BaseModel):
     station_id:      str
     sponsor_name:    Optional[str] = None
@@ -124,6 +152,7 @@ async def list_promoted_stations(
     carries `is_sponsored`, `promo_id`, `pricing_model` and `sponsor_name`."""
     db = request.app.state.db
     await ensure_promoted_seed(db)
+    await _resume_capped_promos(db)
     out: List[Dict[str, Any]] = []
     cur = db.promoted_stations.find({"active": True}).sort(
         [("cpm_bid_cents", -1), ("cpc_bid_cents", -1)]).limit(limit * 2)
@@ -186,7 +215,9 @@ async def track_impression(promo_id: str, request: Request):
         {"promo_id": promo_id},
         {"$inc": {"impressions": 1, "spend_cents": accrue},
          "$set": {"updated_at": _now()}})
+    await _bump_daily_counter(db, promo_id, "impressions")
     await _charge_and_maybe_pause(db, p, accrue)
+    await _record_daily_and_cap(db, p, accrue)
     return {"ok": True, "promo_id": promo_id, "accrued_cents": accrue}
 
 
@@ -204,7 +235,9 @@ async def track_click(promo_id: str, request: Request):
         {"promo_id": promo_id},
         {"$inc": {"clicks": 1, "spend_cents": accrue},
          "$set": {"updated_at": _now()}})
+    await _bump_daily_counter(db, promo_id, "clicks")
     await _charge_and_maybe_pause(db, p, accrue)
+    await _record_daily_and_cap(db, p, accrue)
     return {"ok": True, "promo_id": promo_id, "accrued_cents": accrue}
 
 
@@ -252,6 +285,7 @@ class SelfServeBody(BaseModel):
     pricing_model: str = "cpm"              # "cpm" | "cpc"
     cpm_bid_cents: Optional[int] = 500
     cpc_bid_cents: Optional[int] = 25
+    daily_budget_cents: Optional[int] = 0   # 0 = no daily cap
 
 
 def _promo_stats(p: Dict[str, Any]) -> Dict[str, Any]:
@@ -265,6 +299,7 @@ def _promo_stats(p: Dict[str, Any]) -> Dict[str, Any]:
         "pricing_model": p.get("pricing_model") or "cpm",
         "cpm_bid_cents": int(p.get("cpm_bid_cents") or 0),
         "cpc_bid_cents": int(p.get("cpc_bid_cents") or 0),
+        "daily_budget_cents": int(p.get("daily_budget_cents") or 0),
         "active":        bool(p.get("active")),
         "status":        p.get("status") or ("active" if p.get("active") else "paused"),
         "impressions":   imp,
@@ -307,6 +342,7 @@ async def create_self_serve_promo(body: SelfServeBody, request: Request,
         "pricing_model": body.pricing_model if body.pricing_model in ("cpm", "cpc") else "cpm",
         "cpm_bid_cents": int(body.cpm_bid_cents or 0),
         "cpc_bid_cents": int(body.cpc_bid_cents or 0),
+        "daily_budget_cents": int(body.daily_budget_cents or 0),
         "active":        funded,
         "status":        "active" if funded else "awaiting_funds",
         "impressions":   0, "clicks": 0, "spend_cents": 0,
@@ -361,6 +397,61 @@ async def toggle_promo(promo_id: str, request: Request,
                   "status": "active" if new_active else "paused",
                   "updated_at": _now()}})
     return {"ok": True, "promo_id": promo_id, "active": new_active}
+
+
+async def _resume_capped_promos(db) -> None:
+    """New-day sweep: reactivate promos that were auto-paused by their daily
+    budget once the current day's spend is back under the cap and the wallet
+    still has balance."""
+    async for p in db.promoted_stations.find({"status": "budget_capped"}):
+        cap = int(p.get("daily_budget_cents") or 0)
+        row = await db.promo_daily.find_one({"promo_id": p.get("promo_id"), "date": _today()})
+        spent_today = int((row or {}).get("spend_cents", 0))
+        if cap > 0 and spent_today >= cap:
+            continue
+        if p.get("advertiser_id"):
+            w = await db.promo_wallets.find_one({"advertiser_id": p.get("advertiser_id")})
+            if int((w or {}).get("balance_cents", 0)) <= 0:
+                continue
+        await db.promoted_stations.update_one(
+            {"promo_id": p.get("promo_id")},
+            {"$set": {"active": True, "status": "active", "updated_at": _now()}})
+
+
+@router.get("/leaderboard")
+async def promoted_leaderboard(request: Request,
+                               days: int = Query(7, ge=1, le=30),
+                               limit: int = Query(10, ge=1, le=50)):
+    """Ranks promoted stations by listens (clicks) over the last `days`, to
+    nudge sponsors toward higher bids."""
+    from datetime import timedelta
+    db = request.app.state.db
+    await _resume_capped_promos(db)
+    since = (_now() - timedelta(days=days - 1)).strftime("%Y-%m-%d")
+    agg = db.promo_daily.aggregate([
+        {"$match": {"date": {"$gte": since}}},
+        {"$group": {"_id": "$promo_id",
+                    "listens": {"$sum": {"$ifNull": ["$clicks", 0]}},
+                    "impressions": {"$sum": {"$ifNull": ["$impressions", 0]}}}},
+        {"$sort": {"listens": -1, "impressions": -1}},
+        {"$limit": limit},
+    ])
+    out: List[Dict[str, Any]] = []
+    async for row in agg:
+        promo = await db.promoted_stations.find_one({"promo_id": row["_id"]})
+        if not promo:
+            continue
+        card = await _resolve_card(db, promo.get("station_id"))
+        out.append({
+            "promo_id": row["_id"],
+            "station_id": promo.get("station_id"),
+            "station_name": (card or {}).get("name") or promo.get("sponsor_name"),
+            "logo_url": (card or {}).get("logo_url") or (card or {}).get("favicon"),
+            "listens": int(row.get("listens", 0)),
+            "impressions": int(row.get("impressions", 0)),
+            "pricing_model": promo.get("pricing_model") or "cpm",
+        })
+    return {"items": out, "total": len(out), "window_days": days}
 
 
 # ─────────────────────────── Stripe wallet top-up ───────────────────────────
