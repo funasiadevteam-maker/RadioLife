@@ -1,5 +1,13 @@
 # BigFM — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-06 (Advertiser Self-Serve + Analytics + Stripe top-ups + Local News tabs)
+- **Advertiser Self-Serve (mobile + backend)**: ad wallet (`promo_wallets`), `POST /api/promoted/self-serve` creates a station promo with CPM/CPC bids (auto-active when funded, else `awaiting_funds`), `POST /api/promoted/{id}/toggle` pause/resume. New mobile screen `app/advertiser/promote-station.tsx` (reachable via Profile > 'Sponsor a station' and the advertiser home banner).
+- **Sponsored Analytics**: `GET /api/promoted/mine` returns per-promo impressions/clicks/CTR/spend + totals; surfaced on the promote-station screen.
+- **Stripe wallet top-ups**: `POST /api/promoted/wallet/topup` (packages $10/$25/$50/$100) → Stripe Checkout (existing env key, TEST mode); `GET /api/promoted/wallet/topup/status/{sid}` idempotently credits the wallet (status-poll fallback, no webhook dependency). Impression/click now debit the wallet and auto-pause a promo when depleted (house promos free). Going LIVE = claim Stripe account via Emergent Publish.
+- **Local News tabs**: `/api/news/headlines?scope=local|national` (local=geo city market, national=resolved country); mobile News tab gets Local/National segmented tabs (`news-scope-local` / `news-scope-national`). NOTE: in-pod both resolve to US so content looks identical; diverges in real deployment.
+- **Testing**: iteration_39.json — backend 14/14 pytest pass (`tests/test_iter39_advertiser_selfserve.py`); mobile flows verified.
+
+
 ## Changelog — 2026-08-06 (RadioLife.app rebrand + Promoted Stations + News fix)
 - **Rebrand BigFM → RadioLife.app** across web + mobile (user-visible text only; internal keys/CSS/events/bundle IDs untouched). Wordmark `BigFM.AI → RadioLife.app`. Added tappable **funasianetwork.com** footer link (mobile FunAsiaFooter component on Home/Login/Profile; web LegalFooter, AppShell sidebar, LandingV2 + MarketingShell footers).
 - **Home blockers fixed**: Top Played rail now renders; All Stations Genre filter now passes `category` param and re-fetches (iter37 bug).
