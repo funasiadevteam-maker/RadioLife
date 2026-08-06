@@ -201,6 +201,8 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
+        <AdBanner zone="browse_row" style={{ marginHorizontal: SPACING.md, marginTop: SPACING.lg }} />
+
         {/* Top Played Stations — square thumbnails, sponsored first */}
         {topPlayed.length > 0 && (
           <>
@@ -224,6 +226,8 @@ export default function HomeScreen() {
             </ScrollView>
           </>
         )}
+
+        <AdBanner zone="station_detail" style={{ marginHorizontal: SPACING.md, marginTop: SPACING.lg }} />
 
         {/* All Stations CTA — the full 40k+ imported library */}
         <TouchableOpacity style={s.allStationsCta} testID="home-all-stations-cta"
@@ -278,6 +282,8 @@ export default function HomeScreen() {
           <Text style={s.seeAllText}>Browse all channels</Text>
           <Ionicons name="chevron-forward" size={14} color={COLORS.secondary} />
         </TouchableOpacity>
+
+        <AdBanner zone="bottom_bar" style={{ marginHorizontal: SPACING.md, marginTop: SPACING.lg }} />
 
         <FunAsiaFooter />
       </ScrollView>

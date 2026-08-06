@@ -256,41 +256,50 @@ export default function StationsScreen() {
           </View>
 
           {/* Country filter */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow}
-            contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
-            {COUNTRIES.map((c) => (
-              <TouchableOpacity key={c.value} style={[s.chip, country === c.value && s.chipActive]}
-                onPress={() => setCountry(c.value)} testID={`stations-country-${c.label.toLowerCase()}`}>
-                <Text style={[s.chipText, country === c.value && s.chipTextActive]}>{c.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={s.filterLine}>
+            <View style={s.filterIcon}><Ionicons name="earth" size={13} color={COLORS.primary} /></View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 6, alignItems: 'center', paddingRight: SPACING.md }}>
+              {COUNTRIES.map((c) => (
+                <TouchableOpacity key={c.value} style={[s.chip, country === c.value && s.chipActive]}
+                  onPress={() => setCountry(c.value)} testID={`stations-country-${c.label.toLowerCase()}`}>
+                  <Text style={[s.chipText, country === c.value && s.chipTextActive]}>{c.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
 
           {/* Language filter */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow}
-            contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
-            {LANGS.map((l) => (
-              <TouchableOpacity key={l} style={[s.chip, lang === l && s.chipActive]}
-                onPress={() => setLang(l)} testID={`stations-lang-${l.toLowerCase()}`}>
-                <Text style={[s.chipText, lang === l && s.chipTextActive]}>
-                  {l === 'All' ? 'All' : l.charAt(0).toUpperCase() + l.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={s.filterLine}>
+            <View style={s.filterIcon}><Ionicons name="language" size={13} color={COLORS.primary} /></View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 6, alignItems: 'center', paddingRight: SPACING.md }}>
+              {LANGS.map((l) => (
+                <TouchableOpacity key={l} style={[s.chip, lang === l && s.chipActive]}
+                  onPress={() => setLang(l)} testID={`stations-lang-${l.toLowerCase()}`}>
+                  <Text style={[s.chipText, lang === l && s.chipTextActive]}>
+                    {l === 'All' ? 'All' : l.charAt(0).toUpperCase() + l.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
 
           {/* Genre filter */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow}
-            contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 6, alignItems: 'center' }}>
-            {GENRES.map((g) => (
-              <TouchableOpacity key={g} style={[s.chip, genre === g && s.chipActive]}
-                onPress={() => setGenre(g)} testID={`stations-genre-${g.toLowerCase()}`}>
-                <Text style={[s.chipText, genre === g && s.chipTextActive]}>
-                  {g === 'All' ? 'Genre: All' : g.charAt(0).toUpperCase() + g.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={s.filterLine}>
+            <View style={s.filterIcon}><Ionicons name="musical-notes" size={13} color={COLORS.primary} /></View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 6, alignItems: 'center', paddingRight: SPACING.md }}>
+              {GENRES.map((g) => (
+                <TouchableOpacity key={g} style={[s.chip, genre === g && s.chipActive]}
+                  onPress={() => setGenre(g)} testID={`stations-genre-${g.toLowerCase()}`}>
+                  <Text style={[s.chipText, genre === g && s.chipTextActive]}>
+                    {g === 'All' ? 'All' : g.charAt(0).toUpperCase() + g.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </>
       )}
 
@@ -394,12 +403,14 @@ const s = StyleSheet.create({
   },
   searchInput: { flex: 1, color: COLORS.text, fontSize: FONT.md },
   filterRow: { maxHeight: 48, marginBottom: SPACING.sm },
+  filterLine: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm, paddingLeft: SPACING.md },
+  filterIcon: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff2e6', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full,
     backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
   },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600' },
+  chipText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700' },
   chipTextActive: { color: '#fff', fontWeight: '700' },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

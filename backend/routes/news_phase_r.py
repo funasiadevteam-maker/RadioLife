@@ -13,12 +13,16 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from auth import require_admin
+from auth import current_user, require_admin
 from services import news_phase_r_service as svc
 from services import news_api_provider as _newsapi
 from services import geo as _geo_svc
+from services import bigcoin as _bigcoin
 
 router = APIRouter(tags=["phase-r-news"])
+
+NEWS_READ_REWARD = 1        # BigCoin per unique article read
+NEWS_READ_DAILY_CAP = 10    # max rewarded reads per day (anti-abuse)
 
 # ── Local strip (weather + prayer times) — keyless public APIs, lightly cached
 _WMO = {
@@ -84,6 +88,45 @@ async def _fetch_prayer(lat: float, lng: float) -> Optional[Dict[str, Any]]:
         return {"timings": times, "next": nxt}
     except Exception:
         return None
+
+
+class NewsReadBody(BaseModel):
+    headline_id: Optional[str] = None
+    title: Optional[str] = None
+
+
+@router.post("/api/news/read")
+async def news_read_reward(body: NewsReadBody, request: Request,
+                           user: dict = Depends(current_user)):
+    """Award BigCoin for reading an article — unique per article, capped per
+    day server-side so it can't be farmed."""
+    db = request.app.state.db
+    uid = user.get("user_id")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    doc = await db.news_read_rewards.find_one({"user_id": uid, "date": today})
+    awarded_ids = (doc or {}).get("awarded_ids", [])
+    count = int((doc or {}).get("count", 0))
+    key = (body.headline_id or body.title or "").strip()
+    already = bool(key) and key in awarded_ids
+    points = 0
+    balance_after = None
+    if (not already) and count < NEWS_READ_DAILY_CAP:
+        try:
+            res = await _bigcoin.award(db, uid, NEWS_READ_REWARD, source="news_read",
+                metadata={"headline_id": body.headline_id, "title": body.title})
+            points = NEWS_READ_REWARD
+            balance_after = res.get("balance_after")
+        except Exception:
+            points = 0
+        await db.news_read_rewards.update_one(
+            {"user_id": uid, "date": today},
+            {"$inc": {"count": 1},
+             "$addToSet": {"awarded_ids": key or f"anon_{count}"},
+             "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+            upsert=True)
+        count += 1
+    return {"awarded": points > 0, "points": points, "balance_after": balance_after,
+            "daily_count": count, "daily_cap": NEWS_READ_DAILY_CAP}
 
 
 @router.get("/api/news/local-strip")

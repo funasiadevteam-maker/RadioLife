@@ -1,11 +1,27 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
-  SafeAreaView, RefreshControl, Linking,
+  SafeAreaView, RefreshControl,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 import api from '../../src/api/client';
+import AdBanner from '../../src/components/AdBanner';
+
+const openArticle = (router: any, h: any) => router.push({
+  pathname: '/news-article',
+  params: {
+    headline_id: String(h.headline_id || h.id || ''),
+    title: h.headline_text || '',
+    summary: h.summary_text || '',
+    source_name: h.source_name || '',
+    source_url: h.source_url || '',
+    image_url: h.image_url || '',
+    published_at: h.published_at || '',
+    category: h.category || '',
+  },
+});
 
 const CATEGORIES: Record<string, string> = {
   '': 'All',
@@ -24,6 +40,7 @@ export default function NewsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState('');
+  const router = useRouter();
 
   const load = useCallback(async () => {
     setErr('');
@@ -107,7 +124,8 @@ export default function NewsScreen() {
         {breaking.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.breakingStrip}>
             {breaking.map(b => (
-              <View key={b.headline_id || b.id} testID={`news-breaking-${b.headline_id || b.id}`} style={s.breakingCard}>
+              <TouchableOpacity key={b.headline_id || b.id} testID={`news-breaking-${b.headline_id || b.id}`} style={s.breakingCard}
+                activeOpacity={0.85} onPress={() => openArticle(router, b)}>
                 <View style={s.breakingBadge}>
                   <View style={s.breakingDot} />
                   <Text style={s.breakingBadgeText}>BREAKING</Text>
@@ -115,7 +133,7 @@ export default function NewsScreen() {
                 <Text style={s.breakingHeadline} numberOfLines={3}>{b.headline_text}</Text>
                 {b.summary_text && <Text style={s.breakingSummary} numberOfLines={2}>{b.summary_text}</Text>}
                 <Text style={s.breakingSource}>{b.source_name || '—'}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         )}
@@ -138,6 +156,7 @@ export default function NewsScreen() {
         {err ? <Text testID="news-error" style={{ color: COLORS.red, padding: SPACING.md }}>{err}</Text> : null}
 
         {/* Headlines by category */}
+        <AdBanner zone="browse_row" style={{ marginBottom: SPACING.md }} />
         {grouped.length === 0 && !err && (
           <View testID="news-empty" style={s.emptyWrap}>
             <Ionicons name="newspaper-outline" size={40} color={COLORS.textMuted} />
@@ -149,7 +168,8 @@ export default function NewsScreen() {
           <View key={cat} testID={`news-group-${cat}`} style={s.group}>
             <Text style={s.groupTitle}>{(CATEGORIES[cat] || cat).toUpperCase()}</Text>
             {items.map(h => (
-              <View key={h.headline_id || h.id} testID={`news-card-${h.headline_id || h.id}`} style={s.headlineCard}>
+              <TouchableOpacity key={h.headline_id || h.id} testID={`news-card-${h.headline_id || h.id}`} style={s.headlineCard}
+                activeOpacity={0.8} onPress={() => openArticle(router, h)}>
                 <View style={s.headlineTop}>
                   {h.is_breaking && <View style={s.breakingDotSmall} />}
                   <Text style={s.headlineText} numberOfLines={3}>{h.headline_text}</Text>
@@ -157,16 +177,14 @@ export default function NewsScreen() {
                 {h.summary_text && <Text style={s.headlineSummary} numberOfLines={2}>{h.summary_text}</Text>}
                 <View style={s.headlineMeta}>
                   <Text style={s.headlineSource}>{h.source_name || '—'}</Text>
-                  {h.source_url && (
-                    <TouchableOpacity onPress={() => Linking.openURL(h.source_url)} testID={`news-link-${h.headline_id || h.id}`}>
-                      <Ionicons name="open-outline" size={12} color={COLORS.secondary} />
-                    </TouchableOpacity>
-                  )}
                   <Text style={s.headlineTime}>
                     {h.published_at ? new Date(h.published_at).toLocaleDateString() : ''}
                   </Text>
+                  <View style={{ flex: 1 }} />
+                  <Text style={s.readMore}>Read more</Text>
+                  <Ionicons name="chevron-forward" size={13} color={COLORS.secondary} />
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         ))}
@@ -235,6 +253,7 @@ const s = StyleSheet.create({
   headlineSummary: { color: COLORS.textDim, fontSize: FONT.sm, lineHeight: 18, marginTop: 6 },
   headlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   headlineSource: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
+  readMore: { color: COLORS.secondary, fontSize: FONT.xs, fontWeight: '800' },
   headlineTime: { color: COLORS.textMuted, fontSize: FONT.xs },
   channelSection: { marginTop: SPACING.sm },
   channelCard: {

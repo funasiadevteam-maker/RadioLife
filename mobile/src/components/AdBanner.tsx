@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { TouchableOpacity, Image, StyleSheet, Linking, View, Text } from 'react-native';
 import api from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import { COLORS, RADIUS, SPACING, FONT } from '../constants/theme';
 
 /**
  * AdBanner — serves a real banner from the advertiser banner system for a given
- * zone. Renders NOTHING when no live campaign matches the zone (no empty ad box).
+ * zone. Renders NOTHING when no live campaign matches the zone (no empty ad box)
+ * or when the user is a paying/premium member (ad-free experience).
  * Fires impression on show and click on tap, then opens the advertiser target URL.
  *
  * Valid zones: landing_hero | station_detail | games | browse_row | wallet |
@@ -14,9 +16,12 @@ import { COLORS, RADIUS, SPACING, FONT } from '../constants/theme';
 export default function AdBanner({ zone, country, language, style }: {
   zone: string; country?: string | null; language?: string | null; style?: any;
 }) {
+  const { user } = useAuth();
+  const isPremium = !!(user?.is_premium || (user?.premium_tier && user.premium_tier !== 'free'));
   const [ad, setAd] = useState<any>(null);
 
   useEffect(() => {
+    if (isPremium) return;           // premium members are ad-free
     let mounted = true;
     (async () => {
       try {
@@ -32,9 +37,9 @@ export default function AdBanner({ zone, country, language, style }: {
       } catch { /* no banner / not eligible */ }
     })();
     return () => { mounted = false; };
-  }, [zone, country, language]);
+  }, [zone, country, language, isPremium]);
 
-  if (!ad) return null;
+  if (isPremium || !ad) return null;
 
   const onPress = async () => {
     api.post('/banner/click', { banner_id: ad.banner_id, zone }).catch(() => {});
