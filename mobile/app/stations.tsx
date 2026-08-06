@@ -294,7 +294,7 @@ export default function StationsScreen() {
                 <TouchableOpacity key={g} style={[s.chip, genre === g && s.chipActive]}
                   onPress={() => setGenre(g)} testID={`stations-genre-${g.toLowerCase()}`}>
                   <Text style={[s.chipText, genre === g && s.chipTextActive]}>
-                    {g === 'All' ? 'All' : g.charAt(0).toUpperCase() + g.slice(1)}
+                    {g === 'All' ? 'All' : g === 'edm' ? 'EDM' : g.charAt(0).toUpperCase() + g.slice(1)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -316,7 +316,7 @@ export default function StationsScreen() {
             <View style={s.promoWrap} testID="stations-promoted">
               <Text style={s.promoLabel}>SPONSORED STATIONS</Text>
               {promoted.map((p) => (
-                <TouchableOpacity key={p.id} style={s.promoCard} testID={`stations-promo-${p.id}`} activeOpacity={0.85}
+                <TouchableOpacity key={`promo-${p.id}`} style={s.promoCard} testID={`stations-promo-${p.id}`} activeOpacity={0.85}
                   onPress={() => { if (p.promo_id) api.post(`/promoted/${p.promo_id}/click`).catch(() => {}); playStation(p); }}>
                   <SafeImage uri={p.favicon || p.logo_url} fallbackText={p.name} size={44} borderRadius={10} />
                   <View style={{ flex: 1, minWidth: 0 }}>

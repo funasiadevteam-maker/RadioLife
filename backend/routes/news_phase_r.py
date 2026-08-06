@@ -23,6 +23,7 @@ router = APIRouter(tags=["phase-r-news"])
 
 NEWS_READ_REWARD = 1        # BigCoin per unique article read
 NEWS_READ_DAILY_CAP = 10    # max rewarded reads per day (anti-abuse)
+_news_read_idx_ready = False
 
 # ── Local strip (weather + prayer times) — keyless public APIs, lightly cached
 _WMO = {
@@ -103,14 +104,35 @@ async def news_read_reward(body: NewsReadBody, request: Request,
     db = request.app.state.db
     uid = user.get("user_id")
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    doc = await db.news_read_rewards.find_one({"user_id": uid, "date": today})
-    awarded_ids = (doc or {}).get("awarded_ids", [])
-    count = int((doc or {}).get("count", 0))
-    key = (body.headline_id or body.title or "").strip()
-    already = bool(key) and key in awarded_ids
+    global _news_read_idx_ready
+    if not _news_read_idx_ready:
+        try:
+            await db.news_read_rewards.create_index(
+                [("user_id", 1), ("date", 1)], unique=True)
+        except Exception:
+            pass
+        _news_read_idx_ready = True
+    key = (body.headline_id or body.title or "").strip() or f"anon_{datetime.now(timezone.utc).timestamp()}"
+    # Atomically claim the reward slot: only proceeds when this article isn't
+    # already rewarded today AND the daily cap isn't reached.  Prevents two
+    # concurrent reads from double-crediting (unique {user_id,date} index makes
+    # the upsert race fail closed).
+    claimed = None
+    try:
+        claimed = await db.news_read_rewards.find_one_and_update(
+            {"user_id": uid, "date": today,
+             "awarded_ids": {"$ne": key},
+             "count": {"$lt": NEWS_READ_DAILY_CAP}},
+            {"$inc": {"count": 1},
+             "$addToSet": {"awarded_ids": key},
+             "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+            upsert=True, return_document=True)
+    except Exception:
+        claimed = None  # already-claimed / cap reached (duplicate-key on upsert)
+    count = int((claimed or {}).get("count", 0))
     points = 0
     balance_after = None
-    if (not already) and count < NEWS_READ_DAILY_CAP:
+    if claimed is not None:
         try:
             res = await _bigcoin.award(db, uid, NEWS_READ_REWARD, source="news_read",
                 metadata={"headline_id": body.headline_id, "title": body.title})
@@ -118,13 +140,9 @@ async def news_read_reward(body: NewsReadBody, request: Request,
             balance_after = res.get("balance_after")
         except Exception:
             points = 0
-        await db.news_read_rewards.update_one(
-            {"user_id": uid, "date": today},
-            {"$inc": {"count": 1},
-             "$addToSet": {"awarded_ids": key or f"anon_{count}"},
-             "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
-            upsert=True)
-        count += 1
+    else:
+        existing = await db.news_read_rewards.find_one({"user_id": uid, "date": today})
+        count = int((existing or {}).get("count", 0))
     return {"awarded": points > 0, "points": points, "balance_after": balance_after,
             "daily_count": count, "daily_cap": NEWS_READ_DAILY_CAP}
 

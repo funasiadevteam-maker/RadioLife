@@ -1,5 +1,14 @@
 # BigFM — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-06 (Phase 1 of 3: filters, news reader+points, ads/premium)
+- **Iconized Explore filters**: Country/Language/Genre are now 3 labeled iconized rows (earth/language/musical-notes) with larger readable chips. ('EDM' cased correctly, promo keys namespaced.)
+- **Tappable news + native reader**: News cards + breaking cards open `/news-article` (native in-app reader: image, title, summary, source, 'Read full article' via in-app browser). Reading awards **+1 BigCoin per unique article**, server-capped at 10/day via `POST /api/news/read` (atomic claim + unique `{user_id,date}` index → no double-credit).
+- **Ads between sections + premium skip**: `AdBanner` sprinkled between Home sections (browse_row/station_detail/bottom_bar) and above News headlines; already on games/wallet/listen. `AdBanner` now returns null for premium users (gated on `is_premium`/`premium_tier`) — ad-free for paying members. Renders nothing when no live campaign (no empty boxes).
+- **Testing**: iteration_41.json — backend 8/8 pass; mobile flows verified.
+- **Confirmed fixed**: "Couldn't load games" (was the demo-login token bug).
+- **Remaining backlog** — Phase 2: AI-dynamic rewards (Emergent universal key) + coupon-fraud tracking (pull-vs-scan mismatch) + admin provisioning. Phase 3: restaurant 'More-tab' scan/redeem + restaurant loyalty tiers + admin-configurable game frequency limits. Also user asked to Claim Stripe LIVE via Publish (BYOK — user action; steps relayed via support).
+
+
 ## Changelog — 2026-08-06 (Advertiser Self-Serve + Analytics + Stripe top-ups + Local News tabs)
 - **Advertiser Self-Serve (mobile + backend)**: ad wallet (`promo_wallets`), `POST /api/promoted/self-serve` creates a station promo with CPM/CPC bids (auto-active when funded, else `awaiting_funds`), `POST /api/promoted/{id}/toggle` pause/resume. New mobile screen `app/advertiser/promote-station.tsx` (reachable via Profile > 'Sponsor a station' and the advertiser home banner).
 - **Sponsored Analytics**: `GET /api/promoted/mine` returns per-promo impressions/clicks/CTR/spend + totals; surfaced on the promote-station screen.
