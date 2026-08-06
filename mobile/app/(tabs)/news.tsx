@@ -19,6 +19,7 @@ export default function NewsScreen() {
   const [channels, setChannels] = useState<any[]>([]);
   const [breaking, setBreaking] = useState<any[]>([]);
   const [category, setCategory] = useState('');
+  const [scope, setScope] = useState<'local' | 'national'>('local');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState('');
@@ -26,12 +27,12 @@ export default function NewsScreen() {
   const load = useCallback(async () => {
     setErr('');
     try {
-      const q = new URLSearchParams({ limit: '50' });
+      const q = new URLSearchParams({ limit: '50', scope });
       if (category) q.set('category', category);
       const [hRes, cRes, bRes] = await Promise.allSettled([
         api.get(`/news/headlines?${q}`),
         api.get('/news/channels'),
-        api.get('/news/headlines/breaking'),
+        api.get(`/news/headlines/breaking`),
       ]);
       if (hRes.status === 'fulfilled') setHeadlines((hRes.value as any).data?.items || []);
       if (cRes.status === 'fulfilled') setChannels((cRes.value as any).data?.items || []);
@@ -39,7 +40,7 @@ export default function NewsScreen() {
     } catch (e: any) {
       setErr(e?.message || 'Failed to load news');
     } finally { setLoading(false); setRefreshing(false); }
-  }, [category]);
+  }, [category, scope]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -64,6 +65,24 @@ export default function NewsScreen() {
       >
         <Text testID="news-title" style={s.title}>News</Text>
         <Text style={s.subtitle}>Breaking headlines & local stories</Text>
+
+        {/* Local / National scope tabs */}
+        <View style={s.scopeRow}>
+          {(['local', 'national'] as const).map((sc) => {
+            const active = sc === scope;
+            return (
+              <TouchableOpacity key={sc} testID={`news-scope-${sc}`}
+                style={[s.scopeTab, active && s.scopeTabActive]}
+                onPress={() => setScope(sc)}>
+                <Ionicons name={sc === 'local' ? 'location' : 'globe-outline'} size={14}
+                  color={active ? '#fff' : COLORS.textMuted} />
+                <Text style={[s.scopeTabText, active && s.scopeTabTextActive]}>
+                  {sc === 'local' ? 'Local' : 'National'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {/* Breaking Strip */}
         {breaking.length > 0 && (
@@ -173,6 +192,11 @@ const s = StyleSheet.create({
   breakingSummary: { color: COLORS.textDim, fontSize: FONT.sm, lineHeight: 18, marginBottom: 6 },
   breakingSource: { color: COLORS.textMuted, fontSize: FONT.xs },
   chipRow: { marginBottom: SPACING.md, flexGrow: 0 },
+  scopeRow: { flexDirection: 'row', gap: 8, marginBottom: SPACING.md },
+  scopeTab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 999, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.border },
+  scopeTabActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  scopeTabText: { color: COLORS.textMuted, fontSize: FONT.sm, fontWeight: '800' },
+  scopeTabTextActive: { color: '#fff' },
   emptyWrap: { alignItems: 'center', paddingVertical: 40 },
   emptyText: { color: COLORS.textMuted, fontSize: FONT.md, marginTop: 8 },
   group: { marginBottom: SPACING.lg },

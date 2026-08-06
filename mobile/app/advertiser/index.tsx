@@ -104,6 +104,16 @@ export default function AdvertiserHome() {
           <StatCard icon="sparkles" label="Active" value={`${activeCampaigns.length}`} color={COLORS.primary} />
         </View>
 
+        {/* Sponsor a station (CPM/CPC) */}
+        <TouchableOpacity style={s.promoteBanner} onPress={() => router.push('/advertiser/promote-station')} testID="advertiser-promote-station-btn">
+          <Ionicons name="radio-outline" size={22} color={COLORS.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.promoteTitle}>Promote a station</Text>
+            <Text style={s.promoteSub}>Set CPM/CPC bids · appear first in Explore</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textDim} />
+        </TouchableOpacity>
+
         {/* Top-up Card */}
         <View style={[common.card, { marginTop: SPACING.md }]} testID="advertiser-topup-card">
           <Text style={s.cardTitle}>Top up ad wallet</Text>
@@ -232,4 +242,7 @@ const s = StyleSheet.create({
   statusPill: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
   barBg: { height: 4, backgroundColor: COLORS.surfaceBorder, borderRadius: 2, marginTop: SPACING.sm },
   barFill: { height: 4, backgroundColor: COLORS.secondary, borderRadius: 2 },
+  promoteBanner: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa' },
+  promoteTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800' },
+  promoteSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
 });

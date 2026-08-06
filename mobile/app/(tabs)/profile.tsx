@@ -128,6 +128,9 @@ export default function ProfileScreen() {
           <MenuItem icon="megaphone-outline" label="Advertise on RadioLife" sub="Create ads, manage campaigns"
             onPress={() => router.push('/advertiser')}
             testID="menu-advertiser" />
+          <MenuItem icon="radio-outline" label="Sponsor a station" sub="Promote a station · CPM/CPC bids"
+            onPress={() => router.push('/advertiser/promote-station')}
+            testID="menu-sponsor-station" />
           {creatorStatus === 'approved' && (
             <MenuItem icon="mic-outline" label="Creator Studio" sub="Manage channels, episodes, distribution"
               onPress={() => router.push('/creator')}

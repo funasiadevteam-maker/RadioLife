@@ -19,19 +19,24 @@ Endpoints:
 """
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import stripe
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from auth import current_user_optional, require_admin
+from auth import current_user, current_user_optional, require_admin
 from routes.radio_unified import (
     _ai_channel_to_card, _community_to_card, _imported_to_card,
 )
 
 router = APIRouter(prefix="/api/promoted", tags=["promoted-stations"])
+
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
+_TOPUP_PACKAGES = {"topup_10": 1000, "topup_25": 2500, "topup_50": 5000, "topup_100": 10000}
 
 
 def _now() -> datetime:
@@ -137,9 +142,39 @@ async def list_promoted_stations(
     return {"items": out, "total": len(out)}
 
 
+async def _uid(user: dict) -> str:
+    return user.get("user_id") or str(user.get("_id"))
+
+
+async def _get_wallet(db, advertiser_id: str) -> Dict[str, Any]:
+    w = await db.promo_wallets.find_one({"advertiser_id": advertiser_id})
+    if not w:
+        w = {"advertiser_id": advertiser_id, "balance_cents": 0,
+             "created_at": _now(), "updated_at": _now()}
+        await db.promo_wallets.insert_one(dict(w))
+    w.pop("_id", None)
+    return w
+
+
+async def _charge_and_maybe_pause(db, promo: Dict[str, Any], cents: int) -> None:
+    """Deduct `cents` from the owning advertiser's wallet; pause the promo
+    when the balance is exhausted.  House promos (no advertiser) are free."""
+    advertiser_id = promo.get("advertiser_id")
+    if not advertiser_id or cents <= 0:
+        return
+    w = await _get_wallet(db, advertiser_id)
+    new_balance = int(w.get("balance_cents", 0)) - cents
+    updates: Dict[str, Any] = {"balance_cents": new_balance, "updated_at": _now()}
+    await db.promo_wallets.update_one({"advertiser_id": advertiser_id}, {"$set": updates})
+    if new_balance <= 0:
+        await db.promoted_stations.update_one(
+            {"promo_id": promo.get("promo_id")},
+            {"$set": {"active": False, "status": "depleted", "updated_at": _now()}})
+
+
 @router.post("/{promo_id}/impression")
 async def track_impression(promo_id: str, request: Request):
-    """CPM accrual — one view."""
+    """CPM accrual — one view (also debits the advertiser wallet)."""
     db = request.app.state.db
     p = await db.promoted_stations.find_one({"promo_id": promo_id})
     if not p:
@@ -151,12 +186,13 @@ async def track_impression(promo_id: str, request: Request):
         {"promo_id": promo_id},
         {"$inc": {"impressions": 1, "spend_cents": accrue},
          "$set": {"updated_at": _now()}})
+    await _charge_and_maybe_pause(db, p, accrue)
     return {"ok": True, "promo_id": promo_id, "accrued_cents": accrue}
 
 
 @router.post("/{promo_id}/click")
 async def track_click(promo_id: str, request: Request):
-    """CPC accrual — one click."""
+    """CPC accrual — one click (also debits the advertiser wallet)."""
     db = request.app.state.db
     p = await db.promoted_stations.find_one({"promo_id": promo_id})
     if not p:
@@ -168,6 +204,7 @@ async def track_click(promo_id: str, request: Request):
         {"promo_id": promo_id},
         {"$inc": {"clicks": 1, "spend_cents": accrue},
          "$set": {"updated_at": _now()}})
+    await _charge_and_maybe_pause(db, p, accrue)
     return {"ok": True, "promo_id": promo_id, "accrued_cents": accrue}
 
 
@@ -205,3 +242,197 @@ async def admin_list_promos(request: Request, _admin=Depends(require_admin)):
         p.pop("_id", None)
         out.append(p)
     return {"items": out, "total": len(out)}
+
+
+# ─────────────────────────── Advertiser self-serve ───────────────────────────
+
+class SelfServeBody(BaseModel):
+    station_id:    str
+    sponsor_name:  Optional[str] = None
+    pricing_model: str = "cpm"              # "cpm" | "cpc"
+    cpm_bid_cents: Optional[int] = 500
+    cpc_bid_cents: Optional[int] = 25
+
+
+def _promo_stats(p: Dict[str, Any]) -> Dict[str, Any]:
+    imp = int(p.get("impressions") or 0)
+    clk = int(p.get("clicks") or 0)
+    ctr = round((clk / imp) * 100, 2) if imp else 0.0
+    return {
+        "promo_id":      p.get("promo_id"),
+        "station_id":    p.get("station_id"),
+        "sponsor_name":  p.get("sponsor_name"),
+        "pricing_model": p.get("pricing_model") or "cpm",
+        "cpm_bid_cents": int(p.get("cpm_bid_cents") or 0),
+        "cpc_bid_cents": int(p.get("cpc_bid_cents") or 0),
+        "active":        bool(p.get("active")),
+        "status":        p.get("status") or ("active" if p.get("active") else "paused"),
+        "impressions":   imp,
+        "clicks":        clk,
+        "ctr":           ctr,
+        "spend_cents":   int(p.get("spend_cents") or 0),
+        "created_at":    p.get("created_at"),
+    }
+
+
+@router.get("/wallet")
+async def get_wallet(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = await _uid(user)
+    w = await _get_wallet(db, uid)
+    n_active = await db.promoted_stations.count_documents(
+        {"advertiser_id": uid, "active": True})
+    return {"advertiser_id": uid, "balance_cents": int(w.get("balance_cents", 0)),
+            "active_promos": n_active,
+            "packages": [{"id": k, "amount_cents": v} for k, v in _TOPUP_PACKAGES.items()]}
+
+
+@router.post("/self-serve")
+async def create_self_serve_promo(body: SelfServeBody, request: Request,
+                                  user: dict = Depends(current_user)):
+    """A logged-in station owner promotes a station.  It auto-activates only
+    when the wallet has balance; otherwise it's created paused."""
+    db = request.app.state.db
+    uid = await _uid(user)
+    card = await _resolve_card(db, body.station_id)
+    if not card:
+        raise HTTPException(400, "station_id does not resolve to a station")
+    w = await _get_wallet(db, uid)
+    funded = int(w.get("balance_cents", 0)) > 0
+    doc = {
+        "promo_id":      f"promo_{uuid.uuid4().hex[:12]}",
+        "advertiser_id": uid,
+        "station_id":    body.station_id,
+        "sponsor_name":  body.sponsor_name or card.get("name"),
+        "pricing_model": body.pricing_model if body.pricing_model in ("cpm", "cpc") else "cpm",
+        "cpm_bid_cents": int(body.cpm_bid_cents or 0),
+        "cpc_bid_cents": int(body.cpc_bid_cents or 0),
+        "active":        funded,
+        "status":        "active" if funded else "awaiting_funds",
+        "impressions":   0, "clicks": 0, "spend_cents": 0,
+        "created_at":    _now(), "updated_at": _now(),
+    }
+    await db.promoted_stations.insert_one(doc)
+    doc.pop("_id", None)
+    return {"promo": _promo_stats(doc), "wallet_balance_cents": int(w.get("balance_cents", 0))}
+
+
+@router.get("/mine")
+async def my_promos(request: Request, user: dict = Depends(current_user)):
+    """Sponsor analytics — the caller's promos with impressions/clicks/CTR/spend."""
+    db = request.app.state.db
+    uid = await _uid(user)
+    promos: List[Dict[str, Any]] = []
+    tot_imp = tot_clk = tot_spend = 0
+    async for p in db.promoted_stations.find({"advertiser_id": uid}).sort("created_at", -1):
+        st = _promo_stats(p)
+        card = await _resolve_card(db, p.get("station_id"))
+        st["station_name"] = (card or {}).get("name") or p.get("sponsor_name")
+        st["logo_url"] = (card or {}).get("logo_url") or (card or {}).get("favicon")
+        promos.append(st)
+        tot_imp += st["impressions"]; tot_clk += st["clicks"]; tot_spend += st["spend_cents"]
+    w = await _get_wallet(db, uid)
+    return {
+        "items": promos, "total": len(promos),
+        "wallet_balance_cents": int(w.get("balance_cents", 0)),
+        "totals": {
+            "impressions": tot_imp, "clicks": tot_clk,
+            "ctr": round((tot_clk / tot_imp) * 100, 2) if tot_imp else 0.0,
+            "spend_cents": tot_spend,
+        },
+    }
+
+
+@router.post("/{promo_id}/toggle")
+async def toggle_promo(promo_id: str, request: Request,
+                       user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = await _uid(user)
+    p = await db.promoted_stations.find_one({"promo_id": promo_id, "advertiser_id": uid})
+    if not p:
+        raise HTTPException(404, "promo not found")
+    new_active = not bool(p.get("active"))
+    w = await _get_wallet(db, uid)
+    if new_active and int(w.get("balance_cents", 0)) <= 0:
+        raise HTTPException(400, "wallet balance is empty — top up to activate")
+    await db.promoted_stations.update_one(
+        {"promo_id": promo_id},
+        {"$set": {"active": new_active,
+                  "status": "active" if new_active else "paused",
+                  "updated_at": _now()}})
+    return {"ok": True, "promo_id": promo_id, "active": new_active}
+
+
+# ─────────────────────────── Stripe wallet top-up ───────────────────────────
+
+class TopupBody(BaseModel):
+    package_id: str
+    origin_url: str
+
+
+@router.post("/wallet/topup")
+async def wallet_topup(body: TopupBody, request: Request,
+                       user: dict = Depends(current_user)):
+    if body.package_id not in _TOPUP_PACKAGES:
+        raise HTTPException(400, "unknown package")
+    amount_cents = _TOPUP_PACKAGES[body.package_id]
+    db = request.app.state.db
+    uid = await _uid(user)
+    if not stripe.api_key:
+        raise HTTPException(503, "payments not configured")
+    origin = body.origin_url.rstrip("/")
+    session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "product_data": {"name": f"RadioLife Ad Wallet top-up (${amount_cents/100:.0f})"},
+                "unit_amount": amount_cents,
+            },
+            "quantity": 1,
+        }],
+        success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{origin}/payment/cancel",
+        metadata={"kind": "promo_topup", "advertiser_id": uid,
+                  "package_id": body.package_id, "amount_cents": str(amount_cents)},
+    )
+    await db.promo_topups.insert_one({
+        "session_id": session.id, "advertiser_id": uid,
+        "amount_cents": amount_cents, "status": "initiated",
+        "payment_status": "pending", "credited": False,
+        "created_at": _now(), "updated_at": _now(),
+    })
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@router.get("/wallet/topup/status/{session_id}")
+async def wallet_topup_status(session_id: str, request: Request):
+    db = request.app.state.db
+    rec = await db.promo_topups.find_one({"session_id": session_id})
+    if not rec:
+        raise HTTPException(404, "top-up not found")
+    if rec.get("payment_status") != "paid":
+        try:
+            s = stripe.checkout.Session.retrieve(session_id)
+            if s.payment_status == "paid" or s.status == "complete":
+                # Idempotent credit: only credit once.
+                res = await db.promo_topups.update_one(
+                    {"session_id": session_id, "credited": {"$ne": True}},
+                    {"$set": {"status": "completed", "payment_status": "paid",
+                              "credited": True, "updated_at": _now()}})
+                if res.modified_count == 1:
+                    await db.promo_wallets.update_one(
+                        {"advertiser_id": rec["advertiser_id"]},
+                        {"$inc": {"balance_cents": int(rec["amount_cents"])},
+                         "$set": {"updated_at": _now()}}, upsert=True)
+                    # Re-activate any awaiting-funds promos.
+                    await db.promoted_stations.update_many(
+                        {"advertiser_id": rec["advertiser_id"], "status": "awaiting_funds"},
+                        {"$set": {"active": True, "status": "active", "updated_at": _now()}})
+                rec = await db.promo_topups.find_one({"session_id": session_id})
+        except stripe.error.StripeError:
+            pass
+    w = await db.promo_wallets.find_one({"advertiser_id": rec["advertiser_id"]}) or {}
+    return {"session_id": session_id, "status": rec.get("status"),
+            "payment_status": rec.get("payment_status"),
+            "balance_cents": int(w.get("balance_cents", 0))}

@@ -40,18 +40,27 @@ def _live_article_to_public(a: Dict[str, Any], is_breaking: bool = False) -> Dic
 
 
 async def _fetch_live_headlines(request: Request, category: Optional[str],
-                                limit: int) -> List[Dict[str, Any]]:
+                                limit: int,
+                                market_override: Optional[str] = None,
+                                scope: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fallback source when the admin-curated pool is empty.  Resolves the
-    requester's market from geo/IP and pulls the live NewsAPI feed."""
+    requester's location from geo/IP and pulls the live NewsAPI feed.
+      • scope=local (default) → the resolved city-level market
+      • scope=national        → the resolved country code
+      • market_override       → explicit market, wins over scope"""
     if not (_newsapi.is_preferred() and _newsapi.enabled()):
         return []
-    market = None
-    try:
-        resolved = await _geo_svc.resolve_for_user(request, None,
-                                                   request.app.state.db)
-        market = resolved.get("market") or resolved.get("country")
-    except Exception:
-        market = None
+    market = market_override
+    if not market:
+        try:
+            resolved = await _geo_svc.resolve_for_user(request, None,
+                                                       request.app.state.db)
+            if scope == "national":
+                market = resolved.get("country") or resolved.get("market")
+            else:
+                market = resolved.get("market") or resolved.get("country")
+        except Exception:
+            market = None
     try:
         arts = await _newsapi.fetch_top_headlines(
             market=market, category=category, page_size=max(limit, 10))
@@ -314,14 +323,20 @@ async def public_channel_detail(channel_id: str, request: Request):
 async def public_headlines(request: Request,
                             region_code: Optional[str] = None,
                             category:    Optional[str] = None,
+                            scope:       Optional[str] = None,
+                            market:      Optional[str] = None,
                             limit: int = Query(50, ge=1, le=200)):
     rows = await svc.list_public_headlines(
         request.app.state.db, region_code=region_code,
         category=category, limit=limit)
     # Fallback to the live NewsAPI feed when no admin-curated headlines
     # exist for this filter, so the app always shows fresh news.
+    #   scope=local    → use the caller's resolved geo market
+    #   scope=national → drop the market for broad national/world coverage
     if not rows:
-        live = await _fetch_live_headlines(request, category, limit)
+        override = market
+        live = await _fetch_live_headlines(request, category, limit,
+                                           market_override=override, scope=scope)
         rows = [_live_article_to_public(a) for a in live][:limit]
     return {"items": rows, "total": len(rows)}
 

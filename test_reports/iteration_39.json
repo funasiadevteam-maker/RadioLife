@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 39 — Advertiser Self-Serve + Sponsored Analytics + Local/National News + Stripe wallet top-ups. Backend pytest 14/14 pass (/api/promoted/wallet returns balance_cents + all 4 packages topup_10/25/50/100 and requires auth; POST /api/promoted/self-serve creates a promo and returns awaiting_funds/inactive when wallet=0; GET /api/promoted/mine returns promo with impressions/clicks/ctr/spend/pricing_model/status/active + totals; POST /api/promoted/{id}/toggle → 400 'wallet balance is empty' when activating with $0 wallet, 404 for unknown promo; POST /api/promoted/wallet/topup returns a real Stripe TEST checkout_url + session_id, 400 on unknown package; GET /api/promoted/wallet/topup/status/{sid} returns balance_cents + payment_status for unpaid session and 404 for unknown session; impression + click still 200 with ok=true on house promo — wallet debit path is exercised and safe when advertiser_id is missing; /api/news/headlines?scope=local and ?scope=national both return live NewsAPI headlines with the public shape). Mobile (Expo web preview @ 390x844): 'Try the demo' logs in and lands on /home with 'RadioLife.app' wordmark, 'Welcome back, Demo' + 'DIL SE · DALLAS SE', BREAKING headline, TOP PLAYED STATIONS square rail, sponsored T1 tile. News tab renders both 'Local' (news-scope-local) and 'National' (news-scope-national) chips; switching National reloads and shows the same live headlines pool (pod egress = US so both resolve to a US market). Profile > 'Sponsor a station' (menu-sponsor-station) opens /advertiser/promote-station: promo-wallet-card shows $0.00 (AD WALLET BALANCE), all 4 top-up chips promo-topup-topup_10/25/50/100 render, promo-analytics-totals shows Impressions/Clicks/CTR/Spend cards, 12 candidate stations render, promo-model-cpm / promo-model-cpc tabs switch, 'Promote station' (promo-create-btn) creates a self-serve promo, 'My promotions' list shows 4 rows with promo-toggle-{id} pause/resume buttons and 'awaiting_funds' status because wallet is $0 — matches spec.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Home", "issues": ["Mixed-content warnings persist for http:// station logos (cdn-profiles.tunein.com). Non-blocking, carried over from iter38."]}
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props are deprecated in React Native Web — use 'boxShadow'. Repeated console warning on load. Carried over from iter38."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' Warning fires after demo login. Carried over from iter38."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter39_advertiser_selfserve.py",
+    "/app/test_reports/pytest/iter39.xml",
+    "/tmp/mobile_home_iter39.png",
+    "/tmp/news_scope_iter39.png",
+    "/tmp/profile_iter39.png",
+    "/tmp/promote_iter39.png",
+    "/tmp/promote_after_iter39.png"
+  ],
+  "action_items": [
+    "LOW: Replace deprecated shadow* RN style props with boxShadow across mobile styles (already flagged iter38).",
+    "LOW: Replace props.pointerEvents with style.pointerEvents in mobile RN components (already flagged iter38).",
+    "OPTIONAL: /api/news/headlines?scope=local and ?scope=national return identical content when pod egress is US — resolver puts market and country both to US. Consider passing an explicit ?market= param from the client based on the resolved geo market so 'Local' can hit a city-scoped feed like nyc/dfw. Not a blocker (spec says driven by resolved geo)."
+  ],
+  "critical_code_review_comments": [
+    "promoted_stations._charge_and_maybe_pause debits the wallet AFTER incrementing spend_cents on the promo doc; if the wallet update fails we drift (spend accrued but not debited). Consider using a Motor transaction or upsert with a compensating adjustment path. Reference: /app/backend/routes/promoted_stations.py:159-172.",
+    "wallet_topup_status calls stripe.checkout.Session.retrieve on every poll while payment_status != 'paid'. For the mobile client polling loop (5x every 2s) that's up to 5 Stripe reads per top-up — fine at test scale but consider rate-limiting or caching to avoid runaway calls on production.",
+    "PromoCreateBody (admin) and SelfServeBody (self-serve) diverge — self-serve does not accept an 'active' flag and always trusts wallet balance to auto-activate; that's correct, but ensure the docs/spec note this so no client tries to pass active=false on self-serve.",
+    "MOCKED: CPM/CPC spend accrual + wallet debit is accounting-only. Only real money moves through Stripe wallet top-ups. Matches review's 'MOCKED billing' note."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter39_advertiser_selfserve.py"],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% of spec items verified on mobile (web not in scope for this iteration's new features)"},
+  "test_credentials": "Mobile: tap 'Try the demo' (testID demo-login-btn). Backend test helper: POST /api/auth/_demo_reset_rate_limit resets the rate bucket. Stripe TEST mode — checkout URLs are real but no card was submitted.",
+  "seed_data_creation": "GET /api/promoted/stations auto-seeds house promos (idempotent). Self-serve test creates one TEST_iter39_sponsor promo and one TEST_iter39_toggle promo per run under the demo user's advertiser_id (safe to retain).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend: 14/14 tests in /app/backend/tests/test_iter39_advertiser_selfserve.py cover the review scope (wallet, self-serve, mine, toggle, Stripe topup + status, impression/click, news local/national). NOTE: session-level cookies from POST /api/auth/demo persist through requests.Session — use a fresh `requests.get` when asserting 401 on unauthenticated calls. Mobile flows all pass on the Expo web preview. Screenshots at /tmp/*iter39*.png. Local/National news content is identical when pod egress is US; consider passing explicit market= on the client to test true divergence.",
+  "rca of the issue": "N/A — all 4 approved features work end-to-end."
+}
