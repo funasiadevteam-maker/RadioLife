@@ -1,0 +1,55 @@
+{
+  "summary": "Iteration 42 — Phase 2/3 AI Reward Engine + Coupon Fraud + Merchant Loyalty + Game Frequency Limits. Backend pytest 12/12 pass (POST /api/rewards/scan-earn returns points/multiplier(1.0-3.0)/reason/tier/bonuses, awards BigCoin, logs scan_earn_events + coupon_show_event when merchant_id passed, and correctly rejects amount_usd<=0 with 400; threshold bonus fires ONCE when lifetime crosses 25pt threshold (bonus_points>=7, bonus_games_unlocked:true, concert_pass:true) and is idempotent on repeat scan (rewards_thresholds_hit persisted, bonus_points:0 second time, user.bonus_games_unlocked + user.concert_pass_eligible set in Mongo); POST /api/coupon-events/show returns cev_* event id with redeemed:false; POST /api/merchant/redeem returns matched_show_event:true when a prior show exists AND reconciles the show event to redeemed:true in Mongo AND returns loyalty tier; GET /api/merchant/loyalty returns merchant_id + redemptions_today + tier ∈ {Standard,Silver,Gold} + rate + next_tier; GET /api/admin/coupon-fraud with min_shows=5&flag_rate=0.5 returns per-merchant shows/redemptions/unredeemed/redemption_rate AND correctly flags a merchant with 6 shows/0 redemptions (flagged:true); GET/PUT /api/rewards/config admin round-trip works (base_points_per_dollar 1.0 → 1.5 → 1.0), and unauthenticated GET returns 401/403; PUT /api/games/limits creates daily_spin cap=2/day, GET /api/games/play-eligibility/daily_spin reflects plays_used 0→1→2 and eligible flips to false, third POST /api/games/record-play returns 429 with code:play_limit_reached; GET /api/games/limits admin lists persisted limits). Mobile (Expo web @ 390x844): demo login → /home ok, More tab opens profile-page showing menu-scan-earn ('Scan & Earn — AI-decided points per dollar spent') and menu-merchant-redeem ('Redeem & Loyalty — Business: redeem coupons · loyalty tier'). Tapping menu-scan-earn → /scan-earn: submitting amount=20 + merchant=m_uitest triggers AI call, response renders '+38 BigCoin · AI multiplier ×1.9 · Silver tier · \"High recent engagement with 9 scans in 30 days\"' inside scan-earn-result — real dynamic gpt-5.4 output with sensible bounded multiplier. Tapping menu-merchant-redeem → /merchant/redeem: merchant-loyalty-card renders 'Standard · 10% rate, 1 redemptions today, Reach 10/day for 12% (Silver)' (next_tier hint works). Redeem button posts to /merchant/redeem successfully. Regression: home screen wordmark, BigCoin balance card, featured stations, top played stations, and demo login all render.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Merchant Redeem — loyalty refresh after Scan/Redeem tap", "issue": "After tapping 'Scan / Redeem' the merchant-loyalty-card does not visibly re-fetch 'redemptions_today' (Alert.alert blocks state paint on web preview and the setLoyalty(r.data.loyalty) call happens synchronously but user sees the same counter). Backend counter DOES increment (verified via pytest). Consider dismissing the Alert first, or replacing Alert with an inline toast/badge, then triggering a fresh loadLoyalty(merchant) refresh. Reference: /app/mobile/app/merchant/redeem.tsx:35-41", "affected_testIDs": ["merchant-loyalty-card", "merchant-redemptions-today"]}
+      ],
+      "design_issues": [
+        {"screen": "Scan & Earn", "issues": ["'Scan & Earn points' primary CTA is missing the sparkles icon on the button (the icon sits in the hero card only). Cosmetic — CTA text is clear."]}
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props are deprecated in React Native Web — use 'boxShadow'. Warning fires on load. Carried over from iter38-41 (not new to iter42)."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' Carried over from iter38-41 (not new to iter42)."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter42_rewards_merchant.py",
+    "/app/test_reports/pytest/iter42.xml",
+    "/tmp/iter42_profile.png",
+    "/tmp/iter42_scan_earn_result.png",
+    "/tmp/iter42_merchant_redeem.png"
+  ],
+  "action_items": [
+    "LOW: Refresh merchant-loyalty-card after a successful /merchant/redeem — either dismiss Alert first and re-call loadLoyalty(merchant), or replace Alert with an inline toast so setLoyalty(r.data.loyalty) becomes visible immediately. Reference: /app/mobile/app/merchant/redeem.tsx:27-44.",
+    "OPTIONAL: In /api/merchant/redeem, `matched_show_event` reports True even if `body.user_id` is not passed and there are multiple concurrent customers with pending shows — the find_one_and_update sort=[('shown_at', -1)] just picks the newest for that merchant. This is acceptable at low volume, but consider requiring at least one of user_id or coupon_id to reduce cross-user mis-reconciliation risk. Reference: /app/backend/routes/rewards_merchant.py:228-236.",
+    "OPTIONAL: /api/rewards/scan-earn silently swaps LLM output with the deterministic fallback on any exception (broad `except Exception`). Consider surfacing an internal metric/log warning when this happens so ops can detect Emergent LLM outages. Reference: /app/backend/routes/rewards_merchant.py:112-113.",
+    "OPTIONAL: `bigcoin_lifetime` inference on line 133 falls back to `bigcoin_balance` if lifetime is missing — this means a user who spent BigCoin will have a lower reported lifetime than reality and might re-cross a threshold if we ever reset lifetime. Consider standing up an explicit `users.bigcoin_lifetime` write in the bigcoin service on award and reading only that. Reference: /app/backend/routes/rewards_merchant.py:133.",
+    "OPTIONAL: /api/games/record-play raises HTTPException(429, {code:'play_limit_reached', ...}) — FastAPI serialises this into `{detail: {...}}`, but clients that read `response.error.code` (rather than `response.error.detail.code`) will miss the code. Consider a top-level `code` alongside `detail` (via custom exception handler) or document the shape.",
+    "CARRIED FROM iter41: replace deprecated shadow* RN style props with boxShadow.",
+    "CARRIED FROM iter41: replace props.pointerEvents with style.pointerEvents."
+  ],
+  "critical_code_review_comments": [
+    "/api/rewards/scan-earn threshold-bonus loop mutates `new_lifetime` inside the loop and immediately checks `new_lifetime >= tp` for the NEXT threshold — this means one large scan can cross BOTH thresholds in a single request and grant both bonuses at once. Currently intentional (idempotent per threshold via rewards_thresholds_hit), and pytest confirms idempotency, but call this out in product docs.",
+    "AI multiplier's deterministic fallback curve `fb = lo + min(scans,20)*(hi-lo)/20` is capped at 20 scans — no reward differentiation past 20 scans in the window. Consider a logarithmic tail (`log(1+scans)/log(21)`) or a longer plateau if power-users are a segment.",
+    "coupon-fraud aggregation groups by merchant_id with $sum on shows/redemptions — no time window filter. For a merchant with historically low redemption rate that recently improved, they still stay flagged. Consider adding `$match: {shown_at: {$gte: since_days_ago}}` (window param) so recent behaviour drives the flag.",
+    "MerchantRedeemBody accepts `user_id` and `coupon_id` from the request without verifying the caller is actually the merchant of `merchant_id` — any authenticated user can call /api/merchant/redeem for any merchant_id, potentially inflating another merchant's redemption count. Consider gating with a require_merchant(merchant_id) dep that checks the caller owns/operates that merchant.",
+    "game_play_limits schema has `period` ∈ {day,month,days} but no validator enforces the enum — a typo like period='week' silently degrades to 'day' via _period_start's else branch. Add pydantic Literal or a validator.",
+    "reward_engine_config uses `_id: 'config'` as the primary key which is fine, but the pop('_id') in GET/PUT responses is duplicated — extract a `_public_cfg` helper.",
+    "MOCKED: reward spend/points are internal BigCoin accounting (no real money); merchant loyalty 'rate' is a config value, not a live payout. Confirmed in scope."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter42_rewards_merchant.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% of iter42 spec items verified"},
+  "test_credentials": "Mobile: 'Try the demo' (testID demo-login-btn). Admin endpoints tested via Mongo role='admin' promotion on the demo user in fixture (restored on teardown). Emergent LLM key from backend/.env.",
+  "seed_data_creation": "During pytest: 1 threshold-crossing user state on demo user (rewards_thresholds_hit=[25], bonus_games_unlocked=true, concert_pass_eligible=true — reset by autouse fixture before each test; final teardown returns role to non-admin). Mongo collections written: scan_earn_events, coupon_show_events (multiple TEST_ merchants incl. m_TEST_* + m_TEST_FRAUD_*), merchant_redemptions, reward_engine_config (config _id), game_play_limits (daily_spin cap=2), game_plays. During mobile UI test: 1 real scan-earn under demo user with merchant=m_uitest (+38 BigCoin awarded via bigcoin service) + 1 real merchant redeem for m_uitest. Cleanup of TEST_ prefixed docs left to next iteration if desired.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live in /app/backend/tests/test_iter42_rewards_merchant.py — 12 tests covering scan-earn (3), thresholds (1), coupon/redeem/fraud (4), admin config (2), game limits (2). The admin_session fixture promotes the demo user to role='admin' in Mongo and restores role on teardown; because both demo_session and admin_session share the same user_id, the same session token has admin power during the run — tests that need to prove 'non-admin gets 403' should send an UNAUTHENTICATED request (that's what test_reward_config_requires_admin does). AI multiplier can be slow (~4-8s on scan-earn) — allow 15s+ wait on UI. Mobile flow: log in via demo-login-btn → tap 'More' tab (last tabbar item) → profile-page shows menu-scan-earn + menu-merchant-redeem. Screenshots at /tmp/iter42_*.png. Backend router in /app/backend/routes/rewards_merchant.py is auto-loaded via server.py:5539-5543.",
+  "rca of the issue": "N/A — all 4 in-scope Phase 2/3 features (AI reward engine, coupon-fraud tracking, merchant redeem + loyalty tiers, game frequency limits) verified end-to-end on backend + mobile UI with real Emergent LLM output. Only observed nit: merchant-loyalty-card doesn't visibly refresh after a redeem tap because Alert.alert blocks the paint on web preview — backend counter DOES increment (pytest proves it)."
+}

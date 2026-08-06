@@ -5534,6 +5534,14 @@ try:
 except Exception as _e:
     logger.warning("promoted_stations router not loaded: %s", _e)
 
+# Rewards engine + coupon-fraud + merchant redeem/loyalty + game limits.
+try:
+    from routes.rewards_merchant import router as rewards_merchant_router
+    app.include_router(rewards_merchant_router)
+    logger.info("Rewards/merchant routes: /api/rewards, /api/merchant, /api/games/limits wired")
+except Exception as _e:
+    logger.warning("rewards_merchant router not loaded: %s", _e)
+
 # Phase 42-D — wire 42-D2 admin grants + voucher redemption + 42-D3 station favorites.
 try:
     from routes.admin_subscriptions import (router as _admin_subs_router,
