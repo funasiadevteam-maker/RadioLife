@@ -1,5 +1,16 @@
 # BigFM — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-06 (RadioLife.app rebrand + Promoted Stations + News fix)
+- **Rebrand BigFM → RadioLife.app** across web + mobile (user-visible text only; internal keys/CSS/events/bundle IDs untouched). Wordmark `BigFM.AI → RadioLife.app`. Added tappable **funasianetwork.com** footer link (mobile FunAsiaFooter component on Home/Login/Profile; web LegalFooter, AppShell sidebar, LandingV2 + MarketingShell footers).
+- **Home blockers fixed**: Top Played rail now renders; All Stations Genre filter now passes `category` param and re-fetches (iter37 bug).
+- **News fix**: `/api/news/*` was served by an empty admin-curated Phase-R router shadowing the live NewsAPI feed. Added live NewsAPI fallback in `routes/news_phase_r.py` (public_headlines + public_breaking), geo-market aware, mapped to headline_text/summary_text shape. Mobile News tab + Home breaking banner now populated.
+- **Demo login geo city**: `backend/auth.py` demo_login now resolves market/city from geo/IP (was hardcoded Dubai). Demo user name reset (no 'BigFM'). Home hero tagline + Radio header city now dynamic via `/api/geo/resolve_city`.
+- **Demo-login bug fix**: `login.tsx` demo handler now wires session via api-client `saveToken` + AuthContext `setUser` (was stuck on splash spinner because AuthContext user stayed null).
+- **Promoted / Sponsored stations (NEW)**: `routes/promoted_stations.py` (`/api/promoted/*`) — seed-on-empty from flagships, serve cards with `is_sponsored`, CPM/CPC impression+click tracking (spend accrual is **MOCKED** accounting-only, no wallet/Stripe settlement). Mobile Home: two new square-thumbnail rails (Top Played + Most Played Live, sponsored first w/ 'Sponsored' tag); All Stations: pinned 'Sponsored stations' header. Admin create endpoint + admin list included.
+- **Testing**: iteration_38.json — backend 7/7 pytest pass; mobile + web flows verified.
+- **Stripe "production"**: NOT switched. Cannot hardcode live keys; going live requires claiming the Stripe account via Emergent Publish/deploy (code already reads env-driven STRIPE_MODE/keys).
+
+
 ## Original problem statement (this dispatch)
 Phase H v1 (Commute Mode MVP): a logged-in listener enters a destination,
 sees a real Google Map with route polyline, ETA, traffic, and gets a
