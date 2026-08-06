@@ -5526,6 +5526,14 @@ try:
 except Exception as _e:
     logger.warning("Phase 42-A2 radio_unified router not loaded: %s", _e)
 
+# Promoted / sponsored radio stations (CPM/CPC).
+try:
+    from routes.promoted_stations import router as promoted_stations_router
+    app.include_router(promoted_stations_router)
+    logger.info("Promoted stations routes: /api/promoted/* wired")
+except Exception as _e:
+    logger.warning("promoted_stations router not loaded: %s", _e)
+
 # Phase 42-D — wire 42-D2 admin grants + voucher redemption + 42-D3 station favorites.
 try:
     from routes.admin_subscriptions import (router as _admin_subs_router,

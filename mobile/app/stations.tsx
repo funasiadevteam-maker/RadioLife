@@ -66,11 +66,23 @@ export default function StationsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [nowPlayingId, setNowPlayingId] = useState<string | null>(null);
+  const [promoted, setPromoted] = useState<any[]>([]);
 
   const { setActiveChannel, setCurrentSeg, setPlaying, setSession } = usePlayerStore();
   const { favorites, recents, load: loadSaved, isFavorite, toggleFavorite, addRecent } = useStationsStore();
 
   useEffect(() => { loadSaved(); }, [loadSaved]);
+
+  // Sponsored / promoted stations pinned to the top of Browse.
+  useEffect(() => {
+    api.get('/promoted/stations?limit=6').then((r) => {
+      const items = r.data?.items || [];
+      setPromoted(items);
+      items.forEach((p: any) => {
+        if (p.promo_id) api.post(`/promoted/${p.promo_id}/impression`).catch(() => {});
+      });
+    }).catch(() => {});
+  }, []);
 
   // Debounce the search box
   useEffect(() => {
@@ -291,6 +303,25 @@ export default function StationsScreen() {
           extraData={`${nowPlayingId}-${favorites.length}-${mode}`}
           keyExtractor={(i) => i.id}
           renderItem={renderItem}
+          ListHeaderComponent={mode === 'browse' && promoted.length > 0 ? (
+            <View style={s.promoWrap} testID="stations-promoted">
+              <Text style={s.promoLabel}>SPONSORED STATIONS</Text>
+              {promoted.map((p) => (
+                <TouchableOpacity key={p.id} style={s.promoCard} testID={`stations-promo-${p.id}`} activeOpacity={0.85}
+                  onPress={() => { if (p.promo_id) api.post(`/promoted/${p.promo_id}/click`).catch(() => {}); playStation(p); }}>
+                  <SafeImage uri={p.favicon || p.logo_url} fallbackText={p.name} size={44} borderRadius={10} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={s.stationName} numberOfLines={1}>{p.name}</Text>
+                    <View style={s.promoTag}>
+                      <Ionicons name="megaphone" size={9} color={COLORS.textMuted} />
+                      <Text style={s.promoTagText}>Sponsored</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="play-circle" size={26} color={COLORS.primary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
           contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: 100, paddingTop: SPACING.xs }}
           onEndReached={mode === 'browse' ? loadMore : undefined}
           onEndReachedThreshold={0.5}
@@ -399,4 +430,14 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.cardBorder,
   },
   loadMoreText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '700' },
+  promoWrap: { marginBottom: SPACING.sm },
+  promoLabel: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800', letterSpacing: 2, marginBottom: 8 },
+  promoCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#fff7ed', borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: '#fed7aa',
+    padding: SPACING.sm + 2, marginBottom: 8,
+  },
+  promoTag: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3, alignSelf: 'flex-start', backgroundColor: COLORS.inputBg, borderRadius: RADIUS.sm, paddingHorizontal: 6, paddingVertical: 2 },
+  promoTagText: { color: COLORS.textMuted, fontSize: 8, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
 });

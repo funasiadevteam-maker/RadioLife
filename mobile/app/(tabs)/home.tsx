@@ -26,6 +26,9 @@ export default function HomeScreen() {
   const [wallet, setWallet] = useState<any>(null);
   const [deals, setDeals] = useState<any[]>([]);
   const [topStations, setTopStations] = useState<any[]>([]);
+  const [mostPlayedLive, setMostPlayedLive] = useState<any[]>([]);
+  const [promoted, setPromoted] = useState<any[]>([]);
+  const [cityLabel, setCityLabel] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { activeChannelName, activeChannelThumb, currentSeg } = usePlayerStore();
@@ -40,12 +43,13 @@ export default function HomeScreen() {
 
   const load = async () => {
     try {
-      const [chRes, brRes, wRes, dRes, dscRes] = await Promise.allSettled([
+      const [chRes, brRes, wRes, dRes, dscRes, prRes] = await Promise.allSettled([
         api.get('/channels'),
         api.get('/news/headlines/breaking'),
         api.get('/bigcoin/me'),
         api.get('/commerce/offers/feed'),
         api.get('/radio/discover'),
+        api.get('/promoted/stations?limit=6'),
       ]);
       if (chRes.status === 'fulfilled') setChannels((chRes.value as any).data?.channels || []);
       if (brRes.status === 'fulfilled') setBreaking((brRes.value as any).data?.items || []);
@@ -55,13 +59,38 @@ export default function HomeScreen() {
         const rails = (dscRes.value as any).data?.rails || [];
         const railMap: Record<string, any[]> = {};
         rails.forEach((r: any) => { railMap[r.id] = r.stations || []; });
-        setTopStations((railMap.trending?.length ? railMap.trending : railMap.for_you) || []);
+        setTopStations((railMap.trending?.length ? railMap.trending : (railMap.for_you || railMap.ai_curated)) || []);
+        setMostPlayedLive((railMap.local?.length ? railMap.local : railMap.trending) || []);
       }
+      if (prRes.status === 'fulfilled') setPromoted((prRes.value as any).data?.items || []);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => { if (!authLoading && user) load(); }, [authLoading, user]);
+
+  // Fire a CPM impression for each sponsored station shown.
+  useEffect(() => {
+    promoted.forEach((p) => {
+      if (p.promo_id) api.post(`/promoted/${p.promo_id}/impression`).catch(() => {});
+    });
+  }, [promoted]);
+
+  // Resolve the listener's city (geo/IP) so the hero reflects where they are.
+  useEffect(() => {
+    if (!user) return;
+    api.get('/geo/resolve_city').then((r) => {
+      const c = r.data?.city;
+      if (c && String(c).toLowerCase() !== 'global') setCityLabel(String(c));
+    }).catch(() => {});
+  }, [user]);
+
+  const playSquare = (item: any) => {
+    if (item?.is_sponsored && item?.promo_id) {
+      api.post(`/promoted/${item.promo_id}/click`).catch(() => {});
+    }
+    playImportedStation(item, router);
+  };
 
   if (authLoading || loading) {
     return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -69,6 +98,15 @@ export default function HomeScreen() {
 
   const featured = channels.slice(0, 6);
   const firstName = user?.name?.split(' ')[0] || '';
+
+  // Merge sponsored (first) into Top Played, de-duped by id.
+  const _seen = new Set<string>();
+  const topPlayed = [...promoted, ...topStations].filter((st) => {
+    const id = st?.id;
+    if (!id || _seen.has(id)) return false;
+    _seen.add(id);
+    return true;
+  });
 
   return (
     <SafeAreaView style={common.screen}>
@@ -90,7 +128,7 @@ export default function HomeScreen() {
         {/* Hero Card */}
         <View style={s.hero} testID="home-hero">
           <Text style={s.heroGreet}>Welcome back{firstName ? `, ${firstName}` : ''} 👋</Text>
-          <Text style={s.heroTag}>DIL SE · DUBAI SE</Text>
+          <Text style={s.heroTag}>DIL SE · {(cityLabel || 'DUBAI').toUpperCase()} SE</Text>
           <TouchableOpacity style={s.heroBtn} onPress={() => router.push('/(tabs)/listen')} testID="home-listen-cta">
             <Ionicons name="radio" size={18} color="#fff" />
             <Text style={s.heroBtnText}>{activeChannelName ? 'Now Playing' : 'Start Listening'}</Text>
@@ -163,19 +201,25 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        {/* Top Played Stations rail */}
-        {topStations.length > 0 && (
+        {/* Top Played Stations — square thumbnails, sponsored first */}
+        {topPlayed.length > 0 && (
           <>
             <Text style={[common.sectionTitle, { marginTop: SPACING.lg, paddingHorizontal: SPACING.md }]}>TOP PLAYED STATIONS</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}>
-              {topStations.slice(0, 10).map((st, idx) => (
-                <TouchableOpacity key={st.id || idx} style={s.topStationTile}
-                  testID={`home-top-station-${st.id || idx}`}
-                  onPress={() => playImportedStation(st, router)} activeOpacity={0.85}>
-                  <SafeImage uri={resolveImg(st.favicon || st.logo_url || st.cover_image_url)} fallbackText={st.name} size={92} borderRadius={16} />
-                  <Text style={s.topStationName} numberOfLines={1}>{st.name}</Text>
-                  <Text style={s.topStationSub} numberOfLines={1}>{[st.country, st.language].filter(Boolean).join(' · ') || 'Live'}</Text>
-                </TouchableOpacity>
+              {topPlayed.slice(0, 12).map((st, idx) => (
+                <SquareTile key={st.id || idx} item={st} idx={idx} onPress={() => playSquare(st)} prefix="home-top-station" />
+              ))}
+            </ScrollView>
+          </>
+        )}
+
+        {/* Most Played Live Stations — square thumbnails */}
+        {mostPlayedLive.length > 0 && (
+          <>
+            <Text style={[common.sectionTitle, { marginTop: SPACING.lg, paddingHorizontal: SPACING.md }]}>MOST PLAYED LIVE STATIONS</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}>
+              {mostPlayedLive.slice(0, 12).map((st, idx) => (
+                <SquareTile key={st.id || idx} item={st} idx={idx} onPress={() => playSquare(st)} prefix="home-live-station" />
               ))}
             </ScrollView>
           </>
@@ -252,6 +296,22 @@ function QuickLink({ icon, label, color, onPress, testID }: { icon: any; label: 
   );
 }
 
+function SquareTile({ item, idx, onPress, prefix }: { item: any; idx: number; onPress: () => void; prefix: string }) {
+  return (
+    <TouchableOpacity style={s.squareTile} testID={`${prefix}-${item.id || idx}`} onPress={onPress} activeOpacity={0.85}>
+      <SafeImage uri={resolveImg(item.favicon || item.logo_url || item.cover_image_url)} fallbackText={item.name} size={110} borderRadius={16} />
+      <Text style={s.squareName} numberOfLines={1}>{item.name}</Text>
+      <Text style={s.squareSub} numberOfLines={1}>{[item.country, item.language].filter(Boolean).join(' · ') || 'Live'}</Text>
+      {item.is_sponsored && (
+        <View style={s.sponsorTag} testID={`${prefix}-sponsored-${item.id || idx}`}>
+          <Ionicons name="megaphone" size={9} color={COLORS.textMuted} />
+          <Text style={s.sponsorTagText}>Sponsored</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 const s = StyleSheet.create({
   scroll: { paddingBottom: 40 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.md, paddingTop: SPACING.lg },
@@ -324,6 +384,11 @@ const s = StyleSheet.create({
   topStationTile: { width: 92 },
   topStationName: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '700', marginTop: 5 },
   topStationSub: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600', marginTop: 1 },
+  squareTile: { width: 110 },
+  squareName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700', marginTop: 6 },
+  squareSub: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600', marginTop: 1 },
+  sponsorTag: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4, alignSelf: 'flex-start', backgroundColor: COLORS.inputBg, borderRadius: RADIUS.sm, paddingHorizontal: 6, paddingVertical: 2 },
+  sponsorTagText: { color: COLORS.textMuted, fontSize: 8, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
   seeAll: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 10, marginHorizontal: SPACING.md,

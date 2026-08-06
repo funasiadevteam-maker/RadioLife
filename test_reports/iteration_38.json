@@ -1,0 +1,58 @@
+{
+  "summary": "Iteration 38 — RadioLife.app rebrand + Promoted stations (CPM/CPC) + News live fallback + demo-login geo/session fix. Backend pytest 7/7 pass (news headlines/breaking populate via NewsAPI fallback with correct public shape; /api/promoted/stations seeds sponsored cards with is_sponsored/promo_id/pricing_model/sponsor_name; impression + click increment counters, CPC accrues, bad promo_id -> 404; POST /api/auth/demo returns non-'BigFM Demo Listener' name + session_token + market from geo). Mobile Expo web preview: 'Try the demo' logs in and lands on /home (no infinite splash); Home wordmark = 'RadioLife.app'; welcome shows 'Demo' + 'DIL SE · DALLAS SE' (geo-resolved market — pod egresses in US so market=dfw); BREAKING banner shows live NewsAPI headline; TOP PLAYED STATIONS + MOST PLAYED LIVE STATIONS square rails render; first two tiles carry 'SPONSORED' tag (Talk 100.3 UAE, Luv 107.1 UAE); FunAsia footer link visible. Mobile News tab renders live headlines (BBC/TMZ/WSJ/CBS). Mobile /stations Browse shows 'SPONSORED STATIONS' pinned header + Sponsored rows; Genre chip 'Bollywood' now correctly filters — total count changed from '2,012 live stations' to '261 live stations' (category param wired). Web LandingV2 (/l/v2) shows 'RadioLife.app' wordmark + tappable [data-testid=funasia-footer-link] pointing to https://funasianetwork.com. Web '/' (RootGate -> MarketingShell) still shows 'RadioLife.AI' wordmark and has no funasia footer link — outside AppShell + LandingV2 scope but flagged as branding inconsistency.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Anonymous landing at '/' (MarketingShell)", "issues": ["Wordmark still reads 'RadioLife.AI' (top-nav + '© 2026 RadioLife AI Radio' footer) while LandingV2 and mobile use 'RadioLife.app'. No funasianetwork.com footer link on MarketingShell. Review scope was AppShell + LandingV2 so not a blocker, but worth aligning MarketingShell too for a single brand voice. Reference: /app/frontend/src/marketing/MarketingShell.jsx:186 ('© {year} RadioLife AI Radio')."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Home + Stations", "issues": ["Multiple external station logos are served over http:// (e.g. cdn-profiles.tunein.com) and are auto-upgraded by the browser with mixed-content warnings. Non-blocking but noisy in console; consider proxying or rewriting to https at ingest time."]}
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props are deprecated in React Native Web — use 'boxShadow'. Repeated console warning on load. Reference: search /app/mobile for shadowColor/shadowOffset/shadowOpacity/shadowRadius."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' Console warning after tapping demo login. Reference: search /app/mobile for pointerEvents={ prop usage."}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "Rebrand wordmark", "platform": "web", "issue": "Anonymous '/' MarketingShell still says 'RadioLife.AI' instead of the shared 'RadioLife.app' used by mobile Home and LandingV2.", "expected": "Both web surfaces (MarketingShell + LandingV2 + AppShell) and mobile all show 'RadioLife.app'.", "actual": "MarketingShell = 'RadioLife.AI'; LandingV2 + AppShell + mobile = 'RadioLife.app'."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter38_radiolife.py",
+    "/app/test_reports/pytest/iter38_radiolife.xml",
+    "/tmp/mobile_home_iter38.png",
+    "/tmp/news_iter38.png",
+    "/tmp/stations_iter38.png",
+    "/tmp/stations_bolly_iter38.png",
+    "/tmp/web_landingv2_footer_iter38.png",
+    "/tmp/web_landing_iter38.png"
+  ],
+  "action_items": [
+    "LOW: Align MarketingShell wordmark + footer to 'RadioLife.app' and add a funasianetwork.com link there too (matches AppShell/LandingV2/mobile). File: /app/frontend/src/marketing/MarketingShell.jsx.",
+    "LOW: Replace deprecated shadow* RN style props with boxShadow across mobile styles to silence RN Web deprecation warnings.",
+    "LOW: Replace props.pointerEvents with style.pointerEvents in mobile RN components.",
+    "OPTIONAL: Rewrite mixed-content station logos (http://cdn-profiles.tunein.com…) to https at Radio-Browser ingest time to eliminate mixed-content warnings."
+  ],
+  "critical_code_review_comments": [
+    "NEWS fallback in routes/news_phase_r.py._fetch_live_headlines silently returns [] on any exception — good defensive behavior, but consider a WARN log so a real NewsAPI outage isn't invisible.",
+    "promoted_stations.ensure_promoted_seed seeds only when collection is empty; if all promos are later marked active=false the empty-active rail cannot be re-seeded without manual intervention. Consider seeding when count of active promos == 0 instead.",
+    "auth.demo_login geo-updates market/city but does NOT overwrite name back to DEMO_NAME on re-login — the always-set 'name': DEMO_NAME in set_fields handles this (good). Confirmed name != 'BigFM Demo Listener'.",
+    "MOCKED: promoted stations spend accrual is accounting-only (spend_cents on promo doc). No wallet/Stripe settlement. Called out in the module docstring — matches the review's 'MOCKED billing' note."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter38_radiolife.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% of spec items verified on mobile + LandingV2; one out-of-scope MarketingShell branding gap flagged"},
+  "test_credentials": "Mobile: tap 'Try the demo' (data-testid=demo-login-btn). No password required. Backend test helper: POST /api/auth/_demo_reset_rate_limit resets the demo rate bucket.",
+  "seed_data_creation": "GET /api/promoted/stations auto-seeded 3 promo docs from flagship imported stations on first call (idempotent; leaves data behind for regression runs).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend: 7/7 pytest tests in /app/backend/tests/test_iter38_radiolife.py cover the full scope (news fallback, promoted stations lifecycle, demo-login geo). Mobile: everything in the review passes. Web: LandingV2 (/l/v2) fully matches the review; MarketingShell at '/' still uses old 'RadioLife.AI' branding — flagged as parity issue, main agent to align if desired. Screenshots at /tmp/*iter38*.png. NewsAPI live fallback is real network — a NewsAPI outage will make TestNewsFallback tests fail with 0 items.",
+  "rca of the issue": "N/A — no bugs found. Prior iter37 issues (missing TOP PLAYED rail and non-working Genre filter) are both fixed: TOP PLAYED STATIONS + MOST PLAYED LIVE STATIONS both render on mobile Home; Genre chip 'Bollywood' cuts station count 2012 -> 261 confirming category param + useCallback deps are wired."
+}

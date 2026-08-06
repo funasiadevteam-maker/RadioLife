@@ -10,10 +10,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
+import { saveToken } from '../src/api/client';
 import FunAsiaFooter from '../src/components/FunAsiaFooter';
 
 export default function Login() {
-  const { user, loading, login, register, googleSignIn } = useAuth();
+  const { user, loading, login, register, googleSignIn, setUser } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -153,8 +154,11 @@ export default function Login() {
               const apiBase = (process.env.EXPO_PUBLIC_BACKEND_URL || '')
                                           .replace(/\/+$/, '');
               const resp = await axios.post(`${apiBase}/api/auth/demo`);
-              await SecureStore.setItemAsync(
-                'bigfm_session_token', resp.data.session_token);
+              // Wire the demo session through the api client + AuthContext
+              // so gated screens see the user (otherwise they bounce back
+              // to /login and the app is stuck on the splash spinner).
+              await saveToken(resp.data.session_token);
+              setUser(resp.data);
               router.replace(resp.data.onboarding_complete
                                           ? '/(tabs)/radio'
                                           : '/onboarding');

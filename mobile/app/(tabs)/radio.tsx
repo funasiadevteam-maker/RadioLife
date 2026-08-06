@@ -52,6 +52,14 @@ export default function RadioScreen() {
   const [starting, setStarting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [skipCountdown, setSkipCountdown] = useState(0);
+  const [cityLabel, setCityLabel] = useState('');
+
+  useEffect(() => {
+    api.get('/geo/resolve_city').then((r) => {
+      const c = r.data?.city;
+      if (c && String(c).toLowerCase() !== 'global') setCityLabel(String(c));
+    }).catch(() => {});
+  }, []);
 
   const playerRef = useRef<any>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -361,7 +369,7 @@ export default function RadioScreen() {
         <View style={s.header} testID="radio-header">
           <View style={s.brandRow}>
             <View style={s.dot} />
-            <Text style={s.brandName} testID="brand-bigfm">RadioLife <Text style={s.brandDxb}>Dubai</Text></Text>
+            <Text style={s.brandName} testID="brand-bigfm">RadioLife <Text style={s.brandDxb}>{cityLabel || 'Dubai'}</Text></Text>
           </View>
           <View style={s.headerRight}>
             <TouchableOpacity onPress={() => router.push('/channels')} testID="nav-channels" style={s.headerBtn}>

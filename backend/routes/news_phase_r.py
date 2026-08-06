@@ -12,8 +12,55 @@ from pydantic import BaseModel, Field
 
 from auth import require_admin
 from services import news_phase_r_service as svc
+from services import news_api_provider as _newsapi
+from services import geo as _geo_svc
 
 router = APIRouter(tags=["phase-r-news"])
+
+
+def _live_article_to_public(a: Dict[str, Any], is_breaking: bool = False) -> Dict[str, Any]:
+    """Map a NewsAPI-normalised article → the public headline shape the
+    web + mobile clients expect (headline_text / summary_text / etc.)."""
+    cats = a.get("categories") or []
+    category = (cats[0] if cats else None) or "features"
+    return {
+        "headline_id":  a.get("news_id"),
+        "id":           a.get("news_id"),
+        "headline_text": (a.get("title") or "").strip(),
+        "summary_text": (a.get("description") or None),
+        "category":     category,
+        "source_name":  a.get("source_name") or "NewsAPI",
+        "source_url":   a.get("link") or None,
+        "image_url":    a.get("image_url") or None,
+        "published_at": a.get("pubDate") or None,
+        "is_breaking":  is_breaking,
+        "market":       a.get("market"),
+        "provider":     "newsapi",
+    }
+
+
+async def _fetch_live_headlines(request: Request, category: Optional[str],
+                                limit: int) -> List[Dict[str, Any]]:
+    """Fallback source when the admin-curated pool is empty.  Resolves the
+    requester's market from geo/IP and pulls the live NewsAPI feed."""
+    if not (_newsapi.is_preferred() and _newsapi.enabled()):
+        return []
+    market = None
+    try:
+        resolved = await _geo_svc.resolve_for_user(request, None,
+                                                   request.app.state.db)
+        market = resolved.get("market") or resolved.get("country")
+    except Exception:
+        market = None
+    try:
+        arts = await _newsapi.fetch_top_headlines(
+            market=market, category=category, page_size=max(limit, 10))
+        if not arts and market:
+            arts = await _newsapi.fetch_top_headlines(
+                market=None, category=category, page_size=max(limit, 10))
+        return arts or []
+    except Exception:
+        return []
 
 
 # ─── request models ──────────────────────────────────────
@@ -271,6 +318,11 @@ async def public_headlines(request: Request,
     rows = await svc.list_public_headlines(
         request.app.state.db, region_code=region_code,
         category=category, limit=limit)
+    # Fallback to the live NewsAPI feed when no admin-curated headlines
+    # exist for this filter, so the app always shows fresh news.
+    if not rows:
+        live = await _fetch_live_headlines(request, category, limit)
+        rows = [_live_article_to_public(a) for a in live][:limit]
     return {"items": rows, "total": len(rows)}
 
 
@@ -280,6 +332,12 @@ async def public_breaking(request: Request,
                            limit: int = Query(5, ge=1, le=20)):
     rows = await svc.get_breaking_headlines(
         request.app.state.db, region_code=region_code, limit=limit)
+    # Fallback: surface the freshest live headlines as "breaking" when the
+    # curated breaking pool is empty.
+    if not rows:
+        live = await _fetch_live_headlines(request, None, limit)
+        rows = [_live_article_to_public(a, is_breaking=True)
+                for a in live][:limit]
     return {"items": rows, "total": len(rows)}
 
 

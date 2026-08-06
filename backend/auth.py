@@ -887,13 +887,41 @@ async def demo_login(request: Request, response: Response):
                                               "Please try again in a moment.")
     db = request.app.state.db
     user = await _ensure_demo_user(db)
-    # Phase 18b polish: the demo user is canonically "Dubai".  Clear any
-    # stale `preferred_market` override left behind by previous QA sessions
-    # so the demo always lands on its home market.
-    await db.users.update_one(
-        {"user_id": user["user_id"]},
-        {"$set": {"last_login_at": _now()},
-          "$unset": {"preferred_market": "", "last_resolved_market": ""}})
+    # The demo should reflect the listener's *actual* city/market resolved
+    # from geo/IP, not a hardcoded Dubai.  Fall back to the home market only
+    # when geo yields nothing useful.
+    resolved_city = None
+    resolved_market = None
+    try:
+        from services import geo as _geo
+        r = await _geo.resolve_for_user(request, user, db)
+        rc = (r.get("city") or "").strip()
+        rm = (r.get("market") or "").strip().lower()
+        if rc and rc.lower() not in ("global", "unknown"):
+            resolved_city = rc
+        if rm and rm not in ("global", "unknown"):
+            resolved_market = rm
+    except Exception:
+        pass
+    set_fields: dict = {"last_login_at": _now(), "name": DEMO_NAME}
+    if resolved_city or resolved_market:
+        if resolved_city:
+            set_fields["city"] = resolved_city
+            set_fields["preference_vector.city"] = resolved_city
+        if resolved_market:
+            set_fields["market"] = resolved_market
+            set_fields["last_resolved_market"] = resolved_market
+            set_fields["preference_vector.market"] = resolved_market
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": set_fields, "$unset": {"preferred_market": ""}})
+    else:
+        # No geo signal — clear stale overrides so the demo lands on its
+        # home market via the standard resolver.
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": set_fields,
+              "$unset": {"preferred_market": "", "last_resolved_market": ""}})
     user = await db.users.find_one({"user_id": user["user_id"]})
     token, expires_at = await _create_session(db, user["user_id"], request)
     _set_session_cookie(response, token)
