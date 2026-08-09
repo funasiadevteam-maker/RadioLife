@@ -199,6 +199,10 @@ export default function EpisodeDetailScreen() {
 
         {/* Video + chapters + transcript */}
         {media?.video_url ? <EpisodeVideoBlock media={media} /> : null}
+        {!media?.video_url && media?.chapters?.length ? (
+          <ChaptersBlock chapters={media.chapters}
+            onSeek={async (sec: number) => { try { await soundRef.current?.setPositionAsync(sec * 1000); } catch {} }} />
+        ) : null}
         {media?.transcript ? <TranscriptBlock transcript={media.transcript} /> : null}
 
         {/* Shoppable cards */}
@@ -254,6 +258,25 @@ export default function EpisodeDetailScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ChaptersBlock({ chapters, onSeek }: {
+  chapters: { title: string; start_seconds: number }[]; onSeek: (sec: number) => void;
+}) {
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  return (
+    <View style={st.section} testID="mobile-episode-chapters">
+      <Text style={common.sectionTitle}>Chapters</Text>
+      {chapters.map((c, i) => (
+        <TouchableOpacity key={`${c.start_seconds}-${i}`} style={st.chapterRow}
+          onPress={() => onSeek(c.start_seconds)} testID={`mobile-chapter-${i}`}>
+          <Text style={st.chapterTime}>{fmt(c.start_seconds)}</Text>
+          <Text style={st.chapterTitle} numberOfLines={1}>{c.title}</Text>
+          <Ionicons name="play-circle-outline" size={18} color={COLORS.primary} />
+        </TouchableOpacity>
+      ))}
+    </View>
   );
 }
 

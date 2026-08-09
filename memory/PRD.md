@@ -1,5 +1,15 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-09 (CS.1 + Insights SHIPPED: Creator Studio video/chapters/transcripts + Listing Insights)
+- **Verified: testing agent iteration_51 — backend 16/16 PASS + regression (iter49 19 + iter50 23), mobile all testIDs verified. Real Tigris signed URL returned on video upload. One flagged issue (chapters hidden on audio-only episodes) FIXED post-report.**
+- **Creator Studio video** (`routes/creator_video.py`, prefix `/api/podcasts`): `POST /episodes/{id}/video` (multipart) streams to **Tigris object storage** via `object_storage.get_storage()` → sets `video_storage_key` + `media_type=video`; `GET /episodes/{id}/media` returns fresh 6h signed `video_url` + chapters + transcript; `PUT /episodes/{id}/chapters` (sorted, validated) + `PUT /episodes/{id}/transcript`. All creator-ownership-gated (channel.creator_id → podcast_creators.user_id; admin allowed). 500MB cap, video content-type check.
+- **Creator UI** (`mobile/app/creator/episode/[id].tsx`): `VideoChaptersEditor` — pick+upload video (expo-document-picker), add/remove chapters (title + m:s), transcript editor, save.
+- **Consumer playback** (`mobile/app/podcast/episode/[id].tsx`): `EpisodeVideoBlock` (expo-video `VideoView`, PIP enabled), tappable chapters (seek), collapsible transcript. Chapters now render for BOTH video (`EpisodeVideoBlock`) and audio-only (`ChaptersBlock`, seeks the audio `soundRef`). Added `expo-video` config plugin to app.json. **PIP only works in a native Publish build — not Expo Go/web preview.**
+- **Listing Insights** (`merchant_marketplace.py`): daily rollup collection `featured_daily` (bumped on `discovery/featured` impressions + featured click clicks/spend); `GET /api/merchant/featured/{id}/insights?days=7` (owner-gated) → 7-day series + totals + budget. Mobile `/merchant/insights/[id]` — totals row (Views/Taps/Tap-rate/Spend) + custom 7-day bar chart; reachable from marketplace featured rows (`mkt-insights-*`).
+- **Object storage = Tigris** (S3-compatible, `STORAGE_BACKEND`/`TIGRIS_*` in backend/.env) — used for all Creator Studio video.
+- **NEXT (approved, deferred to next turn)**: Booking CPA (venues pay per booking) + Gift Card Market (buy/gift local gift cards via points or Stripe). Then P2: `source=all` DB-pagination; RN deprecation cleanup (shadow*→boxShadow, props.pointerEvents); tunein http mixed-content.
+
+
 ## Changelog — 2026-08-09 (MKT.4 SHIPPED: Web New Look cream/orange + Listing Analytics + Notification Bell)
 - **Verified: testing agent iteration_50 — backend 75/75 PASS (5 new + 70 regression), mobile fully verified; web verified by main-agent screenshots (agent's web miss was a login-timing artifact, no code bug).**
 - **Object storage note (for Creator Studio next)**: app uses **Tigris** (S3-compatible) via `STORAGE_BACKEND`/`TIGRIS_ENDPOINT_URL`/`TIGRIS_BUCKET` in backend/.env — Creator Studio video uploads will reuse this same bucket.
