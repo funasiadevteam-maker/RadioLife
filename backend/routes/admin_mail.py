@@ -32,7 +32,7 @@ async def mail_health() -> dict:
 
 class TestSendBody(BaseModel):
     to:        EmailStr
-    subject: str = Field(default="BigFM Mailgun integration test")
+    subject: str = Field(default="RadioLife Mailgun integration test")
     note:      Optional[str] = None
 
 
@@ -46,7 +46,7 @@ async def mail_test_send(body: TestSendBody, request: Request) -> dict:
     if not is_live():
         raise HTTPException(503, "mailgun_not_live")
     html = (f"<div style='font-family:sans-serif;padding:24px'>"
-                  f"<h2>BigFM Mailgun test ✅</h2>"
+                  f"<h2>RadioLife Mailgun test ✅</h2>"
                   f"<p>{body.note or 'No note provided.'}</p>"
                   f"<p>Sent at {request.url}</p></div>")
     res = send_email(to=str(body.to), subject=body.subject, html=html,

@@ -404,11 +404,11 @@ async def deliver_one(db, event_id: str) -> dict:
     sig = sign_payload(secret, ts, body)
     headers = {
         "Content-Type": "application/json",
-        "User-Agent": "BigFM-Games-Webhook/1.0",
-        "X-BigFM-Event": ev["event_type"],
-        "X-BigFM-Delivery": ev["webhook_event_id"],
-        "X-BigFM-Timestamp": str(ts),
-        "X-BigFM-Signature": f"sha256={sig}",
+        "User-Agent": "RadioLife-Games-Webhook/1.0",
+        "X-RadioLife-Event": ev["event_type"],
+        "X-RadioLife-Delivery": ev["webhook_event_id"],
+        "X-RadioLife-Timestamp": str(ts),
+        "X-RadioLife-Signature": f"sha256={sig}",
     }
     status_code = None
     snippet = ""

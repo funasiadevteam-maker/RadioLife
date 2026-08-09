@@ -126,7 +126,7 @@ async def _request(db, method: str, path: str, *,
                       "error_message": "PREDEXON_API_KEY not loaded"}
     url = f"{_base()}{path}"
     headers = {"x-api-key": _key(), "Accept": "application/json",
-                          "User-Agent": "BigFM/1.0"}
+                          "User-Agent": "RadioLife/1.0"}
     provider_id = await _resolve_provider_id(db)
 
     last_status: Optional[int] = None
@@ -242,7 +242,7 @@ def map_resolution_to_option_id(*,
                                                                           answer_options: List[Dict[str, Any]],
                                                                           ) -> Optional[str]:
     """Given a Predexon resolution payload + our campaign's answer_options,
-    return the BigFM `option_id` that matches the winning outcome (or
+    return the RadioLife `option_id` that matches the winning outcome (or
     None when no match).  Match priority: external_outcome_id → label
     exact (case-insensitive) → None."""
     if not resolution_body:

@@ -12,7 +12,7 @@ Entity types:
     passport                  → user passport ref (user_id or `me`).
     wallet                      → user wallet (user_id or `me`).
     feature_tile          → home cinematic tile (tile_id).
-    home                      → generic BigFM home (no entity needed).
+    home                      → generic RadioLife home (no entity needed).
 
 Anonymous-safe.  Caches PNGs at the disk level via og_card_generator.
 """
@@ -34,19 +34,19 @@ async def _resolve_entity(db, entity_type: str, entity_id: str
     et = entity_type.lower()
 
     if et == "home":
-        return {"title": "BigFM",
+        return {"title": "RadioLife",
                       "subtitle": "Personalized radio, news, games and rewards.",
                       "artwork_url": None,
                       "accent": "default"}
 
     if et == "station":
-        # Try BigFM AI channel first, then community/imported station.
+        # Try RadioLife AI channel first, then community/imported station.
         ch = await db.channels.find_one({"slug": entity_id})
         if ch:
             return {"title": ch.get("title") or ch.get("name") or entity_id,
                           "subtitle": ch.get("tagline")
                                               or ch.get("subtitle")
-                                              or "Listen live on BigFM",
+                                              or "Listen live on RadioLife",
                           "artwork_url": (ch.get("thumbnail_url")
                                                           or ch.get("cover_image_url")),
                           "accent": ch.get("accent") or "electric"}
@@ -55,7 +55,7 @@ async def _resolve_entity(db, entity_type: str, entity_id: str
             return {"title": st.get("name") or entity_id,
                           "subtitle": st.get("tagline")
                                               or st.get("description")
-                                              or "Live on BigFM Community Radio",
+                                              or "Live on RadioLife Community Radio",
                           "artwork_url": st.get("cover_image_url")
                                                           or st.get("artwork_url"),
                           "accent": st.get("accent") or "magenta"}
@@ -66,7 +66,7 @@ async def _resolve_entity(db, entity_type: str, entity_id: str
         if not n:
             return None
         return {"title": n.get("title") or "Local headline",
-                      "subtitle": n.get("source_name") or n.get("source_id") or "BigFM News",
+                      "subtitle": n.get("source_name") or n.get("source_id") or "RadioLife News",
                       "artwork_url": n.get("image_url"),
                       "accent": "cyan"}
 
@@ -87,9 +87,9 @@ async def _resolve_entity(db, entity_type: str, entity_id: str
         if not p:
             return None
         archetype = (p.get("archetype") or "").replace("_", " ")
-        return {"title": p.get("display_name") or "BigFM Persona",
-                      "subtitle": f"Chat with {archetype} on BigFM"
-                                          if archetype else "Chat on BigFM",
+        return {"title": p.get("display_name") or "RadioLife Persona",
+                      "subtitle": f"Chat with {archetype} on RadioLife"
+                                          if archetype else "Chat on RadioLife",
                       "artwork_url": p.get("avatar_url"),
                       "accent": "violet"}
 
@@ -97,19 +97,19 @@ async def _resolve_entity(db, entity_type: str, entity_id: str
         t = await db.feature_tiles_config.find_one({"tile_id": entity_id})
         if not t:
             return None
-        return {"title": t.get("title") or "Explore BigFM",
+        return {"title": t.get("title") or "Explore RadioLife",
                       "subtitle": t.get("tagline") or "Tap to explore",
                       "artwork_url": t.get("image_url"),
                       "accent": t.get("accent") or "default"}
 
     if et == "passport":
-        return {"title": "My BigFM Passport",
+        return {"title": "My RadioLife Passport",
                       "subtitle": "Collect cities. Earn stamps. Climb the leaderboard.",
                       "artwork_url": None,
                       "accent": "rose"}
 
     if et == "wallet":
-        return {"title": "My BigFM Wallet",
+        return {"title": "My RadioLife Wallet",
                       "subtitle": "Listen more. Earn more. Cash in rewards.",
                       "artwork_url": None,
                       "accent": "gold"}
@@ -127,9 +127,9 @@ async def og_card(entity_type: str, entity_id: str, request: Request) -> Respons
     db = request.app.state.db
     ctx = await _resolve_entity(db, entity_type, entity_id)
     if ctx is None:
-        # Render a graceful generic BigFM card instead of 404 so social
+        # Render a graceful generic RadioLife card instead of 404 so social
         # crawlers always get a valid preview.
-        ctx = {"title": "BigFM",
+        ctx = {"title": "RadioLife",
                   "subtitle": "Personalized radio for the diaspora.",
                   "artwork_url": None,
                   "accent": "default"}

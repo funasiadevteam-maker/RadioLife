@@ -259,7 +259,7 @@ _DOMAINS_BY_COUNTRY = {
 def _domains_for_country(country: str) -> Optional[str]:
     """Return the NewsAPI `domains=` value (CSV) for a country, or
     None when we don't have a whitelist for it.  Accepts both ISO
-    country codes ("us") and BigFM market aliases ("dfw", "dubai") —
+    country codes ("us") and RadioLife market aliases ("dfw", "dubai") —
     market aliases are normalised to their country first."""
     if not country:
         return None

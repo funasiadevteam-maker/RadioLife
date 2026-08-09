@@ -385,7 +385,7 @@ PHASE_10A_BADGE_CATALOG = [
                           "period": "lifetime"}),
     # ── Premium — 3 ───────────────────────────────────────────────────
     _b("premium_subscriber", name="Premium Subscriber",
-        description="Subscribed to BigFM Premium.",
+        description="Subscribed to RadioLife Premium.",
         category="premium", tier="silver", points=50,
         criteria_json={"type": "counter", "target": 1,
                           "source_event": "premium_activated",
@@ -427,12 +427,12 @@ PHASE_10A_BADGE_CATALOG = [
                           "filters": {"campaign_tag": "diwali_2026"},
                           "period": "lifetime"}),
     # ── Milestone — 2 ─────────────────────────────────────────────────
-    _b("bigfm_og", name="BigFM OG",
+    _b("bigfm_og", name="RadioLife OG",
         description="Account older than 90 days.",
         category="milestone", tier="gold", points=80,
         criteria_json={"type": "admin_only"}),
     _b("early_adopter", name="Early Adopter",
-        description="One of the first 1000 BigFM listeners.",
+        description="One of the first 1000 RadioLife listeners.",
         category="milestone", tier="diamond", points=400,
         criteria_json={"type": "admin_only"}),
     # ── Compound — 2 (Phase 10a.1) ───────────────────────────────────
@@ -1131,7 +1131,7 @@ def _criteria_human_summary(c: dict) -> str:
     if t == "compound":
         return "Complete a multi-step challenge"
     if t == "admin_only":
-        return "Awarded by the BigFM team"
+        return "Awarded by the RadioLife team"
     return "—"
 
 

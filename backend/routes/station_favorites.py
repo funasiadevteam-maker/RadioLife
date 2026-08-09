@@ -1,4 +1,4 @@
-"""Phase 42-D3 — Station favorites (BigFM AI channels + imported live
+"""Phase 42-D3 — Station favorites (RadioLife AI channels + imported live
 radio).
 
 This is a separate surface from the channel-slug-only

@@ -28,6 +28,11 @@ DISPLAY_FIELDS = {
 
 RX = re.compile(r"big\s*fm", re.IGNORECASE)
 
+# Third-party / directory collections — their "BigFM" values are REAL external
+# station names (e.g. the German BigFM network, "BigFM 106.2 UAE"), NOT our
+# brand. Never rewrite these.
+SKIP_COLLECTIONS = {"imported_radio_stations"}
+
 
 def rebrand(value: str) -> str:
     return RX.sub("RadioLife", value)
@@ -42,6 +47,8 @@ async def main(apply: bool) -> None:
     per_coll = {}
 
     for coll in names:
+        if coll in SKIP_COLLECTIONS:
+            continue
         changed_docs = 0
         changed_fields = 0
         async for doc in db[coll].find({}):

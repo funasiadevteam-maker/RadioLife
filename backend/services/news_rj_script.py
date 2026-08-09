@@ -1,7 +1,7 @@
 """Phase 40 follow-up — News-channel RJ script generator.
 
 Used by the music radio engine when the listener selects `channel=news_radio`.
-Replaces the generic music-channel "BigFM Dubai" RJ banter with a 30-45 s
+Replaces the generic music-channel "RadioLife Dubai" RJ banter with a 30-45 s
 news anchor segment that reads 2-3 real headlines filtered to the listener's
 news preferences + city.
 
@@ -9,7 +9,7 @@ Wiring point: `_generate_rj_script_solo` in `server.py` branches to
 `generate_news_rj_script(...)` when `channel == "news_radio"`.
 
 Author notes:
-  - We deliberately AVOID the "BigFM Dubai" tagline that lives in
+  - We deliberately AVOID the "RadioLife Dubai" tagline that lives in
     HINGLISH_SYSTEM_PROMPT / MIRCHI_SOLO_SYSTEM_PROMPT. News is a
     global channel, not a market-branded music station.
   - Headlines come from the same `news_articles` cache that powers
@@ -39,11 +39,11 @@ NEWS_RJ_MAX_HEADLINES = 3
 NEWS_RJ_FRESH_HOURS    = 48   # fall back gracefully if no <2h articles
 
 NEWS_RJ_SYSTEM_PROMPT = (
-    "You are the on-air anchor for BigFM News — a global headline "
+    "You are the on-air anchor for RadioLife News — a global headline "
     "round-up channel. Voice: measured, journalistic, conversational. "
     "Reads like AP / NPR cadence, NOT like a music DJ.\n\n"
     "Hard rules:\n"
-    " • NEVER say 'BigFM Dubai'. This is a global news channel.\n"
+    " • NEVER say 'RadioLife Dubai'. This is a global news channel.\n"
     " • NEVER fabricate details or invent quotes — only use the "
     "headlines + context provided.\n"
     " • NEVER use the words 'breaking news' as a hype filler.\n"
@@ -56,7 +56,7 @@ NEWS_RJ_SYSTEM_PROMPT = (
     " • Structure: a one-sentence anchor intro that references the "
     "listener's city when provided, 2-3 headlines each read in 1-2 "
     "sentences, a one-sentence outro/teaser to the next segment.\n"
-    " • Refer to the channel as 'BigFM News' (no city). If the "
+    " • Refer to the channel as 'RadioLife News' (no city). If the "
     "listener's city is supplied, weave it ONCE — e.g. 'Here's what's "
     "moving in Dallas right now…' — never invent a city.\n"
     " • Skip categories that the listener didn't pick. Don't apologize "
@@ -168,7 +168,7 @@ async def generate_news_rj_script(db, user: dict, *,
     """Returns a 30-45 s news-anchor script suitable for the
     `news_radio` channel. Raises HTTPException(503) on hard failure
     so the outer radio-engine guard serves a no-RJ segment instead of
-    a "BigFM Dubai" filler. `voice_key` is accepted for API symmetry
+    a "RadioLife Dubai" filler. `voice_key` is accepted for API symmetry
     with `_generate_rj_script_solo` but is unused — the news voice
     is selected at TTS render time, not in the script.
     """
@@ -177,10 +177,10 @@ async def generate_news_rj_script(db, user: dict, *,
     headlines = await _select_headlines(db, user)
     if not headlines:
         # Graceful — no fresh news to read → very short anchor filler
-        # that does NOT say "BigFM Dubai" and does NOT pretend.
+        # that does NOT say "RadioLife Dubai" and does NOT pretend.
         city = (user or {}).get("city") or "your city"
         return (
-            f"You are tuned in to BigFM News. We are between stories "
+            f"You are tuned in to RadioLife News. We are between stories "
             f"in {city} right now — the next headlines will roll the "
             f"moment our newsroom updates the feed. Stay with us.")
 
@@ -202,6 +202,6 @@ async def generate_news_rj_script(db, user: dict, *,
 
     # Strip any wrapping quotes the model occasionally adds.
     out = re.sub(r"^[\"\']+|[\"\']+$", "", out).strip()
-    # Defensive scrub — never let "BigFM Dubai" slip through.
-    out = re.sub(r"BigFM\s+Dubai", "BigFM News", out, flags=re.IGNORECASE)
+    # Defensive scrub — never let "RadioLife Dubai" slip through.
+    out = re.sub(r"RadioLife\s+Dubai", "RadioLife News", out, flags=re.IGNORECASE)
     return out

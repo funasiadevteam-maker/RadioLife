@@ -113,7 +113,7 @@ def _build_prompt(*, transcript_text: str, utterances: list,
         })
     utt_blob = json.dumps(utt_window, ensure_ascii=False)
     sys = (
-        f"You are a podcast metadata writer for BigFM. Channel: "
+        f"You are a podcast metadata writer for RadioLife. Channel: "
         f"'{channel_title}' (category: {channel_category}, language: {lang}).\n"
         f"Episode current title: '{episode_title}'. Duration: "
         f"{int(duration_seconds or 0)}s.\n\n"
@@ -333,7 +333,7 @@ async def generate_metadata(db, *, episode_id: str) -> dict:
     sys, usr = _build_prompt(
         transcript_text=tr.get("text") or "",
         utterances=utterances,
-        channel_title=(ch or {}).get("title") or "BigFM",
+        channel_title=(ch or {}).get("title") or "RadioLife",
         channel_category=(ch or {}).get("category") or "other",
         channel_language=(ch or {}).get("language") or "en",
         episode_title=ep.get("title") or "",

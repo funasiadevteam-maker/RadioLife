@@ -160,9 +160,9 @@ def _city_to_market(country: str, city: str | None,
 
 def _mock_result(reason: str = "mock") -> dict:
     """Hard-fallback when IP geo, TZ, and provider all fail. Returns a
-    neutral 'BigFM Global' shape so we never leak a specific city
+    neutral 'RadioLife Global' shape so we never leak a specific city
     (previously defaulted to Dubai which surfaced as a localised
-    BigFM Dubai header even for US/UK listeners — Bug B fix)."""
+    RadioLife Dubai header even for US/UK listeners — Bug B fix)."""
     return {
         "country":         "",
         "country_name":    "",
@@ -185,7 +185,7 @@ async def _fetch_ipapi(ip: str) -> dict | None:
         async with httpx.AsyncClient(timeout=4.0) as client:
             r = await client.get(
                 f"https://ipapi.co/{ip}/json/",
-                headers={"User-Agent": "BigFM/1.0 (bigfm.app)"},
+                headers={"User-Agent": "RadioLife/1.0 (bigfm.app)"},
             )
         if r.status_code == 429:
             logger.warning("ipapi.co rate-limited (429) for ip=%s; falling through", ip)
@@ -234,7 +234,7 @@ async def _fetch_ipinfo(ip: str) -> dict | None:
         async with httpx.AsyncClient(timeout=4.0) as client:
             r = await client.get(
                 f"https://ipinfo.io/{ip}/json",
-                headers={"User-Agent": "BigFM/1.0 (bigfm.app)",
+                headers={"User-Agent": "RadioLife/1.0 (bigfm.app)",
                                 "Accept":      "application/json"},
                 params=params,
             )
@@ -289,7 +289,7 @@ async def _fetch_ip_api(ip: str) -> dict | None:
             r = await client.get(
                 f"https://pro.ip-api.com/json/{ip}",
                 params={"key": _IP_API_KEY, "fields": "status,country,countryCode,region,regionName,city,lat,lon,timezone"},
-                headers={"User-Agent": "BigFM/1.0 (bigfm.app)"},
+                headers={"User-Agent": "RadioLife/1.0 (bigfm.app)"},
             )
         if r.status_code != 200:
             return None
@@ -575,7 +575,7 @@ async def resolve_for_user(request, user: dict | None, db) -> dict:
                                                   because we fell straight through to
                                                   IP geo).
       4. IP geolocation            — anonymous / cold-start fallback.
-      5. Hard fallback              — neutral 'BigFM Global' shape.
+      5. Hard fallback              — neutral 'RadioLife Global' shape.
     """
     base = await resolve_geo_from_ip(request, db)
     if user and isinstance(user, dict):

@@ -238,7 +238,7 @@ async def _llm_draft_script(*, persona: Dict[str, Any],
     fallback = (
         f"{disclosure_prefix} from {product}. "
         f"{key_message or f'Check out {product} today.'} "
-        f"{cta or 'You are listening to BigFM.'}")
+        f"{cta or 'You are listening to RadioLife.'}")
 
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
@@ -246,7 +246,7 @@ async def _llm_draft_script(*, persona: Dict[str, Any],
 
     system = (
         f"You are drafting a 15-second radio sponsorship read voiced by "
-        f"'{persona.get('name') or 'a BigFM host'}'.  Persona style: "
+        f"'{persona.get('name') or 'a RadioLife host'}'.  Persona style: "
         f"{persona.get('persona_prompt') or 'upbeat, conversational'}. "
         f"The FIRST SENTENCE MUST begin with '{disclosure_prefix}'. "
         "Keep total spoken length 12-18 seconds (35-55 words).  Do not "
@@ -750,7 +750,7 @@ async def select_next_sponsored(db, *, station_id: str,
             "audio_url":                s["audio_url"],
             "duration_seconds":  s.get("duration_seconds"),
             "disclosure_chip":    f"{s['disclosure_prefix']} · "
-                                                    f"{adv_name or s.get('persona_name') or 'BigFM sponsor'}",
+                                                    f"{adv_name or s.get('persona_name') or 'RadioLife sponsor'}",
             "persona_id":              s.get("persona_id"),
             "voice_id_hint":        None,          # persona knows it
             "advertiser_business_id": s["advertiser_business_id"],

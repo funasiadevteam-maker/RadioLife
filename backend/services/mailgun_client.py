@@ -63,7 +63,7 @@ def _cfg() -> dict:
         "api_base":  os.environ.get("MAILGUN_API_BASE",
                                                             "https://api.mailgun.net/v3"),
         "from":        os.environ.get("MAILGUN_FROM",
-            f"BigFM <noreply@{os.environ.get('MAILGUN_DOMAIN', 'bigfantv.com')}>"),
+            f"RadioLife <noreply@{os.environ.get('MAILGUN_DOMAIN', 'bigfantv.com')}>"),
     }
 
 
@@ -138,7 +138,7 @@ def _pick_domain(cfg: dict) -> tuple[Optional[str], dict]:
 
 def send_email(to, subject: str, html: str, *,
                               text: Optional[str] = None,
-                              from_name: str = "BigFM",
+                              from_name: str = "RadioLife",
                               tags: Optional[list] = None,
                               template_vars: Optional[dict] = None) -> dict:
     """Send a single transactional email via Mailgun's HTTP API.

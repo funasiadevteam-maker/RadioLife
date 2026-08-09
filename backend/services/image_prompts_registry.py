@@ -26,7 +26,7 @@ Slug MUST equal the filename without extension.
 from __future__ import annotations
 from typing import Dict, Tuple, Optional
 
-# Style tokens shared across BigFM branding — plug into prompts so the
+# Style tokens shared across RadioLife branding — plug into prompts so the
 # generated art keeps a consistent look.
 _PALETTE = "cyan · magenta · UV purple · deep navy"
 _STYLE   = ("high-contrast movie-poster collage · dramatic light · "
@@ -222,7 +222,7 @@ _PLACEHOLDER_STYLE = ("minimalist branded placeholder illustration; "
 PLACEHOLDER_IMAGES: Dict[str, ImagePromptSpec] = {
     "bigfm_logo": (
         "placeholders",
-        ("Bold BigFM wordmark 'bigFM' with a stylized broadcast tower "
+        ("Bold RadioLife wordmark 'bigFM' with a stylized broadcast tower "
           "icon, glowing magenta-to-cyan gradient wordmark on deep-space "
           "black; iconic and readable at small sizes; " + _PLACEHOLDER_STYLE),
         "png", None,

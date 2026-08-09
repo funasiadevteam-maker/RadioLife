@@ -5,7 +5,7 @@ Idempotent.  Safe to re-run.  Inserts one row into `imported_radio_stations`:
     Slug            : luv-legends-uae
     Display name : Luv Legends
     Stream URL   : https://funasia.streamguys1.com/live8
-    Region          : AE  (flagship_priority 175 — one notch below Big FM 106.2)
+    Region          : AE  (flagship_priority 175 — one notch below RadioLife 106.2)
 
 The placeholder SVG at `/app/backend/static/flagship_logos/luv-legends-uae.svg`
 is used until the admin uploads the branded artwork via

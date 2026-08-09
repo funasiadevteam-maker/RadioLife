@@ -1,9 +1,9 @@
-"""BigFM Phase 13e — Sign in with Apple service.
+"""RadioLife Phase 13e — Sign in with Apple service.
 
 Encapsulates:
   * client_secret JWT generation (ES256 signed with .p8 key).
   * Apple identity_token verification (JWKS fetch + cache + sig check).
-  * BigFM user resolution / linking from a verified identity_token.
+  * RadioLife user resolution / linking from a verified identity_token.
 
 Env vars required for LIVE mode (any missing → MOCK):
   APPLE_TEAM_ID
@@ -163,11 +163,11 @@ async def exchange_code(code: str) -> Dict[str, Any]:
         return r.json()
 
 
-# ─── BigFM user resolution / linking ────────────────────────────────────
+# ─── RadioLife user resolution / linking ────────────────────────────────────
 async def apple_user_from_claims(db, claims: Dict[str, Any],
                                                 profile_name: Optional[Dict[str, str]] = None
                                                 ) -> Dict[str, Any]:
-    """Given verified identity_token claims, return (or create) a BigFM
+    """Given verified identity_token claims, return (or create) a RadioLife
     user doc. Linking rule: existing user with same email → link by
     setting `apple_sub`. Otherwise create a fresh user.
     """
@@ -210,7 +210,7 @@ async def apple_user_from_claims(db, claims: Dict[str, Any],
         "onboarded": False,
     }
     await db.users.insert_one(doc)
-    logger.info("apple_siwa: created BigFM user %s for apple_sub=%s",
+    logger.info("apple_siwa: created RadioLife user %s for apple_sub=%s",
                        uid, apple_sub[:12])
     return doc
 

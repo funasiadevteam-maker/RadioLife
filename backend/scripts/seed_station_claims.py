@@ -130,7 +130,7 @@ async def _ensure_claim(db, *, station, contact_email, contact_role,
             "_id": _new_id("memail"),
             "provider": "mocked",
             "to": contact_email,
-            "subject": f"Verify your ownership of {station.get('name')} on BigFM",
+            "subject": f"Verify your ownership of {station.get('name')} on RadioLife",
             "html": (f"<p>Confirm by clicking:</p>"
                               f"<p><a href='{link}'>{link}</a></p>"),
             "tags": ["station_claim", "verification", "seed"],

@@ -94,7 +94,7 @@ async def _resolve_card(db, station_id: str) -> Optional[Dict[str, Any]]:
             or await db.community_radio_stations.find_one({"station_id": sid})
         if c:
             return _community_to_card(c)
-    # BigFM AI channel (matched by slug).
+    # RadioLife AI channel (matched by slug).
     ch = await db.channels.find_one({"slug": sid}) \
         or await db.channels.find_one({"slug": sid.replace("ai_", "")})
     if ch:

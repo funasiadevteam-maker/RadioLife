@@ -121,7 +121,7 @@ async def test_connection(db) -> dict:
     return {
         "ok": True,
         "network_code": cfg.get("network_code") or GAM_NETWORK_CODE_DEFAULT,
-        "network_name": "BigFM Networks (Phase 4.5 — verified via OAuth2 token mint)",
+        "network_name": "RadioLife Networks (Phase 4.5 — verified via OAuth2 token mint)",
         "service_account_email": sa.get("client_email"),
         "token_minted": True,
         "ad_unit_id": cfg.get("ad_unit_id"),

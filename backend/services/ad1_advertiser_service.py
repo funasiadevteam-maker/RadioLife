@@ -488,7 +488,7 @@ async def create_topup_checkout(db, *, advertiser_id: str, amount_cents: int,
                     "currency":       "usd",
                     "unit_amount": int(amount_cents),
                     "product_data": {
-                        "name": f"BigFM Ad Budget Top-up ${amount_cents/100:.2f}",
+                        "name": f"RadioLife Ad Budget Top-up ${amount_cents/100:.2f}",
                         "description": f"Credit to {adv['name']}"[:300],
                     },
                 },

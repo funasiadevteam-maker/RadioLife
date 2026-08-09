@@ -142,7 +142,7 @@ def _generate_bulletin_script(headlines: List[Dict[str, Any]],
     """Compose a 30-45 s news bulletin script from up to 5 headlines.
     Returns the script text (never empty — falls back to a plain read-out)."""
     client = _openai_client()
-    channel_name = channel.get("name") or "BigFM News"
+    channel_name = channel.get("name") or "RadioLife News"
     city         = channel.get("city") or ""
     tagline      = channel.get("tagline") or ""
 

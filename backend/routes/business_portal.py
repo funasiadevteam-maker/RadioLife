@@ -544,7 +544,7 @@ async def launch_template(body: _LaunchTplBody, request: Request,
         "expires_at":            expires_at.isoformat(),
         "share_text":            (f"{tpl['discount_label']} at "
                                                   f"{biz.get('name') or 'us'} — claim your code on "
-                                                  f"BigFM."),
+                                                  f"RadioLife."),
     }
 
 

@@ -30,7 +30,7 @@ def _now(): return datetime.now(timezone.utc)
 
 # ─── 1. Rename display names ─────────────────────────────────
 RENAMES = [
-    ("big-1062-uae",             "Big FM 106.2"),
+    ("big-1062-uae",             "RadioLife 106.2"),
     ("funasia-fm-dallas",     "FunAsia 104.9 FM (Dallas)"),
 ]
 
@@ -77,7 +77,7 @@ async def fetch_html(url: str) -> Optional[str]:
 
 async def fetch_bytes(url: str, ref: Optional[str] = None) -> Optional[bytes]:
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; BigFM/1.0)"}
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; RadioLife/1.0)"}
         if ref:
             headers["Referer"] = ref
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True,

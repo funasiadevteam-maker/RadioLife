@@ -1,6 +1,6 @@
 """Phase 36e Turn 1 — Stripe client abstraction (MOCK / LIVE).
 
-ALL Stripe calls in the BigFM codebase MUST route through this module.
+ALL Stripe calls in the RadioLife codebase MUST route through this module.
 The day the user provides `sk_test_...` or `sk_live_...`, flipping
 `STRIPE_MODE` env from `mock` to `live` and supplying the key is the
 ONLY change required — call sites are mode-agnostic.

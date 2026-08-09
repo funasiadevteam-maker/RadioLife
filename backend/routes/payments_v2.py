@@ -90,7 +90,7 @@ def _create_payment_checkout(*, amount_cents: int, currency: str,
                 "price_data": {
                     "currency":      currency,
                     "unit_amount": amount_cents,
-                    "product_data": {"name": description[:120] or "BigFM",
+                    "product_data": {"name": description[:120] or "RadioLife",
                                                       "description": description[:300] or ""},
                 },
                 "quantity": 1,
@@ -128,7 +128,7 @@ async def create_checkout(body: _CreateBody, request: Request,
         "market":        body.market or "",
     }
     description = (body.description
-                                  or f"BigFM · {body.purpose} · {body.entity_id}")[:300]
+                                  or f"RadioLife · {body.purpose} · {body.entity_id}")[:300]
     try:
         sess = _create_payment_checkout(
             amount_cents=int(body.amount_cents),

@@ -57,7 +57,7 @@ class MockAdsWizzAdapter(AdsWizzAdapter):
         vast = f"""<?xml version="1.0" encoding="UTF-8"?>
 <VAST version="4.0"><Ad id="{ad_id}"><InLine>
   <AdSystem>AdsWizzMock</AdSystem>
-  <AdTitle>BigFM Mock Audio Ad</AdTitle>
+  <AdTitle>RadioLife Mock Audio Ad</AdTitle>
   <Impression><![CDATA[/api/ads/audio/_impression/{ad_id}]]></Impression>
   <Creatives><Creative><Linear>
     <Duration>00:00:30</Duration>

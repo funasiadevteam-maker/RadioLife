@@ -633,7 +633,7 @@ async def merchant_submit(merchant_id: str, request: Request,
                                                                   "admin@bigfm.dubai")
             send_email(
                 to=admin_notify,
-                subject=f"[BigFM] New merchant application: {biz.get('name')}",
+                subject=f"[RadioLife] New merchant application: {biz.get('name')}",
                 html=(f"<p>Merchant <b>{biz.get('name')}</b> "
                           f"(<code>{mid}</code>) was submitted for approval by "
                           f"<code>{user.get('email')}</code>.</p>"

@@ -1,4 +1,4 @@
-"""BigFM Phase 13d — region health probes + circuit breaker + pending-write queue.
+"""RadioLife Phase 13d — region health probes + circuit breaker + pending-write queue.
 
 Probes:
   Every ~60s (or on demand) we write a heartbeat doc to the primary and try

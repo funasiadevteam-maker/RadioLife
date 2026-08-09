@@ -304,7 +304,7 @@ async def send_digest_for_advertiser(db, *, advertiser_id: str,
     payload = await build_digest_payload(
         db, advertiser_id=advertiser_id, days=days)
     html = _render_template(payload)
-    subject = (f"[BigFM Ads] Weekly digest — {payload['advertiser_name']} "
+    subject = (f"[RadioLife Ads] Weekly digest — {payload['advertiser_name']} "
                           f"({payload['total_spend_display']} spend last "
                           f"{days}d)")
     if not mailgun_is_live():
@@ -322,7 +322,7 @@ async def send_digest_for_advertiser(db, *, advertiser_id: str,
                       "subject": subject,
                       "payload": payload}
     result = send_email(email, subject, html,
-                                              from_name="BigFM Ads",
+                                              from_name="RadioLife Ads",
                                               tags=["advertiser_weekly_digest"],
                                               template_vars={
                                                   "advertiser_id": advertiser_id,

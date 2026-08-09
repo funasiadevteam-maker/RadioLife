@@ -62,7 +62,7 @@ AUDITION_SAMPLES: Dict[str, dict] = {
         "channel": "morning_masala",
         "hosts": ["Aanya"],
         "format": "solo",
-        "script_excerpt": "Dubai, good morning! 4:00 AM ho chuki hai, aur morning ride ka scene set hai yahan Morning Masala, BigFM par! [smiles] Kaise ho guys? Weekend ka mood kaisa chal raha hai? Bahar thandi hawa hai, aur traffic jams bhi shuru hone wale hain! Toh chai, coffee ya jo bhi ho, uthao aur me…",
+        "script_excerpt": "Dubai, good morning! 4:00 AM ho chuki hai, aur morning ride ka scene set hai yahan Morning Masala, RadioLife par! [smiles] Kaise ho guys? Weekend ka mood kaisa chal raha hai? Bahar thandi hawa hai, aur traffic jams bhi shuru hone wale hain! Toh chai, coffee ya jo bhi ho, uthao aur me…",
     },
     "phase37_lunch": {
         "segment_id": "c43ce653-e8ec-41b1-89a0-0beb8147c8cc",
@@ -98,7 +98,7 @@ AUDITION_SAMPLES: Dict[str, dict] = {
         "channel": "late_night_drive",
         "hosts": ["Veer"],
         "format": "solo",
-        "script_excerpt": "[softly] Kya scene hai dosto! Late Night Drive pe aapka swagat hai BigFM par. [pause] Is suhani raat mein sab kuch thoda aur romantic hai. Aapki khushiyan aur khwab hi toh maayne rakhte hain. Toh relax ho jaao…",
+        "script_excerpt": "[softly] Kya scene hai dosto! Late Night Drive pe aapka swagat hai RadioLife par. [pause] Is suhani raat mein sab kuch thoda aur romantic hai. Aapki khushiyan aur khwab hi toh maayne rakhte hain. Toh relax ho jaao…",
     },
     "phase37_talk_news": {
         "segment_id": "ce1252ca-f641-48b3-aecb-d1fd5581cdb9",
@@ -117,7 +117,7 @@ AUDITION_SAMPLES: Dict[str, dict] = {
         "channel": "party_dubai",
         "hosts": ["DJ Charlie"],
         "format": "solo",
-        "script_excerpt": "Yo, yo, yo! What's up, dosto?! It's your boy DJ Richard on BigFM's PARTY channel, and we're about to TURN IT UP tonight!! Whether you're cruising downtown or vibing at your favourite hangout, the PARTY is just getting started, yaar!!",
+        "script_excerpt": "Yo, yo, yo! What's up, dosto?! It's your boy DJ Richard on RadioLife's PARTY channel, and we're about to TURN IT UP tonight!! Whether you're cruising downtown or vibing at your favourite hangout, the PARTY is just getting started, yaar!!",
     },
     "party_charlie_solo_2": {
         "segment_id": "77e38d2d-1402-4098-a314-cdfe199af45c",
@@ -135,7 +135,7 @@ AUDITION_SAMPLES: Dict[str, dict] = {
         "channel": "party_dubai",
         "hosts": ["DJ Charlie", "DJ Riya"],
         "format": "duo",
-        "script_excerpt": "[CHARLIE] Yaar, Riya, what a MAST night!! [RIYA] Absolutely, Charlie! Dance floor is BLAZING!! [CHARLIE] This crowd is just AMAZING, doston!! [RIYA] And the energy? It's through the ROOF!! [CHARLIE] Are you READY for the next DROP, boss?? [RIYA] Let's GOOO! BigFM mein NONSTOP!!",
+        "script_excerpt": "[CHARLIE] Yaar, Riya, what a MAST night!! [RIYA] Absolutely, Charlie! Dance floor is BLAZING!! [CHARLIE] This crowd is just AMAZING, doston!! [RIYA] And the energy? It's through the ROOF!! [CHARLIE] Are you READY for the next DROP, boss?? [RIYA] Let's GOOO! RadioLife mein NONSTOP!!",
     },
     "bollywood_raghav_aanya_duo": {
         "segment_id": "fbd238c4-c573-4646-9bc5-3fe88c869e0f",
@@ -208,7 +208,7 @@ def _audition_html(request: Request) -> str:
         """)
 
     og_image = f"{base}/api/og_default.png"
-    og_title = "BigFM — Phase 3.6 voice audition"
+    og_title = "RadioLife — Phase 3.6 voice audition"
     og_desc = "Four fresh AI RJ samples: American DJ duo + native Hindi mehfil duo. No login required."
     page_url = f"{base}/audition"
 
@@ -331,7 +331,7 @@ def _audition_html(request: Request) -> str:
 <body>
   <main>
     <header class="header" data-testid="audition-header">
-      <div class="brand">BigFM · Voice Audition</div>
+      <div class="brand">RadioLife · Voice Audition</div>
       <h1>Phase 3.6 — <span class="accent">multi-provider voices</span></h1>
       <p class="lede">
         Four fresh samples comparing OpenAI <code>gpt-4o-mini-tts</code> (American DJs) with
@@ -342,7 +342,7 @@ def _audition_html(request: Request) -> str:
     {''.join(samples_html)}
 
     <footer class="foot">
-      <span>BigFM · Phase 3.6</span>
+      <span>RadioLife · Phase 3.6</span>
       <span><a href="/">← Back to radio</a></span>
     </footer>
   </main>

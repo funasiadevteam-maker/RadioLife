@@ -62,7 +62,7 @@ def _gen(prefix: str) -> str:
 # ────────────────────────────────────────────────────────────────────
 # Stage A — script
 # ────────────────────────────────────────────────────────────────────
-_SCRIPT_SYS = """You write 15-30 second radio ad scripts for BigFM.
+_SCRIPT_SYS = """You write 15-30 second radio ad scripts for RadioLife.
 Rules:
 - Match the TARGET LENGTH within ±10%% (≈2.5 words/sec).
 - Mention the business name EXACTLY ONCE.
@@ -264,7 +264,7 @@ def build_vast_xml(*, creative_id: str, audio_url: str, duration_sec: float,
 <VAST version="4.0">
   <Ad id="{_xml_escape(creative_id)}">
     <InLine>
-      <AdSystem version="1.0">BigFM</AdSystem>
+      <AdSystem version="1.0">RadioLife</AdSystem>
       <AdTitle><![CDATA[{title}]]></AdTitle>
       <Advertiser><![CDATA[{advertiser_name}]]></Advertiser>
       <Creatives>

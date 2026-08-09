@@ -27,29 +27,29 @@ _MARKET_QUERY = {
 
 _MOCK_STUBS = {
     "dubai": [
-        {"title": "Lunch Rush starts 12pm across Dubai Marina",            "source": "BigFM mock"},
-        {"title": "RTA announces metro extension feasibility study",        "source": "BigFM mock"},
-        {"title": "Dubai Food Festival returns next weekend",                "source": "BigFM mock"},
+        {"title": "Lunch Rush starts 12pm across Dubai Marina",            "source": "RadioLife mock"},
+        {"title": "RTA announces metro extension feasibility study",        "source": "RadioLife mock"},
+        {"title": "Dubai Food Festival returns next weekend",                "source": "RadioLife mock"},
     ],
     "new_york": [
-        {"title": "Bodega coffee prices hold flat for a sixth week",        "source": "BigFM mock"},
-        {"title": "MTA: L-train weekend service unchanged",                  "source": "BigFM mock"},
-        {"title": "Brooklyn Bridge resurfacing nears completion",           "source": "BigFM mock"},
+        {"title": "Bodega coffee prices hold flat for a sixth week",        "source": "RadioLife mock"},
+        {"title": "MTA: L-train weekend service unchanged",                  "source": "RadioLife mock"},
+        {"title": "Brooklyn Bridge resurfacing nears completion",           "source": "RadioLife mock"},
     ],
     "london": [
-        {"title": "TfL: Bakerloo upgrade timetable",                          "source": "BigFM mock"},
-        {"title": "Soho restaurants reopen after street works",             "source": "BigFM mock"},
-        {"title": "Thames Clipper adds Sunday service",                      "source": "BigFM mock"},
+        {"title": "TfL: Bakerloo upgrade timetable",                          "source": "RadioLife mock"},
+        {"title": "Soho restaurants reopen after street works",             "source": "RadioLife mock"},
+        {"title": "Thames Clipper adds Sunday service",                      "source": "RadioLife mock"},
     ],
     "mumbai": [
-        {"title": "Monsoon onset confirmed by IMD",                          "source": "BigFM mock"},
-        {"title": "Western Railway local frequency boost on Marine Lines", "source": "BigFM mock"},
-        {"title": "Bandra Fest dates announced",                              "source": "BigFM mock"},
+        {"title": "Monsoon onset confirmed by IMD",                          "source": "RadioLife mock"},
+        {"title": "Western Railway local frequency boost on Marine Lines", "source": "RadioLife mock"},
+        {"title": "Bandra Fest dates announced",                              "source": "RadioLife mock"},
     ],
     "los_angeles": [
-        {"title": "405 northbound reopens overnight",                        "source": "BigFM mock"},
-        {"title": "Marine layer lifts by noon citywide",                     "source": "BigFM mock"},
-        {"title": "DTLA art walk this Thursday",                              "source": "BigFM mock"},
+        {"title": "405 northbound reopens overnight",                        "source": "RadioLife mock"},
+        {"title": "Marine layer lifts by noon citywide",                     "source": "RadioLife mock"},
+        {"title": "DTLA art walk this Thursday",                              "source": "RadioLife mock"},
     ],
 }
 

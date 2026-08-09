@@ -228,51 +228,51 @@ def _mailgun_html_approval(biz: dict) -> tuple[str, str, str]:
     name = biz.get("name") or "your business"
     fe   = _frontend_url()
     dash = f"{fe}/merchant/dashboard"
-    subject = f"Welcome to BigFM Merchants — {name} is approved"
+    subject = f"Welcome to RadioLife Merchants — {name} is approved"
     html = (
         f"<div style='font-family:system-ui,sans-serif;color:#111;'>"
-        f"<h2 style='color:#7c3aed'>Welcome to BigFM Merchants</h2>"
+        f"<h2 style='color:#7c3aed'>Welcome to RadioLife Merchants</h2>"
         f"<p>Great news — your application for <b>{name}</b> has been "
         f"approved.  You can now set up offers, run campaigns, and take "
-        f"payments through BigFM.</p>"
+        f"payments through RadioLife.</p>"
         f"<p><a href='{dash}' style='background:linear-gradient(135deg,"
         f"#7c3aed,#ec4899);color:#fff;padding:12px 22px;border-radius:24px;"
         f"text-decoration:none;font-weight:600;'>Open your merchant dashboard</a></p>"
         f"<p style='color:#666;font-size:13px'>Questions? Just reply to this email.<br>"
-        f"— BigFM Merchant Team</p>"
+        f"— RadioLife Merchant Team</p>"
         f"</div>")
-    text = (f"Welcome to BigFM Merchants — {name} is approved.\n\n"
+    text = (f"Welcome to RadioLife Merchants — {name} is approved.\n\n"
                 f"Open your merchant dashboard: {dash}\n\n"
-                f"— BigFM Merchant Team")
+                f"— RadioLife Merchant Team")
     return subject, html, text
 
 
 def _mailgun_html_rejection(biz: dict, reason: str) -> tuple[str, str, str]:
     name = biz.get("name") or "your business"
-    subject = "Your BigFM merchant application update"
+    subject = "Your RadioLife merchant application update"
     html = (
         f"<div style='font-family:system-ui,sans-serif;color:#111;'>"
         f"<h2 style='color:#111'>Application update</h2>"
-        f"<p>Thanks for applying to BigFM Merchants for <b>{name}</b>.  "
+        f"<p>Thanks for applying to RadioLife Merchants for <b>{name}</b>.  "
         f"After review we're unable to approve the application at this time.</p>"
         f"<p><b>Reason from our team:</b><br>"
         f"<blockquote style='margin:8px 0 8px 8px;padding-left:14px;"
         f"border-left:3px solid #ec4899;color:#333;'>{reason}</blockquote></p>"
         f"<p>If you have questions or would like to appeal, please "
         f"<a href='mailto:merchants@bigfantv.com'>contact support</a>.</p>"
-        f"<p style='color:#666;font-size:13px'>— BigFM Merchant Team</p>"
+        f"<p style='color:#666;font-size:13px'>— RadioLife Merchant Team</p>"
         f"</div>")
     text = (f"Application update for {name}\n\n"
                 f"After review we're unable to approve your application at this "
                 f"time.\n\nReason: {reason}\n\n"
                 f"Contact support: merchants@bigfantv.com\n\n"
-                f"— BigFM Merchant Team")
+                f"— RadioLife Merchant Team")
     return subject, html, text
 
 
 def _mailgun_html_suspension(biz: dict, reason: str) -> tuple[str, str, str]:
     name = biz.get("name") or "your business"
-    subject = f"Your BigFM merchant account has been suspended"
+    subject = f"Your RadioLife merchant account has been suspended"
     html = (
         f"<div style='font-family:system-ui,sans-serif;color:#111;'>"
         f"<h2>Account suspended</h2>"
@@ -283,11 +283,11 @@ def _mailgun_html_suspension(biz: dict, reason: str) -> tuple[str, str, str]:
         f"border-left:3px solid #f59e0b;color:#333;'>{reason}</blockquote></p>"
         f"<p>To resolve or appeal, please "
         f"<a href='mailto:merchants@bigfantv.com'>contact support</a>.</p>"
-        f"<p style='color:#666;font-size:13px'>— BigFM Merchant Team</p>"
+        f"<p style='color:#666;font-size:13px'>— RadioLife Merchant Team</p>"
         f"</div>")
     text = (f"Your merchant account for {name} has been suspended.\n\n"
                 f"Reason: {reason}\n\nContact: merchants@bigfantv.com\n\n"
-                f"— BigFM Merchant Team")
+                f"— RadioLife Merchant Team")
     return subject, html, text
 
 
@@ -295,7 +295,7 @@ def _mailgun_html_reactivate(biz: dict) -> tuple[str, str, str]:
     name = biz.get("name") or "your business"
     fe   = _frontend_url()
     dash = f"{fe}/merchant/dashboard"
-    subject = f"Welcome back to BigFM Merchants"
+    subject = f"Welcome back to RadioLife Merchants"
     html = (
         f"<div style='font-family:system-ui,sans-serif;color:#111;'>"
         f"<h2 style='color:#059669'>Welcome back</h2>"
@@ -304,10 +304,10 @@ def _mailgun_html_reactivate(biz: dict) -> tuple[str, str, str]:
         f"<p><a href='{dash}' style='background:#059669;color:#fff;"
         f"padding:12px 22px;border-radius:24px;text-decoration:none;"
         f"font-weight:600;'>Open your dashboard</a></p>"
-        f"<p style='color:#666;font-size:13px'>— BigFM Merchant Team</p>"
+        f"<p style='color:#666;font-size:13px'>— RadioLife Merchant Team</p>"
         f"</div>")
     text = (f"Welcome back — {name} has been reactivated.\n\n"
-                f"Open your dashboard: {dash}\n\n— BigFM Merchant Team")
+                f"Open your dashboard: {dash}\n\n— RadioLife Merchant Team")
     return subject, html, text
 
 

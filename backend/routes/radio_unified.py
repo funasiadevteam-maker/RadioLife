@@ -195,7 +195,7 @@ async def discover(request: Request,
 
     # 2. AI-Curated rail.
     ai_cards = await _ai_top_n(db, 12)
-    rails.append({"id": "ai_curated", "title": "BigFM AI-Curated",
+    rails.append({"id": "ai_curated", "title": "RadioLife AI-Curated",
                               "stations": ai_cards})
 
     # 3. Community.

@@ -205,7 +205,7 @@ async def _llm_draft_block(*, persona: Dict[str, Any],
     fallback = (
         f"Presented by {advertiser_name}. "
         f"{tagline or f'{advertiser_name} is bringing you the vibe.'} "
-        f"You are on the {advertiser_name} takeover on BigFM — "
+        f"You are on the {advertiser_name} takeover on RadioLife — "
         f"stay locked in.")
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
@@ -215,7 +215,7 @@ async def _llm_draft_block(*, persona: Dict[str, Any],
         system = (
             f"You are drafting one of 4 short radio host reads for a "
             f"1-hour advertiser takeover.  Voice: "
-            f"{persona.get('name') or 'a BigFM host'} — "
+            f"{persona.get('name') or 'a RadioLife host'} — "
             f"{persona.get('persona_prompt') or 'upbeat, warm, conversational'}. "
             f"MUST open with 'Presented by {advertiser_name}'.  "
             f"Keep total spoken length 12-18 seconds (35-55 words).  "
@@ -1096,7 +1096,7 @@ async def listener_ping(db, *, takeover_id: str,
                     amount_cents=int(bonus.get("prize_amount") or 0),
                     advertiser_business_id=t["advertiser_business_id"],
                     advertiser_name=(t.get("branded_overlay") or {})
-                        .get("advertiser_name") or "BigFM sponsor")
+                        .get("advertiser_name") or "RadioLife sponsor")
             await db.takeover_hour_bonus_awards.update_one(
                 {"id": award_id},
                 {"$set": {

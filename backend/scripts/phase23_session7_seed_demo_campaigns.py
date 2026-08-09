@@ -26,27 +26,27 @@ HOUSE_USER_ID = "usr_demo_house"
 SEEDS = [
     (
         "tpl_slot_machine", "slot_machine",
-        "BigFM Lucky Reels",
+        "RadioLife Lucky Reels",
         "#ef4444",  # red, distinct from mystery's amber
-        "🎰", "BigFM",
+        "🎰", "RadioLife",
         [("Free Coffee", 60, "Espresso on us", 12.0),
           ("Free Pastry", 30, "Pick any pastry",  8.0),
           ("10% Off",        10, "Next purchase",     0.0)],
     ),
     (
         "tpl_mystery_box", "mystery_box",
-        "BigFM Surprise Box",
+        "RadioLife Surprise Box",
         "#f59e0b",  # amber per existing TEMPLATE_THEME.mystery_box
-        "🎁", "BigFM",
+        "🎁", "RadioLife",
         [("Mystery Coffee", 60, "Random hot drink",         12.0),
           ("Mystery Snack",   30, "Random pastry / cookie", 10.0),
-          ("Mystery Merch",   10, "BigFM tote / sticker", 25.0)],
+          ("Mystery Merch",   10, "RadioLife tote / sticker", 25.0)],
     ),
     (
         "tpl_pick_a_card", "pick_a_card",
-        "BigFM Card Pick",
+        "RadioLife Card Pick",
         "#ec4899",  # pink per TEMPLATE_THEME.pick_a_card
-        "🃏", "BigFM",
+        "🃏", "RadioLife",
         [("Iced Latte",        60, "On the house", 18.0),
           ("Bottled Water", 30, "Stay hydrated",  4.0),
           ("Concert Ticket", 10, "Local gig pass", 80.0)],
@@ -55,7 +55,7 @@ SEEDS = [
 
 
 async def ensure_house_user(db) -> str:
-    """Upsert a BigFM-house advertiser user.  Used as the demo
+    """Upsert a RadioLife-house advertiser user.  Used as the demo
     campaigns' `advertiser_id` so they show up under the normal
     creator flow."""
     now = datetime.now(timezone.utc)
@@ -64,7 +64,7 @@ async def ensure_house_user(db) -> str:
         {"$setOnInsert": {
             "_id":  HOUSE_USER_ID, "user_id": HOUSE_USER_ID,
             "email": "house+demo@bigfm.dubai",
-            "name":  "BigFM House",
+            "name":  "RadioLife House",
             "role":  "advertiser",
             "is_advertiser": True,
             "created_at": now,
@@ -166,7 +166,7 @@ async def seed_one(db, tpl, gtype, title, brand, emoji, sponsor, prizes) -> str:
     await db.game_compliance_settings.update_one(
         {"_id": cid},
         {"$set": {"_id": cid, "campaign_id": cid,
-                            "terms_text": "Demo campaign — standard BigFM T&Cs apply.",
+                            "terms_text": "Demo campaign — standard RadioLife T&Cs apply.",
                             "approval_status": "approved",
                             "approved_by": HOUSE_USER_ID,
                             "approved_at": now}},

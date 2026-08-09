@@ -1,4 +1,4 @@
-"""BigFM Phase 13d — Cache-Control + ETag middleware.
+"""RadioLife Phase 13d — Cache-Control + ETag middleware.
 
 Splits public read-only routes from auth-gated routes:
   * Public routes (channel list, public passport profiles, public
@@ -109,7 +109,7 @@ class CacheControlMiddleware(BaseHTTPMiddleware):
                 headers={
                     "ETag": etag,
                     "Cache-Control": PUBLIC_CACHE_HEADER,
-                    "X-BigFM-Region": response.headers.get("X-BigFM-Region", ""),
+                    "X-RadioLife-Region": response.headers.get("X-RadioLife-Region", ""),
                 })
         # Rebuild the response with the buffered body so downstream
         # clients see exactly what the route produced — only headers

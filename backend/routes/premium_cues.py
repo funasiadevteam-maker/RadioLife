@@ -72,9 +72,12 @@ async def _get_config(db) -> Dict[str, Any]:
     return cfg
 
 
-async def _month_points_earned(db, uid: str) -> int:
-    pipe = [{"$match": {"user_id": uid, "delta": {"$gt": 0},
-                        "created_at": {"$gte": _month_start()}}},
+async def _month_points_earned(db, uid: str, exclude_sources: Optional[List[str]] = None) -> int:
+    match = {"user_id": uid, "delta": {"$gt": 0},
+             "created_at": {"$gte": _month_start()}}
+    if exclude_sources:
+        match["source"] = {"$nin": exclude_sources}
+    pipe = [{"$match": match},
             {"$group": {"_id": None, "t": {"$sum": "$delta"}}}]
     async for d in db.points_ledger.aggregate(pipe):
         return int(d.get("t") or 0)
@@ -102,9 +105,12 @@ async def premium_status(request: Request, user: dict = Depends(current_user)):
     is_premium = bool(user.get("is_premium"))
     mult = float(cfg.get("points_multiplier", 1.0))
     month_earned = await _month_points_earned(db, user["user_id"])
-    # HONEST value: only the reward-multiplier delta, which we can compute
-    # from the ledger. No fabricated ad-break counts.
-    bonus_estimate = int(round(month_earned * (mult - 1))) if mult > 1 else 0
+    # HONEST value: the multiplier realistically applies to base earning, NOT
+    # to reward payouts (mission/premium bonuses) — exclude those from the base
+    # so the estimate doesn't compound on itself.
+    base_earned = await _month_points_earned(
+        db, user["user_id"], exclude_sources=["mission_reward", "premium_bonus"])
+    bonus_estimate = int(round(base_earned * (mult - 1))) if mult > 1 else 0
     benefits = [b for b in cfg.get("benefits", []) if b.get("enabled", True)]
     return {
         "is_premium": is_premium,

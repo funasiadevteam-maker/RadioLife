@@ -185,7 +185,7 @@ async def get_city_tags(
             _push(h["city"], "Live in", "heat" if h.get("session_count") else "market_default",
                        h.get("market") or "")
 
-    primary = tags[0].city if tags else "BigFM Global"
+    primary = tags[0].city if tags else "RadioLife Global"
     return CityTagsResponse(primary_city=primary,
                                               tags=tags[:3],
                                               fallback_used=fallback_used)

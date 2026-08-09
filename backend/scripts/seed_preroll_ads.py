@@ -65,14 +65,14 @@ SAMPLE_ADS = [
     },
     {
         "id": "pra_seed_radio_app",
-        "name": "BigFM house spot",
+        "name": "RadioLife house spot",
         "advertiser_id": "adv_bigfm_inhouse",
-        "advertiser_name": "BigFM",
+        "advertiser_name": "RadioLife",
         "type": "audio",
         "audio_url": "https://www.kozco.com/tech/piano2-CoolEdit.mp3",
         "audio_duration_seconds": 10,
         # Sub-Phase 42-B2 — house spot ships as AUDIO ONLY.  The
-        # previous "Go ad-free with BigFM Premium" companion was a
+        # previous "Go ad-free with RadioLife Premium" companion was a
         # consumer-facing upsell masquerading as an ad — moved to the
         # dedicated <PremiumUpsellBanner /> component.  Ads without an
         # attached offer must not render companion creative.

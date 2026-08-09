@@ -41,16 +41,16 @@ SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Phase 39 stock scripts — short, persona-flavoured.  ~80-120 chars each.
 SAMPLE_SCRIPTS = {
-    "p39_dawn_caller":              "[warm] Good morning. [soft] This is your Dawn Caller on BigFM. [warm] Chai chal raha hai? Let's ease into the day, doston.",
-    "p39_drive_time_energizer":  "[excited] Morning crew, wheels UP! [hyped] This is Drive Time on BigFM — let's roll into the day, full energy. Let's go!",
-    "p39_lunch_cousin":              "[warm] Lunch ho gaya? [chuckles] Pull up your chair — this is your Lunch Cousin on BigFM with the best vibes for the next hour.",
-    "p39_afternoon_storyteller":  "[soft] Settle in for a moment. [warm] Ek baat batayein — the afternoon has its own quiet rhythm. This is BigFM, listening with you.",
-    "p39_sunset_reflector":      "[soft] Day done, slow down. [warm] Thoda saans le lo. The sun is saying its goodbye — this is your Sunset Reflector on BigFM.",
-    "p39_friday_night_hype":      "[shouts] The weekend starts NOW!! [hyped] City is on tonight — turn it UP, doston. Friday Night Hype on BigFM!",
-    "p39_late_night_confidant":  "[soft] Still up? [warm] You're not alone. Raat ki chuppi mein bhi music chal raha hai. Late Night Confidant on BigFM.",
-    "p39_devotional_murmur":      "[warm] Om Shanti. [soft] Sab thik hoga. Yeh thodi der ki shanti aapke liye hai. BigFM, dil se.",
-    "p39_bilingual_news_anchor": "[warm] Here is what you need to know — [excited] the headlines this hour, [warm] sirf BigFM par.",
-    "p39_weekend_vibe_curator":  "[warm] Weekend mood, locked in. [chuckles] No rush today, let it flow — Weekend Vibe Curator, BigFM, dil se.",
+    "p39_dawn_caller":              "[warm] Good morning. [soft] This is your Dawn Caller on RadioLife. [warm] Chai chal raha hai? Let's ease into the day, doston.",
+    "p39_drive_time_energizer":  "[excited] Morning crew, wheels UP! [hyped] This is Drive Time on RadioLife — let's roll into the day, full energy. Let's go!",
+    "p39_lunch_cousin":              "[warm] Lunch ho gaya? [chuckles] Pull up your chair — this is your Lunch Cousin on RadioLife with the best vibes for the next hour.",
+    "p39_afternoon_storyteller":  "[soft] Settle in for a moment. [warm] Ek baat batayein — the afternoon has its own quiet rhythm. This is RadioLife, listening with you.",
+    "p39_sunset_reflector":      "[soft] Day done, slow down. [warm] Thoda saans le lo. The sun is saying its goodbye — this is your Sunset Reflector on RadioLife.",
+    "p39_friday_night_hype":      "[shouts] The weekend starts NOW!! [hyped] City is on tonight — turn it UP, doston. Friday Night Hype on RadioLife!",
+    "p39_late_night_confidant":  "[soft] Still up? [warm] You're not alone. Raat ki chuppi mein bhi music chal raha hai. Late Night Confidant on RadioLife.",
+    "p39_devotional_murmur":      "[warm] Om Shanti. [soft] Sab thik hoga. Yeh thodi der ki shanti aapke liye hai. RadioLife, dil se.",
+    "p39_bilingual_news_anchor": "[warm] Here is what you need to know — [excited] the headlines this hour, [warm] sirf RadioLife par.",
+    "p39_weekend_vibe_curator":  "[warm] Weekend mood, locked in. [chuckles] No rush today, let it flow — Weekend Vibe Curator, RadioLife, dil se.",
 }
 
 # OpenAI TTS fallback voices (when --provider openai).

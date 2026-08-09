@@ -32,7 +32,7 @@ def _now(): return datetime.now(timezone.utc)
 async def _build_summary_text(db, user: dict) -> str:
     consent = int(user.get("location_consent_level", 0))
     persona_id = user.get("selected_persona_id")
-    persona_name = "BigFM's default RJ"
+    persona_name = "RadioLife's default RJ"
     if persona_id:
         p = await db.rj_personality_profiles.find_one({"_id": persona_id})
         if p:
@@ -100,7 +100,7 @@ async def _build_summary_text(db, user: dict) -> str:
             temperature=0.7, max_tokens=180,
         )
         text = (resp.choices[0].message.content or "").strip()
-        return text or "Your AI RJ is ready. Tune in to BigFM."
+        return text or "Your AI RJ is ready. Tune in to RadioLife."
     except Exception as e:
         log.warning("[ai-memory] OpenAI fallback: %s", e)
         return ("Your AI RJ — " + persona_name + " — is set. " +

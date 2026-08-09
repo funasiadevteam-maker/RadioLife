@@ -291,7 +291,7 @@ PHASE10C_EXCLUSIVE_SEEDS = [
         "slug": "diamond_room",
         "name": "Diamond Room",
         "tagline": "The top floor",
-        "description": "Diamond Ambassadors only. The most curated mix on BigFM, served by Aarti & Kabir.",
+        "description": "Diamond Ambassadors only. The most curated mix on RadioLife, served by Aarti & Kabir.",
         "cover_color": "#B9F2FF",
         "cover_image_url": None,
         "language_mix": [{"language": "hindi", "weight": 0.5},

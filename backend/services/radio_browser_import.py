@@ -1,12 +1,12 @@
 """Phase 42-A — Radio Browser import + auto-categorization service.
 
 Pulls live-radio station metadata from the public Radio Browser API
-(https://api.radio-browser.info/), normalizes it into the BigFM
+(https://api.radio-browser.info/), normalizes it into the RadioLife
 `imported_radio_stations` schema, rule-classifies into categories, and
 upserts via the `external_station_uuid` primary key.
 
 Etiquette:
-    User-Agent: BigFM/1.0 (https://bigfantv.com)   (per RB ToS)
+    User-Agent: RadioLife/1.0 (https://bigfantv.com)   (per RB ToS)
     Mirror rotation: de1 / at1 / fi1 / nl1 — DNS round-robin.
                                   If one mirror fails (DNS / 5xx) we fall back
                                   to the next in the list.
@@ -35,7 +35,7 @@ import httpx
 logger = logging.getLogger("bigfm.live_radio.import")
 
 # Radio Browser etiquette.
-RADIO_BROWSER_USER_AGENT = "BigFM/1.0 (https://bigfantv.com)"
+RADIO_BROWSER_USER_AGENT = "RadioLife/1.0 (https://bigfantv.com)"
 RADIO_BROWSER_MIRRORS = [
     "https://de1.api.radio-browser.info",
     "https://at1.api.radio-browser.info",
@@ -142,7 +142,7 @@ def _coerce_bool(v: Any) -> bool:
 
 
 def normalize_station(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Map a single Radio Browser station row into BigFM's schema.
+    """Map a single Radio Browser station row into RadioLife's schema.
     Returns `None` for rows we can't import (missing UUID, blank stream
     URL, etc.)."""
     rb_uuid = (raw.get("stationuuid") or "").strip()
@@ -186,7 +186,7 @@ def normalize_station(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "geo_lat":                              raw.get("geo_lat"),
         "geo_long":                          raw.get("geo_long"),
         "has_extended_info":          _coerce_bool(raw.get("has_extended_info")),
-        # BigFM-side augmentations.
+        # RadioLife-side augmentations.
         "stream_health_status": "unknown",
         "active":                                  True,
         "imported_at":                      _now(),

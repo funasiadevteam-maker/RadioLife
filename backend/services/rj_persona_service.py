@@ -39,7 +39,7 @@ PUBLIC_FIELDS = (
 ADMIN_ONLY_FIELDS = ("persona_prompt", "created_by_user_id")
 
 DEFAULT_PROMPT = (
-    "You are an upbeat radio host on BigFM. Bridge the previous song "
+    "You are an upbeat radio host on RadioLife. Bridge the previous song "
     "to the next song in 15-25 seconds. Mention the mood or the "
     "listener's daypart. Keep it energetic and conversational.")
 
@@ -356,7 +356,7 @@ async def _generate_script(persona: Dict[str, Any],
     if not api_key:
         # Deterministic fallback so preview still works — clearly
         # marked so tests can distinguish it.
-        return (f"Hey — {persona.get('name')} here on BigFM. "
+        return (f"Hey — {persona.get('name')} here on RadioLife. "
                         f"Hope your {context.get('time_of_day') or 'day'} in "
                         f"{context.get('city') or 'the city'} is going great. "
                         "Stay tuned for more.")
@@ -372,7 +372,7 @@ async def _generate_script(persona: Dict[str, Any],
         return text[:500] if len(text) > 500 else text
     except Exception as e:
         logger.warning("[rj_personas] LLM failed, using fallback: %s", e)
-        return (f"Hey — {persona.get('name')} here on BigFM. "
+        return (f"Hey — {persona.get('name')} here on RadioLife. "
                         f"Stay tuned.")
 
 

@@ -52,7 +52,7 @@ def build_bid_request(user: dict, session: dict, ctx: dict) -> dict:
             "secure": 1,
         }],
         "site": {
-            "id": "bigfm-web", "name": "BigFM",
+            "id": "bigfm-web", "name": "RadioLife",
             "domain": "bigfm.dubai" if market == "dubai" else "funasia.ai",
             "page": ctx.get("channel_slug", ""),
         },

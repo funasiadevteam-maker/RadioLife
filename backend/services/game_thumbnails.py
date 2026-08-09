@@ -39,7 +39,7 @@ TYPE_FALLBACK = {
 }
 
 _BRAND_SUFFIX = ("Dark cinematic premium photography, neon magenta + cyan + "
-                              "deep purple BigFM brand palette, soft depth of field, "
+                              "deep purple RadioLife brand palette, soft depth of field, "
                               "no text or logos visible. Square 1:1 frame.")
 
 
@@ -126,7 +126,7 @@ async def generate_thumbnail_sync(db, campaign_id: str, *,
         return {"ok": True, "skipped": "already_set",
                       "url": existing}
 
-    title = camp.get("title") or "BigFM Game"
+    title = camp.get("title") or "RadioLife Game"
     sponsor = await _resolve_sponsor(db, campaign_id)
     prize_titles = await _resolve_prize_titles(db, campaign_id)
     prompt = _build_prompt(title=title, template_id=template_id,

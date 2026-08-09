@@ -1,6 +1,6 @@
 """Phase B — Listener heat helper.
 
-Aggregates the top cities currently listening on BigFM in a rolling
+Aggregates the top cities currently listening on RadioLife in a rolling
 window.  Used by ``/api/personalized/city_tags`` as the anon fallback
 ("anyone who isn't authed and doesn't have a resolved geo city of their
 own gets the heat list so the hero never reads as empty / hardcoded").
@@ -37,7 +37,7 @@ _CACHE: dict[tuple[int, int], tuple[float, list[dict[str, Any]]]] = {}
 _CACHE_TTL_SEC = 60.0
 
 # Static fallback when no listening data exists yet.  Single source of
-# truth for the "BigFM is live in these places" hero list — replaces
+# truth for the "RadioLife is live in these places" hero list — replaces
 # the previously hardcoded "Dubai · Mumbai · Dallas" string.
 LAUNCH_MARKETS: list[dict[str, Any]] = [
     {"city": "Dubai",  "country": "AE", "market": "dubai",   "session_count": 0},

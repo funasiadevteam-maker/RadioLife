@@ -35,7 +35,7 @@ SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send"
 DEFAULT_FROM_EMAIL = os.environ.get(
     "RETENTION_FROM_EMAIL", "hello@bigfm.dubai")
 DEFAULT_FROM_NAME = os.environ.get(
-    "RETENTION_FROM_NAME", "BigFM")
+    "RETENTION_FROM_NAME", "RadioLife")
 PUBLIC_BACKEND = os.environ.get(
     "PUBLIC_BACKEND_URL",
     "https://mobile-games-v2.preview.emergentagent.com").rstrip("/")

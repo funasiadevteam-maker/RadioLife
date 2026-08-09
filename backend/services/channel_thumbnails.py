@@ -94,7 +94,7 @@ THUMBNAIL_PROMPTS: dict[str, str] = {
         "square composition, no text"),
     # Phase 15d.1 — regional variants (city-text removed Phase 41 P1).
     # Visuals must NOT identify any specific city — no landmarks, no
-    # storefront signage, no city skylines. Branding is BigFM + channel
+    # storefront signage, no city skylines. Branding is RadioLife + channel
     # name only, overlaid in CSS by the frontend.
     "dfw_bollywood_drive": (
         "Bollywood highway movie-poster collage: empty open highway "

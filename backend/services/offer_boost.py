@@ -74,7 +74,7 @@ async def _fan_out_push(db, *, offer: dict, venue: dict,
     copy = random.choice(PUSH_COPY_VARIANTS).format(
         title=offer.get("title") or "your favorite spot",
         pct=pct,
-        venue_name=(venue or {}).get("name") or "BigFM",
+        venue_name=(venue or {}).get("name") or "RadioLife",
     )
     docs = [{
         "id":             f"notif_boost_{secrets.token_hex(6)}_{u}",
@@ -160,7 +160,7 @@ async def start_boost(db, *, venue_id: str, offer_id: str,
                       offer_id, push_count, ends_at.isoformat())
     return {**boost_doc, "push_copy_sample": (PUSH_COPY_VARIANTS[0].format(
         title=offer.get("title") or "", pct=int(round(boosted)),
-        venue_name=venue.get("name") or "BigFM",
+        venue_name=venue.get("name") or "RadioLife",
     ))}
 
 

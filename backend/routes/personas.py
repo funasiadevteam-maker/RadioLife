@@ -142,7 +142,7 @@ async def _llm_chat_reply(persona: dict, listener_input: str,
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "system",
-                                  "content": "You are a BigFM radio host. Stay in character. "
+                                  "content": "You are a RadioLife radio host. Stay in character. "
                                                       "Reply in 2-4 short sentences. Never break character."},
                                   {"role": "user", "content": prompt}],
             temperature=0.8,

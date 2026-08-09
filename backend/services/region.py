@@ -1,9 +1,9 @@
-"""BigFM Phase 13d — region awareness layer.
+"""RadioLife Phase 13d — region awareness layer.
 
 Reads two env vars:
   BIGFM_REGION         — geographic tag (default 'ae-uae'; e.g. 'us-east',
                                   'eu-west', 'sg-asia'). Surfaces in the
-                                  ``X-BigFM-Region`` response header and
+                                  ``X-RadioLife-Region`` response header and
                                   in every structured log line.
   BIGFM_REGION_ROLE    — 'primary' (default) or 'replica'. A replica region
                                   runs identical code but is downstream of a primary
@@ -55,7 +55,7 @@ def audio_bucket_region() -> str:
 
 # ─── Middleware ──────────────────────────────────────────────────────────
 class RegionHeaderMiddleware(BaseHTTPMiddleware):
-    """Adds X-BigFM-Region to every response and X-BigFM-Region-Role.
+    """Adds X-RadioLife-Region to every response and X-RadioLife-Region-Role.
 
     Also attaches the region to `request.state.region` so downstream
     logging / route code can read it without re-reading the env.
@@ -75,8 +75,8 @@ class RegionHeaderMiddleware(BaseHTTPMiddleware):
                                 "region=%s role=%s path=%s",
                                 region, role, request.url.path)
             raise
-        response.headers["X-BigFM-Region"]      = region
-        response.headers["X-BigFM-Region-Role"] = role
+        response.headers["X-RadioLife-Region"]      = region
+        response.headers["X-RadioLife-Region-Role"] = role
         return response
 
 

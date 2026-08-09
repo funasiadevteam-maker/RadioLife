@@ -36,7 +36,7 @@ async def main() -> None:
     doc = {
         "_id":                      FIXTURE_ID,
         "title":                    "Phase D Explicit Test (Do Not Play)",
-        "artist":                  "BigFM QA",
+        "artist":                  "RadioLife QA",
         "album":                  "Phase D Test Fixtures",
         "duration_sec":      3.03,
         "file_path":              "/app/backend/storage/tracks/phase_d_explicit_fixture.mp3",

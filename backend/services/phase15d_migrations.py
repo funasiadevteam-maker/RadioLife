@@ -166,8 +166,8 @@ _BANNED_DUBAI_REGEX = (
     r"\bDubai\b|\bKarak\b|\bKarama\b|\bJLT\b|\bUAE\b|\bBurj\b|\bLulu\b|"
     r"Marina Mall|Dubai Marina|\bJBR\b|Sheikh\s*Zayed|Global\s*Village|"
     r"Atlantis\s*Dubai|Bur\s*Dubai|\bRTA\b|\bSharjah\b|\bdil\s*se\b|\bdilse\b|"
-    r"\byaar\b|\bdoston\b|\bdosto\b|BigFM\s+DFW|BigFM\s+NEW_YORK|"
-    r"BigFM\s+LONDON|BigFM\s+MUMBAI|BigFM\s+LOS_ANGELES"
+    r"\byaar\b|\bdoston\b|\bdosto\b|RadioLife\s+DFW|RadioLife\s+NEW_YORK|"
+    r"RadioLife\s+LONDON|RadioLife\s+MUMBAI|RadioLife\s+LOS_ANGELES"
 )
 
 

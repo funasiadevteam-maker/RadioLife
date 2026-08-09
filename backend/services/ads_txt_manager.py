@@ -22,7 +22,7 @@ ADS_TXT_PATH = Path(os.environ.get("ADS_TXT_PATH",
                                                           "/app/backend/static/ads.txt"))
 
 _DEFAULT_HEADER = (
-    "# BigFM authorized seller list — managed via admin dashboard\n"
+    "# RadioLife authorized seller list — managed via admin dashboard\n"
     "# IAB Tech Lab ads.txt v1.1 — https://iabtechlab.com/ads-txt\n"
 )
 

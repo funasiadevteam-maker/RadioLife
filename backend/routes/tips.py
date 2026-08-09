@@ -1,7 +1,7 @@
 """Phase J.4 — User-to-user tipping with platform fee.
 
 Sender debits `amount_pts` via PointsService.spend; receiver credits
-90% via PointsService.award; remaining 10% credits the BigFM house
+90% via PointsService.award; remaining 10% credits the RadioLife house
 account (`platform_house`) and is logged as `platform_fee_pts` on the
 tip record.
 

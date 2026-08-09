@@ -111,7 +111,7 @@ async def _upsert_campaign(db, *, title: str, owner_user_id: str,
         await db.predict_win_prizes.insert_one({
             "_id": pid, "prize_id": pid, "campaign_id": cid,
             "rank": 1, "title": "200 BigCoin reward",
-            "description": "Auto-credited to winners' BigFM wallet.",
+            "description": "Auto-credited to winners' RadioLife wallet.",
             "prize_kind": "bigcoin", "value_amount": 200,
             "value_currency": "BC", "image_url": None,
             "inventory_total": 5, "inventory_remaining": 5,

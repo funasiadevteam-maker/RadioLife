@@ -46,7 +46,7 @@ TRIM_SECONDS = 45  # keep clips short for fast tests
 
 def _download(url: str, dest: Path, timeout: int = 25) -> bool:
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "BigFM/0.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": "RadioLife/0.1"})
         with urllib.request.urlopen(req, timeout=timeout) as r, open(dest, "wb") as f:
             f.write(r.read())
         return dest.stat().st_size > 1024
@@ -151,7 +151,7 @@ SEED_USERS = [
     },
     {
         "email": "admin@bigfm.dubai",
-        "name": "BigFM Admin",
+        "name": "RadioLife Admin",
         "password": "AdminPass123!",
         "role": "admin",
         "onboarding_complete": True,

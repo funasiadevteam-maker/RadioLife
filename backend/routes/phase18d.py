@@ -82,7 +82,7 @@ async def serve_vast(creative_id: str, request: Request,
             '<?xml version="1.0" encoding="UTF-8"?>\n<VAST version="4.0"/>',
             media_type="application/xml")
     # Try to enrich with advertiser name.
-    adv_name = "BigFM Advertiser"
+    adv_name = "RadioLife Advertiser"
     aid = cr.get("advertiser_id")
     if aid:
         adv = await db.advertisers.find_one({"id": aid}, {"name": 1, "_id": 0})

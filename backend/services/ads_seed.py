@@ -145,7 +145,7 @@ DEMO_CAMPAIGNS: List[dict] = [
         },
         "frequency_cap": {"per_hour": 1, "per_day": 3, "per_week": 8, "per_user_lifetime": 30},
         "action_card_buttons": ["save_coupon", "get_directions", "share"],
-        "creative_script": "[warm] Karama mein Karak chai chahiye? [excited] Karak Cafe is celebrating with 20 percent off ALL chai today. [hyped] Save the code KARAK20 on BigFM right now — show it at the counter, sip happy. [warm] Karak Cafe — Karama. Dil se.",
+        "creative_script": "[warm] Karama mein Karak chai chahiye? [excited] Karak Cafe is celebrating with 20 percent off ALL chai today. [hyped] Save the code KARAK20 on RadioLife right now — show it at the counter, sip happy. [warm] Karak Cafe — Karama. Dil se.",
         "creative_voice_key": "raghav_hindi",
         "creative_duration_sec": 18.0,
         "offer": {
@@ -174,7 +174,7 @@ DEMO_CAMPAIGNS: List[dict] = [
         },
         "frequency_cap": {"per_hour": 1, "per_day": 2, "per_week": 5, "per_user_lifetime": 12},
         "action_card_buttons": ["book_appointment", "request_callback", "get_directions"],
-        "creative_script": "[warm] Family ka dental check-up due hai? [crisp] Dr. Mehta Family Dental in JLT is offering a free first visit this month. [warm] Book in two taps — right here on BigFM. [excited] Dr. Mehta Dental. Healthy smiles, family-first.",
+        "creative_script": "[warm] Family ka dental check-up due hai? [crisp] Dr. Mehta Family Dental in JLT is offering a free first visit this month. [warm] Book in two taps — right here on RadioLife. [excited] Dr. Mehta Dental. Healthy smiles, family-first.",
         "creative_voice_key": "aanya_hindi",
         "creative_duration_sec": 20.0,
         "offer": None,
@@ -258,7 +258,7 @@ DEMO_CAMPAIGNS: List[dict] = [
         },
         "frequency_cap": {"per_hour": 1, "per_day": 2, "per_week": 6, "per_user_lifetime": 15},
         "action_card_buttons": ["buy_prepaid_lunch", "reserve_table", "save_coupon"],
-        "creative_script": "[warm] JBR lunch plans? [excited] Indo Marina is doing a prepaid lunch deal — AED 49 for the full thali, [hyped] no waiting, no surprise bills. [warm] Pre-pay on BigFM, walk in, sit down. [excited] Indo Marina, JBR The Walk.",
+        "creative_script": "[warm] JBR lunch plans? [excited] Indo Marina is doing a prepaid lunch deal — AED 49 for the full thali, [hyped] no waiting, no surprise bills. [warm] Pre-pay on RadioLife, walk in, sit down. [excited] Indo Marina, JBR The Walk.",
         "creative_voice_key": "aanya_hindi",
         "creative_duration_sec": 20.0,
         "product": {

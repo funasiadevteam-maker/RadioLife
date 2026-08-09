@@ -144,17 +144,17 @@ async def send_verification_email(db, *, claim: Dict[str, Any]) -> Dict[str, Any
     verification mode."""
     link = _build_verification_link(claim["verification_token"])
     station_name = claim.get("station_name_snapshot") or claim.get("station_id")
-    subject = f"Verify your ownership of {station_name} on BigFM"
+    subject = f"Verify your ownership of {station_name} on RadioLife"
     html = f"""
         <p>Hi {claim.get('contact_role', 'there')},</p>
         <p>You're receiving this because someone (hopefully you) submitted a
         claim of ownership for the station <strong>{station_name}</strong> on
-        BigFM.</p>
+        RadioLife.</p>
         <p>Confirm your ownership by clicking this link:</p>
         <p><a href="{link}">{link}</a></p>
         <p>This link is for {claim.get('contact_email')}.  If you did not
         request this claim, you can safely ignore this email.</p>
-        <p>— The BigFM team</p>
+        <p>— The RadioLife team</p>
     """.strip()
     return await _log_mock_email(
         db, to=claim["contact_email"], subject=subject, html=html,

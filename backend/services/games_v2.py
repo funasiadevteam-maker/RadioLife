@@ -240,7 +240,7 @@ _TEMPLATES = [
          "phrases": [
              {"phrase": "TUM HI HO", "hint": "Aashiqui 2 lead single"},
              {"phrase": "KARAK CHAI", "hint": "Dubai's favourite drink"},
-             {"phrase": "FRIDAY NIGHT MEHFIL", "hint": "BigFM channel"},
+             {"phrase": "FRIDAY NIGHT MEHFIL", "hint": "RadioLife channel"},
              {"phrase": "BOLLYWOOD HITS", "hint": "Music genre"},
              {"phrase": "DJ NIGHTS", "hint": "Late-week vibes"},
          ],
@@ -357,7 +357,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
 
     house = [
         {"id": HOUSE_SPIN_ID, "template_id": "tpl_spin_wheel",
-         "title": "BigFM Daily Spin",
+         "title": "RadioLife Daily Spin",
          "description": "Spin every 4 hours for BigCoin & sponsor perks.",
          "prizes": [
              {"title": "5 BigCoin", "prize_type": "bigcoin", "value_amount": 5,
@@ -383,7 +383,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
          ],
          "config_overrides": None},
         {"id": HOUSE_TRIVIA_ID, "template_id": "tpl_quiz",
-         "title": "BigFM Music Trivia",
+         "title": "RadioLife Music Trivia",
          "description": "Test your music knowledge — up to 3 plays per day.",
          "prizes": [
              {"title": "10 BigCoin (correct)", "prize_type": "bigcoin",
@@ -395,7 +395,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
                                 "dynamic_source": "tracks",
                                 "time_per_question_s": 15}},
         {"id": HOUSE_LYRIC_ID, "template_id": "tpl_quiz",
-         "title": "BigFM Lyric Hunt",
+         "title": "RadioLife Lyric Hunt",
          "description": "Complete the lyric in 4 tries — up to 3 plays per day.",
          "prizes": [
              {"title": "15 BigCoin (correct)", "prize_type": "bigcoin",
@@ -428,7 +428,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
             "advertiser_id": None, "business_id": None,
             "template_id": h["template_id"], "title": h["title"],
             "description": h["description"],
-            "sponsor_name": "BigFM", "sponsor_logo_url": "/static/bigfm_logo.png",
+            "sponsor_name": "RadioLife", "sponsor_logo_url": "/static/bigfm_logo.png",
             "brand_colors_json": {"primary": "#ff2d95", "secondary": "#0a0a0b"},
             "game_config_json": cfg,
             "objective": "listener_engagement",
@@ -486,7 +486,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
         })
         await db.game_compliance_settings.insert_one({
             "_id": h["id"], "campaign_id": h["id"],
-            "terms_text": "Standard BigFM platform terms.",
+            "terms_text": "Standard RadioLife platform terms.",
             "odds_disclosure": "Odds vary by prize tier.",
             "no_purchase_necessary_text":
                 "No purchase necessary; void where prohibited.",
@@ -1073,9 +1073,9 @@ async def submit_session(db, user: dict, session_id: str,
         "prize": _public_prize_view(prize_picked) if prize_picked else None,
         "bigcoin_earned": bigcoin_earned,
         "quiz_meta": quiz_meta,
-        "share_text": (f"I just won {prize_picked['title']} on BigFM!"
+        "share_text": (f"I just won {prize_picked['title']} on RadioLife!"
                             if prize_picked else
-                            "Better luck next time on BigFM Play & Win!"),
+                            "Better luck next time on RadioLife Play & Win!"),
         "server_seed": sess["server_seed"],
         "client_seed": sess["client_seed"],
     }
@@ -1407,7 +1407,7 @@ async def _campaign_public_view(db, c: dict) -> dict:
         "template_id": c["template_id"],
         "title": c["title"],
         "description": c.get("description"),
-        "sponsor_name": c.get("sponsor_name") or "BigFM",
+        "sponsor_name": c.get("sponsor_name") or "RadioLife",
         "sponsor_logo_url": c.get("sponsor_logo_url"),
         "brand_colors_json": c.get("brand_colors_json") or {},
         "top_prize_title": top_prize_title,
@@ -1569,7 +1569,7 @@ def _announce_view(c: dict, *, source: str) -> dict:
     return {
         "campaign_id": c["campaign_id"],
         "title": c["title"],
-        "sponsor_name": c.get("sponsor_name") or "BigFM",
+        "sponsor_name": c.get("sponsor_name") or "RadioLife",
         "sponsor_logo_url": c.get("sponsor_logo_url"),
         "brand_colors_json": c.get("brand_colors_json") or {},
         "description": c.get("description") or "",

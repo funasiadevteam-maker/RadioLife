@@ -1,4 +1,4 @@
-"""Phase 42-E2.4 — Auto-generated "Now Playing on BigFM" share-card OG image.
+"""Phase 42-E2.4 — Auto-generated "Now Playing on RadioLife" share-card OG image.
 
 Generates a 1200×630 PNG suitable for Open Graph + Twitter Card previews.
 
@@ -39,7 +39,7 @@ FONT_BOLD     = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 FONT_REGULAR = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
 FONT_NARROW = "/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Bold.ttf"
 
-# BigFM dark-mode palette — keep this tight; the OG card has to read
+# RadioLife dark-mode palette — keep this tight; the OG card has to read
 # instantly even in a 150×80px chat preview.
 BG_COLOR = (12, 16, 28)        # near-black with a subtle navy tint
 FG_PRIMARY = (255, 255, 255)
@@ -111,7 +111,7 @@ def _fetch_artwork(url: str) -> Optional[Image.Image]:
                 return Image.open(disk).convert("RGB")
         if url.startswith("http"):
             req = urllib.request.Request(url, headers={
-                "User-Agent": "BigFM-OGCard/1.0"})
+                "User-Agent": "RadioLife-OGCard/1.0"})
             with urllib.request.urlopen(req, timeout=8) as r:
                 raw = r.read()
             return Image.open(io.BytesIO(raw)).convert("RGB")
@@ -188,7 +188,7 @@ def generate_share_card(title: str, subtitle: str,
 
     text_w = WIDTH - text_x - 60   # right padding 60
 
-    # ── BigFM word-mark / eyebrow ─────────────────────────────────
+    # ── RadioLife word-mark / eyebrow ─────────────────────────────────
     eyebrow_font = _load_font(FONT_NARROW, 22)
     draw.text((text_x, 90), "BIGFM",
                   font=eyebrow_font, fill=(stops[0][0], stops[0][1], stops[0][2]))

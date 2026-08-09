@@ -28,7 +28,7 @@ logger = logging.getLogger("bigfm.stripe_setup")
 # passes to /api/billing/checkout. Currency-specific amount.
 PRICING_PLANS: Dict[str, Dict] = {
     "premium_annual": {
-        "name": "BigFM Premium",
+        "name": "RadioLife Premium",
         "description": "Unlimited skips · 2 VIP channels · Ad-free · VIP badge · 2× rewards",
         "interval": "annual",
         "tier": "premium",

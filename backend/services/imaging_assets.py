@@ -8,14 +8,14 @@ Each station ("station_slug") has a starter pack of ~55 imaging assets:
 - sponsor_bumper      x 4   ("After this break, we'll be right back...")
 - game_stinger        x 4   ("Time to PLAY...")
 - winner_stinger      x 4   ("WINNER WINNER WINNER")
-- premium_id          x 2   ("BigFM Premium — ad-free, all the time")
-- legal_id            x 1   ("BigFM. Owned and operated by BigFM Networks.")
+- premium_id          x 2   ("RadioLife Premium — ad-free, all the time")
+- legal_id            x 1   ("RadioLife. Owned and operated by RadioLife Networks.")
 - music_bed           x 4   (chill/medium/uplifting/energetic — ElevenLabs Sound Gen)
 - sweeper_short       x 4   (whoosh-style, reused from SFX library if available)
 
 Total: 55+ assets per station.
 
-Two markets are configured: `bigfm_dubai` (BigFM — Dubai market slug) and `funasia_dfw`
+Two markets are configured: `bigfm_dubai` (RadioLife — Dubai market slug) and `funasia_dfw`
 (FunAsia AI Radio / DFW). Each station carries its own brand tagline,
 primary/secondary voice keys, and asset texts.
 
@@ -61,12 +61,12 @@ IMAGING_DIR.mkdir(parents=True, exist_ok=True)
 STATIONS: Dict[str, dict] = {
     "bigfm_dubai": {
         "station_slug": "bigfm_dubai",
-        "station_name": "BigFM Dubai",
+        "station_name": "RadioLife Dubai",
         "market": "dubai",
         "tagline": "Dubai's #1 AI-powered Bollywood radio.",
         "primary_voice_key": "charlie_dj",      # American hype DJ
         "secondary_voice_key": "raghav_hindi",  # Hindi warm voice
-        "brand_words": ["Dubai", "BigFM", "non-stop", "Bollywood", "dil se", "AI powered", "human energy"],
+        "brand_words": ["Dubai", "RadioLife", "non-stop", "Bollywood", "dil se", "AI powered", "human energy"],
         "imaging_style_preset": "high_energy_bollywood",
     },
     "funasia_dfw": {
@@ -113,17 +113,17 @@ def _scripts_for_station(st: dict) -> List[Tuple[str, str, Optional[str], Option
 
     brand_long = ([
         ("brand_id_long", "bil_01", None, "medium", "primary",   5.5,
-         "[warm] AI powered. [hyped] Human energy. [excited] BigFM — dil se."),
+         "[warm] AI powered. [hyped] Human energy. [excited] RadioLife — dil se."),
         ("brand_id_long", "bil_02", None, "medium", "secondary", 5.8,
-         "[upbeat] Bollywood hits. Local deals. Real rewards. [hyped] BigFM."),
+         "[upbeat] Bollywood hits. Local deals. Real rewards. [hyped] RadioLife."),
         ("brand_id_long", "bil_03", None, "medium", "primary",   5.5,
-         "[chill] This is the new sound of radio. [excited] BigFM."),
+         "[chill] This is the new sound of radio. [excited] RadioLife."),
         ("brand_id_long", "bil_04", None, "medium", "secondary", 5.5,
-         "[warm] Nonstop Bollywood energy, [hyped] personalized for you. BigFM."),
+         "[warm] Nonstop Bollywood energy, [hyped] personalized for you. RadioLife."),
         ("brand_id_long", "bil_05", None, "medium", "primary",   5.5,
-         "[hyped] The world is listening. [warm] You're never alone on a long drive. BigFM."),
+         "[hyped] The world is listening. [warm] You're never alone on a long drive. RadioLife."),
         ("brand_id_long", "bil_06", None, "medium", "secondary", 5.8,
-         "[excited] Music chalega non-stop, [warm] kahin bhi, kabhi bhi. [hyped] BigFM."),
+         "[excited] Music chalega non-stop, [warm] kahin bhi, kabhi bhi. [hyped] RadioLife."),
     ] if is_dxb else [
         ("brand_id_long", "bil_01", None, "medium", "primary",   5.8,
          "[upbeat] FunAsia AI Radio — your city, your music, your rewards."),
@@ -144,30 +144,30 @@ def _scripts_for_station(st: dict) -> List[Tuple[str, str, Optional[str], Option
             # Morning Drive
             ("daypart_opener", "mor_01", "morning_drive", "medium", "primary",   4.5, "[warm] Good morning Dubai. [excited] Morning Drive starts now."),
             ("daypart_opener", "mor_02", "morning_drive", "medium", "secondary", 4.8, "[upbeat] Traffic, weather, Bollywood energy — [excited] let's go."),
-            ("daypart_opener", "mor_03", "morning_drive", "high",   "primary",   4.5, "[hyped] Wake up Dubai. BigFM Morning Drive!"),
+            ("daypart_opener", "mor_03", "morning_drive", "high",   "primary",   4.5, "[hyped] Wake up Dubai. RadioLife Morning Drive!"),
             ("daypart_opener", "mor_04", "morning_drive", "medium", "secondary", 5.0, "[warm] Karama to Marina, [upbeat] we've got the soundtrack for your drive."),
-            ("daypart_opener", "mor_05", "morning_drive", "medium", "primary",   4.5, "[upbeat] Suprabhat Dubai. BigFM, Morning Drive."),
+            ("daypart_opener", "mor_05", "morning_drive", "medium", "primary",   4.5, "[upbeat] Suprabhat Dubai. RadioLife, Morning Drive."),
 
             # Lunch Rush
-            ("daypart_opener", "lun_01", "lunch_rush", "medium", "primary",   4.5, "[upbeat] Lunch Rush is ON. BigFM."),
+            ("daypart_opener", "lun_01", "lunch_rush", "medium", "primary",   4.5, "[upbeat] Lunch Rush is ON. RadioLife."),
             ("daypart_opener", "lun_02", "lunch_rush", "medium", "secondary", 4.8, "[warm] Hot music, [excited] hotter deals — Lunch Rush."),
             ("daypart_opener", "lun_03", "lunch_rush", "medium", "primary",   4.8, "[upbeat] Your next lunch stop is closer than you think."),
-            ("daypart_opener", "lun_04", "lunch_rush", "medium", "secondary", 5.0, "[warm] Midday Mehfil. [excited] Karama special on BigFM."),
-            ("daypart_opener", "lun_05", "lunch_rush", "medium", "primary",   4.5, "[hyped] BigFM Lunch Rush. Let's eat. Let's groove."),
+            ("daypart_opener", "lun_04", "lunch_rush", "medium", "secondary", 5.0, "[warm] Midday Mehfil. [excited] Karama special on RadioLife."),
+            ("daypart_opener", "lun_05", "lunch_rush", "medium", "primary",   4.5, "[hyped] RadioLife Lunch Rush. Let's eat. Let's groove."),
 
             # Evening Drive
-            ("daypart_opener", "eve_01", "evening_drive", "high", "primary",   4.5, "[hyped] Evening Drive powered by BigFM!"),
-            ("daypart_opener", "eve_02", "evening_drive", "high", "secondary", 4.8, "[excited] Traffic outside. [hyped] Party inside. BigFM."),
-            ("daypart_opener", "eve_03", "evening_drive", "high", "primary",   5.0, "[hyped] Dinner, movies, music, and your route home — BigFM."),
-            ("daypart_opener", "eve_04", "evening_drive", "medium", "secondary", 5.0, "[warm] Sheikh Zayed Road jam? [excited] BigFM has you covered."),
-            ("daypart_opener", "eve_05", "evening_drive", "high", "primary",   4.5, "[hyped] 5 PM Dubai. BigFM Evening Drive."),
+            ("daypart_opener", "eve_01", "evening_drive", "high", "primary",   4.5, "[hyped] Evening Drive powered by RadioLife!"),
+            ("daypart_opener", "eve_02", "evening_drive", "high", "secondary", 4.8, "[excited] Traffic outside. [hyped] Party inside. RadioLife."),
+            ("daypart_opener", "eve_03", "evening_drive", "high", "primary",   5.0, "[hyped] Dinner, movies, music, and your route home — RadioLife."),
+            ("daypart_opener", "eve_04", "evening_drive", "medium", "secondary", 5.0, "[warm] Sheikh Zayed Road jam? [excited] RadioLife has you covered."),
+            ("daypart_opener", "eve_05", "evening_drive", "high", "primary",   4.5, "[hyped] 5 PM Dubai. RadioLife Evening Drive."),
 
             # Nightlife / Party
-            ("daypart_opener", "ngt_01", "nightlife_mode", "party", "primary",   4.5, "[shouts] Nightlife Mode. [hyped] BigFM!"),
-            ("daypart_opener", "ngt_02", "nightlife_mode", "party", "secondary", 4.8, "[hyped] The city is awake. [excited] BigFM."),
+            ("daypart_opener", "ngt_01", "nightlife_mode", "party", "primary",   4.5, "[shouts] Nightlife Mode. [hyped] RadioLife!"),
+            ("daypart_opener", "ngt_02", "nightlife_mode", "party", "secondary", 4.8, "[hyped] The city is awake. [excited] RadioLife."),
             ("daypart_opener", "ngt_03", "nightlife_mode", "party", "primary",   4.5, "[shouts] Bollywood club energy starts NOW!"),
-            ("daypart_opener", "ngt_04", "nightlife_mode", "party", "secondary", 4.8, "[hyped] JBR, Marina, Downtown — [shouts] BigFM Nightlife!"),
-            ("daypart_opener", "ngt_05", "nightlife_mode", "party", "primary",   4.5, "[shouts] Drop. The. Bass. BigFM!"),
+            ("daypart_opener", "ngt_04", "nightlife_mode", "party", "secondary", 4.8, "[hyped] JBR, Marina, Downtown — [shouts] RadioLife Nightlife!"),
+            ("daypart_opener", "ngt_05", "nightlife_mode", "party", "primary",   4.5, "[shouts] Drop. The. Bass. RadioLife!"),
         ]
     else:
         daypart = [
@@ -217,7 +217,7 @@ def _scripts_for_station(st: dict) -> List[Tuple[str, str, Optional[str], Option
     game = [
         ("game_stinger",   "gam_01", None, "high", "primary",   2.6, "[hyped] Time to PLAY!"),
         ("game_stinger",   "gam_02", None, "high", "secondary", 2.6, "[excited] Let's play a game!"),
-        ("game_stinger",   "gam_03", None, "party", "primary",  2.4, "[shouts] BIG GAME on BigFM!" if is_dxb else "[shouts] BIG GAME on FunAsia AI!"),
+        ("game_stinger",   "gam_03", None, "party", "primary",  2.4, "[shouts] BIG GAME on RadioLife!" if is_dxb else "[shouts] BIG GAME on FunAsia AI!"),
         ("game_stinger",   "gam_04", None, "high", "secondary", 2.6, "[hyped] Listen up — [excited] this could win you cash!"),
     ]
 
@@ -235,7 +235,7 @@ def _scripts_for_station(st: dict) -> List[Tuple[str, str, Optional[str], Option
 
     legal = [
         ("legal_id",       "lgl_01", None, "medium", "primary",   5.5,
-         "[crisp] BigFM. Owned and operated by BigFM Networks."
+         "[crisp] RadioLife. Owned and operated by RadioLife Networks."
          if is_dxb else
          "[crisp] FunAsia AI Radio. A FunAsia Media production. Dallas, Texas."),
     ]
