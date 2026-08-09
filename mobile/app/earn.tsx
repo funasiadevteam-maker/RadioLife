@@ -51,7 +51,12 @@ export default function EarnScreen() {
     try {
       const r = await claimMission(m.mission_id);
       await load();
-      celebrate({ points: r.awarded, title: 'Mission complete' });
+      if (r.weekly_bonus) {
+        celebrate({ points: r.awarded + r.weekly_bonus.points,
+                    title: `Weekly streak ×${r.weekly_bonus.weekly_streak}!` });
+      } else {
+        celebrate({ points: r.awarded, title: 'Mission complete' });
+      }
     } catch {
       /* already claimed or incomplete — refresh state */
       await load();
@@ -106,6 +111,11 @@ export default function EarnScreen() {
                 {data.streak.next && (
                   <Text style={s.streakNext} testID="earn-streak-next">
                     +{data.streak.next.points} at {data.streak.next.days}d
+                  </Text>
+                )}
+                {(data.streak.weekly?.current ?? 0) > 0 && (
+                  <Text style={s.weeklyStreak} testID="earn-weekly-streak">
+                    {data.streak.weekly!.current}-wk challenge
                   </Text>
                 )}
               </View>

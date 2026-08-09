@@ -50,7 +50,10 @@ export default function MerchantRedeem() {
     <SafeAreaView style={common.screen} testID="merchant-redeem-screen">
       <View style={s.top}>
         <TouchableOpacity onPress={() => router.back()} testID="merchant-redeem-back"><Ionicons name="arrow-back" size={20} color={COLORS.text} /></TouchableOpacity>
-        <Text style={s.topTitle}>Redeem & Loyalty</Text><View style={{ width: 20 }} />
+        <Text style={s.topTitle}>Redeem & Loyalty</Text>
+        <TouchableOpacity onPress={() => router.push('/merchant/bonuses' as any)} testID="merchant-bonuses-link">
+          <Ionicons name="flash" size={20} color={COLORS.gold} />
+        </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
         {/* Loyalty tier card */}

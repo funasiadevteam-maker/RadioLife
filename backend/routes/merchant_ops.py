@@ -23,7 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user, require_admin
@@ -125,6 +125,81 @@ async def deactivate_bonus_window(window_id: str, request: Request,
 @router.get("/api/me/earn/bonus-windows")
 async def my_bonus_windows(request: Request, user: dict = Depends(current_user)):
     return {"items": await active_bonus_windows(request.app.state.db)}
+
+
+# ─────────────── Merchant self-serve bonus windows ───────────────
+class MerchantBonusBody(BaseModel):
+    merchant_id: str
+    multiplier: float = Field(2.0, ge=1.0, le=10.0)
+    title: Optional[str] = None
+    hours: float = Field(6.0, gt=0, le=168)   # duration from now
+    budget_usd: float = Field(0.0, ge=0)
+
+
+@router.get("/api/merchant/my-businesses")
+async def my_businesses(request: Request, user: dict = Depends(current_user)):
+    """Venues the logged-in merchant owns/operates (for the self-serve picker)."""
+    db = request.app.state.db
+    uid = user.get("user_id")
+    q = {} if user.get("role") == "admin" else {
+        "$or": [{"owner_user_id": uid}, {"staff_user_ids": uid}]}
+    out = []
+    async for b in db.businesses.find(q, {"business_id": 1, "name": 1, "city": 1}).limit(50):
+        out.append({"business_id": b.get("business_id") or str(b.get("_id")),
+                    "name": b.get("name"), "city": b.get("city")})
+    return {"items": out, "total": len(out)}
+
+
+@router.post("/api/merchant/bonus-windows")
+async def merchant_create_bonus(body: MerchantBonusBody, request: Request,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    from routes.ad4_coupon_campaigns import _assert_merchant_owner
+    await _assert_merchant_owner(db, body.merchant_id, user)   # ownership lock
+    biz = await db.businesses.find_one(
+        {"$or": [{"business_id": body.merchant_id}, {"_id": body.merchant_id}]},
+        {"name": 1})
+    now = _now()
+    from datetime import timedelta
+    doc = {
+        "window_id": f"bw_{uuid.uuid4().hex[:12]}",
+        "merchant_id": body.merchant_id,
+        "multiplier": float(body.multiplier),
+        "title": body.title or f"{body.multiplier:g}× points",
+        "sponsor_name": (biz or {}).get("name"),
+        "starts_at": now, "ends_at": now + timedelta(hours=body.hours),
+        "market": None, "active": True,
+        "owner_user_id": user.get("user_id"), "source": "merchant",
+        "budget_usd": float(body.budget_usd), "created_at": now,
+    }
+    await db.bonus_windows.insert_one(dict(doc))
+    doc.pop("_id", None)
+    return doc
+
+
+@router.get("/api/merchant/bonus-windows")
+async def merchant_list_bonus(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    out = []
+    async for w in db.bonus_windows.find(
+            {"owner_user_id": user.get("user_id")}).sort("starts_at", -1):
+        w.pop("_id", None)
+        out.append(w)
+    return {"items": out, "total": len(out)}
+
+
+@router.post("/api/merchant/bonus-windows/{window_id}/deactivate")
+async def merchant_deactivate_bonus(window_id: str, request: Request,
+                                    user: dict = Depends(current_user)):
+    db = request.app.state.db
+    w = await db.bonus_windows.find_one({"window_id": window_id})
+    if not w:
+        raise HTTPException(404, {"code": "window_not_found"})
+    if user.get("role") != "admin" and w.get("owner_user_id") != user.get("user_id"):
+        raise HTTPException(403, {"code": "not_owner"})
+    await db.bonus_windows.update_one(
+        {"window_id": window_id}, {"$set": {"active": False, "updated_at": _now()}})
+    return {"ok": True, "window_id": window_id}
 
 
 # ─────────────────────────── Fraud Alerts ───────────────────────────

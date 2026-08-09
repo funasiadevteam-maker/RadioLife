@@ -234,8 +234,14 @@ class MerchantRedeemBody(BaseModel):
 async def merchant_redeem(body: MerchantRedeemBody, request: Request,
                           user: dict = Depends(current_user)):
     """Merchant confirms a redemption. Reconciles the customer's most recent
-    unredeemed show event so the fraud gap closes."""
+    unredeemed show event so the fraud gap closes.
+
+    Phase RWD.5 — locked to the logged-in merchant's OWN venue so a business
+    can't confirm (and inflate) redemptions belonging to another venue.
+    """
     db = request.app.state.db
+    from routes.ad4_coupon_campaigns import _assert_merchant_owner
+    await _assert_merchant_owner(db, body.merchant_id, user)
     q: Dict[str, Any] = {"merchant_id": body.merchant_id, "redeemed": False}
     if body.user_id:
         q["user_id"] = body.user_id

@@ -104,6 +104,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         {"days": 14, "points": 500},
         {"days": 30, "points": 1000},
     ],
+    "weekly_streak_base": 150,      # escalating weekly-challenge bonus = base × streak
+    "weekly_streak_cap": 5,         # streak multiplier capped at this many weeks
 }
 
 
@@ -301,7 +303,13 @@ async def _streak_state(db, uid: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
             awarded = {"days": m["days"], "points": int(m["points"])}
 
     nxt = next((m for m in milestones if m["days"] > current), None)
-    return {"current": current, "best": best, "next": nxt, "awarded_bonus": awarded}
+    weekly = await _weekly_streak(db, uid)
+    base = int(cfg.get("weekly_streak_base", 150))
+    cap = int(cfg.get("weekly_streak_cap", 5))
+    return {"current": current, "best": best, "next": nxt,
+            "awarded_bonus": awarded,
+            "weekly": {"current": weekly,
+                       "next_reward": base * min(weekly + 1, cap)}}
 
 
 async def _build_ways(db, uid: str) -> List[Dict[str, Any]]:
@@ -449,9 +457,69 @@ async def claim_mission(mission_id: str, request: Request,
         metadata={"mission_id": mission_id, "period_key": period_key},
         idempotency_key=f"mission:{mission_id}:{uid}:{period_key}",
         enforce_caps=False)
+    balance_after = res.balance_after
+    # Phase RWD.5 — escalating weekly-challenge streak bonus when the user
+    # completes ALL weekly missions for the week.
+    weekly = None
+    if m.get("scope") == "weekly":
+        weekly = await _maybe_weekly_streak_bonus(db, uid)
+        if weekly:
+            balance_after = weekly["balance_after"]
     return {"ok": True, "awarded": int(m.get("reward_points", 0)),
-            "balance_after": res.balance_after, "mission": {**st, "claimed": True,
-                                                            "claimable": False}}
+            "weekly_bonus": weekly,
+            "balance_after": balance_after,
+            "mission": {**st, "claimed": True, "claimable": False}}
+
+
+async def _maybe_weekly_streak_bonus(db, uid: str) -> Optional[Dict[str, Any]]:
+    """If every enabled weekly mission is now claimed for this week, record the
+    completion, compute the consecutive-week streak, and award an escalating
+    bonus (base × min(streak, cap)), idempotent per week."""
+    week_key = _week_key()
+    weekly_missions = [m async for m in db.earn_missions.find(
+        {"enabled": True, "scope": "weekly"})]
+    if not weekly_missions:
+        return None
+    for m in weekly_missions:
+        claimed = await db.earn_mission_claims.find_one(
+            {"user_id": uid, "mission_id": m["mission_id"], "period_key": week_key})
+        if not claimed:
+            return None  # not all weekly missions done yet
+    wk = _week_start().strftime("%Y-%m-%d")
+    try:
+        await db.earn_weekly_completions.insert_one(
+            {"user_id": uid, "week_start": wk, "created_at": _now()})
+    except Exception:
+        return None  # already recorded this week
+    streak = await _weekly_streak(db, uid)
+    cfg = await _get_config(db)
+    base = int(cfg.get("weekly_streak_base", 150))
+    cap = int(cfg.get("weekly_streak_cap", 5))
+    points = base * min(streak, cap)
+    res = await PointsService(db).award(
+        user_id=uid, source="weekly_streak_bonus", source_id=wk, delta=points,
+        metadata={"week_start": wk, "weekly_streak": streak},
+        idempotency_key=f"weekstreak:{wk}:{uid}", enforce_caps=False)
+    return {"points": points, "weekly_streak": streak, "balance_after": res.balance_after}
+
+
+async def _weekly_streak(db, uid: str) -> int:
+    """Consecutive completed weeks ending this or last week."""
+    from datetime import timedelta
+    weeks = set()
+    async for d in db.earn_weekly_completions.find(
+            {"user_id": uid}, {"week_start": 1}):
+        weeks.add(d["week_start"])
+    if not weeks:
+        return 0
+    cursor = _week_start()
+    if cursor.strftime("%Y-%m-%d") not in weeks:
+        cursor = cursor - timedelta(days=7)
+    streak = 0
+    while cursor.strftime("%Y-%m-%d") in weeks:
+        streak += 1
+        cursor = cursor - timedelta(days=7)
+    return streak
 
 
 # ─────────────────────────── Admin endpoints ───────────────────────────
@@ -543,6 +611,8 @@ class EarnConfigBody(BaseModel):
     daily_goal_target: Optional[int] = None
     daily_goal_bonus: Optional[int] = None
     streak_bonuses: Optional[List[Dict[str, Any]]] = None
+    weekly_streak_base: Optional[int] = None
+    weekly_streak_cap: Optional[int] = None
 
 
 @router.put("/api/admin/earn/config")

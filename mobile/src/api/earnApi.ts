@@ -58,7 +58,8 @@ export interface EarnOverview {
                 pct: number; complete: boolean };
   streak: { current: number; best?: number;
             next?: { days: number; points: number } | null;
-            awarded_bonus?: { days: number; points: number } | null };
+            awarded_bonus?: { days: number; points: number } | null;
+            weekly?: { current: number; next_reward: number } };
   active_bonuses: EarnBonusWindow[];
   ways_to_earn: EarnWay[];
   missions: EarnMission[];

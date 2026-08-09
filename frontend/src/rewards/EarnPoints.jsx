@@ -73,7 +73,12 @@ export default function EarnPoints() {
     try {
       const r = await claimMission(id);
       await reload();
-      celebrate({ points: r.awarded, title: "Mission complete" });
+      if (r.weekly_bonus) {
+        celebrate({ points: r.awarded + r.weekly_bonus.points,
+                    title: `Weekly streak ×${r.weekly_bonus.weekly_streak}!` });
+      } else {
+        celebrate({ points: r.awarded, title: "Mission complete" });
+      }
     } catch (e) {
       toast.error(e?.response?.data?.detail?.code === "already_claimed"
         ? "Already claimed." : "Couldn't claim — try again.");
@@ -130,6 +135,12 @@ export default function EarnPoints() {
                 <div className="text-[11px] text-text-secondary mt-0.5"
                           data-testid="earn-streak-next">
                   +{data.streak.next.points} at {data.streak.next.days} days
+                </div>
+              )}
+              {data.streak.weekly?.current > 0 && (
+                <div className="text-[11px] text-accent-electric mt-0.5"
+                          data-testid="earn-weekly-streak">
+                  {data.streak.weekly.current}-wk challenge streak
                 </div>
               )}
             </div>
