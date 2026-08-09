@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth import current_user, require_admin
 
@@ -74,7 +74,7 @@ async def active_bonus_multiplier(db, merchant_id: Optional[str]) -> float:
 
 class BonusWindowBody(BaseModel):
     merchant_id: str
-    multiplier: float = 2.0
+    multiplier: float = Field(2.0, ge=1.0, le=10.0)
     title: Optional[str] = None
     sponsor_name: Optional[str] = None
     starts_at: str                      # ISO 8601
