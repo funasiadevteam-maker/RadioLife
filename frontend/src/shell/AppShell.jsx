@@ -33,6 +33,7 @@ import CityChip from "@/components/CityChip";
 import ChannelCategoryFooter from "@/components/ChannelCategoryFooter";
 // Phase 41 S2.C.1 — notifications bell + dropdown.
 import NotificationBell from "@/components/NotificationBell";
+import PointsPill from "@/rewards/PointsPill";
 
 // Helper exported for tests + RootGate.
 export function isMarketingPath(pathname) {
@@ -380,6 +381,7 @@ function TopBar() {
       </Chip>
       <CityChip />
       <TryNewLookToggle />
+      <PointsPill />
       <button type="button" data-testid="topbar-bell"
                   aria-label="Notifications"
                   className="w-10 h-10 grid place-items-center rounded-full

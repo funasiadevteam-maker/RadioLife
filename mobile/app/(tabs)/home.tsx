@@ -11,6 +11,8 @@ import { useStationsStore } from '../../src/stores/useStationsStore';
 import { playImportedStation } from '../../src/services/playStation';
 import AdBanner from '../../src/components/AdBanner';
 import FunAsiaFooter from '../../src/components/FunAsiaFooter';
+import PointsPill from '../../src/components/PointsPill';
+import WaysToEarnCard from '../../src/components/WaysToEarnCard';
 import api, { BACKEND } from '../../src/api/client';
 
 const resolveImg = (u?: string | null) =>
@@ -120,9 +122,12 @@ export default function HomeScreen() {
             <View style={s.dot} />
             <Text style={s.brand}>RadioLife<Text style={{ color: COLORS.secondary }}>.app</Text></Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/notifications')} testID="home-notif-btn" style={s.iconBtn}>
-            <Ionicons name="notifications-outline" size={20} color={COLORS.textDim} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <PointsPill />
+            <TouchableOpacity onPress={() => router.push('/notifications')} testID="home-notif-btn" style={s.iconBtn}>
+              <Ionicons name="notifications-outline" size={20} color={COLORS.textDim} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Hero Card */}
@@ -160,6 +165,9 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
         )}
+
+        {/* Phase RWD.1 — Ways to Earn Today (earn-loop entry point). */}
+        <WaysToEarnCard />
 
         {/* Continue Listening */}
         {(() => {

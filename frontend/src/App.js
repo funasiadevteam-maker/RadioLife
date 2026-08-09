@@ -166,6 +166,7 @@ import {Highlights as MagicHighlights} from "@/MagicClipsTab";          // Phase
 import AdvertiserPayouts from "@/AdvertiserPayouts";
 import AdminIntegrations from "@/AdminIntegrations";
 import Wallet from "@/Wallet";
+import EarnPoints from "@/rewards/EarnPoints";
 import Billing from "@/Billing";
 import Audition from "@/Audition";
 import Login from "@/Login";
@@ -836,6 +837,9 @@ function AppRouter() {
       } />
       <Route path="/wallet" element={
         <ProtectedRoute><Wallet /></ProtectedRoute>
+      } />
+      <Route path="/earn" element={
+        <ProtectedRoute><EarnPoints /></ProtectedRoute>
       } />
       <Route path="/billing" element={
         <ProtectedRoute><Billing /></ProtectedRoute>

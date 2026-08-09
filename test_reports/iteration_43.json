@@ -1,0 +1,56 @@
+{
+  "summary": "Phase RWD.1 — Rewards Earn Loop e2e verified on backend + web + mobile (Expo web preview). Backend pytest 15/15 pass (auth gating on /api/me/earn/* and /api/admin/earn/*, GET overview/ways-to-earn shape, admin config/catalog/missions PUT reflects in listener overview, mission claim happy-path with ledger-seeded completion + 409 already_claimed idempotency + 400 mission_incomplete + 404 mission_not_found, favicons /favicon.ico + /favicon-512.png serve 200). Web (1920x1080, admin@bigfm.dubai): points-pill (balance 75) opens points-pill-drawer with 3 pill-way-* + pill-see-all; home-ways-to-earn shows 5 ways-item-* + home-premium-teaser; /earn renders earn-root + earn-balance + earn-tier + earn-daily-goal + earn-available with 9 earn-way-* and 6 mission-* (daily+weekly) plus 1 claim button. Mobile (390x844, demo login): points-pill (balance 494 — includes +100 from the claim test) opens points-pill-sheet with 3 pill-way-* + pill-see-all; home-ways-to-earn shows 5 ways-item-* + home-premium-teaser; /earn renders earn-root + earn-balance + earn-tier + earn-daily-goal with 9 earn-way-* and 7 mission-* + 1 claim button. Full mission claim contract (seed ledger row → overview marks claimable → POST claim awards points + balance-after increments → second POST 409) proven end-to-end via pytest against real Mongo. Regression: web favicons 200 OK; trivia-room-practice-solo is NOT on /trivia index (it's inside a specific TriviaRoom — could not reach without a live room seed; low priority, not blocking).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/me/earn/missions/{id}/claim", "issue": "HTTPException detail is a dict — clients that read response.error.code (not response.error.detail.code) will miss mission_incomplete / already_claimed / mission_not_found codes. Same pattern as iter42 game-limits note."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated in React Native Web — use 'boxShadow'. Warning still firing on load. Carried over from iter38-42."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' Carried over from iter38-42."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_rewards_earn_loop.py",
+    "/app/test_reports/pytest/rwd1_earn_loop.xml",
+    "/tmp/web_earn.png",
+    "/tmp/mob_home.png",
+    "/tmp/mob_earn.png"
+  ],
+  "action_items": [
+    "LOW: Consider adding a top-level `code` field alongside FastAPI's `detail` dict for mission claim errors (mission_incomplete / already_claimed / mission_not_found) so clients that don't dig into detail.code still see the semantic code. Reference: /app/backend/routes/rewards_earn.py:355-367.",
+    "LOW: Trivia Practice Solo regression could not be exercised from /trivia (button lives inside TriviaRoom.jsx, not the index). If you want it re-verified, please point to a live trivia room URL (e.g. /trivia/rooms/<room_id>) — the button + navigation logic itself was not changed this iteration, so behaviour should be unaffected.",
+    "CARRIED FROM iter38-42: replace deprecated shadow* RN style props with boxShadow.",
+    "CARRIED FROM iter38-42: replace props.pointerEvents with style.pointerEvents."
+  ],
+  "critical_code_review_comments": [
+    "rewards_earn.py::_build_ways sorts items only by `not eligible` — the original `sort` field from earn_actions_catalog is not honoured after this sort (Python's sort is stable, so the DB `.sort('sort', 1)` order survives WITHIN each eligibility bucket, but admins editing `sort` won't see it visibly reorder eligible items alone). Confirm intent or use a two-key sort `(not eligible, c.get('sort', 999))`.",
+    "rewards_earn.py::_seed uses $setOnInsert for missions but does NOT re-apply DEFAULT_MISSIONS fields on existing rows — this is by design (admin edits survive), but means new fields added to DEFAULT_MISSIONS after first boot will silently NOT appear on already-seeded rows. Consider a versioned migration when the schema grows.",
+    "rewards_earn.py::claim_mission catches all Exception on the unique-index insert and treats it as already_claimed — a transient write error would be mis-reported. Consider narrowing to pymongo.errors.DuplicateKeyError.",
+    "rewards_earn.py::_cap_progress uses `$sum: $delta` for used-vs-cap comparison, but daily_cap_per_user in points_earn_rules is typically a POINT cap; if a rule has non-1 base_points, that's correct. Confirmed matches PointsService's cap semantics.",
+    "admin_put_catalog / admin_put_mission accept `key` / `mission_id` only in the body — no path param — so an admin editing item A can accidentally create item B by typoing the key. Consider PUT /api/admin/earn/catalog/{key} with the key in the path to enforce.",
+    "MOCKED: none — rewards are internal points_ledger accounting, no real money."
+  ],
+  "updated_files": ["/app/backend/tests/test_rewards_earn_loop.py", "/app/test_reports/iteration_43.json"],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100% of RWD.1 spec testIDs verified on both surfaces"},
+  "test_credentials": "Web admin: admin@bigfm.dubai / AdminPass123!. Web demo/non-admin: POST /api/auth/demo (used to prove 403 for admin endpoints). Mobile: demo-login-btn.",
+  "seed_data_creation": "During pytest test_complete_and_claim_awards_points: 1 TEST_ tagged points_ledger row (source='game_win', delta=10) inserted for demo user to complete daily_trivia mission → row + earn_mission_claims row for today's period deleted in _clear_state teardown. NOTE: the mission-reward award (100 pts via PointsService) is NOT rolled back, so demo user balance permanently increased by ~100 pts (visible as 494 on mobile). Also admin PUT tests round-trip daily_goal_target, catalog 'share' enabled flag, and daily_trivia reward_points back to original values.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live in /app/backend/tests/test_rewards_earn_loop.py — 15 tests across TestAuthGating (5), TestOverview (2), TestAdminConfig (3), TestMissionClaim (3), TestFavicons (2). Mission claim seeds a real points_ledger row on the demo user (tagged metadata.test_tag='TEST_earn_loop') and reads back via /overview to prove the mission goes claimable; second-claim path proves 409 already_claimed idempotency (unique index user_id+mission_id+period_key). Fixture demo_user_id resolves via /api/auth/me first, falls back to Mongo lookup. UI testIDs verified on both surfaces — no missing testIDs, no bugs blocking flows. Deprecation warnings (shadow*, pointerEvents) are pre-existing across iter38-42.",
+  "rca of the issue": "N/A — RWD.1 Earn Loop verified end-to-end on backend + web + mobile. All 15 backend tests pass, all requested testIDs render on both surfaces, mission claim contract (400 incomplete / 200 ok+points+balance / 409 already_claimed / 404 not_found) proven with real DB writes."
+}

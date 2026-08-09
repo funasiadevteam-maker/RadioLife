@@ -5579,6 +5579,14 @@ try:
 except Exception as _e:
     logger.warning("Phase F-1 points routers not loaded: %s", _e)
 
+# Phase RWD.1 — Rewards "Earn Loop" (overview / ways-to-earn / missions + admin).
+try:
+    from routes.rewards_earn import router as _rewards_earn_router
+    app.include_router(_rewards_earn_router)
+    logger.info("Phase RWD.1 routes wired: /api/me/earn + /api/admin/earn")
+except Exception as _e:
+    logger.warning("Phase RWD.1 rewards_earn router not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router
