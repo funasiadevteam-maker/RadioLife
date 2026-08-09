@@ -1,4 +1,13 @@
-# BigFM — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
+# RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
+
+## Changelog — 2026-08-09 (RWD.5 VERIFIED: Redeem Ownership Lock + Weekly Streaks + Merchant Self-Serve Bonuses)
+- **Verified via testing agent (iteration_46): backend 18/18 PASS + 32/32 regression (iter44+iter45), web + mobile parity confirmed, NO bugs.**
+- **Redeem Ownership Lock**: `POST /api/merchant/redeem` + `POST /api/merchant/bonus-windows` enforce `_assert_merchant_owner` (403 non-owner, 404 unknown). `GET /api/merchant/my-businesses` filters to owned venues (admin sees all); `GET /api/merchant/bonus-windows` returns only caller's own; merchant deactivate is owner/admin-gated.
+- **Weekly Streak Rewards** (`rewards_earn._maybe_weekly_streak_bonus`): completing ALL enabled weekly missions awards escalating bonus = `weekly_streak_base(150) × min(streak, cap=5)`, idempotent per week via `earn_weekly_completions` + award `idempotency_key=weekstreak:<week>:<uid>` (double-award impossible even under race). Surfaced in claim response `weekly_bonus` + overview `streak.weekly {current, next_reward}`.
+- **Merchant Self-Serve Bonuses** (mobile `/merchant/bonuses`): owner creates time-boxed N× (1–10) window, hours 0<x≤168, budget_usd; create→list→deactivate cycle verified on both surfaces.
+- **NEXT (per user, ordered 1→5)**: 1) P0 Merchant Marketplace "Get More Customers" goal-first flow (Trivia/Predict&Win/Games/Giveaways/Coupon-bidding), 2) P1 Admin Rate-Card Matrix (CPM/CPA/CPL), 3) P1 Campaign Format Selector, 4) P2 backlog (40K directory scaling, video podcasts + Creator Studio, Try-New-Look parity, extra business monetization), 5) mobile TS/lint cleanup.
+- **Low-pri follow-ups (non-blocking, from iter46 review)**: unique index on `earn_weekly_completions(user_id, week_start)`; enforce/spend `budget_usd`; admin `deactivate_bonus_window` 404 on unknown; seed a demo-owned venue so `/merchant/bonuses` isn't empty for demo.
+
 
 ## Changelog — 2026-08-09 (RWD.4: Earn Streaks + Sponsored Bonuses + Fraud Alerts)
 - **Earn Streaks** (`routes/rewards_earn.py`): daily streak with admin-configurable milestone bonuses (`earn_config.streak_bonuses`, default 3/7/14/30 days → +50/200/500/1000), best-streak persisted in `earn_streak_state`, milestone award idempotent per run (`streak:<days>:<uid>:<anchor>`). Surfaced in `/api/me/earn/overview` (`streak.{current,best,next,awarded_bonus}`); clients show next-milestone + fire the reward overlay on auto-award. `_get_config` now backfills new config keys for pre-existing docs.
