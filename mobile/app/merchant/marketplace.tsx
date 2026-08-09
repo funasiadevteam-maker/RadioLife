@@ -49,6 +49,7 @@ export default function Marketplace() {
   const [prizeLabel, setPrizeLabel] = useState('');
   const [prizeDesc, setPrizeDesc] = useState('');
   const [numWinners, setNumWinners] = useState('1');
+  const [tagline, setTagline] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -96,6 +97,9 @@ export default function Marketplace() {
         body.prize_desc = prizeDesc;
         body.num_winners = Number(numWinners);
         body.reward_points_on_claim = 5;
+      } else if (ctype.type === 'featured') {
+        body.bid_cents = Number(bid);
+        body.tagline = tagline;
       }
       await api.post('/merchant/marketplace/campaigns', body);
       flash('Campaign launched! 🎉');
@@ -111,6 +115,7 @@ export default function Marketplace() {
     setGoal(null); setCtype(null); setTitle(''); setBudget('20'); setBid('30');
     setCouponTitle(''); setRewardPts('10'); setQ(''); setChoiceA(''); setChoiceB(''); setAnswer(0);
     setWinPts('25'); setWinProb('30'); setPrizeLabel(''); setPrizeDesc(''); setNumWinners('1');
+    setTagline('');
   };
 
   const toggleStatus = async (c: Campaign) => {
@@ -121,7 +126,8 @@ export default function Marketplace() {
 
   const campIcon = (t: string) =>
     t === 'trivia' ? 'help-circle' : t === 'spin' ? 'sync-circle'
-    : t === 'scratch' ? 'sparkles' : t === 'giveaway' ? 'gift' : 'pricetag';
+    : t === 'scratch' ? 'sparkles' : t === 'giveaway' ? 'gift'
+    : t === 'featured' ? 'star' : 'pricetag';
 
   const drawGiveaway = async (c: Campaign) => {
     try {
@@ -350,7 +356,7 @@ export default function Marketplace() {
                   </View>
                   <Text style={s.hint}>Listeners get one play. Winners earn the prize points instantly.</Text>
                 </>
-              ) : (
+              ) : ctype.type === 'giveaway' ? (
                 <>
                   <Text style={s.label}>PRIZE DESCRIPTION</Text>
                   <TextInput style={s.input} value={prizeDesc} onChangeText={setPrizeDesc}
@@ -369,6 +375,26 @@ export default function Marketplace() {
                     </View>
                   </View>
                   <Text style={s.hint}>Listeners enter to win. Draw winners from your campaign list.</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={s.label}>TAGLINE</Text>
+                  <TextInput style={s.input} value={tagline} onChangeText={setTagline}
+                    placeholder="e.g. Best karak in Karama" placeholderTextColor={COLORS.textMuted}
+                    testID="mkt-tagline" />
+                  <View style={s.row2}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>BID / TAP ¢</Text>
+                      <TextInput style={s.input} value={bid} onChangeText={setBid}
+                        keyboardType="number-pad" testID="mkt-bid" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>BUDGET $</Text>
+                      <TextInput style={s.input} value={budget} onChangeText={setBudget}
+                        keyboardType="number-pad" testID="mkt-budget" />
+                    </View>
+                  </View>
+                  <Text style={s.hint}>Higher bids rank first in local discovery.</Text>
                 </>
               )}
 

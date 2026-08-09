@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 49 — Phase MKT.3 (Winner Notifications + Featured Listings) tested end-to-end on backend and mobile. Backend pytest test_iter49_mkt3.py: 19/19 PASS. Regression iter47 (25/25) + iter48 (26/26) = 51/51 PASS. Backend coverage: (1) Rate card backfilled to 10 items — featured_listing key present (CPA, base=20c, min=5c, max=500c). (2) POST /api/merchant/marketplace/campaigns type=featured: rejects bid_cents=0 with 400 bid_required; creates OK with tagline/bid_cents; owner_user_id stamped, status=active, impressions=0, clicks=0. (3) GET /api/discovery/featured returns items sorted desc by bid_cents (75c ahead of 25c), featured=true flag surfaced, excludes budget-exhausted (paused campaign not returned). (4) POST /api/discovery/featured/{id}/click charges bid to spent_usd + clicks++; 404 for unknown id; auto-pauses on budget exhaustion (bid=50c, budget=$0.30 → spent=0.50 → status=paused); paused row disappears from discovery next call. (5) Impressions counter increments on every discovery list call (2 calls → impressions>=2). (6) Winner Notification: created fresh giveaway → entered → drew → winner user_id in winners list → GET /api/me/notifications returns a giveaway_winner notif with payload{campaign_id,title,sponsor_name,prize_desc} unread. (7) POST /api/me/notifications/{id}/read sets read_at; second read is idempotent (ok=true); unread_only filter excludes it after read. (8) GET /api/me/notifications/unread_count returns integer count. (9) Second draw returns 400 already_drawn (dedupe path is enforced by draw ownership check, not notification dedupe_key — but the enqueue is dedupe-keyed by giveaway_win:<cid>:<uid> so even manual re-triggers would be no-ops). Mobile (Expo web preview, viewport 390×844, demo bearer): /notifications renders notif-inbox with 3 giveaway_winner alerts as notif-item-* rows ('You won: TEST_iter48_gv_… 🎉', 'You won: TEST_iter49_gv_… 🎉', 'You won: Notif Test Giveaway 🎉'); 2 have notif-unread-* orange dots; tapping the first item marks it read (unread count 2→1) and body carries prize_desc + sponsor_name text. Home renders 'FEATURED NEAR YOU' rail with 3 home-featured-{campaign_id} cards. /merchant/marketplace: Launch a campaign → goal picker (mkt-goal-more_customers) → type picker exposes mkt-type-featured alongside coupon_bid/spin/trivia → featured form renders mkt-tagline + mkt-bid + mkt-budget + mkt-launch with 'Higher bids rank first in local discovery' hint. All MKT.3 spec testIDs verified integrated with backend. No new regressions.",
+  "platforms_tested": ["mobile", "web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated in React Native Web — use 'boxShadow'. CARRIED from iter38-48."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' CARRIED from iter38-48."},
+        {"component": "Mixed Content (tunein logos)", "issue": "Multiple 'Mixed Content: page loaded over HTTPS but requested insecure http://cdn-profiles.tunein.com/... logo' warnings. CARRIED from iter47-48."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter49_mkt3.py",
+    "/app/test_reports/pytest/iter49.xml",
+    "/tmp/iter49_notifications.png",
+    "/tmp/iter49_home_featured.png",
+    "/tmp/iter49_wizard_featured2.png"
+  ],
+  "action_items": [
+    "LOW (CARRIED iter38-48): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (CARRIED iter38-48): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (CARRIED iter47-48): switch tunein.com logo URLs from http:// to https:// (or proxy via backend)."
+  ],
+  "critical_code_review_comments": [
+    "merchant_marketplace.discovery_featured: impressions are incremented on EVERY GET, even for authenticated re-fetches by the same user within a poll cycle. If Home polls this endpoint (or a user pulls to refresh), impressions inflate and the merchant is charged nothing for it (impressions don't spend), but the impressions metric becomes noisy. Consider per-user-per-N-minutes dedupe or moving impression accounting to a separate write.",
+    "merchant_marketplace.discovery_featured_click: does NOT enforce idempotency per user. A user can tap the featured card many times and each click charges bid_cents. Consider a brand_featured_clicks collection with unique(user_id, campaign_id, day) to cap spend abuse from a single actor. Currently a hostile client could drain a competitor's budget quickly.",
+    "merchant_marketplace.discovery_featured_click: allows anonymous callers (current_user_optional). Combined with lack of idempotency, this means an unauthenticated bot could burn budgets. Recommend either requiring auth or attaching a session/IP-based rate limit.",
+    "merchant_marketplace.draw_giveaway: exception around _enqueue is silently swallowed with `except Exception: pass`. If notifications collection has a stale/corrupt index, winners will be drawn but notifications will be silently missed. Consider logging (log.warning) at minimum so a broken pipeline is visible.",
+    "routes/notifications._enqueue: dedupe_key uses giveaway_win:<cid>:<uid>. If a merchant deletes and re-creates a campaign with the same id (impossible today — uuid-generated — but worth calling out), notif would silently no-op. Not a bug, just a defensive comment.",
+    "mobile/app/notifications.tsx.loadFeed: swallows all errors silently (`catch { /* unauth */ }`). If the request 500s, the empty state renders instead of a retryable error surface. Consider surfacing a subtle 'Couldn't load alerts — tap to retry' row.",
+    "mobile/app/(tabs)/home.tsx featured rail: click handler fires POST /discovery/featured/{id}/click via .catch(() => {}) fire-and-forget. If the request fails, the user's tap navigation still occurs (good UX) but a merchant may under-count clicks with no retry. Consider adding a lightweight retry queue for offline scenarios."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter49_mkt3.py",
+    "/app/test_reports/iteration_49.json",
+    "/app/test_reports/pytest/iter49.xml"
+  ],
+  "success_rate": {"backend": "100% (19/19 iter49 + 51/51 regression iter47+iter48)", "frontend": "100% of MKT.3 mobile spec testIDs verified"},
+  "test_credentials": "Web admin: admin@bigfm.dubai / AdminPass123!. Mobile/web demo: POST /api/auth/demo — bearer in 'session_token'. Demo user owns biz_demo_marketplace.",
+  "seed_data_creation": "Created on biz_demo_marketplace during iter49 (all TEST_iter49_ prefixed): TEST_iter49_featA_* (featured, bid=25c, active, clicks=1, impressions>=2), TEST_iter49_featB_* (featured, bid=75c, active), TEST_iter49_featC_* (featured, bid=50c, budget=$0.30, AUTO-PAUSED after 1 click), TEST_iter49_gv_* (giveaway, DRAWN, demo user is winner, giveaway_winner notif enqueued and marked read during test_mark_notification_read). Cumulative note: demo user now has 3 giveaway_winner notifications total (from iter48 smoke, iter48 test, iter49). For fresh idempotency retests create new campaign ids.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suites to carry forward: /app/backend/tests/test_iter49_mkt3.py (19 — rate-card feat, featured CRUD, discovery sort/click/404/autopause, impressions, winner notif payload, mark-read + unread_only), test_iter48_mkt2.py (26), test_iter47_mkt1.py (25). REACT_APP_BACKEND_URL required (script uses os.environ.get and rstrip — export before running). Session token field = 'session_token'. Notification inbox routes are under /api/me/notifications (NOT /api/notifications). Rate card key list now: display_banner, audio_preroll, sponsored_rj, push_notification, coupon_featured, trivia_sponsored, video_ad, instant_win_game, giveaway_entry, featured_listing (10 keys). Demo user's inbox has multiple giveaway_winner notifs from prior runs; fresh giveaways create fresh notifs (dedupe_key includes campaign_id + user_id).",
+  "rca of the issue": "N/A — no bugs in MKT.3 scope. Design/hardening suggestions (per-user click idempotency on featured, anonymous click surface, per-user impression dedupe, silent enqueue exception swallowing, silent notif feed load errors) captured in critical_code_review_comments."
+}

@@ -61,6 +61,9 @@ RATE_CARD_DEFAULTS: List[Dict[str, Any]] = [
     {"key": "giveaway_entry", "label": "Giveaway Entry", "pricing_model": "CPL",
      "base_cents": 3, "min_cents": 1, "max_cents": 50,
      "multipliers": {}, "enabled": True},
+    {"key": "featured_listing", "label": "Featured Listing", "pricing_model": "CPA",
+     "base_cents": 20, "min_cents": 5, "max_cents": 500,
+     "multipliers": {"category_exclusive": 1.6}, "enabled": True},
 ]
 
 
@@ -163,10 +166,10 @@ async def put_rate_card(body: RateCardBody, request: Request, _admin=Depends(req
 GOALS: List[Dict[str, Any]] = [
     {"key": "more_customers", "title": "Get More Customers",
      "subtitle": "Attract new listeners to your venue", "icon": "people",
-     "recommended": ["coupon_bid", "spin", "trivia"]},
+     "recommended": ["coupon_bid", "featured", "spin", "trivia"]},
     {"key": "foot_traffic", "title": "Drive Foot Traffic",
      "subtitle": "Fill quiet hours with a compelling offer", "icon": "walk",
-     "recommended": ["coupon_bid", "scratch"]},
+     "recommended": ["coupon_bid", "featured", "scratch"]},
     {"key": "engagement", "title": "Boost Engagement",
      "subtitle": "Get listeners playing with your brand", "icon": "game-controller",
      "recommended": ["trivia", "spin", "scratch"]},
@@ -196,6 +199,10 @@ CAMPAIGN_TYPES: Dict[str, Dict[str, Any]] = {
         "type": "giveaway", "label": "Prize Giveaway",
         "desc": "Listeners enter to win a prize. You draw the winners.",
         "icon": "gift", "rate_key": "giveaway_entry"},
+    "featured": {
+        "type": "featured", "label": "Featured Listing",
+        "desc": "Pin your venue to the top of local discovery. Pay per tap.",
+        "icon": "star", "rate_key": "featured_listing"},
 }
 
 # Ad formats (advertiser Campaign Format Selector) → rate card keys.
@@ -264,6 +271,9 @@ class CampaignBody(BaseModel):
     # giveaway
     prize_desc: Optional[str] = None
     num_winners: int = Field(1, ge=1, le=1000)
+    # featured listing
+    tagline: Optional[str] = None
+    hero_image_url: Optional[str] = None
 
 
 @router.post("/api/merchant/marketplace/campaigns")
@@ -275,6 +285,8 @@ async def create_campaign(body: CampaignBody, request: Request,
     if body.type not in CAMPAIGN_TYPES:
         raise HTTPException(400, {"code": "bad_campaign_type"})
     if body.type == "coupon_bid" and body.bid_cents <= 0:
+        raise HTTPException(400, {"code": "bid_required"})
+    if body.type == "featured" and body.bid_cents <= 0:
         raise HTTPException(400, {"code": "bid_required"})
     if body.type == "trivia" and not body.questions:
         raise HTTPException(400, {"code": "questions_required"})
@@ -305,6 +317,10 @@ async def create_campaign(body: CampaignBody, request: Request,
         doc.update({"win_points": body.win_points, "win_probability": body.win_probability,
                     "prize_label": body.prize_label or f"{body.win_points} points",
                     "plays": 0, "wins": 0})
+    elif body.type == "featured":
+        doc.update({"bid_cents": body.bid_cents, "tagline": body.tagline,
+                    "hero_image_url": body.hero_image_url,
+                    "impressions": 0, "clicks": 0})
     else:  # giveaway
         doc.update({"prize_desc": body.prize_desc, "num_winners": body.num_winners,
                     "entries_count": 0, "reward_points_on_entry": body.reward_points_on_claim,
@@ -616,7 +632,61 @@ async def draw_giveaway(campaign_id: str, request: Request, user: dict = Depends
     await db.merchant_campaigns.update_one(
         {"campaign_id": campaign_id},
         {"$set": {"drawn": True, "winners": winners, "status": "paused", "updated_at": _now()}})
+    # Winner Notifications — drop an in-app notification into each winner's inbox.
+    try:
+        from routes.notifications import _enqueue
+        for uid in winners:
+            await _enqueue(
+                db, owner_user_id=uid, station_id="marketplace",
+                station_slug="marketplace", type_="giveaway_winner",
+                payload={"campaign_id": campaign_id, "title": c.get("title"),
+                         "sponsor_name": c.get("sponsor_name"),
+                         "prize_desc": c.get("prize_desc")},
+                dedupe_key=f"giveaway_win:{campaign_id}:{uid}")
+    except Exception:
+        pass
     return {"ok": True, "winners": winners, "total_entries": len(entrants)}
+
+
+# ─────────────────────── Consumer: Featured Listings (local discovery) ───────────────────────
+@router.get("/api/discovery/featured")
+async def discovery_featured(request: Request, market: Optional[str] = None,
+                             limit: int = 10, user: dict = Depends(current_user_optional)):
+    db = request.app.state.db
+    q: Dict[str, Any] = {"type": "featured", "status": "active"}
+    if market:
+        q["market"] = market
+    out = []
+    async for c in db.merchant_campaigns.find(q).sort("bid_cents", -1).limit(max(1, min(limit, 50))):
+        if c.get("spent_usd", 0) >= c.get("budget_usd", 0):
+            continue
+        out.append({"campaign_id": c["campaign_id"], "sponsor_name": c.get("sponsor_name"),
+                    "title": c.get("title"), "tagline": c.get("tagline"),
+                    "hero_image_url": c.get("hero_image_url"),
+                    "merchant_id": c.get("merchant_id"), "featured": True})
+    # Fire-and-forget impression accounting.
+    for item in out:
+        await db.merchant_campaigns.update_one(
+            {"campaign_id": item["campaign_id"]}, {"$inc": {"impressions": 1}})
+    return {"items": out, "total": len(out)}
+
+
+@router.post("/api/discovery/featured/{campaign_id}/click")
+async def discovery_featured_click(campaign_id: str, request: Request,
+                                   user: dict = Depends(current_user_optional)):
+    db = request.app.state.db
+    c = await db.merchant_campaigns.find_one({"campaign_id": campaign_id, "type": "featured"})
+    if not c:
+        raise HTTPException(404, {"code": "campaign_not_found"})
+    if c.get("status") != "active":
+        return {"ok": True, "merchant_id": c.get("merchant_id")}
+    cost_usd = int(c.get("bid_cents", 0)) / 100.0
+    new_spent = round(c.get("spent_usd", 0.0) + cost_usd, 4)
+    upd = {"$inc": {"clicks": 1}, "$set": {"spent_usd": new_spent}}
+    if new_spent >= c.get("budget_usd", 0):
+        upd["$set"]["status"] = "paused"
+    await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
+    return {"ok": True, "merchant_id": c.get("merchant_id")}
 
 
 __all__ = ["router", "seed_marketplace"]

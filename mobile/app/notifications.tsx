@@ -28,11 +28,46 @@ export default function NotificationsScreen() {
   const [prefs, setPrefs] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(PREF_TOGGLES.map(t => [t.key, true]))
   );
+  const [feed, setFeed] = useState<any[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
   const cachedToken = getCachedPushToken();
   const isWeb = Platform.OS === 'web';
 
   useEffect(() => { if (!authLoading && !user) router.replace('/login'); }, [user, authLoading]);
   useEffect(() => { setPushEnabled(!!cachedToken); }, [cachedToken]);
+
+  const loadFeed = React.useCallback(async () => {
+    try { const r = await api.get('/me/notifications', { params: { limit: 30 } }); setFeed(r.data.items || []); }
+    catch { /* unauth */ }
+    finally { setFeedLoading(false); }
+  }, []);
+  useEffect(() => { if (user) loadFeed(); }, [user, loadFeed]);
+
+  const markRead = async (n: any) => {
+    if (n.read_at) return;
+    setFeed((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)));
+    try { await api.post(`/me/notifications/${n.id}/read`); } catch {}
+  };
+
+  const notifIcon = (type: string) =>
+    type === 'giveaway_winner' ? 'trophy'
+    : type === 'new_comment' ? 'chatbubble'
+    : type === 'post_reaction_milestone' ? 'heart' : 'notifications';
+
+  const notifText = (n: any): { title: string; body: string } => {
+    const p = n.payload || {};
+    if (n.type === 'giveaway_winner') {
+      return { title: `You won: ${p.title || 'a giveaway'}! 🎉`,
+               body: `${p.prize_desc ? p.prize_desc + ' · ' : ''}from ${p.sponsor_name || 'a local brand'}` };
+    }
+    if (n.type === 'new_comment') {
+      return { title: `New comment on ${p.station_name || 'your station'}`, body: p.comment_excerpt || '' };
+    }
+    if (n.type === 'post_reaction_milestone') {
+      return { title: `${p.total_reactions} reactions on ${p.station_name || 'your post'}`, body: `Milestone: ${p.milestone}` };
+    }
+    return { title: n.type, body: '' };
+  };
 
   const togglePush = async (val: boolean) => {
     if (isWeb) return;
@@ -61,6 +96,34 @@ export default function NotificationsScreen() {
         </TouchableOpacity>
         <Text style={st.title}>Notifications</Text>
         <Text style={st.sub}>Control what RadioLife can notify you about.</Text>
+
+        {/* Inbox feed */}
+        <Text style={st.sectionLabel}>YOUR ALERTS</Text>
+        <View style={st.card} testID="notif-inbox">
+          {feedLoading ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : feed.length === 0 ? (
+            <Text style={st.emptyFeed} testID="notif-inbox-empty">No alerts yet. Win a giveaway or join the community to get notified.</Text>
+          ) : feed.map((n, i) => {
+            const { title, body } = notifText(n);
+            const unread = !n.read_at;
+            return (
+              <TouchableOpacity key={n.id} onPress={() => markRead(n)} activeOpacity={0.8}
+                testID={`notif-item-${n.id}`}
+                style={[st.feedRow, i < feed.length - 1 && st.prefBorder]}>
+                <View style={[st.feedIcon, unread && { backgroundColor: COLORS.primary + '22' }]}>
+                  <Ionicons name={notifIcon(n.type) as any} size={16}
+                    color={unread ? COLORS.primary : COLORS.textDim} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[st.feedTitle, unread && { fontWeight: '900' }]} numberOfLines={2}>{title}</Text>
+                  {!!body && <Text style={st.feedBody} numberOfLines={2}>{body}</Text>}
+                </View>
+                {unread && <View style={st.unreadDot} testID={`notif-unread-${n.id}`} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {/* Web info banner */}
         {isWeb && (
@@ -141,4 +204,10 @@ const st = StyleSheet.create({
   prefBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
   prefLabel: { color: COLORS.text, fontSize: 13, flex: 1 },
   hint: { color: COLORS.textDim, fontSize: 11, fontStyle: 'italic', marginTop: SPACING.sm, textAlign: 'center' },
+  emptyFeed: { color: COLORS.textDim, fontSize: 12, lineHeight: 18 },
+  feedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  feedIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
+  feedTitle: { color: COLORS.text, fontSize: 13, fontWeight: '700' },
+  feedBody: { color: COLORS.textDim, fontSize: 11, marginTop: 2 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary },
 });

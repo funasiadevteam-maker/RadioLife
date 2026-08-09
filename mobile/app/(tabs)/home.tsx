@@ -30,6 +30,7 @@ export default function HomeScreen() {
   const [topStations, setTopStations] = useState<any[]>([]);
   const [mostPlayedLive, setMostPlayedLive] = useState<any[]>([]);
   const [promoted, setPromoted] = useState<any[]>([]);
+  const [featuredBiz, setFeaturedBiz] = useState<any[]>([]);
   const [cityLabel, setCityLabel] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,13 +46,14 @@ export default function HomeScreen() {
 
   const load = async () => {
     try {
-      const [chRes, brRes, wRes, dRes, dscRes, prRes] = await Promise.allSettled([
+      const [chRes, brRes, wRes, dRes, dscRes, prRes, ftRes] = await Promise.allSettled([
         api.get('/channels'),
         api.get('/news/headlines/breaking'),
         api.get('/bigcoin/me'),
         api.get('/commerce/offers/feed'),
         api.get('/radio/discover'),
         api.get('/promoted/stations?limit=6'),
+        api.get('/discovery/featured?limit=6'),
       ]);
       if (chRes.status === 'fulfilled') setChannels((chRes.value as any).data?.channels || []);
       if (brRes.status === 'fulfilled') setBreaking((brRes.value as any).data?.items || []);
@@ -65,6 +67,7 @@ export default function HomeScreen() {
         setMostPlayedLive((railMap.local?.length ? railMap.local : railMap.trending) || []);
       }
       if (prRes.status === 'fulfilled') setPromoted((prRes.value as any).data?.items || []);
+      if (ftRes.status === 'fulfilled') setFeaturedBiz((ftRes.value as any).data?.items || []);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -250,6 +253,32 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
         </TouchableOpacity>
 
+        {/* Featured near you (paid placements) */}
+        {featuredBiz.length > 0 && (
+          <>
+            <Text style={[common.sectionTitle, { marginTop: SPACING.lg, paddingHorizontal: SPACING.md }]}>FEATURED NEAR YOU</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}>
+              {featuredBiz.map((f) => (
+                <TouchableOpacity key={f.campaign_id} style={s.featCard} testID={`home-featured-${f.campaign_id}`}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    api.post(`/discovery/featured/${f.campaign_id}/click`).catch(() => {});
+                    router.push(`/coupons`);
+                  }}>
+                  {f.hero_image_url
+                    ? <SafeImage uri={f.hero_image_url} fallbackText={f.title} size={54} borderRadius={12} />
+                    : <View style={s.featIcon}><Ionicons name="star" size={20} color={COLORS.gold} /></View>}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={s.featBadge}><Text style={s.featBadgeText}>FEATURED</Text></View>
+                    <Text style={s.featTitle} numberOfLines={1}>{f.title}</Text>
+                    {!!f.tagline && <Text style={s.featTagline} numberOfLines={1}>{f.tagline}</Text>}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
         {/* Nearby Deals rail */}
         {deals.length > 0 && (
           <>
@@ -378,6 +407,13 @@ const s = StyleSheet.create({
   dealsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, marginTop: SPACING.lg, marginBottom: SPACING.sm },
   dealsSeeAll: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '700' },
   dealCard: { width: 160, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md },
+  featCard: { width: 230, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.gold + '55', padding: SPACING.sm + 2 },
+  featIcon: { width: 54, height: 54, borderRadius: 12, backgroundColor: COLORS.gold + '18', alignItems: 'center', justifyContent: 'center' },
+  featBadge: { alignSelf: 'flex-start', backgroundColor: COLORS.gold + '22', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 3 },
+  featBadgeText: { color: COLORS.gold, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  featTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  featTagline: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+
   dealDiscount: { alignSelf: 'flex-start', backgroundColor: COLORS.primary, borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 4, marginBottom: 8 },
   dealDiscountText: { color: '#fff', fontSize: FONT.xs, fontWeight: '900' },
   dealTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', lineHeight: 18 },
