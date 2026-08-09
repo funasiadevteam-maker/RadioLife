@@ -5587,6 +5587,14 @@ try:
 except Exception as _e:
     logger.warning("Phase RWD.1 rewards_earn router not loaded: %s", _e)
 
+# Phase RWD.3 — Premium Cues (status / benefits + admin config).
+try:
+    from routes.premium_cues import router as _premium_cues_router
+    app.include_router(_premium_cues_router)
+    logger.info("Phase RWD.3 routes wired: /api/me/premium + /api/premium + /api/admin/premium")
+except Exception as _e:
+    logger.warning("Phase RWD.3 premium_cues router not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router

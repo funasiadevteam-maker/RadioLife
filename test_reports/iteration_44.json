@@ -1,0 +1,63 @@
+{
+  "summary": "Iteration 44 — RWD.3 Premium Cues + RWD.2 Post-Action Rewards + Brand Cleanup tested on backend + web + mobile. Backend pytest: 16/18 PASS (2 failures are real brand-cleanup gaps: channels.name for news_radio still 'BigFM News Radio'; badges.description for premium_subscriber + early_adopter still contain 'BigFM'). Premium contract verified end-to-end: GET /api/premium/benefits public 200 with 10 enabled benefits+pricing; GET /api/me/premium/status returns is_premium=false for demo, is_premium=true for premium@bigfm.dubai; admin GET/PUT /api/admin/premium/config gated (demo 401/403); PUT points_multiplier=2.0 round-trips AND /api/me/premium/status recomputes premium_bonus_points_estimate = round(month_earned*(mult-1)); disabling a benefit hides it from /api/premium/benefits and re-enabling restores; multiplier restored to 1.5. Web /premium (demo cookie): premium-root + premium-value + premium-bonus-estimate (+247) + premium-free-col + premium-plus-col + 10 premium-benefit-* + premium-start all render; premium-active hidden for free user; home-premium-teaser navigates to /premium; /earn shows premium-cue-rewards for free user AND mission claim on 'weekly_games' triggered reward-overlay with reward-points='+300', reward-balance='New balance · 794', 2 reward-keep-* CTAs, reward-done dismisses overlay. Mobile Expo web preview (390x844, demo): premium-root + premium-value + premium-bonus-estimate (+397) + free/plus cols + 10 benefits + premium-start all render; home-premium-teaser navigates to /premium; /earn shows premium-cue-rewards. Regression: /api/me/earn/overview still returns full shape; admin login (admin@bigfm.dubai/AdminPass123!) still works after rebrand. Brand UI copy visibly says 'RadioLife Premium', 'No RadioLife platform audio ads', 'Pay with RadioLife', 'Share RadioLife'.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "DB collection: channels", "issue": "channels.name for slug 'news_radio' still reads 'BigFM News Radio' — rebrand script missed this record (or the doc was re-seeded after the rebrand run). Display field 'name' is in the allowlist; re-run /app/scripts/rebrand_bigfm.py --apply to fix."},
+      {"endpoint": "DB collection: badges", "issue": "badges.description for badge_id 'premium_subscriber' ('Subscribed to BigFM Premium.') and 'early_adopter' ('One of the first 1000 BigFM listeners.') still contain 'BigFM'. Re-run rebrand script or update these seed strings."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated in React Native Web — use 'boxShadow'. Carried over from iter38-43."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' Carried over from iter38-43."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter44_premium_brand.py",
+    "/app/test_reports/pytest/iter44.xml",
+    "/tmp/web_premium_demo.png",
+    "/tmp/web_reward_overlay.png",
+    "/tmp/web_earn.png",
+    "/tmp/mob_premium.png",
+    "/tmp/mob_home.png",
+    "/tmp/mob_earn.png"
+  ],
+  "action_items": [
+    "MEDIUM: Fix 2 brand-cleanup DB gaps — (1) channels.name where slug='news_radio' → replace 'BigFM News Radio' with 'RadioLife News Radio'; (2) badges.description for 'premium_subscriber' and 'early_adopter' → replace 'BigFM' with 'RadioLife'. Easiest fix: re-run /app/scripts/rebrand_bigfm.py --apply, then also update the seeding code that produces those strings (otherwise a restart could re-introduce them). Reference likely seed sites: services/badges seed + channels seed at boot.",
+    "LOW (CARRIED iter38-43): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (CARRIED iter38-43): replace props.pointerEvents with style.pointerEvents.",
+    "OBSERVATION: Mobile reward overlay could not be exercised via mission-claim in this run because the web test already consumed daily/weekly claims for the demo user's current period. RewardOverlay component code + testIDs match spec and the same overlay was proven on web end-to-end (+300 pts, balance updated to 794, reward-keep-* ways rendered, reward-done dismissed). Main agent can self-verify mobile overlay by seeding a fresh points_ledger row after test window rolls over."
+  ],
+  "critical_code_review_comments": [
+    "premium_cues.py::_month_points_earned aggregates all positive delta this month — mission-reward payouts (source='mission_reward') are included in month_points_earned, so the 'bonus points you'd have earned at 1.5×' estimate compounds mission reward pay-outs against themselves. If the intent is 'raw earn activity', consider excluding source='mission_reward' / 'daily_goal_bonus' from the aggregation.",
+    "premium_cues.py::admin_put_premium accepts a full benefits array with no schema validation on individual benefit shape (key/title/category/enabled). A malformed PUT with missing 'key' fields could brick /api/premium/benefits. Consider Pydantic-modeling each benefit.",
+    "premium_cues.py::admin_put_premium — no lower/upper bound on points_multiplier (accepts negative or absurd values). A negative multiplier would produce negative premium_bonus_points_estimate. Suggest clamp to [1.0, 5.0].",
+    "rebrand_bigfm.py: script is idempotent for display fields but does NOT re-run on documents inserted AFTER the rebrand. news_radio channel + premium_subscriber/early_adopter badges appear to have been (re-)seeded from code AFTER the rebrand ran, so their source strings still say 'BigFM'. Fix both the seed source AND re-run the rebrand.",
+    "RewardOverlay: single-use per action is fine but there is no queue — if two point-earning events fire within animation window, the second could be swallowed. Not blocking for MVP but worth a note."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter44_premium_brand.py",
+    "/app/test_reports/iteration_44.json",
+    "/app/test_reports/pytest/iter44.xml"
+  ],
+  "success_rate": {"backend": "88% (16/18) — 2 real brand-cleanup gaps, all Premium tests 100%", "frontend": "100% of RWD.2 + RWD.3 spec testIDs verified on both surfaces"},
+  "test_credentials": "Web admin: admin@bigfm.dubai / AdminPass123!. Web demo: POST /api/auth/demo (cookie). Premium: premium@bigfm.dubai / PremiumTest123! (validated via backend). Mobile: demo-login-btn.",
+  "seed_data_creation": "Web reward-overlay smoke test claimed 'weekly_games' mission for the demo user for this week's period → awarded 300 pts (balance moved from 494 → 794). Not rolled back; will not re-claim until next week's period rollover. No admin config changes left in place (points_multiplier restored to 1.5, extra_game_entries benefit re-enabled).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/test_iter44_premium_brand.py (18 tests: TestPremiumPublicBenefits, TestPremiumStatus, TestPremiumAdminConfig — 5 tests inc. multiplier round-trip and benefit disable/enable, TestBrandCleanupDB — 7 tests inc. 2 currently failing for channels/badges, plus 2 regressions). Multiplier is auto-restored to 1.5 at end. Premium demo user's daily_trivia was already claimed in iter43; this run additionally claimed weekly_games (300 pts). To retest the mobile reward-overlay: after brand-cleanup fixes, either wait for next week (Mon UTC) or seed a fresh completed mission via points_ledger insert. Web + mobile testIDs all present — no missing testIDs blocking future testing.",
+  "rca of the issue": "Brand-cleanup gaps RCA: /app/scripts/rebrand_bigfm.py correctly rebrands DISPLAY_FIELDS matching the regex r'big\\s*fm' — it DID run once. However, seeds for channels ('BigFM News Radio' for news_radio) and badges ('Subscribed to BigFM Premium.' + 'One of the first 1000 BigFM listeners.') either (a) were reseeded from code after the rebrand ran, or (b) were never rebranded because their seed inserts happened after the rebrand execution. FIX PATH: (1) grep the codebase for 'BigFM News Radio', 'BigFM Premium', 'BigFM listeners' and replace with RadioLife equivalents in seed constants; (2) re-run python /app/scripts/rebrand_bigfm.py --apply against the DB; (3) restart backend so any startup seed re-writes RadioLife strings, not BigFM. All other checked collections (game_campaigns.title, game_campaigns.sponsor_name, bigcoin_rewards.name, users.name) are CLEAN."
+}

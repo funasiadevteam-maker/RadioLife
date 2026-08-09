@@ -81,7 +81,7 @@ export default function WaysToEarnCard() {
 
       {/* Contextual Premium teaser — full Premium cue system lands in a later phase. */}
       <Link
-        to="/pricing"
+        to="/premium"
         data-testid="home-premium-teaser"
         className="flex items-center gap-3 rounded-token-card border
                           border-accent-magenta/20 bg-accent-magenta/[0.06]

@@ -62,7 +62,7 @@ export default function WaysToEarnCard() {
 
       {/* Contextual Premium teaser — full Premium cue system lands later. */}
       <TouchableOpacity style={s.premium} testID="home-premium-teaser"
-        onPress={() => router.push('/(tabs)/profile' as any)} activeOpacity={0.85}>
+        onPress={() => router.push('/premium' as any)} activeOpacity={0.85}>
         <Ionicons name="sparkles" size={16} color={COLORS.purple} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.premiumTitle}>Get more with Premium</Text>

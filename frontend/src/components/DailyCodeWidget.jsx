@@ -12,11 +12,13 @@ import axios from "axios";
 import { Flame, Coins, CheckCircle2, Loader2, KeyRound, LogIn } from "lucide-react";
 import { API, useAuth } from "@/AuthContext";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
+import { useReward } from "@/rewards/RewardOverlay";
 
 
 export default function DailyCodeWidget() {
   const { user } = useAuth();
   const variant = useDesignVariant();
+  const { celebrate } = useReward();
   const light = variant === "radiolife";
   const [state, setState] = useState({
     loading: true, current: null, code: "", busy: false,
@@ -46,6 +48,9 @@ export default function DailyCodeWidget() {
         { code: s.code.trim().toUpperCase() },
         { withCredentials: true });
       set({ justClaimed: r.data, busy: false, code: "" });
+      if (r.data?.points_awarded) {
+        celebrate({ points: r.data.points_awarded, title: "Daily code claimed" });
+      }
       loadCurrent();
     } catch (err) {
       set({ busy: false,

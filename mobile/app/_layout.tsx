@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import ChannelGateModal from '../src/components/ChannelGateModal';
 import MiniPlayer from '../src/components/MiniPlayer';
+import { RewardProvider } from '../src/components/RewardOverlay';
 import { configureAudioMode } from '../src/services/audioInit';
 import { setupNativePlayer } from '../src/services/nativePlayerBridge';
 import { COLORS } from '../src/constants/theme';
@@ -11,9 +12,11 @@ import { COLORS } from '../src/constants/theme';
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
-      <AuthGatedStack />
-      <ChannelGateModal />
+      <RewardProvider>
+        <StatusBar style="dark" />
+        <AuthGatedStack />
+        <ChannelGateModal />
+      </RewardProvider>
     </AuthProvider>
   );
 }

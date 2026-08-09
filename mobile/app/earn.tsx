@@ -8,6 +8,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../src/constants/theme';
 import { useAuth } from '../src/contexts/AuthContext';
+import { useReward } from '../src/components/RewardOverlay';
+import PremiumCue from '../src/components/PremiumCue';
 import {
   fetchEarnOverview, claimMission, routeForAction, ionIcon,
   EarnOverview, EarnMission,
@@ -16,11 +18,11 @@ import {
 export default function EarnScreen() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { celebrate } = useReward();
   const [data, setData] = useState<EarnOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
-  const [flash, setFlash] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try { setData(await fetchEarnOverview()); }
@@ -38,12 +40,11 @@ export default function EarnScreen() {
     setClaiming(m.mission_id);
     try {
       const r = await claimMission(m.mission_id);
-      setFlash(`+${r.awarded} points claimed!`);
-      setTimeout(() => setFlash(null), 2500);
       await load();
+      celebrate({ points: r.awarded, title: 'Mission complete' });
     } catch {
-      setFlash("Couldn't claim — try again.");
-      setTimeout(() => setFlash(null), 2500);
+      /* already claimed or incomplete — refresh state */
+      await load();
     } finally { setClaiming(null); }
   };
 
@@ -75,10 +76,6 @@ export default function EarnScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={COLORS.primary}
           onRefresh={() => { setRefreshing(true); load(); }} />}
         testID="earn-root">
-
-        {flash && (
-          <View style={s.flash} testID="earn-flash"><Text style={s.flashText}>{flash}</Text></View>
-        )}
 
         {/* Balance + tier */}
         <View style={s.balanceCard}>
@@ -126,6 +123,7 @@ export default function EarnScreen() {
 
         {/* Available now */}
         <Text style={s.section}>AVAILABLE NOW</Text>
+        <PremiumCue context="rewards" />
         {ways.map((w) => (
           <TouchableOpacity key={w.key} testID={`earn-way-${w.key}`}
             style={[s.item, !w.eligible && { opacity: 0.5 }]}
@@ -201,11 +199,6 @@ const s = StyleSheet.create({
   },
   backBtn: { padding: 2 },
   topTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900' },
-  flash: {
-    backgroundColor: COLORS.green + '18', borderWidth: 1, borderColor: COLORS.green + '55',
-    borderRadius: RADIUS.md, padding: 12, marginBottom: SPACING.md,
-  },
-  flashText: { color: COLORS.green, fontWeight: '800', fontSize: FONT.sm, textAlign: 'center' },
   balanceCard: {
     backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1,
     borderColor: COLORS.cardBorder, padding: SPACING.md,

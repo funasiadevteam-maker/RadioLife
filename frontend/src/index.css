@@ -108,3 +108,8 @@ body {
 .commute-marker-origin { background: #00D4FF; }
 .commute-marker-dest { background: #FF3D71; }
 .commute-marker-offer { background: #FFD93D; color: #000; }
+
+@keyframes rewardpop {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}

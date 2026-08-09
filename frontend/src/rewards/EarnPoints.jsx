@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Card, Button, LiveDot } from "@/shell/primitives";
 import { useEarnOverview, routeForAction, claimMission } from "@/rewards/earnApi";
 import { EarnIcon } from "@/rewards/EarnIcon";
+import { useReward } from "@/rewards/RewardOverlay";
+import PremiumCue from "@/rewards/PremiumCue";
 
 function MissionRow({ m, onClaim, claiming }) {
   const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
@@ -54,13 +56,14 @@ export default function EarnPoints() {
   const { data, loading, error, reload } = useEarnOverview();
   const navigate = useNavigate();
   const [claiming, setClaiming] = useState(null);
+  const { celebrate } = useReward();
 
   const onClaim = async (id) => {
     setClaiming(id);
     try {
       const r = await claimMission(id);
-      toast.success(`+${r.awarded} points claimed!`);
       await reload();
+      celebrate({ points: r.awarded, title: "Mission complete" });
     } catch (e) {
       toast.error(e?.response?.data?.detail?.code === "already_claimed"
         ? "Already claimed." : "Couldn't claim — try again.");
@@ -159,6 +162,7 @@ export default function EarnPoints() {
       </Card>
 
       {/* Available now */}
+      <PremiumCue context="rewards" />
       <section className="space-y-3" data-testid="earn-available">
         <h2 className="font-display font-bold text-lg tracking-display-tight
                               flex items-center gap-2">

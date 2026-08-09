@@ -167,6 +167,7 @@ import AdvertiserPayouts from "@/AdvertiserPayouts";
 import AdminIntegrations from "@/AdminIntegrations";
 import Wallet from "@/Wallet";
 import EarnPoints from "@/rewards/EarnPoints";
+import Premium from "@/premium/Premium";
 import Billing from "@/Billing";
 import Audition from "@/Audition";
 import Login from "@/Login";
@@ -270,6 +271,7 @@ import Passport from "@/Passport";
 import PublicPassport from "@/PublicPassport";
 import Leaderboards from "@/Leaderboards";
 import { AuthProvider } from "@/AuthContext";
+import { RewardProvider } from "@/rewards/RewardOverlay";
 import BillingBanner from "@/BillingBanner";
 import PageFrame from "@/components/PageFrame";
 import { useEffect as _useEffect_ } from "react";
@@ -845,6 +847,9 @@ function AppRouter() {
         <ProtectedRoute><Billing /></ProtectedRoute>
       } />
       <Route path="/pricing" element={<PricingGate />} />
+      <Route path="/premium" element={
+        <ProtectedRoute><Premium /></ProtectedRoute>
+      } />
       <Route path="/billing/success" element={
         <ProtectedRoute><BillingSuccess /></ProtectedRoute>
       } />
@@ -995,7 +1000,9 @@ export default function App() {
       <HelmetProvider>
         <BrowserRouter>
           <AuthProvider>
-            <AppRouter />
+            <RewardProvider>
+              <AppRouter />
+            </RewardProvider>
             {/* Phase Π.3 — GDPR/CCPA consent + footer. */}
             <CookieBanner />
             {/* Phase Π.5 — Feedback fab for employees + admins. */}
