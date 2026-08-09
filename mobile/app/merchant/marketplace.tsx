@@ -52,6 +52,8 @@ export default function Marketplace() {
   const [prizeDesc, setPrizeDesc] = useState('');
   const [numWinners, setNumWinners] = useState('1');
   const [tagline, setTagline] = useState('');
+  const [bookingType, setBookingType] = useState('table');
+  const [slotsText, setSlotsText] = useState('6:00 PM, 7:30 PM, 9:00 PM');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -102,6 +104,10 @@ export default function Marketplace() {
       } else if (ctype.type === 'featured') {
         body.bid_cents = Number(bid);
         body.tagline = tagline;
+      } else if (ctype.type === 'booking') {
+        body.bid_cents = Number(bid);
+        body.booking_type = bookingType;
+        body.slots = slotsText.split(',').map((x) => x.trim()).filter(Boolean);
       }
       await api.post('/merchant/marketplace/campaigns', body);
       flash('Campaign launched! 🎉');
@@ -129,7 +135,7 @@ export default function Marketplace() {
   const campIcon = (t: string) =>
     t === 'trivia' ? 'help-circle' : t === 'spin' ? 'sync-circle'
     : t === 'scratch' ? 'sparkles' : t === 'giveaway' ? 'gift'
-    : t === 'featured' ? 'star' : 'pricetag';
+    : t === 'featured' ? 'star' : t === 'booking' ? 'calendar' : 'pricetag';
 
   const drawGiveaway = async (c: Campaign) => {
     try {
@@ -145,6 +151,7 @@ export default function Marketplace() {
     if (c.type === 'trivia') return [{ label: 'Answers', value: c.answers_count ?? 0 }, { label: 'Correct', value: c.correct_count ?? 0 }];
     if (c.type === 'coupon_bid') return [{ label: 'Claims', value: c.claims ?? 0 }];
     if (c.type === 'giveaway') return [{ label: 'Entries', value: c.entries_count ?? 0 }];
+    if (c.type === 'booking') return [{ label: 'Bookings', value: (c as any).bookings ?? 0 }];
     return [];
   };
 
@@ -407,7 +414,7 @@ export default function Marketplace() {
                   </View>
                   <Text style={s.hint}>Listeners enter to win. Draw winners from your campaign list.</Text>
                 </>
-              ) : (
+              ) : ctype.type === 'featured' ? (
                 <>
                   <Text style={s.label}>TAGLINE</Text>
                   <TextInput style={s.input} value={tagline} onChangeText={setTagline}
@@ -426,6 +433,36 @@ export default function Marketplace() {
                     </View>
                   </View>
                   <Text style={s.hint}>Higher bids rank first in local discovery.</Text>
+                </>
+              ) : null}
+              {ctype.type === 'booking' && (
+                <>
+                  <Text style={s.label}>BOOKING TYPE</Text>
+                  <View style={s.chips}>
+                    {[['table', 'Table'], ['appointment', 'Appointment']].map(([k, lbl]) => (
+                      <TouchableOpacity key={k} testID={`mkt-booking-type-${k}`}
+                        style={[s.chip, bookingType === k && s.chipOn]} onPress={() => setBookingType(k)}>
+                        <Text style={[s.chipText, bookingType === k && s.chipTextOn]}>{lbl}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={s.label}>SLOTS (comma-separated)</Text>
+                  <TextInput style={s.input} value={slotsText} onChangeText={setSlotsText}
+                    placeholder="6:00 PM, 7:30 PM" placeholderTextColor={COLORS.textMuted}
+                    testID="mkt-slots" />
+                  <View style={s.row2}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>PAY / BOOKING ¢</Text>
+                      <TextInput style={s.input} value={bid} onChangeText={setBid}
+                        keyboardType="number-pad" testID="mkt-bid" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>BUDGET $</Text>
+                      <TextInput style={s.input} value={budget} onChangeText={setBudget}
+                        keyboardType="number-pad" testID="mkt-budget" />
+                    </View>
+                  </View>
+                  <Text style={s.hint}>You only pay when a listener actually books.</Text>
                 </>
               )}
 

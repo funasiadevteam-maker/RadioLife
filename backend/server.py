@@ -5624,6 +5624,13 @@ try:
 except Exception as _e:
     logger.warning("Phase CS.1 creator_video router not loaded: %s", _e)
 
+try:
+    from routes.gift_cards import router as _gift_cards_router
+    app.include_router(_gift_cards_router)
+    logger.info("Phase GC.1 routes wired: /api/giftcards/catalog|purchase|mine")
+except Exception as _e:
+    logger.warning("Phase GC.1 gift_cards router not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router

@@ -66,6 +66,9 @@ RATE_CARD_DEFAULTS: List[Dict[str, Any]] = [
     {"key": "featured_listing", "label": "Featured Listing", "pricing_model": "CPA",
      "base_cents": 20, "min_cents": 5, "max_cents": 500,
      "multipliers": {"category_exclusive": 1.6}, "enabled": True},
+    {"key": "booking_cpa", "label": "Booking (Pay-per-Booking)", "pricing_model": "CPA",
+     "base_cents": 150, "min_cents": 25, "max_cents": 2000,
+     "multipliers": {"peak_slot": 1.4}, "enabled": True},
 ]
 
 
@@ -173,7 +176,7 @@ GOALS: List[Dict[str, Any]] = [
      "recommended": ["coupon_bid", "featured", "spin", "trivia"]},
     {"key": "foot_traffic", "title": "Drive Foot Traffic",
      "subtitle": "Fill quiet hours with a compelling offer", "icon": "walk",
-     "recommended": ["coupon_bid", "featured", "scratch"]},
+     "recommended": ["coupon_bid", "booking", "featured", "scratch"]},
     {"key": "engagement", "title": "Boost Engagement",
      "subtitle": "Get listeners playing with your brand", "icon": "game-controller",
      "recommended": ["trivia", "spin", "scratch"]},
@@ -207,6 +210,10 @@ CAMPAIGN_TYPES: Dict[str, Dict[str, Any]] = {
         "type": "featured", "label": "Featured Listing",
         "desc": "Pin your venue to the top of local discovery. Pay per tap.",
         "icon": "star", "rate_key": "featured_listing"},
+    "booking": {
+        "type": "booking", "label": "Bookings (Pay-per-Booking)",
+        "desc": "Take table or appointment bookings. Pay only when a listener books.",
+        "icon": "calendar", "rate_key": "booking_cpa"},
 }
 
 # Ad formats (advertiser Campaign Format Selector) → rate card keys.
@@ -278,6 +285,9 @@ class CampaignBody(BaseModel):
     # featured listing
     tagline: Optional[str] = None
     hero_image_url: Optional[str] = None
+    # booking
+    booking_type: str = Field("table", description="table | appointment")
+    slots: List[str] = []
 
 
 @router.post("/api/merchant/marketplace/campaigns")
@@ -292,6 +302,10 @@ async def create_campaign(body: CampaignBody, request: Request,
         raise HTTPException(400, {"code": "bid_required"})
     if body.type == "featured" and body.bid_cents <= 0:
         raise HTTPException(400, {"code": "bid_required"})
+    if body.type == "booking" and body.bid_cents <= 0:
+        raise HTTPException(400, {"code": "bid_required"})
+    if body.type == "booking" and not body.slots:
+        raise HTTPException(400, {"code": "slots_required"})
     if body.type == "trivia" and not body.questions:
         raise HTTPException(400, {"code": "questions_required"})
     if body.type == "giveaway" and not body.prize_desc:
@@ -325,6 +339,9 @@ async def create_campaign(body: CampaignBody, request: Request,
         doc.update({"bid_cents": body.bid_cents, "tagline": body.tagline,
                     "hero_image_url": body.hero_image_url,
                     "impressions": 0, "clicks": 0})
+    elif body.type == "booking":
+        doc.update({"bid_cents": body.bid_cents, "booking_type": body.booking_type,
+                    "slots": body.slots, "bookings": 0})
     else:  # giveaway
         doc.update({"prize_desc": body.prize_desc, "num_winners": body.num_winners,
                     "entries_count": 0, "reward_points_on_entry": body.reward_points_on_claim,
@@ -739,6 +756,72 @@ async def discovery_featured_click(campaign_id: str, request: Request,
     await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
     await _bump_featured_daily(db, campaign_id, clicks=1, spend_usd=cost_usd)
     return {"ok": True, "merchant_id": c.get("merchant_id"), "charged": True}
+
+
+# ─────────────────────── Consumer: Bookings (pay-per-booking CPA) ───────────────────────
+@router.get("/api/bookings/available")
+async def bookings_available(request: Request, market: Optional[str] = None,
+                             user: dict = Depends(current_user)):
+    db = request.app.state.db
+    q: Dict[str, Any] = {"type": "booking", "status": "active"}
+    if market:
+        q["market"] = market
+    out = []
+    async for c in db.merchant_campaigns.find(q).sort("created_at", -1):
+        if c.get("spent_usd", 0) >= c.get("budget_usd", 0):
+            continue
+        out.append({"campaign_id": c["campaign_id"], "sponsor_name": c.get("sponsor_name"),
+                    "title": c.get("title"), "booking_type": c.get("booking_type", "table"),
+                    "slots": c.get("slots", [])})
+    return {"items": out, "total": len(out)}
+
+
+class BookingBody(BaseModel):
+    slot: str
+    party_size: int = Field(2, ge=1, le=50)
+    name: str = Field(..., min_length=1, max_length=120)
+    phone: str = Field(..., min_length=3, max_length=40)
+
+
+@router.post("/api/bookings/{campaign_id}/book")
+async def create_booking(campaign_id: str, body: BookingBody, request: Request,
+                         user: dict = Depends(current_user)):
+    db = request.app.state.db
+    c = await db.merchant_campaigns.find_one({"campaign_id": campaign_id, "type": "booking"})
+    if not c:
+        raise HTTPException(404, {"code": "campaign_not_found"})
+    if c.get("status") != "active" or c.get("spent_usd", 0) >= c.get("budget_usd", 0):
+        raise HTTPException(400, {"code": "campaign_inactive"})
+    if body.slot not in (c.get("slots") or []):
+        raise HTTPException(400, {"code": "bad_slot"})
+    booking = {
+        "booking_id": f"bk_{uuid.uuid4().hex[:12]}", "campaign_id": campaign_id,
+        "merchant_id": c.get("merchant_id"), "user_id": user.get("user_id"),
+        "booking_type": c.get("booking_type", "table"), "slot": body.slot,
+        "party_size": body.party_size, "name": body.name, "phone": body.phone,
+        "status": "confirmed", "created_at": _now(),
+    }
+    await db.venue_bookings.insert_one(dict(booking))
+    # CPA — the merchant pays only now that a booking happened.
+    cost_usd = int(c.get("bid_cents", 0)) / 100.0
+    new_spent = round(c.get("spent_usd", 0.0) + cost_usd, 4)
+    upd = {"$inc": {"bookings": 1}, "$set": {"spent_usd": new_spent}}
+    if new_spent >= c.get("budget_usd", 0):
+        upd["$set"]["status"] = "paused"
+    await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
+    booking.pop("_id", None)
+    return {"ok": True, "booking": booking, "sponsor_name": c.get("sponsor_name")}
+
+
+@router.get("/api/merchant/bookings/{campaign_id}")
+async def list_bookings(campaign_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_campaign(db, campaign_id, user)
+    out = []
+    async for b in db.venue_bookings.find({"campaign_id": campaign_id}).sort("created_at", -1):
+        b.pop("_id", None)
+        out.append(b)
+    return {"items": out, "total": len(out)}
 
 
 __all__ = ["router", "seed_marketplace"]
