@@ -164,6 +164,17 @@ export default function EarnScreen() {
         {/* Available now */}
         <Text style={s.section}>AVAILABLE NOW</Text>
         <PremiumCue context="rewards" />
+        <TouchableOpacity style={s.triviaCta} testID="earn-brand-trivia"
+          onPress={() => router.push('/brand-trivia' as any)} activeOpacity={0.85}>
+          <View style={s.itemIcon}>
+            <Ionicons name="help-circle" size={17} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.itemTitle} numberOfLines={1}>Brand Trivia</Text>
+            <Text style={s.itemSub} numberOfLines={1}>Answer sponsored rounds to earn points</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
         {ways.map((w) => (
           <TouchableOpacity key={w.key} testID={`earn-way-${w.key}`}
             style={[s.item, !w.eligible && { opacity: 0.5 }]}
@@ -271,6 +282,10 @@ const s = StyleSheet.create({
   item: {
     flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: SPACING.sm,
     borderRadius: RADIUS.md, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  triviaCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: SPACING.sm,
+    borderRadius: RADIUS.md, backgroundColor: COLORS.primary + '10', borderWidth: 1, borderColor: COLORS.primary + '33',
   },
   itemIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary + '18', alignItems: 'center', justifyContent: 'center' },
   itemTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },

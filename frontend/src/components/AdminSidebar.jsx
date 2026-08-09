@@ -72,6 +72,8 @@ const SECTIONS = [
       { to: "/admin/advertiser/analytics",  label: "Advertiser Analytics", testid: "adnav-ads-aanalytics" },
       { to: "/admin/ads/auction-log",          label: "Auction Log",             testid: "adnav-ads-auction" },
       { to: "/admin/ads/revenue",                  label: "Ads Revenue",             testid: "adnav-ads-revenue" },
+      { to: "/admin/rate-card",                       label: "Rate Card",               testid: "adnav-ads-rate-card" },
+      { to: "/admin/merchant-ops",               label: "Merchant Ops",         testid: "adnav-ads-merchant-ops" },
       { to: "/admin/predict-win/campaigns",  label: "Predict & Win (Manage)", testid: "adnav-pw-campaigns" },
       { to: "/admin/predict-win/self-serve", label: "Predict & Win (Self)",    testid: "adnav-pw-self-serve" },
       { to: "/admin/games-approval",         label: "Games Approval",         testid: "adnav-games-approval" },

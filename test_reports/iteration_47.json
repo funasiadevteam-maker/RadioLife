@@ -1,0 +1,63 @@
+{
+  "summary": "Iteration 47 — Phase MKT.1 (Demo Venue Seed + Merchant Marketplace goal-first + Branded Trivia campaigns + Admin Rate Card Matrix + Featured Coupon bidding) tested end-to-end on backend + mobile + web. Backend pytest test_iter47_mkt1.py: 25/25 PASS. Regression: test_iter45_rwd4.py + test_iter46_rwd5.py = 32/32 PASS. Backend coverage: (1) GET /api/merchant/my-businesses returns biz_demo_marketplace for demo user (auto-seeded on boot with owner_user_id=demo user_id). (2) GET /api/merchant/marketplace/goals returns 4 goals, campaign_types {coupon_bid, trivia}, and rate_card_hints with pricing_model/base_cents/min_cents/max_cents for both types; requires auth (401 without token). (3) POST /api/merchant/marketplace/campaigns: foreign merchant_id → 404 merchant_not_found; coupon_bid with bid_cents=0 → 400 bid_required; trivia with empty questions → 400 questions_required; valid coupon_bid + trivia both created OK with owner_user_id=demo user_id, status='active', sponsor_name populated from businesses.name ('The Grind Coffee (Demo)'). (4) GET /api/merchant/marketplace/campaigns lists only caller's own (all rows carry owner_user_id=demo). (5) POST /campaigns/{id}/pause + /activate: owner 200 with correct status; unknown id 404 campaign_not_found; non-owner (demo trying to pause an admin-created campaign) 403 not_owner. (6) GET /api/brand-trivia/active returns active/budget-remaining trivia with answer_index STRIPPED from client payload and per-question 'answered' flag; POST /brand-trivia/{id}/answer awards reward_points on correct (15pts verified), returns correct=false/awarded=0 on wrong, 409 already_answered on retry (unique index on user_id+campaign_id+question_index). (7) GET /api/brand-coupons/featured sorted by bid_cents desc; POST /brand-coupons/{id}/claim awards reward_points_on_claim (10pts) and 409 on retry. (8) GET /api/admin/rate-card returns 7 seeded items (display_banner, audio_preroll, sponsored_rj, push_notification, coupon_featured, trivia_sponsored, video_ad); PUT rejects bad pricing_model with 400 bad_pricing_model, rejects min>max with 400 min_gt_max, otherwise persists (verified round-trip on coupon_featured.base_cents); non-admin gets 403. Mobile (Expo web preview, viewport 390×844, demo bearer): /merchant/marketplace goal-first flow verified end-to-end — marketplace-root + mkt-start → mkt-goal-more_customers → mkt-type-coupon_bid → mkt-venue-biz_demo_marketplace → mkt-title/mkt-bid/mkt-budget/mkt-launch → back to list with new mkt-toggle-* (count went from 4 to 5). /brand-trivia reachable via /earn's earn-brand-trivia link; brand-trivia-root renders 2 bt-campaign-* rows with 7 bt-choice-* buttons; tapping a choice fires the answer API. Profile menu-merchant-marketplace + menu-merchant-bonuses both present. Web admin (viewport 1440×900, admin cookie): /admin/rate-card renders rate-card-table + 7 rate-row-* + rate-card-save; clicking Save persists and shows 'Rate card saved' toast; sidebar adnav-ads-rate-card link visible under Ad Monetization. Regression /merchant/bonuses + /earn overview still work.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/admin/rate-card", "issues": ["Numeric inputs render at ~60px wide making the 3-4 digit cents values hard to read at 1440×900. Consider min-width: 80px or a small label overlay."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated in React Native Web — use 'boxShadow'. CARRIED from iter38-46."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' CARRIED from iter38-46."},
+        {"component": "Mixed Content (tunein logos)", "issue": "Multiple 'Mixed Content: page loaded over HTTPS but requested insecure http://cdn-profiles.tunein.com/... logo' warnings — TuneIn CDN URLs are http:// and blocked on https preview. Rewrite to https or proxy through backend."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter47_mkt1.py",
+    "/app/test_reports/pytest/iter47.xml",
+    "/tmp/mob_marketplace_iter47.png",
+    "/tmp/mob_marketplace_form_iter47.png",
+    "/tmp/mob_marketplace_after_iter47.png",
+    "/tmp/mob_brand_trivia_iter47.png",
+    "/tmp/mob_profile_iter47.png",
+    "/tmp/web_ratecard_iter47.png",
+    "/tmp/web_ratecard_after_iter47.png"
+  ],
+  "action_items": [
+    "LOW (design): widen numeric inputs on /admin/rate-card to at least 80px min-width — values are readable but cramped at 1440×900.",
+    "LOW (mobile a11y): switch tunein.com logo URLs from http:// to https:// (or proxy via backend) to avoid Mixed Content warnings in Expo web preview.",
+    "LOW (CARRIED iter38-46): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (CARRIED iter38-46): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (CARRIED iter45): 'A props object containing a key prop is being spread into JSX' at NavItem in admin sidebar — pass key={someKey} explicitly instead of via spread."
+  ],
+  "critical_code_review_comments": [
+    "merchant_marketplace.claim_featured_coupon: charges cost_usd = bid_cents/100 but does NOT decrement any advertiser wallet — spent_usd only tracks against campaign budget_usd. If merchants pre-fund via advertisers_v2 wallet elsewhere, this route bypasses that ledger. Confirm the intended billing path (campaign budget only vs advertiser wallet).",
+    "merchant_marketplace.brand_trivia_answer: cost_usd for trivia is HARDCODED to rate.base_cents (line 346) rather than a per-campaign bid — merchants have no control over spend velocity per correct answer. Consider a campaign-level bid_cents override for parity with coupon_bid.",
+    "merchant_marketplace._owned_campaign returns 403 with body {code:'not_owner'} but ad4_coupon_campaigns._assert_merchant_owner uses {code:'not_merchant_owner_or_staff'} — inconsistent codes across the same package. Standardize.",
+    "merchant_marketplace.create_campaign: budget_usd is stored as float but spent_usd is round(..., 4) — floating-point drift over many claims could cause budget to be exceeded by fractions of a cent before auto-pause. Consider storing cents as ints (budget_cents, spent_cents) like the rate card.",
+    "merchant_marketplace.seed_marketplace uses `demo.get('market') or 'Dallas'` as the demo venue city — fine for now, but couples the demo venue to whichever market the demo user lands in. If a future test seeds demo into 'Dubai' the biz row will move city, potentially breaking city-filtered discovery tests.",
+    "merchant_marketplace: no rate-limit / anti-abuse on POST /brand-coupons/{id}/claim — a scripted client can claim every active coupon in one burst since the only guard is per-user idempotency. Consider a per-user global claim-throttle window."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter47_mkt1.py",
+    "/app/test_reports/iteration_47.json",
+    "/app/test_reports/pytest/iter47.xml"
+  ],
+  "success_rate": {"backend": "100% (25/25 iter47 + 32/32 regression iter45+iter46)", "frontend": "100% of MKT.1 spec testIDs verified on both surfaces"},
+  "test_credentials": "Web admin: admin@bigfm.dubai / AdminPass123!. Mobile/web demo: POST /api/auth/demo — bearer in 'session_token' field. Demo user owns biz_demo_marketplace (auto-seeded at boot).",
+  "seed_data_creation": "1) TEST_iter47_coupon_* / TEST_iter47_trivia_* / TEST_iter47_admin_* merchant_campaigns (owner=demo or admin) — NOT cleaned up; they are active on biz_demo_marketplace. If retesting, use a different campaign id or filter out TEST_ prefixed rows. 2) brand_trivia_answers rows for demo on the trivia campaigns Q0+Q1 — idempotent, re-runs will 409. 3) brand_coupon_claims for demo on TEST_iter47_coupon_* — idempotent, re-runs will 409. 4) rate_card doc round-tripped (coupon_featured.base_cents +1 then restored). Manual cleanup: db.merchant_campaigns.delete_many({title:{$regex:'^TEST_iter47_'}}); db.brand_trivia_answers.delete_many({campaign_id:{$in: TEST ids}}); db.brand_coupon_claims.delete_many({campaign_id:{$in: TEST ids}}); also 'UI Test Coupon Iter47' created via mobile UI test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suites to carry forward: /app/backend/tests/test_iter47_mkt1.py (25 tests: 1 demo-venue, 2 marketplace goals, 9 campaign CRUD/ownership, 5 brand trivia, 3 featured coupons, 5 admin rate card), /app/backend/tests/test_iter46_rwd5.py (18), /app/backend/tests/test_iter45_rwd4.py (14). DB_NAME=bigfm; REACT_APP_BACKEND_URL must be set in env before running iter45. Session token field name is 'session_token'. Demo user_id in this env: user_eeb941588d134d0d. biz_demo_marketplace has ~5 active campaigns leftover from smoke + iter47 testing (Free Latte coupon, Coffee Quiz trivia, TEST_iter47_coupon_*, TEST_iter47_trivia_*, UI Test Coupon Iter47) — the demo user's trivia Q0+Q1 on TEST_iter47_trivia and coupon-claim on TEST_iter47_coupon are already burned (409 on re-answer/re-claim). Rate card key list: display_banner, audio_preroll, sponsored_rj, push_notification, coupon_featured, trivia_sponsored, video_ad.",
+  "rca of the issue": "N/A — no bugs in MKT.1 scope. Minor code-review suggestions (billing symmetry, error-code standardization, cents-as-int, throttle) captured in critical_code_review_comments."
+}

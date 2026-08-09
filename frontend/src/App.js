@@ -168,6 +168,7 @@ import AdminIntegrations from "@/AdminIntegrations";
 import Wallet from "@/Wallet";
 import EarnPoints from "@/rewards/EarnPoints";
 import MerchantOps from "@/admin/MerchantOps";
+import RateCard from "@/admin/RateCard";
 import Premium from "@/premium/Premium";
 import Billing from "@/Billing";
 import Audition from "@/Audition";
@@ -453,6 +454,9 @@ function AppRouter() {
       } />
       <Route path="/admin/merchant-ops" element={
         <ProtectedRoute requireAdmin><MerchantOps /></ProtectedRoute>
+      } />
+      <Route path="/admin/rate-card" element={
+        <ProtectedRoute requireAdmin><RateCard /></ProtectedRoute>
       } />
       <Route path="/admin/predict-win/self-serve" element={
         <ProtectedRoute requireAdmin><AdminPredictWinSelfServe /></ProtectedRoute>

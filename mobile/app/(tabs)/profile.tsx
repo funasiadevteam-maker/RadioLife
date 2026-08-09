@@ -137,6 +137,12 @@ export default function ProfileScreen() {
           <MenuItem icon="qr-code-outline" label="Redeem & Loyalty" sub="Business: redeem coupons · loyalty tier"
             onPress={() => router.push('/merchant/redeem')}
             testID="menu-merchant-redeem" />
+          <MenuItem icon="storefront-outline" label="Get More Customers" sub="Marketplace: launch trivia & coupon campaigns"
+            onPress={() => router.push('/merchant/marketplace')}
+            testID="menu-merchant-marketplace" />
+          <MenuItem icon="flash-outline" label="Sponsor a Bonus" sub="Run a points multiplier at your venue"
+            onPress={() => router.push('/merchant/bonuses')}
+            testID="menu-merchant-bonuses" />
           {creatorStatus === 'approved' && (
             <MenuItem icon="mic-outline" label="Creator Studio" sub="Manage channels, episodes, distribution"
               onPress={() => router.push('/creator')}

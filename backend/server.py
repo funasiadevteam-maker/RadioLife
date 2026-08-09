@@ -1398,6 +1398,13 @@ async def _deferred_bootstrap(app_: FastAPI):
             await seed_earn_rules(db)
         except Exception as e:
             log.warning("[points] bootstrap skipped: %s", e)
+        # Phase MKT.1 — Merchant Marketplace: rate card + demo venue seed.
+        try:
+            from routes.merchant_marketplace import seed_marketplace
+            mkt = await seed_marketplace(db)
+            log.info("[MKT.1] marketplace seeded: %s", mkt)
+        except Exception as e:
+            log.warning("[MKT.1] marketplace bootstrap skipped: %s", e)
         # Phase 42-E1 — Banner ads + PW self-serve bootstrap.
         try:
             await ensure_banner_ad_indexes(db)
@@ -5602,6 +5609,13 @@ try:
     logger.info("Phase RWD.4 routes wired: /api/admin/bonus-windows + /api/admin/fraud-alerts")
 except Exception as _e:
     logger.warning("Phase RWD.4 merchant_ops router not loaded: %s", _e)
+
+try:
+    from routes.merchant_marketplace import router as _merchant_marketplace_router
+    app.include_router(_merchant_marketplace_router)
+    logger.info("Phase MKT.1 routes wired: /api/merchant/marketplace + /api/admin/rate-card + brand-trivia/coupons")
+except Exception as _e:
+    logger.warning("Phase MKT.1 merchant_marketplace router not loaded: %s", _e)
 
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
