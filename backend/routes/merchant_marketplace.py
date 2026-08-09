@@ -15,6 +15,7 @@ brand_trivia_answers, brand_coupon_claims.
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -26,6 +27,7 @@ from auth import current_user, current_user_optional, require_admin
 from services.points_service import PointsService
 
 router = APIRouter(tags=["merchant-marketplace"])
+logger = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -107,6 +109,8 @@ async def seed_marketplace(db) -> Dict[str, Any]:
             [("user_id", 1), ("campaign_id", 1)], unique=True)
         await db.brand_giveaway_entries.create_index(
             [("user_id", 1), ("campaign_id", 1)], unique=True)
+        await db.featured_clicks.create_index(
+            [("user_id", 1), ("campaign_id", 1), ("day", 1)], unique=True)
     except Exception:
         pass
     # Demo venue so the demo account sees the merchant flows populated.
@@ -643,8 +647,8 @@ async def draw_giveaway(campaign_id: str, request: Request, user: dict = Depends
                          "sponsor_name": c.get("sponsor_name"),
                          "prize_desc": c.get("prize_desc")},
                 dedupe_key=f"giveaway_win:{campaign_id}:{uid}")
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.warning("giveaway winner notif enqueue failed for %s: %s", campaign_id, _e)
     return {"ok": True, "winners": winners, "total_entries": len(entrants)}
 
 
@@ -673,20 +677,31 @@ async def discovery_featured(request: Request, market: Optional[str] = None,
 
 @router.post("/api/discovery/featured/{campaign_id}/click")
 async def discovery_featured_click(campaign_id: str, request: Request,
-                                   user: dict = Depends(current_user_optional)):
+                                   user: dict = Depends(current_user)):
     db = request.app.state.db
     c = await db.merchant_campaigns.find_one({"campaign_id": campaign_id, "type": "featured"})
     if not c:
         raise HTTPException(404, {"code": "campaign_not_found"})
     if c.get("status") != "active":
-        return {"ok": True, "merchant_id": c.get("merchant_id")}
+        return {"ok": True, "merchant_id": c.get("merchant_id"), "charged": False}
+    # Anti-fraud: bill at most once per user per campaign per day.
+    day = _now().strftime("%Y-%m-%d")
+    try:
+        await db.featured_clicks.insert_one({
+            "user_id": user.get("user_id"), "campaign_id": campaign_id,
+            "day": day, "created_at": _now()})
+        billable = True
+    except Exception:
+        billable = False
+    if not billable:
+        return {"ok": True, "merchant_id": c.get("merchant_id"), "charged": False}
     cost_usd = int(c.get("bid_cents", 0)) / 100.0
     new_spent = round(c.get("spent_usd", 0.0) + cost_usd, 4)
     upd = {"$inc": {"clicks": 1}, "$set": {"spent_usd": new_spent}}
     if new_spent >= c.get("budget_usd", 0):
         upd["$set"]["status"] = "paused"
     await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
-    return {"ok": True, "merchant_id": c.get("merchant_id")}
+    return {"ok": True, "merchant_id": c.get("merchant_id"), "charged": True}
 
 
 __all__ = ["router", "seed_marketplace"]

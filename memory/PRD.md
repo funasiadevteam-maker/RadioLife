@@ -1,5 +1,13 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-09 (MKT.3 SHIPPED & VERIFIED: Winner Notifications + inbox feed + Featured Listings)
+- **Verified via testing agent (iteration_49): backend 19/19 PASS + 51/51 regression, mobile + web verified, NO bugs. Post-review fraud hardening added + re-verified.**
+- **Winner Notifications**: `draw_giveaway` enqueues a `giveaway_winner` notification (via `routes.notifications._enqueue`, dedupe `giveaway_win:<cid>:<uid>`, enqueue errors now logged) into each winner's inbox. Mobile `/notifications` — previously toggles-only — now shows a live **inbox FEED** (`GET /api/me/notifications`, `notif-inbox`) with unread dots + tap-to-mark-read (`POST /api/me/notifications/{id}/read`). NOTE: inbox routes are under `/api/me/notifications`.
+- **Featured Listings** (marketplace type `featured`, rate `featured_listing` CPA — rate card now 10 items): merchant pays to pin a venue to local discovery (tagline + bid_cents + budget in `/merchant/marketplace`). Consumer `GET /api/discovery/featured` (bid desc, excludes exhausted, counts impressions) → "FEATURED NEAR YOU" rail on mobile Home (`home-featured-*`). `POST /api/discovery/featured/{id}/click` charges bid_cents, auto-pauses on exhaustion.
+- **Click-fraud hardening** (post-iter49 review): featured click now requires auth (anon → 401) and bills at most once per user per campaign per day via unique-indexed `featured_clicks`; returns `charged: true/false`. Verified.
+- **NEXT (user-approved order)**: (3a) Creator Studio — video podcast upload via **built-in object storage** + chapters + transcripts + PIP (PIP best-effort; needs a Publish build to validate); (4a) Try New Look — bring the web cream/orange variant to web Gaming/Wallet/Discover. Then P2: extra business monetization (booking CPA, lead-gen CPL, gift cards, memberships), `source=all` DB-pagination, mobile TS/lint cleanup.
+
+
 ## Changelog — 2026-08-09 (MKT.2 SHIPPED & VERIFIED: Format Selector + Spin/Scratch + Giveaways + Directory Scaling)
 - **Verified via testing agent (iteration_48): backend 26/26 PASS + 43/43 regression (MKT.1 25 + RWD.5 18), mobile + web verified, NO blockers.**
 - **Campaign Format Selector** (advertiser MOBILE `app/advertiser/campaign/new.tsx` step 1): fetches `GET /api/rate-card/formats` (banner/audio/push/video → rate-card keys display_banner/audio_preroll/push_notification/video_ad) and shows each format's live price; the choice is sent as `targeting.ad_format` (free-form, non-breaking). New endpoint in `merchant_marketplace.py`.
