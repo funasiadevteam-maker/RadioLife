@@ -1,5 +1,16 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-09 (MKT.1 SHIPPED & VERIFIED: Merchant Marketplace + Rate Card + Brand Trivia + Demo Venue)
+- **Verified via testing agent (iteration_47): backend 25/25 PASS + 32/32 regression, mobile + web verified, NO blockers.**
+- **Demo Venue Seed**: `seed_marketplace()` (called in lifespan) idempotently seeds `businesses.biz_demo_marketplace` owned by the demo user + rate_card + indexes, so `/merchant/*` mobile flows are populated for the demo account.
+- **Admin Rate Card Matrix** (WEB `/admin/rate-card`, `admin/RateCard.jsx`, nav `adnav-ads-rate-card`): 7 seeded inventory types (display_banner, audio_preroll, sponsored_rj, push_notification, coupon_featured, trivia_sponsored, video_ad) with CPM/CPA/CPL base/min/max/multipliers/enabled. `GET/PUT /api/admin/rate-card` (admin, validates model ∈ {CPM,CPA,CPL} + min≤max). Rates seed the marketplace pricing hints.
+- **Merchant Marketplace "Get More Customers"** (MOBILE `/merchant/marketplace`, backend `routes/merchant_marketplace.py`): goal-first wizard — pick goal → recommended campaign type → form → launch. `GET /api/merchant/marketplace/goals` (4 goals + 2 types + rate hints). Campaign CRUD `POST/GET /api/merchant/marketplace/campaigns` + `/{id}/pause|activate`, ownership-locked via `_assert_merchant_owner`. Collection `merchant_campaigns`. Reachable from Profile (`menu-merchant-marketplace`); Sponsor-a-Bonus also now linked (`menu-merchant-bonuses`).
+- **Branded Trivia Campaigns** (type=trivia): merchants author questions + reward_points + budget. Consumer MOBILE `/brand-trivia` (linked from `/earn` via `earn-brand-trivia`): `GET /api/brand-trivia/active` (hides answer_index, per-user answered state), `POST /api/brand-trivia/{id}/answer` awards points on correct (idempotent per user+question, fires reward overlay), spends `trivia_sponsored` rate from budget, auto-pauses when exhausted.
+- **Featured Coupon Bidding** (type=coupon_bid): `GET /api/brand-coupons/featured` (sorted by bid_cents desc, excludes exhausted), `POST /api/brand-coupons/{id}/claim` (idempotent per user, awards reward_points_on_claim, spends bid_cents, auto-pauses).
+- **NEXT (remaining roadmap)**: P1 Campaign Format Selector (advertiser creation forces Banner/Audio/Push/Video tied to rate card); P2 — 40K radio directory scaling, video podcasts + Creator Studio, Try-New-Look parity, extra business monetization (featured listings, booking CPA, lead-gen CPL, gift cards, memberships); mobile TS/lint cleanup.
+- **Low-pri follow-ups (non-blocking, iter47 review)**: unify merchant not-owner error codes; guard floating-point cents drift on spent_usd; optional claim throttle; TuneIn logo Mixed-Content warning on mobile.
+
+
 ## Changelog — 2026-08-09 (RWD.5 VERIFIED: Redeem Ownership Lock + Weekly Streaks + Merchant Self-Serve Bonuses)
 - **Verified via testing agent (iteration_46): backend 18/18 PASS + 32/32 regression (iter44+iter45), web + mobile parity confirmed, NO bugs.**
 - **Redeem Ownership Lock**: `POST /api/merchant/redeem` + `POST /api/merchant/bonus-windows` enforce `_assert_merchant_owner` (403 non-owner, 404 unknown). `GET /api/merchant/my-businesses` filters to owned venues (admin sees all); `GET /api/merchant/bonus-windows` returns only caller's own; merchant deactivate is owner/admin-gated.
