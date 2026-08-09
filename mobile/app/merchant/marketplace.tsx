@@ -15,6 +15,7 @@ interface CType { type: string; label: string; desc: string; icon: string; rate_
 interface Campaign {
   campaign_id: string; type: string; title: string; status: string;
   budget_usd: number; spent_usd: number; bid_cents?: number; reward_points?: number;
+  drawn?: boolean; entries_count?: number; num_winners?: number;
 }
 
 type Step = 'list' | 'goal' | 'type' | 'form';
@@ -43,6 +44,11 @@ export default function Marketplace() {
   const [choiceA, setChoiceA] = useState('');
   const [choiceB, setChoiceB] = useState('');
   const [answer, setAnswer] = useState(0);
+  const [winPts, setWinPts] = useState('25');
+  const [winProb, setWinProb] = useState('30');
+  const [prizeLabel, setPrizeLabel] = useState('');
+  const [prizeDesc, setPrizeDesc] = useState('');
+  const [numWinners, setNumWinners] = useState('1');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -79,9 +85,17 @@ export default function Marketplace() {
         body.bid_cents = Number(bid);
         body.coupon_title = couponTitle || title;
         body.reward_points_on_claim = 5;
-      } else {
+      } else if (ctype.type === 'trivia') {
         body.reward_points = Number(rewardPts);
         body.questions = [{ q, choices: [choiceA, choiceB], answer_index: answer }];
+      } else if (ctype.type === 'spin' || ctype.type === 'scratch') {
+        body.win_points = Number(winPts);
+        body.win_probability = Math.min(1, Math.max(0.01, Number(winProb) / 100));
+        body.prize_label = prizeLabel || `${winPts} points`;
+      } else if (ctype.type === 'giveaway') {
+        body.prize_desc = prizeDesc;
+        body.num_winners = Number(numWinners);
+        body.reward_points_on_claim = 5;
       }
       await api.post('/merchant/marketplace/campaigns', body);
       flash('Campaign launched! 🎉');
@@ -96,12 +110,25 @@ export default function Marketplace() {
   const resetWizard = () => {
     setGoal(null); setCtype(null); setTitle(''); setBudget('20'); setBid('30');
     setCouponTitle(''); setRewardPts('10'); setQ(''); setChoiceA(''); setChoiceB(''); setAnswer(0);
+    setWinPts('25'); setWinProb('30'); setPrizeLabel(''); setPrizeDesc(''); setNumWinners('1');
   };
 
   const toggleStatus = async (c: Campaign) => {
     const action = c.status === 'active' ? 'pause' : 'activate';
     try { await api.post(`/merchant/marketplace/campaigns/${c.campaign_id}/${action}`); await load(); }
     catch (e: any) { flash(e?.response?.data?.detail?.code || 'Could not update.'); }
+  };
+
+  const campIcon = (t: string) =>
+    t === 'trivia' ? 'help-circle' : t === 'spin' ? 'sync-circle'
+    : t === 'scratch' ? 'sparkles' : t === 'giveaway' ? 'gift' : 'pricetag';
+
+  const drawGiveaway = async (c: Campaign) => {
+    try {
+      const r = await api.post(`/merchant/marketplace/campaigns/${c.campaign_id}/draw`);
+      flash(`Drew ${r.data.winners.length} winner(s) from ${r.data.total_entries} entries 🎉`);
+      await load();
+    } catch (e: any) { flash(e?.response?.data?.detail?.code || 'Could not draw.'); }
   };
 
   if (loading) {
@@ -151,12 +178,12 @@ export default function Marketplace() {
             {campaigns.map((c) => (
               <View key={c.campaign_id} style={s.campRow} testID={`mkt-campaign-${c.campaign_id}`}>
                 <View style={s.campIcon}>
-                  <Ionicons name={c.type === 'trivia' ? 'help-circle' : 'pricetag'} size={18} color={COLORS.primary} />
+                  <Ionicons name={campIcon(c.type) as any} size={18} color={COLORS.primary} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={s.campTitle} numberOfLines={1}>{c.title}</Text>
                   <Text style={s.dim}>
-                    {c.type === 'trivia' ? 'Trivia' : 'Coupon bid'} · ${c.spent_usd.toFixed(2)}/${c.budget_usd} spent
+                    {(ctypes[c.type]?.label || c.type)} · ${c.spent_usd.toFixed(2)}/${c.budget_usd} spent
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => toggleStatus(c)} testID={`mkt-toggle-${c.campaign_id}`}
@@ -165,6 +192,12 @@ export default function Marketplace() {
                     {c.status === 'active' ? 'Active' : 'Paused'}
                   </Text>
                 </TouchableOpacity>
+                {c.type === 'giveaway' && !c.drawn && (
+                  <TouchableOpacity onPress={() => drawGiveaway(c)} testID={`mkt-draw-${c.campaign_id}`}
+                    style={s.drawBtn}>
+                    <Text style={s.drawText}>Draw</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ))}
           </>
@@ -256,7 +289,7 @@ export default function Marketplace() {
                   </View>
                   <Text style={s.hint}>Higher bids win the top Featured Coupon slot.</Text>
                 </>
-              ) : (
+              ) : ctype.type === 'trivia' ? (
                 <>
                   <View style={s.row2}>
                     <View style={{ flex: 1 }}>
@@ -292,6 +325,50 @@ export default function Marketplace() {
                       </TouchableOpacity>
                     ))}
                   </View>
+                </>
+              ) : (ctype.type === 'spin' || ctype.type === 'scratch') ? (
+                <>
+                  <Text style={s.label}>PRIZE LABEL</Text>
+                  <TextInput style={s.input} value={prizeLabel} onChangeText={setPrizeLabel}
+                    placeholder="e.g. 25 points" placeholderTextColor={COLORS.textMuted} testID="mkt-prize-label" />
+                  <View style={s.row2}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>WIN PTS</Text>
+                      <TextInput style={s.input} value={winPts} onChangeText={setWinPts}
+                        keyboardType="number-pad" testID="mkt-win-pts" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>WIN %</Text>
+                      <TextInput style={s.input} value={winProb} onChangeText={setWinProb}
+                        keyboardType="number-pad" testID="mkt-win-prob" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>BUDGET $</Text>
+                      <TextInput style={s.input} value={budget} onChangeText={setBudget}
+                        keyboardType="number-pad" testID="mkt-budget" />
+                    </View>
+                  </View>
+                  <Text style={s.hint}>Listeners get one play. Winners earn the prize points instantly.</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={s.label}>PRIZE DESCRIPTION</Text>
+                  <TextInput style={s.input} value={prizeDesc} onChangeText={setPrizeDesc}
+                    placeholder="e.g. $100 dinner for two" placeholderTextColor={COLORS.textMuted}
+                    testID="mkt-prize-desc" />
+                  <View style={s.row2}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>WINNERS</Text>
+                      <TextInput style={s.input} value={numWinners} onChangeText={setNumWinners}
+                        keyboardType="number-pad" testID="mkt-num-winners" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>BUDGET $</Text>
+                      <TextInput style={s.input} value={budget} onChangeText={setBudget}
+                        keyboardType="number-pad" testID="mkt-budget" />
+                    </View>
+                  </View>
+                  <Text style={s.hint}>Listeners enter to win. Draw winners from your campaign list.</Text>
                 </>
               )}
 
@@ -343,4 +420,6 @@ const s = StyleSheet.create({
   statusActive: { borderColor: COLORS.green + '55', backgroundColor: COLORS.green + '14' },
   statusPaused: { borderColor: COLORS.surfaceBorder, backgroundColor: COLORS.inputBg },
   statusText: { fontSize: FONT.xs, fontWeight: '800' },
+  drawBtn: { marginLeft: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.gold + '22', borderWidth: 1, borderColor: COLORS.gold + '55' },
+  drawText: { color: COLORS.gold, fontSize: FONT.xs, fontWeight: '800' },
 });

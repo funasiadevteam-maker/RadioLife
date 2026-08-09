@@ -273,6 +273,48 @@ async def discover(request: Request,
 
 
 # ─────────────────────── /browse ───────────────────────
+async def _browse_imported_fast(db, request, q, cat_slug, language, country,
+                                page: int, limit: int, user):
+    """DB-paginated imported-only browse. Flagships first, then votes/clicks."""
+    station_ids = None
+    if cat_slug:
+        ids = [r["station_id"] async for r in
+               db.radio_station_categories.find(
+                   {"category": cat_slug, "source_provider": "radiobrowser"},
+                   projection={"station_id": 1})]
+        station_ids = list(set(ids)) or ["__none__"]
+    base = {"$or": [{"active": True}, {"is_flagship": True}]}
+    if station_ids is not None:
+        base["id"] = {"$in": station_ids}
+    if language:
+        base["language"] = language.lower()
+    if country:
+        base["country_code"] = country.upper()
+    if q:
+        search_or = [
+            {"name": {"$regex": re.escape(q), "$options": "i"}},
+            {"tags_json": q.lower()},
+            {"country": {"$regex": re.escape(q), "$options": "i"}},
+            {"flagship_categories": {"$in": [q.lower()]}},
+            {"flagship_search_terms": {"$in": [q.lower()]}},
+        ]
+        active_or = base.pop("$or")
+        base["$and"] = [{"$or": active_or}, {"$or": search_or}]
+    total = await db.imported_radio_stations.count_documents(base)
+    skip = (page - 1) * limit
+    cards: List[Dict[str, Any]] = []
+    cur = db.imported_radio_stations.find(base).sort(
+        [("is_flagship", -1), ("votes", -1), ("click_count", -1)]).skip(skip).limit(limit)
+    async for s in cur:
+        cards.append(_imported_to_card(s))
+    return {
+        "items": cards, "total": total, "page": page, "limit": limit,
+        "counts_by_source": {"bigfm_ai": 0, "community": 0, "imported": total},
+        "filters_applied": {"q": q, "category": cat_slug,
+                            "language": language, "country": country, "source": "imported"},
+    }
+
+
 @router.get("/browse",
                           description=(
                               "Unified search/filter grid across AI + community + "
@@ -301,6 +343,14 @@ async def browse(
     comm_cards: List[Dict[str, Any]] = []
     imp_cards: List[Dict[str, Any]] = []
     cat_slug = (category or "").strip().lower() or None
+
+    # Phase MKT.2 — fast DB-level pagination for the imported-only directory
+    # (the mobile Stations screen browses `source=imported`).  Avoids the
+    # in-memory 2000-doc materialize+merge so the 40K+ directory stays fast
+    # and paginates correctly past page ~66.
+    if sources == {"imported"}:
+        return await _browse_imported_fast(
+            db, request, q, cat_slug, language, country, page, limit, user)
 
     # AI tier.
     if "bigfm_ai" in sources:

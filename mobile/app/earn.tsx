@@ -175,6 +175,28 @@ export default function EarnScreen() {
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
+        <TouchableOpacity style={s.triviaCta} testID="earn-brand-games"
+          onPress={() => router.push('/brand-games' as any)} activeOpacity={0.85}>
+          <View style={s.itemIcon}>
+            <Ionicons name="game-controller" size={17} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.itemTitle} numberOfLines={1}>Instant Win</Text>
+            <Text style={s.itemSub} numberOfLines={1}>Spin & scratch to win points instantly</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
+        <TouchableOpacity style={s.triviaCta} testID="earn-brand-giveaways"
+          onPress={() => router.push('/brand-giveaways' as any)} activeOpacity={0.85}>
+          <View style={s.itemIcon}>
+            <Ionicons name="gift" size={17} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.itemTitle} numberOfLines={1}>Giveaways</Text>
+            <Text style={s.itemSub} numberOfLines={1}>Enter to win prizes from local brands</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
         {ways.map((w) => (
           <TouchableOpacity key={w.key} testID={`earn-way-${w.key}`}
             style={[s.item, !w.eligible && { opacity: 0.5 }]}

@@ -55,6 +55,12 @@ RATE_CARD_DEFAULTS: List[Dict[str, Any]] = [
     {"key": "video_ad", "label": "Video Ad", "pricing_model": "CPM",
      "base_cents": 2000, "min_cents": 1000, "max_cents": 6000,
      "multipliers": {"skippable": 0.7, "non_skippable": 1.3}, "enabled": True},
+    {"key": "instant_win_game", "label": "Instant-Win Game", "pricing_model": "CPA",
+     "base_cents": 12, "min_cents": 5, "max_cents": 100,
+     "multipliers": {"high_value_prize": 1.5}, "enabled": True},
+    {"key": "giveaway_entry", "label": "Giveaway Entry", "pricing_model": "CPL",
+     "base_cents": 3, "min_cents": 1, "max_cents": 50,
+     "multipliers": {}, "enabled": True},
 ]
 
 
@@ -63,6 +69,14 @@ async def _rate_card(db) -> Dict[str, Any]:
     if not doc:
         doc = {"_id": "rate_card", "items": RATE_CARD_DEFAULTS, "updated_at": _now()}
         await db.rate_card.insert_one(dict(doc))
+    else:
+        # Backfill any newly-added default keys so admins can tune them.
+        have = {it.get("key") for it in doc.get("items", [])}
+        missing = [d for d in RATE_CARD_DEFAULTS if d["key"] not in have]
+        if missing:
+            doc["items"] = doc.get("items", []) + missing
+            await db.rate_card.update_one(
+                {"_id": "rate_card"}, {"$set": {"items": doc["items"]}})
     doc.pop("_id", None)
     return doc
 
@@ -85,6 +99,10 @@ async def seed_marketplace(db) -> Dict[str, Any]:
         await db.brand_trivia_answers.create_index(
             [("user_id", 1), ("campaign_id", 1), ("question_index", 1)], unique=True)
         await db.brand_coupon_claims.create_index(
+            [("user_id", 1), ("campaign_id", 1)], unique=True)
+        await db.brand_game_plays.create_index(
+            [("user_id", 1), ("campaign_id", 1)], unique=True)
+        await db.brand_giveaway_entries.create_index(
             [("user_id", 1), ("campaign_id", 1)], unique=True)
     except Exception:
         pass
@@ -145,16 +163,16 @@ async def put_rate_card(body: RateCardBody, request: Request, _admin=Depends(req
 GOALS: List[Dict[str, Any]] = [
     {"key": "more_customers", "title": "Get More Customers",
      "subtitle": "Attract new listeners to your venue", "icon": "people",
-     "recommended": ["coupon_bid", "trivia"]},
+     "recommended": ["coupon_bid", "spin", "trivia"]},
     {"key": "foot_traffic", "title": "Drive Foot Traffic",
      "subtitle": "Fill quiet hours with a compelling offer", "icon": "walk",
-     "recommended": ["coupon_bid"]},
+     "recommended": ["coupon_bid", "scratch"]},
     {"key": "engagement", "title": "Boost Engagement",
      "subtitle": "Get listeners playing with your brand", "icon": "game-controller",
-     "recommended": ["trivia"]},
+     "recommended": ["trivia", "spin", "scratch"]},
     {"key": "awareness", "title": "Grow Brand Awareness",
      "subtitle": "Put your name in front of the audience", "icon": "megaphone",
-     "recommended": ["trivia", "coupon_bid"]},
+     "recommended": ["giveaway", "trivia", "coupon_bid"]},
 ]
 
 CAMPAIGN_TYPES: Dict[str, Dict[str, Any]] = {
@@ -166,7 +184,42 @@ CAMPAIGN_TYPES: Dict[str, Dict[str, Any]] = {
         "type": "trivia", "label": "Branded Trivia",
         "desc": "Run a trivia round. You pay per correct answer; listeners earn points.",
         "icon": "help-circle", "rate_key": "trivia_sponsored"},
+    "spin": {
+        "type": "spin", "label": "Spin the Wheel",
+        "desc": "An instant-win spin. Listeners try their luck to win points.",
+        "icon": "sync-circle", "rate_key": "instant_win_game"},
+    "scratch": {
+        "type": "scratch", "label": "Scratch Card",
+        "desc": "A scratch-to-reveal instant win. Great for driving quick visits.",
+        "icon": "sparkles", "rate_key": "instant_win_game"},
+    "giveaway": {
+        "type": "giveaway", "label": "Prize Giveaway",
+        "desc": "Listeners enter to win a prize. You draw the winners.",
+        "icon": "gift", "rate_key": "giveaway_entry"},
 }
+
+# Ad formats (advertiser Campaign Format Selector) → rate card keys.
+AD_FORMATS = [
+    {"format": "banner", "label": "Display Banner", "icon": "image", "rate_key": "display_banner"},
+    {"format": "audio", "label": "Audio Pre-Roll", "icon": "mic", "rate_key": "audio_preroll"},
+    {"format": "push", "label": "Push Notification", "icon": "notifications", "rate_key": "push_notification"},
+    {"format": "video", "label": "Video Ad", "icon": "videocam", "rate_key": "video_ad"},
+]
+
+
+@router.get("/api/rate-card/formats")
+async def rate_card_formats(request: Request, user: dict = Depends(current_user)):
+    """Advertiser-facing: ad formats + their current rate-card pricing."""
+    db = request.app.state.db
+    out = []
+    for f in AD_FORMATS:
+        r = await _rate_for(db, f["rate_key"])
+        if r and not r.get("enabled", True):
+            continue
+        out.append({**f, "pricing_model": r.get("pricing_model"),
+                    "base_cents": r.get("base_cents"),
+                    "min_cents": r.get("min_cents"), "max_cents": r.get("max_cents")})
+    return {"items": out}
 
 
 @router.get("/api/merchant/marketplace/goals")
@@ -191,7 +244,7 @@ class TriviaQuestion(BaseModel):
 
 class CampaignBody(BaseModel):
     merchant_id: str
-    type: str = Field(..., description="coupon_bid | trivia")
+    type: str = Field(..., description="coupon_bid | trivia | spin | scratch | giveaway")
     goal: str
     title: str
     budget_usd: float = Field(..., gt=0, le=100_000)
@@ -204,6 +257,13 @@ class CampaignBody(BaseModel):
     # trivia
     reward_points: int = Field(10, ge=0, le=10_000)
     questions: List[TriviaQuestion] = []
+    # spin / scratch (instant-win)
+    win_points: int = Field(20, ge=0, le=100_000)
+    win_probability: float = Field(0.3, gt=0, le=1.0)
+    prize_label: Optional[str] = None
+    # giveaway
+    prize_desc: Optional[str] = None
+    num_winners: int = Field(1, ge=1, le=1000)
 
 
 @router.post("/api/merchant/marketplace/campaigns")
@@ -218,6 +278,8 @@ async def create_campaign(body: CampaignBody, request: Request,
         raise HTTPException(400, {"code": "bid_required"})
     if body.type == "trivia" and not body.questions:
         raise HTTPException(400, {"code": "questions_required"})
+    if body.type == "giveaway" and not body.prize_desc:
+        raise HTTPException(400, {"code": "prize_required"})
     biz = await db.businesses.find_one(
         {"$or": [{"business_id": body.merchant_id}, {"_id": body.merchant_id}]},
         {"name": 1})
@@ -235,10 +297,18 @@ async def create_campaign(body: CampaignBody, request: Request,
                     "coupon_value_cents": body.coupon_value_cents,
                     "reward_points_on_claim": body.reward_points_on_claim,
                     "claims": 0})
-    else:
+    elif body.type == "trivia":
         doc.update({"reward_points": body.reward_points,
                     "questions": [q.model_dump() for q in body.questions],
                     "answers_count": 0, "correct_count": 0})
+    elif body.type in ("spin", "scratch"):
+        doc.update({"win_points": body.win_points, "win_probability": body.win_probability,
+                    "prize_label": body.prize_label or f"{body.win_points} points",
+                    "plays": 0, "wins": 0})
+    else:  # giveaway
+        doc.update({"prize_desc": body.prize_desc, "num_winners": body.num_winners,
+                    "entries_count": 0, "reward_points_on_entry": body.reward_points_on_claim,
+                    "drawn": False, "winners": []})
     await db.merchant_campaigns.insert_one(dict(doc))
     doc.pop("_id", None)
     return doc
@@ -418,6 +488,135 @@ async def claim_featured_coupon(campaign_id: str, request: Request,
     await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
     return {"ok": True, "awarded": reward, "balance_after": balance_after,
             "coupon_title": c.get("coupon_title") or c.get("title")}
+
+
+# ─────────────────────── Consumer: Instant-Win Games (spin/scratch) ───────────────────────
+@router.get("/api/brand-games/active")
+async def brand_games_active(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user.get("user_id")
+    played = {}
+    async for p in db.brand_game_plays.find({"user_id": uid}):
+        played[p["campaign_id"]] = {"won": p.get("won", False), "awarded": p.get("awarded", 0)}
+    out = []
+    async for c in db.merchant_campaigns.find(
+            {"type": {"$in": ["spin", "scratch"]}, "status": "active"}).sort("created_at", -1):
+        if c.get("spent_usd", 0) >= c.get("budget_usd", 0):
+            continue
+        out.append({"campaign_id": c["campaign_id"], "type": c["type"],
+                    "sponsor_name": c.get("sponsor_name"), "title": c.get("title"),
+                    "prize_label": c.get("prize_label"), "win_points": c.get("win_points", 0),
+                    "played": played.get(c["campaign_id"])})
+    return {"items": out, "total": len(out)}
+
+
+@router.post("/api/brand-games/{campaign_id}/play")
+async def brand_game_play(campaign_id: str, request: Request, user: dict = Depends(current_user)):
+    import random
+    db = request.app.state.db
+    uid = user.get("user_id")
+    c = await db.merchant_campaigns.find_one(
+        {"campaign_id": campaign_id, "type": {"$in": ["spin", "scratch"]}})
+    if not c:
+        raise HTTPException(404, {"code": "campaign_not_found"})
+    if c.get("status") != "active" or c.get("spent_usd", 0) >= c.get("budget_usd", 0):
+        raise HTTPException(400, {"code": "campaign_inactive"})
+    won = random.random() < float(c.get("win_probability", 0.3))
+    try:
+        await db.brand_game_plays.insert_one({
+            "user_id": uid, "campaign_id": campaign_id, "won": won,
+            "awarded": 0, "created_at": _now()})
+    except Exception:
+        raise HTTPException(409, {"code": "already_played"})
+    awarded, balance_after = 0, None
+    if won:
+        awarded = int(c.get("win_points", 0))
+        res = await PointsService(db).award(
+            user_id=uid, source="brand_game_win", source_id=campaign_id, delta=awarded,
+            metadata={"campaign_id": campaign_id, "game": c["type"]},
+            idempotency_key=f"brandgame:{campaign_id}:{uid}", enforce_caps=False)
+        balance_after = res.balance_after
+        await db.brand_game_plays.update_one(
+            {"user_id": uid, "campaign_id": campaign_id}, {"$set": {"awarded": awarded}})
+    rate = await _rate_for(db, "instant_win_game")
+    cost_usd = int(rate.get("base_cents", 12)) / 100.0
+    new_spent = round(c.get("spent_usd", 0.0) + cost_usd, 4)
+    upd = {"$inc": {"plays": 1, "wins": 1 if won else 0}, "$set": {"spent_usd": new_spent}}
+    if new_spent >= c.get("budget_usd", 0):
+        upd["$set"]["status"] = "paused"
+    await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
+    return {"won": won, "awarded": awarded, "balance_after": balance_after,
+            "prize_label": c.get("prize_label")}
+
+
+# ─────────────────────── Consumer: Giveaways ───────────────────────
+@router.get("/api/brand-giveaways/active")
+async def brand_giveaways_active(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user.get("user_id")
+    entered = set()
+    async for e in db.brand_giveaway_entries.find({"user_id": uid}, {"campaign_id": 1}):
+        entered.add(e["campaign_id"])
+    out = []
+    async for c in db.merchant_campaigns.find(
+            {"type": "giveaway", "status": "active", "drawn": {"$ne": True}}).sort("created_at", -1):
+        out.append({"campaign_id": c["campaign_id"], "sponsor_name": c.get("sponsor_name"),
+                    "title": c.get("title"), "prize_desc": c.get("prize_desc"),
+                    "num_winners": c.get("num_winners", 1),
+                    "entries_count": c.get("entries_count", 0),
+                    "entered": c["campaign_id"] in entered})
+    return {"items": out, "total": len(out)}
+
+
+@router.post("/api/brand-giveaways/{campaign_id}/enter")
+async def brand_giveaway_enter(campaign_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user.get("user_id")
+    c = await db.merchant_campaigns.find_one({"campaign_id": campaign_id, "type": "giveaway"})
+    if not c:
+        raise HTTPException(404, {"code": "campaign_not_found"})
+    if c.get("status") != "active" or c.get("drawn"):
+        raise HTTPException(400, {"code": "campaign_inactive"})
+    try:
+        await db.brand_giveaway_entries.insert_one({
+            "user_id": uid, "campaign_id": campaign_id, "created_at": _now()})
+    except Exception:
+        raise HTTPException(409, {"code": "already_entered"})
+    reward = int(c.get("reward_points_on_entry", 0))
+    balance_after = None
+    if reward > 0:
+        res = await PointsService(db).award(
+            user_id=uid, source="brand_giveaway_entry", source_id=campaign_id, delta=reward,
+            metadata={"campaign_id": campaign_id},
+            idempotency_key=f"brandgiveaway:{campaign_id}:{uid}", enforce_caps=False)
+        balance_after = res.balance_after
+    rate = await _rate_for(db, "giveaway_entry")
+    cost_usd = int(rate.get("base_cents", 3)) / 100.0
+    new_spent = round(c.get("spent_usd", 0.0) + cost_usd, 4)
+    upd = {"$inc": {"entries_count": 1}, "$set": {"spent_usd": new_spent}}
+    if new_spent >= c.get("budget_usd", 0):
+        upd["$set"]["status"] = "paused"
+    await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
+    return {"ok": True, "awarded": reward, "balance_after": balance_after}
+
+
+@router.post("/api/merchant/marketplace/campaigns/{campaign_id}/draw")
+async def draw_giveaway(campaign_id: str, request: Request, user: dict = Depends(current_user)):
+    import random
+    db = request.app.state.db
+    c = await _owned_campaign(db, campaign_id, user)
+    if c.get("type") != "giveaway":
+        raise HTTPException(400, {"code": "not_a_giveaway"})
+    if c.get("drawn"):
+        raise HTTPException(400, {"code": "already_drawn"})
+    entrants = [e["user_id"] async for e in
+                db.brand_giveaway_entries.find({"campaign_id": campaign_id}, {"user_id": 1})]
+    n = min(int(c.get("num_winners", 1)), len(entrants))
+    winners = random.sample(entrants, n) if n > 0 else []
+    await db.merchant_campaigns.update_one(
+        {"campaign_id": campaign_id},
+        {"$set": {"drawn": True, "winners": winners, "status": "paused", "updated_at": _now()}})
+    return {"ok": True, "winners": winners, "total_entries": len(entrants)}
 
 
 __all__ = ["router", "seed_marketplace"]

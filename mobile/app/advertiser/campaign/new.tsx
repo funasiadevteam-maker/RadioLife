@@ -50,6 +50,8 @@ export default function CampaignWizard() {
   const [freqCaps, setFreqCaps] = useState<Record<string, number>>({});
   const [takeoverEnabled, setTakeoverEnabled] = useState(false);
   const [takeoverChannel, setTakeoverChannel] = useState('morning_masala');
+  const [formats, setFormats] = useState<any[]>([]);
+  const [adFormat, setAdFormat] = useState('banner');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -61,6 +63,11 @@ export default function CampaignWizard() {
           setAdvId(items[0].advertiser_id);
           setMarket(items[0].market || 'dubai');
         }
+      } catch {}
+      try {
+        const f = await api.get('/rate-card/formats');
+        setFormats(f.data.items || []);
+        if (f.data.items?.length) setAdFormat(f.data.items[0].format);
       } catch {}
     })();
   }, []);
@@ -90,6 +97,7 @@ export default function CampaignWizard() {
         targeting: {
           market, time_of_day: timeOfDay, days_of_week: daysOfWeek,
           weather: [], channel_slugs: channelSlugs, interests: [],
+          ad_format: adFormat,
         },
         creative_ids: [],
         attribution_window_hours: windowVal,
@@ -157,6 +165,24 @@ export default function CampaignWizard() {
                     <Text style={st.objBlurb}>{o.blurb}</Text>
                   </TouchableOpacity>
                 ))}
+              </View>
+
+              <Text style={[common.label, { marginTop: SPACING.lg }]}>AD FORMAT</Text>
+              <View style={st.fmtRow}>
+                {formats.map((f) => {
+                  const on = adFormat === f.format;
+                  const price = f.base_cents != null
+                    ? `${f.pricing_model} · $${(f.base_cents / 100).toFixed(2)}`
+                    : '';
+                  return (
+                    <TouchableOpacity key={f.format} onPress={() => setAdFormat(f.format)}
+                      style={[st.fmtCard, on && st.fmtCardActive]} testID={`wizard-format-${f.format}`}>
+                      <Ionicons name={f.icon as any} size={18} color={on ? COLORS.secondary : COLORS.textDim} />
+                      <Text style={[st.fmtTitle, on && { color: COLORS.secondary }]}>{f.label}</Text>
+                      <Text style={st.fmtPrice}>{price}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {budgetNum >= TAKEOVER_THRESHOLD && (
@@ -375,6 +401,14 @@ const st = StyleSheet.create({
   objCardActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },
   objTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '700', marginTop: SPACING.xs },
   objBlurb: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
+  fmtRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  fmtCard: {
+    width: '48%', padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1,
+    borderColor: COLORS.surfaceBorder, backgroundColor: COLORS.card,
+  },
+  fmtCardActive: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.06)' },
+  fmtTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', marginTop: 6 },
+  fmtPrice: { color: COLORS.gold, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
   takeoverCard: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     borderRadius: RADIUS.lg, padding: SPACING.md, marginTop: SPACING.md,

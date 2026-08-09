@@ -1,0 +1,53 @@
+{
+  "summary": "Iteration 48 — Phase MKT.2 (Ad Format Selector + Spin/Scratch instant-win + Prize Giveaway + Radio Directory scaling) tested end-to-end on backend and mobile. Backend pytest test_iter48_mkt2.py: 26/26 PASS. Regression iter47 (25) + iter46 (18) = 43/43 PASS. Backend coverage: (1) GET /api/rate-card/formats returns 4 formats (banner/audio/push/video) each with pricing_model + base_cents from rate card; requires auth (401 anon). (2) POST /api/merchant/marketplace/campaigns: bad type → 400 bad_campaign_type; giveaway missing prize_desc → 400 prize_required; spin/scratch/giveaway all created OK with correct type-specific fields (win_points, win_probability, prize_label / prize_desc, num_winners, drawn=False). (3) GET /api/brand-games/active lists active spin/scratch (excludes budget-exhausted); per-user 'played' state stamped; POST /brand-games/{id}/play — first play with win_probability=1.0 → won=true awarded=25 points; second play → 409 already_played; scratch campaign with 5-cent budget auto-paused (status=paused) after a single play (instant_win_game rate 12c > 5c budget). (4) GET /api/brand-giveaways/active lists active giveaways; POST /brand-giveaways/{id}/enter awards reward_points_on_entry (3pts); repeat → 409 already_entered; per-user entered flag surfaces on active feed. (5) POST /merchant/marketplace/campaigns/{id}/draw owner-only — spin id → 400 not_a_giveaway; giveaway → 200 with winners=min(num_winners,entries), status→paused+drawn=true; repeat draw → 400 already_drawn; drawn giveaway excluded from active feed. (6) GET /api/radio/browse?source=imported now hits DB-level paginated fast path — total >1000 (real catalog), page=1 & page=3 both return items, q=search works, counts_by_source.imported == total; source=all merged path unchanged and still returns counts_by_source with all 3 keys. (7) GET /api/admin/rate-card returns 9+ items now — includes instant_win_game + giveaway_entry alongside prior 7; PUT still rejects bad pricing_model with 400. Mobile (Expo web preview, viewport 390×844, demo bearer): /brand-games renders brand-games-root with 3 bg-campaign-* rows — 2 already won (bg-result-* green chip 'You won +25 points!' from iter48 test + smoke), 1 still playable (bg-play-* on Scratch & Win Coffee). /brand-giveaways renders brand-giveaways-root; the iter48 giveaway auto-disappeared post-draw (correct), 1 remaining active row (Weekend Brunch) with gv-enter-* button. /advertiser/campaign/new step 1 shows all 4 wizard-format-{banner,audio,push,video} cards with CPM/CPA prices ($8/$15/$0.10/$20); tapping Video Ad correctly marks it selected (orange highlight). /merchant/marketplace: goal 'engagement' offers mkt-type-{trivia,spin,scratch}; goal 'awareness' offers mkt-type-{giveaway,trivia,coupon_bid} — spin form renders mkt-win-pts + mkt-win-prob + mkt-prize-label; giveaway form renders mkt-prize-desc + mkt-num-winners. Campaign list shows 14 campaigns (leftover TEST_ + smoke rows), each with mkt-toggle-*, and exactly 1 mkt-draw-* button (the not-yet-drawn Weekend Brunch giveaway). /earn shows all 3 brand entry-points: earn-brand-trivia + earn-brand-games + earn-brand-giveaways. All MKT.2 spec testIDs are present and integrated with backend APIs.",
+  "platforms_tested": ["mobile", "web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated in React Native Web — use 'boxShadow'. CARRIED from iter38-47."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' CARRIED from iter38-47."},
+        {"component": "Mixed Content (tunein logos)", "issue": "Multiple 'Mixed Content: page loaded over HTTPS but requested insecure http://cdn-profiles.tunein.com/... logo' warnings — TuneIn CDN URLs are http:// and blocked on https preview. CARRIED from iter47."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter48_mkt2.py",
+    "/app/test_reports/pytest/iter48.xml",
+    "/tmp/mob_brand_games_iter48.png",
+    "/tmp/mob_brand_giveaways_iter48.png",
+    "/tmp/mob_advertiser_wizard_iter48.png",
+    "/tmp/mob_marketplace_spin_iter48.png",
+    "/tmp/mob_earn_iter48.png"
+  ],
+  "action_items": [
+    "LOW (CARRIED iter38-47): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (CARRIED iter38-47): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (CARRIED iter47): switch tunein.com logo URLs from http:// to https:// (or proxy via backend) to avoid Mixed Content warnings in Expo web preview."
+  ],
+  "critical_code_review_comments": [
+    "merchant_marketplace.brand_game_play: cost_usd = rate.base_cents/100 (default 12c) is fixed and NOT tied to win/lose outcome — a losing play costs the merchant just as much as a winning one. Consider CPA-style billing (charge only on win) or a smaller loss cost, since 'instant_win_game' pricing_model is CPA in the rate card but the code charges every play.",
+    "merchant_marketplace.brand_game_play & brand_giveaway_enter: race between insert into plays/entries and the merchant_campaigns $inc/spent_usd update — if the insert succeeds but the update fails (transient DB error), the play is 'burned' idempotently but the spend/plays counter is not incremented. Consider wrapping in a transaction or writing the counter first with a rollback path.",
+    "merchant_marketplace.draw_giveaway: uses random.sample with no seeded RNG and no audit trail — winners are only stored on the campaign doc. No draw_log collection for auditing (e.g., 'who was in the pool when the draw ran'). Consider persisting entrants snapshot for fairness disputes.",
+    "merchant_marketplace.brand_game_play: `awarded: 0` is inserted first, then updated on win via a second write. Under a slow update or a race, GET /brand-games/active could observe played.awarded=0 for a winner briefly. Not user-visible in practice but worth folding into a single atomic upsert with won+awarded set together.",
+    "radio_unified._browse_imported_fast: `counts_by_source={'bigfm_ai': 0, 'community': 0, 'imported': total}` shadows the merged shape. Frontends that read total from `counts_by_source` values will see 0 for AI/community even when source=imported filters them out — intended, but document explicitly since the merged branch computes those counts differently.",
+    "radio_unified.browse (merged path): the merged AI+community+imported path still uses the 2000-doc materialize+merge — pagination past ~66 pages on 'source=all' will still degrade. The MKT.2 fix is imported-only. Consider extending the fast path when source is a superset that includes imported."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter48_mkt2.py",
+    "/app/test_reports/iteration_48.json",
+    "/app/test_reports/pytest/iter48.xml"
+  ],
+  "success_rate": {"backend": "100% (26/26 iter48 + 43/43 regression iter46+iter47)", "frontend": "100% of MKT.2 mobile spec testIDs verified"},
+  "test_credentials": "Web admin: admin@bigfm.dubai / AdminPass123!. Mobile/web demo: POST /api/auth/demo — bearer in 'session_token'. Demo user owns biz_demo_marketplace.",
+  "seed_data_creation": "Created and left behind on biz_demo_marketplace: TEST_iter48_spin_* (spin, win_prob=1.0, budget $5 — played+won by demo, so demo will 409 on re-play), TEST_iter48_scratch_* (scratch, budget $0.05 — played+auto-paused), TEST_iter48_gv_* (giveaway, DRAWN — status=paused, drawn=true, excluded from active). brand_game_plays and brand_giveaway_entries rows for demo on these ids are burned. Manual cleanup: db.merchant_campaigns.deleteMany({title:{$regex:'^TEST_iter48_'}}); db.brand_game_plays.deleteMany({campaign_id:{$in: TEST ids}}); db.brand_giveaway_entries.deleteMany({campaign_id:{$in: TEST ids}}).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suites to carry forward: /app/backend/tests/test_iter48_mkt2.py (26: 2 rate-card-formats, 5 campaign CRUD MKT.2, 5 brand-games, 8 brand-giveaways+draw, 4 radio directory, 2 rate-card expanded), test_iter47_mkt1.py (25), test_iter46_rwd5.py (18). DB_NAME=bigfm; REACT_APP_BACKEND_URL required. Session token field = 'session_token'. Demo user_id: user_eeb941588d134d0d. biz_demo_marketplace now has ~14 lingering campaigns from iter47+iter48 tests (all TEST_iter47_* / TEST_iter48_* / UI Test / smoke rows) — the demo user has burned idempotency on all of them for their eligible actions (trivia Q0+Q1, coupon claim, spin play, scratch play, giveaway entry+draw). For fresh idempotency retests, create new campaign ids. Rate card key list: display_banner, audio_preroll, sponsored_rj, push_notification, coupon_featured, trivia_sponsored, video_ad, instant_win_game, giveaway_entry (9 keys). Radio: source=imported is DB-paginated fast path; source=all still uses merged in-memory path.",
+  "rca of the issue": "N/A — no bugs in MKT.2 scope. Minor architectural suggestions (CPA billing on win, insert/increment race, draw audit log, all-source pagination) captured in critical_code_review_comments."
+}
