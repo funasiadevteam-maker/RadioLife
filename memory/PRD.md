@@ -1,5 +1,17 @@
 # BigFM — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-09 (Phase RWD.1: Rewards "Earn Loop" — cross-platform)
+- **Shared backend** (`routes/rewards_earn.py`, built on the Phase F-1 `PointsService`/`points_ledger`): platform-agnostic contract returning semantic `action` keys each client maps to its own route.
+  - Listener: `GET /api/me/earn/overview` (balance, listener tier + points-to-next, daily goal, streak, ways-to-earn, missions), `GET /api/me/earn/ways-to-earn`, `POST /api/me/earn/missions/{id}/claim` (idempotent via unique `earn_mission_claims` index → PointsService award).
+  - Admin (all `require_admin`, tunable — NOTHING hardcoded in clients): `GET/PUT /api/admin/earn/catalog` (earn-opportunity presentation + enable), `/api/admin/earn/missions` (daily/weekly, target/metric/sources/reward), `/api/admin/earn/config` (listener_tiers Bronze/Silver/Gold/Platinum + daily_goal target/bonus). Idempotent `$setOnInsert` seeds so admin edits survive reboots.
+  - New collections: `earn_actions_catalog`, `earn_missions`, `earn_mission_claims`, `earn_config`.
+- **Web** (`/app/frontend/src/rewards/*`): persistent **PointsPill** in top bar → drawer of top-3 ways + link to /earn; **WaysToEarnCard** on Home (top 5 + daily-goal bar + contextual Premium teaser → /pricing); full **/earn** screen (balance, tier progress, daily goal, streak, Available Now, daily+weekly missions with Claim).
+- **Mobile** (`/app/mobile` — PointsPill + WaysToEarnCard components, `app/earn.tsx`, `src/api/earnApi.ts`): parity — header pill → bottom-sheet, Home card + Premium teaser (→ profile), `/earn` route with missions/claim. Same shared backend contract.
+- **Also shipped this session**: Trivia **Practice Solo** fix (`TriviaRoom.jsx` — now launches a solo session with the room's category instead of bouncing back); RadioLife **app icon** set (mobile `icon/adaptive/splash` + `app.json`) and **web favicon** set (`favicon.ico` + PNG sizes + apple-touch + PWA manifest, wired in `index.html`).
+- **Testing**: iteration_43 — backend 15/15 pytest pass (`tests/test_rewards_earn_loop.py`), both web + mobile UIs verified (pill, home card, /earn, mission claim contract incl. 400/409 idempotency). No blocking issues.
+- **Still pending from earlier handoff** (NOT started): DB seed rebrand (leftover "BigFM"), merchant-ownership RBAC on `/api/merchant/redeem`, proactive fraud alerts, web admin tuning UI. Plus remaining roadmap phases (Premium cues, advertiser rate-card, merchant marketplace, video podcasts, 40K directory scaling).
+
+
 ## Changelog — 2026-08-06 (Phase 2/3: AI rewards, coupon fraud, merchant portal, game limits)
 - **AI Reward Engine** (`routes/rewards_merchant.py`): `POST /api/rewards/scan-earn` awards BigCoin = amount × base × AI multiplier (Emergent LLM gpt-5.4, bounded 1.0–3.0, deterministic fallback); lifetime thresholds grant one-off bonus points + unlock bonus games + concert pass (idempotent via `users.rewards_thresholds_hit`). Mobile: Profile → "Scan & Earn" (`/scan-earn`).
 - **Coupon-Fraud Tracking**: `POST /api/coupon-events/show` logs customer shows; `POST /api/merchant/redeem` reconciles the latest unredeemed show; `GET /api/admin/coupon-fraud` flags merchants with low redemption rate (dodging scans).
