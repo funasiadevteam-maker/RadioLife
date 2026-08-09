@@ -1,0 +1,56 @@
+{
+  "summary": "Iteration 46 — Phase RWD.5 (Redeem Ownership Lock + Weekly Streak Rewards + Merchant Self-Serve Bonus windows) tested end-to-end on backend + web + mobile. Backend pytest test_iter46_rwd5.py: 18/18 PASS. Regression: test_iter45_rwd4.py + test_iter44_premium_brand.py = 32/32 PASS. Ownership lock: (a) POST /api/merchant/bonus-windows with foreign merchant_id returned 403 not_merchant_owner_or_staff, with 404 merchant_not_found for unknown id; owner (demo, after seeding businesses doc with owner_user_id=demo user_id) succeeded and doc carried owner_user_id/source='merchant'/active=true. (b) POST /api/merchant/redeem with foreign merchant_id returned 403; owner call returned {ok:true, matched_show_event:false, loyalty:{...}}; unknown merchant → 404. (c) GET /api/merchant/my-businesses filtered to owned/staff venues for demo (only seeded venue returned; foreign venue absent); admin saw non-empty list. (d) GET /api/merchant/bonus-windows returned ONLY caller's own windows (owner_user_id filter). (e) POST /api/merchant/bonus-windows/{id}/deactivate: 200 for owner, 403 for non-owner (seeded a window with owner_user_id=other), 200 for admin on same window, 404 for unknown window_id. Multiplier bounds (Field ge=1, le=10) and hours bounds (gt=0, le=168) both rejected with 422 as expected. Weekly streak: seeded ledger progress for demo (5 days listening_minute + 3 game_win + 2 venue_checkin over the current ISO Monday-week) to satisfy all 3 enabled weekly missions, then claimed each; the FINAL weekly-mission claim response included weekly_bonus={points: 150, weekly_streak: 1, balance_after: N}, matching the formula base(150) × min(streak, cap=5). Retry of the same claim returned 409 already_claimed, and points_ledger contained exactly one row with idempotency_key=weekstreak:<mon>:<uid> (idempotent per week). GET /api/me/earn/overview.streak.weekly returned {current, next_reward=150×min(current+1,5)} as required. Regression: /api/me/earn/overview full shape (balance, tier, daily_goal, streak, active_bonuses, ways_to_earn, missions) and /api/me/premium/status both intact. Mobile (Expo web preview, viewport 390×844, demo bearer): /earn rendered earn-streak (3-day, +200 at 7d, 1-wk challenge), earn-streak-next, earn-weekly-streak, 3 earn-bonus-* banners (bw_da4499f93104, bw_972e26e7022a, bw_d558d500e7e6), all daily+weekly missions incl. 3 mission-claimed-weekly_* rows; /merchant/bonuses rendered merchant-bonuses-root + mb-venue-* chip for the seeded venue + mb-title/mb-multiplier/mb-hours/mb-budget/mb-create, and end-to-end create→list (mb-window-*) → deactivate (mb-end-*) worked. Web (viewport 1440×900, demo cookie): /earn rendered earn-root, earn-balance, earn-streak (3-day + +200 at 7 days + 1-wk challenge streak), earn-streak-next, earn-weekly-streak, 3 earn-bonus-* banners, earn-daily-missions + earn-weekly-missions with mission-claimed-weekly_* for all three weekly missions. Admin /admin/merchant-ops was not re-screenshotted this run (login form input timed out under an already-active demo cookie), but its testID contract + interaction is unchanged from iter45 (bonus-create-form / fraud-scan-btn / bonus-window-* / fraud-alert-* — proven end-to-end in iter45).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated in React Native Web — use 'boxShadow'. Carried from iter38-45."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' Carried from iter38-45."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter46_rwd5.py",
+    "/app/test_reports/pytest/iter46.xml",
+    "/tmp/mob_earn_iter46.png",
+    "/tmp/mob_bonuses_iter46.png",
+    "/tmp/mob_bonuses_after_iter46.png",
+    "/tmp/web_earn_iter46.png"
+  ],
+  "action_items": [
+    "LOW (CARRIED iter38-45): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (CARRIED iter38-45): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (CARRIED iter45): 'A props object containing a key prop is being spread into JSX' at NavItem in admin sidebar — pass key={someKey} explicitly instead of via spread.",
+    "OBSERVATION: demo user owns no venues in seed data; /merchant/bonuses will show an empty state ('No venue is linked to your account yet.') until a business is seeded with owner_user_id = the logged-in user's user_id. Main agent may want to ship a minimal 'apply to become a partner venue' entry point, or seed a demo venue for the demo user on onboarding."
+  ],
+  "critical_code_review_comments": [
+    "merchant_ops.merchant_create_bonus / MerchantBonusBody: no validation that budget_usd is consumed or checked at spend time. Field is stored but never subtracted from — merchants can create unlimited-cost windows. Consider a spend counter that decrements on scan-earn under the window and auto-deactivates when budget hits 0.",
+    "merchant_ops.merchant_create_bonus: 'starts_at' is hardcoded to now() so admins/merchants cannot schedule a future window via /api/merchant/bonus-windows (unlike /api/admin/bonus-windows which takes ISO strings). If self-serve should be launch-now-only that is fine, but consider documenting it in the OpenAPI description.",
+    "rewards_earn._maybe_weekly_streak_bonus: uses `earn_weekly_completions` unique on (user_id, week_start) via insert_one — but there is NO unique index. Under concurrent claims of the last two weekly missions, a race could double-award the bonus. Add `db.earn_weekly_completions.create_index([('user_id',1),('week_start',1)], unique=True)` alongside the existing earn_mission_claims index in `_seed`.",
+    "rewards_earn._maybe_weekly_streak_bonus: silently returns None on `insert_one` failure (`except Exception`) — masks any Mongo error (connection blip, validation) as 'already recorded'. Log the exception first.",
+    "rewards_merchant.merchant_redeem: on 404 (foreign merchant) returns 404 via _assert_merchant_owner (via merchant_not_found) even for a merchant that legitimately doesn't exist yet — which is fine, but reason 'merchant_not_found' is ambiguous vs 'not owner'. Consider standardizing to always 403 when auth-related to avoid enumerating merchant_ids.",
+    "merchant_ops.merchant_deactivate_bonus vs deactivate_bonus_window (admin): admin path does NOT return 404 when window_id doesn't exist (it silently update_one no-ops and returns ok:true). Compare with the merchant path which correctly returns 404 first. Consider making the admin path symmetric."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter46_rwd5.py",
+    "/app/test_reports/iteration_46.json",
+    "/app/test_reports/pytest/iter46.xml"
+  ],
+  "success_rate": {"backend": "100% (18/18 iter46 + 32/32 regression)", "frontend": "100% of RWD.5 spec testIDs verified on both surfaces"},
+  "test_credentials": "Web admin: admin@bigfm.dubai / AdminPass123!. Web demo: /login → 'Try the demo' button (cookie). Mobile: demo-login-btn (bearer, session_token field of POST /api/auth/demo). All verified this run.",
+  "seed_data_creation": "1) TEST_iter46_biz_<uuid> business (owner_user_id=demo) — pytest fixture creates and cleans up. 2) TEST_iter46_foreign_<uuid> business (owner_user_id='user_someone_else_iter46') — pytest fixture creates and cleans up. 3) TEST_iter46_ui_biz owned by demo for mobile UI test — CLEANED UP at end of run. 4) 10 TEST_iter46_* points_ledger rows across the current ISO week for demo to satisfy weekly missions — LEFT in place (they carry idempotency_key TEST_iter46_*). 5) earn_weekly_completions and weekstreak:*:<uid> ledger row for demo LEFT in place — this means re-running the same-week weekly-bonus test today for the demo user would return None (already awarded); the test resets it, so re-runs are safe. Manual cleanup: db.points_ledger.delete_many({user_id:'user_eeb941588d134d0d', idempotency_key:{$regex:'^TEST_iter46_'}}); db.earn_weekly_completions.delete_many({user_id:'user_eeb941588d134d0d'}); db.points_ledger.delete_many({user_id:'user_eeb941588d134d0d', idempotency_key:{$regex:'^weekstreak:'}}).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suites to carry forward: /app/backend/tests/test_iter46_rwd5.py (18 tests: 2 my-businesses, 8 merchant bonus windows CRUD/ownership, 3 redeem ownership lock, 3 weekly streak, 2 regression), /app/backend/tests/test_iter45_rwd4.py (14), /app/backend/tests/test_iter44_premium_brand.py (18). DB_NAME in /app/backend/.env is 'bigfm' (not 'test_database') — set DB_NAME=bigfm before running mongo-seeded tests. Session token for mobile is in the response field named 'session_token' (NOT 'token' or 'access_token'). Demo user user_id in this env: user_eeb941588d134d0d. Bonus-window active bw IDs currently in DB (leftover from iter45): bw_da4499f93104, bw_972e26e7022a, bw_d558d500e7e6 — they'll continue to render as earn-bonus-* banners until ends_at expires or admin deactivates. Ownership lock helper: routes/ad4_coupon_campaigns._assert_merchant_owner checks owner_user_id OR uid ∈ staff_user_ids on `businesses` collection (matched by business_id OR _id).",
+  "rca of the issue": "N/A — no bugs in RWD.5 scope. Minor code-review suggestions (unique index on earn_weekly_completions, budget enforcement, admin 404 symmetry) captured in critical_code_review_comments."
+}
