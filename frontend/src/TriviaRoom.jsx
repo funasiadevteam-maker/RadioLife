@@ -378,8 +378,14 @@ export function TriviaRoom() {
                       data-testid="trivia-room-start-hint">
                   Need <span className="text-accent-magenta font-mono">1 more player</span> to start.
                   Share the code <span className="font-mono text-accent-electric">{code}</span> with a friend,
-                  or <button type="button" onClick={() => navigate("/trivia/play")}
-                                  className="underline hover:text-text-primary">
+                  or <button type="button"
+                                  onClick={() => navigate(
+                                    room.category_id
+                                      ? `/trivia/play?cat=${room.category_id}`
+                                      : "/trivia",
+                                    { state: { categoryName: room.category?.name || room.category_slug } })}
+                                  className="underline hover:text-text-primary"
+                                  data-testid="trivia-room-practice-solo">
                     practice solo
                   </button>.
                 </div>
