@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const [mostPlayedLive, setMostPlayedLive] = useState<any[]>([]);
   const [promoted, setPromoted] = useState<any[]>([]);
   const [featuredBiz, setFeaturedBiz] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [cityLabel, setCityLabel] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,6 +69,7 @@ export default function HomeScreen() {
       }
       if (prRes.status === 'fulfilled') setPromoted((prRes.value as any).data?.items || []);
       if (ftRes.status === 'fulfilled') setFeaturedBiz((ftRes.value as any).data?.items || []);
+      try { const uc = await api.get('/me/notifications/unread_count'); setUnreadCount(uc.data?.count || 0); } catch {}
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -129,6 +131,11 @@ export default function HomeScreen() {
             <PointsPill />
             <TouchableOpacity onPress={() => router.push('/notifications')} testID="home-notif-btn" style={s.iconBtn}>
               <Ionicons name="notifications-outline" size={20} color={COLORS.textDim} />
+              {unreadCount > 0 && (
+                <View style={s.notifBadge} testID="home-notif-badge">
+                  <Text style={s.notifBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -362,6 +369,9 @@ const s = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary },
   brand: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900' },
   iconBtn: { padding: 8, borderRadius: RADIUS.sm, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder },
+  notifBadge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.bg },
+  notifBadgeText: { color: '#fff', fontSize: 10, fontWeight: '900' },
+
   hero: {
     marginHorizontal: SPACING.md, padding: SPACING.xl, borderRadius: RADIUS.xl,
     backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: SPACING.md,

@@ -13,11 +13,11 @@ export default function StationRow({ channel }) {
       to={`/radio/station/${channel.slug}`}
       data-testid={`rl-station-row-${channel.slug}`}
       className="flex items-center gap-3 p-3 bg-white rounded-2xl border
-                          border-slate-100 hover:border-purple-200
-                          hover:shadow-md hover:shadow-purple-500/5
+                          border-slate-100 hover:border-orange-200
+                          hover:shadow-md hover:shadow-orange-500/5
                           transition-all duration-150">
       <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0
-                              relative bg-purple-100 flex items-center justify-center">
+                              relative bg-orange-100 flex items-center justify-center">
         {artUrl ? (
           <img
             src={artUrl}
@@ -27,7 +27,7 @@ export default function StationRow({ channel }) {
             onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
         ) : (
-          <Radio size={22} className="text-purple-500" />
+          <Radio size={22} className="text-orange-500" />
         )}
       </div>
       <div className="flex-1 min-w-0">
@@ -38,8 +38,8 @@ export default function StationRow({ channel }) {
                                 mt-0.5 flex items-center gap-1.5">
           {channel.tagline && <span className="truncate">{channel.tagline}</span>}
           {channel.live && (
-            <span className="inline-flex items-center gap-1 text-pink-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
+            <span className="inline-flex items-center gap-1 text-amber-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               LIVE
             </span>
           )}

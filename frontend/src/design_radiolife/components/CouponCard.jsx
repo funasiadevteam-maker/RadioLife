@@ -31,7 +31,7 @@ export default function CouponCard({ coupon, offer, business }) {
             )}
             {daysLeft !== null && (
               <span className={"text-[11px] font-semibold flex items-center gap-1 " +
-                                        (daysLeft <= 3 ? "text-pink-600" : "text-slate-500")}>
+                                        (daysLeft <= 3 ? "text-amber-600" : "text-slate-500")}>
                 <Clock size={11} />
                 {daysLeft === 0 ? "Expires today" : `${daysLeft}d left`}
               </span>

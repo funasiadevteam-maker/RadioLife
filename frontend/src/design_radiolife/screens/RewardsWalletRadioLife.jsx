@@ -56,7 +56,7 @@ export default function RewardsWalletRadioLife() {
           <RLCard className="p-4 text-sm text-slate-500">Loading your wallet…</RLCard>
         ) : coupons.length === 0 ? (
           <RLCard className="p-8 text-center" data-testid="rl-coupons-empty">
-            <Ticket size={28} className="text-purple-300 mx-auto mb-3" />
+            <Ticket size={28} className="text-orange-300 mx-auto mb-3" />
             <div className="font-semibold text-slate-900">No coupons yet</div>
             <div className="text-sm text-slate-500 mt-1">
               Save deals from Discover or Commute Mode to see them here.
@@ -85,7 +85,7 @@ export default function RewardsWalletRadioLife() {
 
       <RLCard className="p-4 flex items-center gap-3"
                     data-testid="rl-rewards-cta">
-        <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700
+        <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-700
                                 flex items-center justify-center flex-shrink-0">
           <Sparkles size={18} />
         </div>

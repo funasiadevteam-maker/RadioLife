@@ -17,7 +17,7 @@ export default function AppShellRadioLife({
     <div
       data-testid="rl-app-shell"
       className={"rl-root min-h-screen text-slate-900 " + className}
-      style={{ background: "#FAF7FE", fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif" }}>
+      style={{ background: "#FBF5EC", fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif" }}>
       {/* Fixed floating toggle to return to legacy — visible on every RadioLife screen. */}
       {!bare && (
         <button
@@ -25,10 +25,10 @@ export default function AppShellRadioLife({
           onClick={() => setVariant("legacy")}
           data-testid="rl-return-to-legacy"
           className="fixed top-3 right-3 z-50 h-8 px-3 rounded-full
-                              bg-white/95 backdrop-blur border border-purple-100
-                              text-purple-700 text-[11px] font-semibold uppercase
-                              tracking-wider shadow-lg shadow-purple-500/10
-                              hover:bg-purple-50 flex items-center gap-1.5">
+                              bg-white/95 backdrop-blur border border-orange-100
+                              text-orange-700 text-[11px] font-semibold uppercase
+                              tracking-wider shadow-lg shadow-orange-500/10
+                              hover:bg-orange-50 flex items-center gap-1.5">
           <Sparkles size={12} /> Legacy
         </button>
       )}

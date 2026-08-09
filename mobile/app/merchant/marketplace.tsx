@@ -16,6 +16,8 @@ interface Campaign {
   campaign_id: string; type: string; title: string; status: string;
   budget_usd: number; spent_usd: number; bid_cents?: number; reward_points?: number;
   drawn?: boolean; entries_count?: number; num_winners?: number;
+  impressions?: number; clicks?: number; plays?: number; wins?: number;
+  answers_count?: number; correct_count?: number; claims?: number;
 }
 
 type Step = 'list' | 'goal' | 'type' | 'form';
@@ -137,6 +139,15 @@ export default function Marketplace() {
     } catch (e: any) { flash(e?.response?.data?.detail?.code || 'Could not draw.'); }
   };
 
+  const campStats = (c: Campaign): { label: string; value: string | number }[] => {
+    if (c.type === 'featured') return [{ label: 'Views', value: c.impressions ?? 0 }, { label: 'Taps', value: c.clicks ?? 0 }];
+    if (c.type === 'spin' || c.type === 'scratch') return [{ label: 'Plays', value: c.plays ?? 0 }, { label: 'Wins', value: c.wins ?? 0 }];
+    if (c.type === 'trivia') return [{ label: 'Answers', value: c.answers_count ?? 0 }, { label: 'Correct', value: c.correct_count ?? 0 }];
+    if (c.type === 'coupon_bid') return [{ label: 'Claims', value: c.claims ?? 0 }];
+    if (c.type === 'giveaway') return [{ label: 'Entries', value: c.entries_count ?? 0 }];
+    return [];
+  };
+
   if (loading) {
     return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   }
@@ -182,28 +193,42 @@ export default function Marketplace() {
               <View style={s.card}><Text style={s.dim}>No campaigns yet. Launch your first one above.</Text></View>
             )}
             {campaigns.map((c) => (
-              <View key={c.campaign_id} style={s.campRow} testID={`mkt-campaign-${c.campaign_id}`}>
-                <View style={s.campIcon}>
-                  <Ionicons name={campIcon(c.type) as any} size={18} color={COLORS.primary} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={s.campTitle} numberOfLines={1}>{c.title}</Text>
-                  <Text style={s.dim}>
-                    {(ctypes[c.type]?.label || c.type)} · ${c.spent_usd.toFixed(2)}/${c.budget_usd} spent
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => toggleStatus(c)} testID={`mkt-toggle-${c.campaign_id}`}
-                  style={[s.statusPill, c.status === 'active' ? s.statusActive : s.statusPaused]}>
-                  <Text style={[s.statusText, { color: c.status === 'active' ? COLORS.green : COLORS.textMuted }]}>
-                    {c.status === 'active' ? 'Active' : 'Paused'}
-                  </Text>
-                </TouchableOpacity>
-                {c.type === 'giveaway' && !c.drawn && (
-                  <TouchableOpacity onPress={() => drawGiveaway(c)} testID={`mkt-draw-${c.campaign_id}`}
-                    style={s.drawBtn}>
-                    <Text style={s.drawText}>Draw</Text>
+              <View key={c.campaign_id} style={s.campWrap} testID={`mkt-campaign-${c.campaign_id}`}>
+                <View style={s.campRow}>
+                  <View style={s.campIcon}>
+                    <Ionicons name={campIcon(c.type) as any} size={18} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={s.campTitle} numberOfLines={1}>{c.title}</Text>
+                    <Text style={s.dim}>
+                      {(ctypes[c.type]?.label || c.type)} · ${c.spent_usd.toFixed(2)}/${c.budget_usd} spent
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => toggleStatus(c)} testID={`mkt-toggle-${c.campaign_id}`}
+                    style={[s.statusPill, c.status === 'active' ? s.statusActive : s.statusPaused]}>
+                    <Text style={[s.statusText, { color: c.status === 'active' ? COLORS.green : COLORS.textMuted }]}>
+                      {c.status === 'active' ? 'Active' : 'Paused'}
+                    </Text>
                   </TouchableOpacity>
-                )}
+                  {c.type === 'giveaway' && !c.drawn && (
+                    <TouchableOpacity onPress={() => drawGiveaway(c)} testID={`mkt-draw-${c.campaign_id}`}
+                      style={s.drawBtn}>
+                      <Text style={s.drawText}>Draw</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={s.statsRow} testID={`mkt-stats-${c.campaign_id}`}>
+                  {campStats(c).map((st2) => (
+                    <View key={st2.label} style={s.statPill}>
+                      <Text style={s.statValue}>{st2.value}</Text>
+                      <Text style={s.statLabel}>{st2.label}</Text>
+                    </View>
+                  ))}
+                  <View style={s.statPill}>
+                    <Text style={s.statValue}>${c.spent_usd.toFixed(2)}</Text>
+                    <Text style={s.statLabel}>Spend</Text>
+                  </View>
+                </View>
               </View>
             ))}
           </>
@@ -439,7 +464,12 @@ const s = StyleSheet.create({
   row2: { flexDirection: 'row', gap: 10 },
   flash: { backgroundColor: COLORS.green + '18', borderWidth: 1, borderColor: COLORS.green + '55', borderRadius: RADIUS.md, padding: 12, marginBottom: SPACING.md },
   flashText: { color: COLORS.green, fontWeight: '800', fontSize: FONT.sm, textAlign: 'center' },
-  campRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
+  campRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: 6, borderRadius: RADIUS.md, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
+  campWrap: { marginBottom: SPACING.sm },
+  statsRow: { flexDirection: 'row', gap: 8, marginTop: -4, marginBottom: 2, paddingHorizontal: 2 },
+  statPill: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: RADIUS.md, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.surfaceBorder },
+  statValue: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
+  statLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 },
   campIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary + '18', alignItems: 'center', justifyContent: 'center' },
   campTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   statusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 1 },

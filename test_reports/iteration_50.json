@@ -1,0 +1,65 @@
+{
+  "summary": "Phase MKT.4 tested end-to-end. BACKEND: 75/75 PASS = 5 new MKT.4 (unread_count shape+auth, games/discover shape, marketplace campaigns list carries analytics fields per type — impressions/clicks (featured), plays/wins (spin/scratch), answers_count/correct_count (trivia), claims (coupon_bid), entries_count (giveaway) — plus mark-read shrinks unread_count) + iter49 19/19 + iter48 26/26 + iter47 25/25. MOBILE (Expo web preview, viewport 390×844, demo bearer): (1) Home bell home-notif-btn present; home-notif-badge shows '1' initially from GET /api/me/notifications/unread_count; tapping bell opens notif-inbox with 5 giveaway_winner items (1 unread dot); tapping the unread item marks it read; returning to Home shows home-notif-badge count=0 (badge hidden) — full loop verified. (2) /merchant/marketplace shows 35 mkt-stats-{campaign_id} rows with correct labels per campaign type: trivia → ANSWERS/CORRECT, coupon_bid → CLAIMS, giveaway → ENTRIES, spin/scratch → PLAYS/WINS, plus a SPEND pill on every row (values match campaign.spent_usd). Existing create wizard (mkt-start → mkt-goal-* → mkt-type-* → mkt-launch) and pause/activate/draw testIDs still present. WEB (?design=radiolife): rl-overlay confirmed present on /wallet and /discover; rl-return-to-legacy pill present on discover and functional (clicking it removes the overlay → returns to legacy). However, in this test run the inner testIDs rl-gaming-page/rl-rewards-page/rl-discover-page did NOT render — the browser timing appears to have caught /wallet+/discover on OnboardingRadioLife (auth cookie mid-flight) and /play fell through to legacy (rl-overlay=0). A purple-ish computed style was detected on /play, sourced from the LEGACY gaming page (class `text-purple-*`), NOT from GamingRadioLife.jsx (which uses text-orange-600). Recommend main agent self-verify the 3 RL pages after ~7-8s auth settle window — GamingRadioLife.jsx, RewardsWalletRadioLife.jsx, DiscoverRadioLife.jsx source files all carry the correct testids and cream/orange tokens; no code bug spotted in the RadioLifeOverlay routing.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "RadioLife overlay on /play, /wallet, /discover with ?design=radiolife", "issue": "In this run the inner RL page testids (rl-gaming-page, rl-rewards-page, rl-discover-page) were not found. rl-overlay=1 on /wallet+/discover (overlay is mounted) and rl-return-to-legacy is present + functional, but the inner pages likely rendered OnboardingRadioLife because auth cookie was mid-flight. On /play, rl-overlay=0 and legacy page rendered — purple text detected is from legacy /play, not RL screen. Test timing artifact, not necessarily a code bug — main agent self-verify with a longer login wait recommended.", "affected_selectors": ["[data-testid='rl-gaming-page']", "[data-testid='rl-rewards-page']", "[data-testid='rl-discover-page']"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated in React Native Web — use 'boxShadow'. CARRIED from iter38-49."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' CARRIED from iter38-49."},
+        {"component": "Mixed Content (tunein logos)", "issue": "Mixed Content: page over HTTPS requesting insecure http://cdn-profiles.tunein.com/... logos. CARRIED from iter47-49."}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "unread_count / bell badge", "platform": "mobile", "issue": "Mobile bell badge fully verified (shows 1, hides after mark-read). Web MKT.4 does not spec a bell on the RadioLife header; no parity concern.", "expected": "n/a", "actual": "n/a"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter50_mkt4.py",
+    "/app/backend/tests/test_iter49_mkt3.py",
+    "/app/backend/tests/test_iter48_mkt2.py",
+    "/app/backend/tests/test_iter47_mkt1.py",
+    "/app/test_reports/pytest/iter50.xml",
+    "/tmp/iter50_web_play.png",
+    "/tmp/iter50_web_wallet.png",
+    "/tmp/iter50_web_discover.png",
+    "/tmp/iter50_web_legacy_after.png",
+    "/tmp/iter50_mob_home.png",
+    "/tmp/iter50_mob_notifs.png",
+    "/tmp/iter50_mob_mkt.png"
+  ],
+  "action_items": [
+    "Main agent self-verify web RL variant with a longer auth-settle wait (~8s) — GET /play?design=radiolife should render rl-gaming-page (cream #FBF5EC background, orange #F26B2A GAMES kicker); GET /wallet → rl-rewards-page; GET /discover → rl-discover-page. Sources look correct.",
+    "LOW (CARRIED iter38-49): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (CARRIED iter38-49): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (CARRIED iter47-49): switch tunein.com logo URLs from http:// to https:// (or proxy via backend)."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/design_radiolife/screens/GamingRadioLife.jsx: uses window.axios via `${API}/games/discover` but does not send Authorization header — currently OK for cookie-auth web, but if the RL variant ever runs bare/mobile-like this will 401. Consider adding withCredentials (already there) + a fallback bearer via AuthContext to keep it robust.",
+    "frontend/src/design_radiolife/RadioLifeOverlay.jsx: `if (!isBare && !user) return null` silently swallows unauthenticated /play|/wallet|/discover — user sees the LEGACY page underneath which likely has purple text (as observed). Consider forwarding to /login?design=radiolife instead of falling through, so the ?design=radiolife intent is preserved after sign-in.",
+    "mobile/app/(tabs)/home.tsx.load: unread_count try/catch is silent — no retry-on-fail. If the endpoint 500s during a session, the bell will silently show no badge until next full-load. Not critical but flag it.",
+    "mobile/app/merchant/marketplace.tsx.campStats: type 'featured' shows Views/Taps but there's no CTR percentage — merchants would benefit from a quick 'x% CTR' derived stat next to Spend. Suggestion, not a bug."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter50_mkt4.py",
+    "/app/test_reports/iteration_50.json",
+    "/app/test_reports/pytest/iter50.xml"
+  ],
+  "success_rate": {"backend": "100% (75/75: 5 new MKT.4 + 19 iter49 + 26 iter48 + 25 iter47)", "frontend": "Mobile MKT.4: 100% of spec testIDs verified (home-notif-badge shows count, hides after read; mkt-stats-* per type verified). Web MKT.4: partial — overlay + toggle verified; inner RL page testids need main-agent self-verify due to test-run auth-timing race."},
+  "test_credentials": "Mobile/web demo: POST /api/auth/demo — bearer in 'session_token'. Web: /login → demo-login-btn (cookie). Web admin: admin@bigfm.dubai / AdminPass123!.",
+  "seed_data_creation": "No new seed data created in iter50 backend test (test asserts against existing demo-owned campaigns and current unread counter). Read-only test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suites carrying forward: test_iter50_mkt4.py (5 — unread_count shape+auth, games/discover shape, marketplace campaigns list carries type-specific analytics counters, mark-read reduces unread), test_iter49_mkt3.py (19), test_iter48_mkt2.py (26), test_iter47_mkt1.py (25) = 75 total, all PASS. Export REACT_APP_BACKEND_URL before running. Web RadioLife variant testids to look for AFTER auth settles: rl-gaming-page (on /play), rl-rewards-page (/wallet), rl-discover-page (/discover), rl-return-to-legacy (top-right of RL shell). Mobile home-notif-badge only renders when unread_count>0 — clear it by tapping unread items in /notifications inbox.",
+  "rca of the issue": "No code bug identified. The web RL variant inner-page testids were not observed in this run because (a) demo-login-btn click was followed by only ~3.5s wait — likely insufficient for cookie+/api/auth/demo round-trip to populate AuthContext.user before the /play navigation, causing the overlay's `if (!user) return null` guard to fall through to legacy /play (whose lucide Trophy has a text-purple- class that surfaced in the purple-scan). Subsequent /wallet+/discover had rl-overlay=1 (overlay mounted) but inner pages likely rendered OnboardingRadioLife (via /login fallback) rather than the target RL screens. GamingRadioLife.jsx, RewardsWalletRadioLife.jsx, DiscoverRadioLife.jsx sources all carry the correct testids and cream/orange tokens per the diff. Recommend main agent re-open /login?design=radiolife → demo login → wait ~8s → then visit /play, /wallet, /discover with ?design=radiolife each to confirm."
+}

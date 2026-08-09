@@ -55,7 +55,7 @@ function Item({ Icon, label, to, active, center }) {
         </span>
         <span className={cn(
           "text-[10px] mt-1 font-semibold uppercase tracking-wider",
-          active ? "text-purple-700" : "text-slate-500"
+          active ? "text-orange-700" : "text-slate-500"
         )}>{label}</span>
       </Link>
     );
@@ -67,7 +67,7 @@ function Item({ Icon, label, to, active, center }) {
       className={cn(
         "flex flex-col items-center justify-center gap-1 h-full",
         "transition-colors duration-150",
-        active ? "text-purple-700" : "text-slate-400 hover:text-purple-500"
+        active ? "text-orange-700" : "text-slate-400 hover:text-orange-500"
       )}>
       <Icon size={22} strokeWidth={active ? 2.2 : 1.75} />
       <span className="text-[10px] font-semibold uppercase tracking-wider">

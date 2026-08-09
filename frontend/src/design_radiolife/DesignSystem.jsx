@@ -7,15 +7,15 @@ import { cn } from "@/lib/utils";
 
 // ─── Colour tokens ────────────────────────────────────────────────────
 export const RL_COLORS = {
-  purple: "#A020F0",
-  pink: "#EC4899",
-  ink: "#1F1730",         // near-black with purple undertone
-  slate: "#4B4257",
-  muted: "#8B8397",
-  border: "#EFE9F5",
+  purple: "#F26B2A",      // brand coral-orange (kept key name for compatibility)
+  pink: "#F59E0B",        // amber accent
+  ink: "#1C1917",         // warm near-black
+  slate: "#57534E",
+  muted: "#A8A29E",
+  border: "#EFE6DA",
   surface: "#FFFFFF",
-  surfaceMuted: "#FAF7FE",
-  gradient: "linear-gradient(135deg, #A020F0 0%, #EC4899 100%)",
+  surfaceMuted: "#FBF5EC",
+  gradient: "linear-gradient(135deg, #F26B2A 0%, #F59E0B 100%)",
 };
 
 // ─── Primitives ──────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ export function RLButton({ variant = "primary", size = "md", className = "",
                                           children, ...props }) {
   const base = "inline-flex items-center justify-center gap-2 font-semibold " +
                     "rounded-full transition-all duration-150 " +
-                    "focus:outline-none focus:ring-2 focus:ring-purple-400/40 " +
+                    "focus:outline-none focus:ring-2 focus:ring-orange-400/40 " +
                     "disabled:opacity-50 disabled:pointer-events-none";
   const sizes = {
     sm: "h-9 px-4 text-sm",
@@ -31,13 +31,13 @@ export function RLButton({ variant = "primary", size = "md", className = "",
     lg: "h-13 px-7 text-base",
   };
   const variants = {
-    primary: "text-white shadow-lg shadow-purple-500/25 " +
-                  "hover:shadow-xl hover:shadow-purple-500/30 " +
+    primary: "text-white shadow-lg shadow-orange-500/25 " +
+                  "hover:shadow-xl hover:shadow-orange-500/30 " +
                   "active:scale-[0.98]",
-    ghost: "bg-white/60 text-purple-700 border border-purple-200 " +
-                "hover:bg-purple-50 hover:border-purple-300",
-    outline: "bg-transparent text-purple-700 border-2 border-purple-500 " +
-                  "hover:bg-purple-500 hover:text-white",
+    ghost: "bg-white/60 text-orange-700 border border-orange-200 " +
+                "hover:bg-orange-50 hover:border-orange-300",
+    outline: "bg-transparent text-orange-700 border-2 border-orange-500 " +
+                  "hover:bg-orange-500 hover:text-white",
   };
   const style = variant === "primary" ? { background: RL_COLORS.gradient } : undefined;
   return (
@@ -73,8 +73,8 @@ export function RLChip({ active = false, className = "", children, ...props }) {
         "inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm",
         "font-medium transition-all duration-150 whitespace-nowrap",
         active
-          ? "text-white shadow-md shadow-purple-500/25"
-          : "bg-white text-slate-600 border border-slate-200 hover:border-purple-300 hover:text-purple-700",
+          ? "text-white shadow-md shadow-orange-500/25"
+          : "bg-white text-slate-600 border border-slate-200 hover:border-orange-300 hover:text-orange-700",
         className)}
       style={active ? { background: RL_COLORS.gradient } : undefined}
       {...props}>
@@ -85,8 +85,8 @@ export function RLChip({ active = false, className = "", children, ...props }) {
 
 export function RLBadge({ children, tone = "purple", className = "", ...props }) {
   const tones = {
-    purple: "bg-purple-100 text-purple-800",
-    pink:    "bg-pink-100 text-pink-800",
+    purple: "bg-orange-100 text-orange-800",
+    pink:    "bg-amber-100 text-amber-800",
     amber:   "bg-amber-100 text-amber-800",
     emerald: "bg-emerald-100 text-emerald-800",
     slate:   "bg-slate-100 text-slate-700",

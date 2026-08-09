@@ -50,7 +50,7 @@ export default function DiscoverRadioLife() {
       <header>
         <h1 className="text-2xl font-black tracking-tight text-slate-900">Discover</h1>
         <p className="text-slate-500 text-sm mt-1">
-          Real places around <span className="text-purple-700 font-semibold">
+          Real places around <span className="text-orange-700 font-semibold">
             {city || "you"}</span>
         </p>
       </header>
@@ -65,8 +65,8 @@ export default function DiscoverRadioLife() {
           onChange={(e) => setQ(e.target.value)}
           data-testid="rl-discover-search"
           className="w-full h-11 pl-10 pr-3 rounded-full bg-white
-                              border border-slate-200 focus:border-purple-400
-                              focus:outline-none focus:ring-2 focus:ring-purple-400/20
+                              border border-slate-200 focus:border-orange-400
+                              focus:outline-none focus:ring-2 focus:ring-orange-400/20
                               text-sm placeholder:text-slate-400" />
       </div>
 
@@ -88,7 +88,7 @@ export default function DiscoverRadioLife() {
           <RLCard className="p-4 text-sm text-slate-500">Loading places…</RLCard>
         ) : filtered.length === 0 ? (
           <RLCard className="p-6 text-center" data-testid="rl-discover-empty">
-            <Utensils size={28} className="text-purple-300 mx-auto mb-3" />
+            <Utensils size={28} className="text-orange-300 mx-auto mb-3" />
             <div className="font-semibold text-slate-900">No places match</div>
             <div className="text-sm text-slate-500 mt-1">
               Try another category or clear your search.
@@ -103,8 +103,8 @@ export default function DiscoverRadioLife() {
               className="block">
               <RLCard className="p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-100
-                                            flex items-center justify-center text-purple-700
+                  <div className="w-12 h-12 rounded-2xl bg-orange-100
+                                            flex items-center justify-center text-orange-700
                                             flex-shrink-0">
                     <Utensils size={20} />
                   </div>

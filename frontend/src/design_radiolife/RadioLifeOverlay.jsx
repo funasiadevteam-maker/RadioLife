@@ -15,6 +15,7 @@ import HomeRadioLife from "./screens/HomeRadioLife";
 import ListenRadioLife from "./screens/ListenRadioLife";
 import NowPlayingRadioLife from "./screens/NowPlayingRadioLife";
 import DiscoverRadioLife from "./screens/DiscoverRadioLife";
+import GamingRadioLife from "./screens/GamingRadioLife";
 import ProfileRadioLife from "./screens/ProfileRadioLife";
 import RewardsWalletRadioLife from "./screens/RewardsWalletRadioLife";
 import RedeemCouponRadioLife from "./screens/RedeemCouponRadioLife";
@@ -39,6 +40,7 @@ function screenFor(pathname) {
   if (pathname === "/" || pathname === "/home") return HomeRadioLife;
   if (pathname === "/radio") return ListenRadioLife;
   if (pathname === "/discover") return DiscoverRadioLife;
+  if (pathname === "/play") return GamingRadioLife;
   if (pathname === "/wallet") return RewardsWalletRadioLife;
   if (pathname === "/profile") return ProfileRadioLife;
   if (pathname === "/pay") return ScanEntry;

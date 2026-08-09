@@ -51,7 +51,7 @@ export default function NearbyDealCard({ business, offer, distance_km,
       <div className="mt-3 flex justify-between items-center">
         <Link to={business?.slug ? `/business/${business.slug}` : "#"}
                   className="text-[11px] uppercase tracking-widest font-semibold
-                                      text-purple-700 hover:text-purple-900">
+                                      text-orange-700 hover:text-orange-900">
           View details →
         </Link>
         {onSave && offer && (
@@ -59,8 +59,8 @@ export default function NearbyDealCard({ business, offer, distance_km,
             type="button"
             onClick={() => onSave(offer.offer_id)}
             className="text-[11px] uppercase tracking-widest font-semibold
-                                bg-purple-100 text-purple-800 px-3 py-1.5 rounded-full
-                                hover:bg-purple-200 transition-colors"
+                                bg-orange-100 text-orange-800 px-3 py-1.5 rounded-full
+                                hover:bg-orange-200 transition-colors"
             data-testid={`rl-deal-save-${offer.offer_id}`}>
             Save
           </button>
