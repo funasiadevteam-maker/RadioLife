@@ -1,5 +1,16 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-09 (MKT.2 SHIPPED & VERIFIED: Format Selector + Spin/Scratch + Giveaways + Directory Scaling)
+- **Verified via testing agent (iteration_48): backend 26/26 PASS + 43/43 regression (MKT.1 25 + RWD.5 18), mobile + web verified, NO blockers.**
+- **Campaign Format Selector** (advertiser MOBILE `app/advertiser/campaign/new.tsx` step 1): fetches `GET /api/rate-card/formats` (banner/audio/push/video → rate-card keys display_banner/audio_preroll/push_notification/video_ad) and shows each format's live price; the choice is sent as `targeting.ad_format` (free-form, non-breaking). New endpoint in `merchant_marketplace.py`.
+- **Spin & Scratch instant-win games** (marketplace types `spin`/`scratch`): merchant sets win_points + win_probability + prize_label + budget. Consumer MOBILE `/brand-games` (linked from `/earn` `earn-brand-games`): `GET /api/brand-games/active`, `POST /api/brand-games/{id}/play` (one play/user, weighted RNG, awards points via idempotency_key, spends `instant_win_game` rate, auto-pauses on budget exhaustion). Reanimated spin animation on the play button.
+- **Prize Giveaways** (type `giveaway`): merchant sets prize_desc + num_winners + budget. Consumer MOBILE `/brand-giveaways` (linked from `/earn` `earn-brand-giveaways`): `GET /api/brand-giveaways/active`, `POST /api/brand-giveaways/{id}/enter` (one entry/user, awards points). Merchant draws winners via `POST /api/merchant/marketplace/campaigns/{id}/draw` (owner/admin, random min(num_winners, entries), marks drawn+paused); `mkt-draw-*` button in the marketplace list.
+- **Rate Card** grew to 9 items — added `instant_win_game` (CPA) + `giveaway_entry` (CPL); `_rate_card()` backfills new keys into pre-existing docs so admins can tune them.
+- **Directory Scaling** (backend `routes/radio_unified.py`): `GET /api/radio/browse?source=imported` now takes a DB-level paginated fast path (`_browse_imported_fast`: `count_documents` + flagship-first `.sort().skip().limit()`) instead of the in-memory 2000-doc merge — the 40K+ directory now reports the true total (~5000+ active) and paginates correctly past page ~66. `source=all` merge path unchanged. Mobile Stations screen already had infinite scroll (`onEndReached`).
+- **NEXT (remaining roadmap)**: P2 — video podcasts + Creator Studio, Try-New-Look parity, extra business monetization (featured listings, booking CPA, lead-gen CPL, gift cards, memberships); `source=all` DB-pagination; mobile TS/lint cleanup.
+- **Low-pri follow-ups (iter48 review)**: instant-win CPA bills every play not just wins (by design—cost-per-play); insert/increment race on plays; draw audit log; giveaway entry deadline field.
+
+
 ## Changelog — 2026-08-09 (MKT.1 SHIPPED & VERIFIED: Merchant Marketplace + Rate Card + Brand Trivia + Demo Venue)
 - **Verified via testing agent (iteration_47): backend 25/25 PASS + 32/32 regression, mobile + web verified, NO blockers.**
 - **Demo Venue Seed**: `seed_marketplace()` (called in lifespan) idempotently seeds `businesses.biz_demo_marketplace` owned by the demo user + rate_card + indexes, so `/merchant/*` mobile flows are populated for the demo account.
