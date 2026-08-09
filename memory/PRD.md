@@ -1,5 +1,14 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## Changelog — 2026-08-09 (MKT.4 SHIPPED: Web New Look cream/orange + Listing Analytics + Notification Bell)
+- **Verified: testing agent iteration_50 — backend 75/75 PASS (5 new + 70 regression), mobile fully verified; web verified by main-agent screenshots (agent's web miss was a login-timing artifact, no code bug).**
+- **Object storage note (for Creator Studio next)**: app uses **Tigris** (S3-compatible) via `STORAGE_BACKEND`/`TIGRIS_ENDPOINT_URL`/`TIGRIS_BUCKET` in backend/.env — Creator Studio video uploads will reuse this same bucket.
+- **Web New Look (cream/orange)**: the web `design_radiolife` variant was stale purple/pink; refreshed to brand cream/orange (`RL_COLORS` gradient `#F26B2A→#F59E0B`, primitives RLButton/RLChip/RLBadge, `AppShellRadioLife` bg `#FBF5EC` + orange Legacy toggle). Recolored `DiscoverRadioLife`, `RewardsWalletRadioLife`, and shared RL components (PointsBalanceCard/CouponCard/etc). NEW `GamingRadioLife.jsx` (Play & Win, `/api/games/discover`) wired at `/play` in `RadioLifeOverlay`. Activate via `?design=radiolife` or the toggle (auth required). Verified rl-gaming-page / rl-rewards-page / rl-discover-page all cream/orange.
+- **Listing Analytics** (mobile `/merchant/marketplace`): per-campaign stats row (`mkt-stats-*`) reading the existing list payload — Featured→Views/Taps, Spin/Scratch→Plays/Wins, Trivia→Answers/Correct, Coupon→Claims, Giveaway→Entries, plus a Spend pill. No new endpoint.
+- **Notification Bell** (mobile Home): unread-count badge (`home-notif-badge`) from `GET /api/me/notifications/unread_count`; hides at 0, updates after reading.
+- **NEXT (user-approved)**: Creator Studio — video podcast upload via **Tigris object storage** + chapters + transcripts + PIP (PIP best-effort; needs a Publish build to validate). Then P2: extra business monetization (booking CPA, lead-gen CPL, gift cards, memberships); `source=all` DB-pagination; deprecated RN style props cleanup (shadow*→boxShadow, pointerEvents), mobile TS/lint.
+
+
 ## Changelog — 2026-08-09 (MKT.3 SHIPPED & VERIFIED: Winner Notifications + inbox feed + Featured Listings)
 - **Verified via testing agent (iteration_49): backend 19/19 PASS + 51/51 regression, mobile + web verified, NO bugs. Post-review fraud hardening added + re-verified.**
 - **Winner Notifications**: `draw_giveaway` enqueues a `giveaway_winner` notification (via `routes.notifications._enqueue`, dedupe `giveaway_win:<cid>:<uid>`, enqueue errors now logged) into each winner's inbox. Mobile `/notifications` — previously toggles-only — now shows a live **inbox FEED** (`GET /api/me/notifications`, `notif-inbox`) with unread dots + tap-to-mark-read (`POST /api/me/notifications/{id}/read`). NOTE: inbox routes are under `/api/me/notifications`.
