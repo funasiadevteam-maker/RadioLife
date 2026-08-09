@@ -46,13 +46,20 @@ export interface EarnMission {
   target: number; progress: number; reward_points: number;
   complete: boolean; claimed: boolean; claimable: boolean;
 }
+export interface EarnBonusWindow {
+  window_id: string; title: string; sponsor_name?: string | null;
+  multiplier: number; merchant_id: string;
+}
 export interface EarnOverview {
   balance: number;
   tier: { name: string; next?: { name: string; min_points: number } | null;
           points_to_next: number; lifetime_points: number };
   daily_goal: { target: number; earned: number; bonus_points: number;
                 pct: number; complete: boolean };
-  streak: { current: number };
+  streak: { current: number; best?: number;
+            next?: { days: number; points: number } | null;
+            awarded_bonus?: { days: number; points: number } | null };
+  active_bonuses: EarnBonusWindow[];
   ways_to_earn: EarnWay[];
   missions: EarnMission[];
 }

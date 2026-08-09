@@ -1,7 +1,7 @@
 // Phase RWD.1 — full "Earn Points" screen (/earn).
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Coins, Flame, ChevronRight, Check, Gift, Loader2 } from "lucide-react";
+import { Coins, Flame, ChevronRight, Check, Gift, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Card, Button, LiveDot } from "@/shell/primitives";
 import { useEarnOverview, routeForAction, claimMission } from "@/rewards/earnApi";
@@ -58,6 +58,16 @@ export default function EarnPoints() {
   const [claiming, setClaiming] = useState(null);
   const { celebrate } = useReward();
 
+  // Celebrate an auto-awarded streak milestone bonus once.
+  const streakCelebrated = useRef(false);
+  useEffect(() => {
+    const ab = data?.streak?.awarded_bonus;
+    if (ab && !streakCelebrated.current) {
+      streakCelebrated.current = true;
+      celebrate({ points: ab.points, title: `${ab.days}-day streak!` });
+    }
+  }, [data, celebrate]);
+
   const onClaim = async (id) => {
     setClaiming(id);
     try {
@@ -112,12 +122,37 @@ export default function EarnPoints() {
             </div>
           </div>
           {data.streak?.current > 0 && (
-            <div className="flex items-center gap-1 text-accent-magenta font-mono text-sm"
-                      data-testid="earn-streak">
-              <Flame size={16} /> {data.streak.current}-day streak
+            <div className="text-right" data-testid="earn-streak">
+              <div className="flex items-center gap-1 text-accent-magenta font-mono text-sm justify-end">
+                <Flame size={16} /> {data.streak.current}-day streak
+              </div>
+              {data.streak.next && (
+                <div className="text-[11px] text-text-secondary mt-0.5"
+                          data-testid="earn-streak-next">
+                  +{data.streak.next.points} at {data.streak.next.days} days
+                </div>
+              )}
             </div>
           )}
         </div>
+
+        {/* Phase RWD.4 — active Sponsored Bonus windows. */}
+        {(data.active_bonuses || []).map((b) => (
+          <div key={b.window_id} data-testid={`earn-bonus-${b.window_id}`}
+                    className="flex items-center gap-3 rounded-token-md border
+                                      border-accent-gold/30 bg-accent-gold/[0.08] px-3 py-2">
+            <Zap size={16} className="text-accent-gold shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">{b.title}</div>
+              {b.sponsor_name && (
+                <div className="text-xs text-text-secondary truncate">
+                  Sponsored by {b.sponsor_name}
+                </div>
+              )}
+            </div>
+            <span className="font-mono text-xs text-accent-gold">{b.multiplier}×</span>
+          </div>
+        ))}
 
         {data.tier && (
           <div data-testid="earn-tier">

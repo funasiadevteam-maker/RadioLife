@@ -5595,6 +5595,14 @@ try:
 except Exception as _e:
     logger.warning("Phase RWD.3 premium_cues router not loaded: %s", _e)
 
+# Phase RWD.4 — Merchant ops: Sponsored Bonus windows + Fraud Alerts.
+try:
+    from routes.merchant_ops import router as _merchant_ops_router
+    app.include_router(_merchant_ops_router)
+    logger.info("Phase RWD.4 routes wired: /api/admin/bonus-windows + /api/admin/fraud-alerts")
+except Exception as _e:
+    logger.warning("Phase RWD.4 merchant_ops router not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router

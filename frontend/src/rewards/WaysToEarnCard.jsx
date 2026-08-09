@@ -14,9 +14,26 @@ export default function WaysToEarnCard() {
 
   const ways = (data?.ways_to_earn || []).slice(0, 5);
   const goal = data?.daily_goal;
+  const bonuses = data?.active_bonuses || [];
 
   return (
     <section data-testid="home-ways-to-earn" className="space-y-3">
+      {bonuses.map((b) => (
+        <div key={b.window_id} data-testid={`home-bonus-${b.window_id}`}
+                  className="flex items-center gap-3 rounded-token-card border
+                                    border-accent-gold/30 bg-accent-gold/[0.08] px-4 py-3">
+          <Sparkles size={16} className="text-accent-gold shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold">{b.title}</div>
+            {b.sponsor_name && (
+              <div className="text-xs text-text-secondary truncate">
+                Sponsored by {b.sponsor_name}
+              </div>
+            )}
+          </div>
+          <span className="font-mono text-xs text-accent-gold">{b.multiplier}×</span>
+        </div>
+      ))}
       <Card className="p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>

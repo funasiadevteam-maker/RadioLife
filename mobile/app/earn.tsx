@@ -1,5 +1,5 @@
 // Phase RWD.1 — full "Earn Points" screen (mobile) at /earn.
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
   ActivityIndicator, RefreshControl,
@@ -35,6 +35,16 @@ export default function EarnScreen() {
   }, [user, authLoading, router]);
 
   useEffect(() => { if (!authLoading && user) load(); }, [authLoading, user, load]);
+
+  // Celebrate an auto-awarded streak milestone bonus once.
+  const streakCelebrated = useRef(false);
+  useEffect(() => {
+    const ab = data?.streak?.awarded_bonus;
+    if (ab && !streakCelebrated.current) {
+      streakCelebrated.current = true;
+      celebrate({ points: ab.points, title: `${ab.days}-day streak!` });
+    }
+  }, [data, celebrate]);
 
   const onClaim = async (m: EarnMission) => {
     setClaiming(m.mission_id);
@@ -88,12 +98,32 @@ export default function EarnScreen() {
               </View>
             </View>
             {data.streak?.current > 0 && (
-              <View style={s.streak} testID="earn-streak">
-                <Ionicons name="flame" size={15} color={COLORS.primary} />
-                <Text style={s.streakText}>{data.streak.current}-day</Text>
+              <View style={{ alignItems: 'flex-end' }} testID="earn-streak">
+                <View style={s.streak}>
+                  <Ionicons name="flame" size={15} color={COLORS.primary} />
+                  <Text style={s.streakText}>{data.streak.current}-day</Text>
+                </View>
+                {data.streak.next && (
+                  <Text style={s.streakNext} testID="earn-streak-next">
+                    +{data.streak.next.points} at {data.streak.next.days}d
+                  </Text>
+                )}
               </View>
             )}
           </View>
+
+          {(data.active_bonuses || []).map((b) => (
+            <View key={b.window_id} style={s.bonus} testID={`earn-bonus-${b.window_id}`}>
+              <Ionicons name="flash" size={15} color={COLORS.gold} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.bonusTitle} numberOfLines={1}>{b.title}</Text>
+                {!!b.sponsor_name && (
+                  <Text style={s.bonusSub} numberOfLines={1}>Sponsored by {b.sponsor_name}</Text>
+                )}
+              </View>
+              <Text style={s.bonusMult}>{b.multiplier}×</Text>
+            </View>
+          ))}
 
           {tier && (
             <View style={{ marginTop: 12 }} testID="earn-tier">
@@ -209,6 +239,15 @@ const s = StyleSheet.create({
   balAmt: { color: COLORS.gold, fontSize: FONT.hero, fontWeight: '900' },
   streak: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primary + '12', paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full },
   streakText: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800' },
+  streakNext: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600', marginTop: 3 },
+  bonus: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, padding: 10,
+    borderRadius: RADIUS.md, backgroundColor: COLORS.gold + '18',
+    borderWidth: 1, borderColor: COLORS.gold + '44',
+  },
+  bonusTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  bonusSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+  bonusMult: { color: COLORS.gold, fontSize: FONT.sm, fontWeight: '900' },
   tierRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 },
   tierName: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
   tierNext: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },

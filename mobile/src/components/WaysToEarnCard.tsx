@@ -19,9 +19,22 @@ export default function WaysToEarnCard() {
   if (!data) return null;
   const ways = (data.ways_to_earn || []).slice(0, 5);
   const goal = data.daily_goal;
+  const bonuses = data.active_bonuses || [];
 
   return (
     <View style={s.wrap} testID="home-ways-to-earn">
+      {bonuses.map((b) => (
+        <View key={b.window_id} style={s.bonus} testID={`home-bonus-${b.window_id}`}>
+          <Ionicons name="flash" size={16} color={COLORS.gold} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.bonusTitle} numberOfLines={1}>{b.title}</Text>
+            {!!b.sponsor_name && (
+              <Text style={s.bonusSub} numberOfLines={1}>Sponsored by {b.sponsor_name}</Text>
+            )}
+          </View>
+          <Text style={s.bonusMult}>{b.multiplier}×</Text>
+        </View>
+      ))}
       <View style={s.card}>
         <View style={s.head}>
           <View style={s.headLeft}>
@@ -102,4 +115,12 @@ const s = StyleSheet.create({
   },
   premiumTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   premiumSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+  bonus: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, padding: SPACING.md,
+    borderRadius: RADIUS.lg, backgroundColor: COLORS.gold + '18',
+    borderWidth: 1, borderColor: COLORS.gold + '44',
+  },
+  bonusTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  bonusSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+  bonusMult: { color: COLORS.gold, fontSize: FONT.md, fontWeight: '900' },
 });

@@ -140,9 +140,15 @@ async def scan_earn(body: ScanEarnBody, request: Request, user: dict = Depends(c
     base = float(cfg.get("base_points_per_dollar", 1.0))
     points = max(1, round(body.amount_usd * base * ai["multiplier"]))
 
+    # Phase RWD.4 — apply any active Sponsored Bonus window for this venue.
+    from routes.merchant_ops import active_bonus_multiplier, maybe_alert
+    bonus_mult = await active_bonus_multiplier(db, body.merchant_id)
+    if bonus_mult > 1:
+        points = max(points, round(points * bonus_mult))
+
     res = await _bigcoin.award(db, uid, points, source="scan_earn",
         metadata={"amount_usd": body.amount_usd, "merchant_id": body.merchant_id,
-                  "multiplier": ai["multiplier"]})
+                  "multiplier": ai["multiplier"], "bonus_multiplier": bonus_mult})
     balance_after = res.get("balance_after")
     new_lifetime = lifetime + points
 
@@ -157,6 +163,7 @@ async def scan_earn(body: ScanEarnBody, request: Request, user: dict = Depends(c
             "event_id": ev_id, "user_id": uid, "merchant_id": body.merchant_id,
             "coupon_id": body.coupon_id, "kind": "scan_to_pay",
             "shown_at": _now(), "redeemed": False, "redeemed_at": None})
+        await maybe_alert(db, body.merchant_id)
 
     # threshold bonuses (idempotent per threshold via user.rewards_thresholds_hit)
     hit = set(user.get("rewards_thresholds_hit", []) or [])
@@ -187,6 +194,7 @@ async def scan_earn(body: ScanEarnBody, request: Request, user: dict = Depends(c
         "points": points, "multiplier": ai["multiplier"], "reason": ai["reason"],
         "ai": ai["ai"], "balance_after": balance_after, "tier": tier_name,
         "scans_in_window": scans, "bonuses": bonuses, "show_event_id": ev_id,
+        "bonus_multiplier": bonus_mult,
     }
 
 
@@ -209,6 +217,8 @@ async def coupon_show(body: ShowEventBody, request: Request, user: dict = Depend
         "merchant_id": body.merchant_id, "coupon_id": body.coupon_id,
         "kind": body.kind if body.kind in ("coupon", "scan_to_pay") else "coupon",
         "shown_at": _now(), "redeemed": False, "redeemed_at": None})
+    from routes.merchant_ops import maybe_alert
+    await maybe_alert(db, body.merchant_id)
     return {"ok": True, "event_id": ev_id}
 
 

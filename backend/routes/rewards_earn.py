@@ -98,6 +98,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     ],
     "daily_goal_target": 500,
     "daily_goal_bonus": 100,
+    "streak_bonuses": [
+        {"days": 3, "points": 50},
+        {"days": 7, "points": 200},
+        {"days": 14, "points": 500},
+        {"days": 30, "points": 1000},
+    ],
 }
 
 
@@ -146,7 +152,13 @@ async def _get_config(db) -> Dict[str, Any]:
     cfg = await db.earn_config.find_one({"_id": "config"})
     if not cfg:
         await db.earn_config.insert_one(dict(DEFAULT_CONFIG))
-        cfg = dict(DEFAULT_CONFIG)
+        return dict(DEFAULT_CONFIG)
+    # Backfill any keys added after this doc was first seeded (e.g. streak_bonuses).
+    missing = {k: v for k, v in DEFAULT_CONFIG.items()
+               if k != "_id" and k not in cfg}
+    if missing:
+        await db.earn_config.update_one({"_id": "config"}, {"$set": missing})
+        cfg.update(missing)
     return cfg
 
 
@@ -235,6 +247,63 @@ async def _current_streak(db, uid: str) -> int:
     return streak
 
 
+async def _streak_details(db, uid: str) -> Dict[str, Any]:
+    """Current streak length + the anchor (first day) of the current run,
+    used to make milestone-bonus awards idempotent per run."""
+    since = _today_start() - timedelta(days=45)
+    pipe = [{"$match": {"user_id": uid, "delta": {"$gt": 0},
+                        "created_at": {"$gte": since}}},
+            {"$group": {"_id": {"$dateToString": {"format": "%Y-%m-%d",
+                                                   "date": "$created_at"}}}}]
+    days = set()
+    async for d in db.points_ledger.aggregate(pipe):
+        days.add(d["_id"])
+    if not days:
+        return {"current": 0, "anchor": None}
+    cursor = _today_start()
+    if cursor.strftime("%Y-%m-%d") not in days:
+        cursor = cursor - timedelta(days=1)
+    streak = 0
+    anchor = None
+    while cursor.strftime("%Y-%m-%d") in days:
+        streak += 1
+        anchor = cursor.strftime("%Y-%m-%d")
+        cursor = cursor - timedelta(days=1)
+    return {"current": streak, "anchor": anchor}
+
+
+async def _streak_state(db, uid: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
+    det = await _streak_details(db, uid)
+    current, anchor = det["current"], det["anchor"]
+    milestones = sorted(cfg.get("streak_bonuses", []), key=lambda m: m["days"])
+
+    # best-streak tracking
+    state = await db.earn_streak_state.find_one({"user_id": uid}) or {}
+    best = max(int(state.get("best_streak", 0)), current)
+    if best != int(state.get("best_streak", 0)):
+        await db.earn_streak_state.update_one(
+            {"user_id": uid}, {"$set": {"best_streak": best, "updated_at": _now()}},
+            upsert=True)
+
+    # award the highest milestone reached in THIS run (idempotent per anchor)
+    awarded = None
+    reached = [m for m in milestones if current >= m["days"]]
+    if reached and anchor:
+        m = reached[-1]
+        key = f"streak:{m['days']}:{uid}:{anchor}"
+        already = await db.points_ledger.find_one({"idempotency_key": key})
+        if not already:
+            await PointsService(db).award(
+                user_id=uid, source="streak_bonus", source_id=str(m["days"]),
+                delta=int(m["points"]),
+                metadata={"streak_days": m["days"], "anchor": anchor},
+                idempotency_key=key, enforce_caps=False)
+            awarded = {"days": m["days"], "points": int(m["points"])}
+
+    nxt = next((m for m in milestones if m["days"] > current), None)
+    return {"current": current, "best": best, "next": nxt, "awarded_bonus": awarded}
+
+
 async def _build_ways(db, uid: str) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     dc = None
@@ -312,13 +381,21 @@ async def earn_overview(request: Request, user: dict = Depends(current_user)):
     await _seed(db)
     uid = user["user_id"]
     svc = PointsService(db)
-    balance = await svc.get_balance(uid)
     cfg = await _get_config(db)
+    # streak first — may award a milestone bonus that affects balance/lifetime.
+    streak = await _streak_state(db, uid, cfg)
+    balance = await svc.get_balance(uid)
     lifetime = await _lifetime_earned(db, uid)
     today = await _today_earned(db, uid)
     tier = await _tier_state(cfg, lifetime)
-    streak = await _current_streak(db, uid)
     ways = await _build_ways(db, uid)
+    # Phase RWD.4 — active Sponsored Bonus windows surfaced in the earn loop.
+    active_bonuses: List[Dict[str, Any]] = []
+    try:
+        from routes.merchant_ops import active_bonus_windows
+        active_bonuses = await active_bonus_windows(db)
+    except Exception:
+        active_bonuses = []
     missions: List[Dict[str, Any]] = []
     async for m in db.earn_missions.find({"enabled": True}).sort("sort", 1):
         missions.append(await _mission_state(db, uid, m))
@@ -332,7 +409,8 @@ async def earn_overview(request: Request, user: dict = Depends(current_user)):
             "pct": min(100, round((today / target) * 100)) if target else 0,
             "complete": today >= target,
         },
-        "streak": {"current": streak},
+        "streak": streak,
+        "active_bonuses": active_bonuses,
         "ways_to_earn": ways,
         "missions": missions,
     }
@@ -464,6 +542,7 @@ class EarnConfigBody(BaseModel):
     listener_tiers: Optional[List[Dict[str, Any]]] = None
     daily_goal_target: Optional[int] = None
     daily_goal_bonus: Optional[int] = None
+    streak_bonuses: Optional[List[Dict[str, Any]]] = None
 
 
 @router.put("/api/admin/earn/config")

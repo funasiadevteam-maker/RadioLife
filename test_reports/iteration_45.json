@@ -1,0 +1,61 @@
+{
+  "summary": "Iteration 45 — RWD.4 (Earn Streaks + Sponsored Bonuses + Fraud Alerts) tested end-to-end across backend + web + mobile. Backend pytest: 14/14 PASS (test_iter45_rwd4.py). Streaks: seeded 3 consecutive-day listening_minute ledger rows for demo user → GET /api/me/earn/overview returned streak={current:3, best:3, next:{days:7,points:200}, awarded_bonus:{days:3,points:50}} on first call; idempotency_key streak:3:<uid>:<anchor> present exactly once; SECOND overview call same day: awarded_bonus=null, balance unchanged, current=3 (idempotent). best_streak persisted in earn_streak_state. Sponsored Bonuses: admin POST /api/admin/bonus-windows created 2x window; GET lists it; window surfaced in /api/me/earn/overview.active_bonuses and /api/me/earn/bonus-windows; scan-earn against merchant WITH window returned bonus_multiplier=2.0 and points ~2x baseline (points_with vs expected_no_bonus of same call); scan-earn against merchant WITHOUT window returned bonus_multiplier=1.0; POST /api/admin/bonus-windows/{id}/deactivate removed it from active list; non-admin demo blocked with 401/403. Fraud Alerts: 6 coupon-events/show for TEST_merchant_fraud_X auto-created open alert via maybe_alert hook (shows=6, redemptions=0); GET /api/admin/fraud-alerts?status=open lists it; POST /api/admin/fraud-alerts/scan returned merchants_flagged>=1; POST /api/admin/fraud-alerts/{id}/resolve moved alert from open→resolved; GET/PUT /api/admin/fraud-config round-trips values; all admin endpoints 401/403 for non-admin. Regression: /api/me/earn/overview returns full shape (balance/tier/daily_goal/streak/active_bonuses/ways_to_earn/missions), /api/me/premium/status still works. Web admin /admin/merchant-ops (admin cookie): merchant-ops-root + bonus-create-form (bonus-merchant-id, bonus-multiplier, bonus-hours, bonus-create-btn) + fraud-scan-btn all render; fraud-scan-btn triggered 'Scan complete — 5 flagged' toast; 5 fraud-alert-* rows with fraud-resolve-* buttons; creating window with merchant=UI_CREATED_VIA_WEB/mult=3/hours=1 added new bonus-window-* row and its bonus-deactivate-* button worked (removed active flag). Web consumer /earn (demo cookie): earn-streak (3-day streak badge, +200 at 7d) + earn-streak-next visible; TWO earn-bonus-* banners rendered ('2× points tonight · The Grill House' + '2× points at UI TEST Venue'); home-ways-to-earn card visible with 2 home-bonus-* banners. Mobile Expo web preview (390x844, demo bearer): earn-streak-next visible with 3-day streak + '+200 at 7d'; 2 earn-bonus-* banners on /earn; 2 home-bonus-* banners on home. NOTE: reward-overlay could not be triggered in this run because the streak bonus award happened during the pytest run (before the browser sessions loaded), so overlay was a no-op on the UI reload; overlay component + testID contract is unchanged from iter44 (proven working end-to-end there).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated in React Native Web — use 'boxShadow'. Carried over from iter38-44."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' Carried over from iter38-44."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter45_rwd4.py",
+    "/app/test_reports/pytest/iter45.xml",
+    "/tmp/web_mo.png",
+    "/tmp/web_mo_after.png",
+    "/tmp/web_earn.png",
+    "/tmp/web_home.png",
+    "/tmp/mob_earn.png",
+    "/tmp/mob_home.png"
+  ],
+  "action_items": [
+    "LOW (CARRIED iter38-44): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (CARRIED iter38-44): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (react warning, carried): 'A props object containing a key prop is being spread into JSX' at NavItem in the admin sidebar — pass key={someKey} explicitly instead of via spread.",
+    "OBSERVATION: reward-overlay for streak-milestone bonuses was not visually re-triggered because the award had already occurred earlier in the test run and is idempotent per anchor. Main agent can self-verify by opening /earn on a fresh session AFTER seeding a completed streak."
+  ],
+  "critical_code_review_comments": [
+    "rewards_merchant.scan_earn: bonus multiplier is applied via `points = max(points, round(points * bonus_mult))`. The `max()` guard is unnecessary given bonus_mult>1 always produces a >=points value — consider `points = round(points * bonus_mult)` for clarity. Also, `scan_earn` writes bigcoin (via services.bigcoin), while streak-milestone bonuses write points_ledger via PointsService — the overview 'balance' comes from PointsService.get_balance, so scan-earn bonus points are NOT visible in the consumer balance/streak surface. This is intentional per iter44 note, but worth an explicit doc-comment on scan_earn to prevent confusion.",
+    "merchant_ops.BonusWindowBody: no validation that starts_at < ends_at, no bounds on multiplier (accepts 0, negative, or absurd values like 1000×). A 0 or negative multiplier would make `active_bonus_multiplier` return the max of 1.0 and 0/negative = 1.0, so silently no-op, but an admin typo (e.g. mult=100) would let a merchant 100× points. Suggest Pydantic Field(ge=1.0, le=10.0) + validator ensuring ends_at > starts_at.",
+    "merchant_ops.active_bonus_windows: returned dicts include raw datetime objects (starts_at/ends_at) — FastAPI serializes fine, but the mobile Expo/RN client must ensure it parses ISO strings correctly. Consider explicitly .isoformat() on the way out for consistency.",
+    "merchant_ops.maybe_alert: uses a single open alert per merchant (one-at-a-time). When a merchant fluctuates around threshold, resolve→re-open cycle could churn. Consider a cooldown (e.g. don't reopen within 1 hour of resolution) or store history.",
+    "rewards_earn._streak_state: `reached = [m for m in milestones if current >= m['days']]` awards ONLY the highest milestone reached in the current run. If a user's streak jumps from 6→7 across the 7-day threshold and they had already collected the 3-day bonus earlier in the run, the new key `streak:7:<uid>:<anchor>` will be different from `streak:3:...` so both awards happen — correct. But if a user's streak breaks (anchor changes) they can re-earn the 3-day bonus for the new run — this is intentional but worth documenting.",
+    "rewards_earn.overview: catches ALL exceptions when loading active_bonuses (`except Exception: active_bonuses = []`) — this silently swallows any real bug in merchant_ops. Consider logging the exception before falling back."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter45_rwd4.py",
+    "/app/test_reports/iteration_45.json",
+    "/app/test_reports/pytest/iter45.xml"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% of RWD.4 spec testIDs verified on both surfaces"},
+  "test_credentials": "Web admin: admin@bigfm.dubai / AdminPass123!. Web demo: /login → 'Try the demo' button (cookie). Mobile: demo-login-btn (bearer). Verified working this run.",
+  "seed_data_creation": "1) Streak test seeded 3 consecutive-day listening_minute ledger rows for demo user, awarded 50pt streak bonus. 2) Bonus windows created and left ACTIVE for UI test: merchant_id=UI_MERCHANT_TEST (mult=2, 3h) — cleanup: db.bonus_windows.delete_many({merchant_id: 'UI_MERCHANT_TEST'}). 3) One UI-created window UI_CREATED_VIA_WEB (mult=3, 1h) was deactivated during test. 4) Fraud alert test: TEST_merchant_fraud_X shows collection + alert (alert resolved by test). 5) Test bonus window merchants TEST_merchant_bonus_A/B may still exist as inactive. All test data prefixed TEST_/UI_ for easy cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite: /app/backend/tests/test_iter45_rwd4.py (14 tests: TestStreaks×2, TestBonusWindows×5, TestFraudAlerts×5, TestRegression×2). Also carry forward /app/backend/tests/test_iter44_premium_brand.py. All RWD.4 testIDs are wired on web + mobile. If retesting streak-milestone reward-overlay UI, seed a fresh 3-day streak for a NEW user (or clear points_ledger + earn_streak_state for demo) then open /earn — overlay fires once per anchor. Two active bonus windows (biz_grill + UI_MERCHANT_TEST) remain in DB so the earn-bonus-* / home-bonus-* banners will keep rendering until their ends_at expires or admin deactivates.",
+  "rca of the issue": "N/A — no bugs found in RWD.4 scope."
+}
