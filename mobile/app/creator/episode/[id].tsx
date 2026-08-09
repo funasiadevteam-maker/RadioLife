@@ -6,10 +6,12 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as DocumentPicker from 'expo-document-picker';
 import { COLORS, SPACING, RADIUS, FONT, common } from '../../../src/constants/theme';
 import {
   getEpisode, getEpisodeMagicClips, publishMagicClip,
   patchMagicClip, deleteMagicClip,
+  getEpisodeMedia, uploadEpisodeVideo, putEpisodeChapters, putEpisodeTranscript,
 } from '../../../src/api/podcastApi';
 
 function formatSec(s: number | null | undefined): string {
@@ -24,6 +26,7 @@ export default function CreatorEpisodeDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [episode, setEpisode] = useState<any>(null);
   const [clips, setClips] = useState<any[]>([]);
+  const [media, setMedia] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState('');
@@ -31,12 +34,14 @@ export default function CreatorEpisodeDetail() {
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const [ep, cl] = await Promise.all([
+      const [ep, cl, md] = await Promise.all([
         getEpisode(id),
         getEpisodeMagicClips(id).catch(() => []),
+        getEpisodeMedia(id).catch(() => null),
       ]);
       setEpisode(ep?.episode || ep);
       setClips(cl);
+      setMedia(md);
     } catch (e: any) {
       setErr(e?.response?.data?.detail || e?.message || 'Failed to load episode');
     } finally { setLoading(false); setRefreshing(false); }
@@ -105,6 +110,9 @@ export default function CreatorEpisodeDetail() {
           </View>
         )}
 
+        {/* Video, Chapters & Transcript editor */}
+        <VideoChaptersEditor episodeId={id!} media={media} onSaved={load} />
+
         {/* Magic Clips Header */}
         <View style={s.clipsHeader}>
           <Text style={common.sectionTitle}>Magic Clips ({clips.length})</Text>
@@ -147,6 +155,121 @@ export default function CreatorEpisodeDetail() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function VideoChaptersEditor({ episodeId, media, onSaved }: {
+  episodeId: string; media: any; onSaved: () => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [chapters, setChapters] = useState<{ title: string; start_seconds: number }[]>([]);
+  const [transcript, setTranscript] = useState('');
+  const [savingCh, setSavingCh] = useState(false);
+  const [savingTr, setSavingTr] = useState(false);
+  const [chTitle, setChTitle] = useState('');
+  const [chMin, setChMin] = useState('');
+  const [chSec, setChSec] = useState('');
+
+  useEffect(() => {
+    if (media) {
+      setChapters(media.chapters || []);
+      setTranscript(media.transcript || '');
+    }
+  }, [media]);
+
+  const pickVideo = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: 'video/*', copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.length) return;
+      const a = res.assets[0];
+      setUploading(true);
+      await uploadEpisodeVideo(episodeId, { uri: a.uri, name: a.name || 'video.mp4', mimeType: a.mimeType });
+      onSaved();
+    } catch (e: any) {
+      Alert.alert('Upload failed', e?.response?.data?.detail?.code || e?.message || 'Try a smaller MP4.');
+    } finally { setUploading(false); }
+  };
+
+  const addChapter = () => {
+    if (!chTitle.trim()) return;
+    const start = (parseInt(chMin || '0', 10) * 60) + parseInt(chSec || '0', 10);
+    const next = [...chapters, { title: chTitle.trim(), start_seconds: start }]
+      .sort((a, b) => a.start_seconds - b.start_seconds);
+    setChapters(next);
+    setChTitle(''); setChMin(''); setChSec('');
+  };
+
+  const removeChapter = (i: number) => setChapters(chapters.filter((_, idx) => idx !== i));
+
+  const saveChapters = async () => {
+    setSavingCh(true);
+    try { await putEpisodeChapters(episodeId, chapters); onSaved(); }
+    catch (e: any) { Alert.alert('Error', e?.response?.data?.detail?.code || 'Save failed'); }
+    finally { setSavingCh(false); }
+  };
+
+  const saveTranscript = async () => {
+    setSavingTr(true);
+    try { await putEpisodeTranscript(episodeId, transcript); onSaved(); }
+    catch (e: any) { Alert.alert('Error', e?.response?.data?.detail?.code || 'Save failed'); }
+    finally { setSavingTr(false); }
+  };
+
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const hasVideo = !!media?.video_url;
+
+  return (
+    <View style={s.videoCard} testID="episode-video-editor">
+      <Text style={common.sectionTitle}>Video, Chapters &amp; Transcript</Text>
+
+      <TouchableOpacity style={[s.uploadBtn, hasVideo && s.uploadBtnDone]} onPress={pickVideo}
+        disabled={uploading} testID="episode-upload-video">
+        {uploading ? <ActivityIndicator color={COLORS.primary} />
+          : <><Ionicons name={hasVideo ? 'checkmark-circle' : 'videocam'} size={18}
+                color={hasVideo ? COLORS.green : COLORS.primary} />
+              <Text style={[s.uploadText, hasVideo && { color: COLORS.green }]}>
+                {hasVideo ? 'Video uploaded — replace' : 'Upload video (MP4)'}
+              </Text></>}
+      </TouchableOpacity>
+      <Text style={s.helpText}>Stored securely in Tigris object storage. Max 500 MB.</Text>
+
+      {/* Chapters */}
+      <Text style={s.editLabel}>CHAPTERS</Text>
+      {chapters.map((c, i) => (
+        <View key={`${c.start_seconds}-${i}`} style={s.chapterRow} testID={`episode-chapter-${i}`}>
+          <Text style={s.chapterTime}>{fmt(c.start_seconds)}</Text>
+          <Text style={s.chapterTitle} numberOfLines={1}>{c.title}</Text>
+          <TouchableOpacity onPress={() => removeChapter(i)} testID={`episode-chapter-remove-${i}`}>
+            <Ionicons name="close-circle" size={18} color={COLORS.textDim} />
+          </TouchableOpacity>
+        </View>
+      ))}
+      <View style={s.chapterAddRow}>
+        <TextInput style={[s.chInput, { flex: 1 }]} value={chTitle} onChangeText={setChTitle}
+          placeholder="Chapter title" placeholderTextColor={COLORS.textMuted} testID="episode-chapter-title" />
+        <TextInput style={[s.chInput, { width: 44 }]} value={chMin} onChangeText={setChMin}
+          keyboardType="number-pad" placeholder="m" placeholderTextColor={COLORS.textMuted} testID="episode-chapter-min" />
+        <TextInput style={[s.chInput, { width: 44 }]} value={chSec} onChangeText={setChSec}
+          keyboardType="number-pad" placeholder="s" placeholderTextColor={COLORS.textMuted} testID="episode-chapter-sec" />
+        <TouchableOpacity style={s.chAddBtn} onPress={addChapter} testID="episode-chapter-add">
+          <Ionicons name="add" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+      <TouchableOpacity style={s.saveRow} onPress={saveChapters} disabled={savingCh} testID="episode-chapters-save">
+        {savingCh ? <ActivityIndicator color={COLORS.primary} size="small" />
+          : <Text style={s.saveText}>Save chapters</Text>}
+      </TouchableOpacity>
+
+      {/* Transcript */}
+      <Text style={s.editLabel}>TRANSCRIPT</Text>
+      <TextInput style={s.transcriptInput} value={transcript} onChangeText={setTranscript}
+        multiline placeholder="Paste or type the episode transcript…"
+        placeholderTextColor={COLORS.textMuted} testID="episode-transcript-input" />
+      <TouchableOpacity style={s.saveRow} onPress={saveTranscript} disabled={savingTr} testID="episode-transcript-save">
+        {savingTr ? <ActivityIndicator color={COLORS.primary} size="small" />
+          : <Text style={s.saveText}>Save transcript</Text>}
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -235,4 +358,19 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(251,113,133,0.3)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 6,
   },
   rejectBtnText: { color: COLORS.red, fontSize: FONT.xs, fontWeight: '600' },
+  videoCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: SPACING.lg },
+  uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary, backgroundColor: COLORS.primary + '10', marginTop: 8 },
+  uploadBtnDone: { borderColor: COLORS.green, backgroundColor: COLORS.green + '10' },
+  uploadText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
+  helpText: { color: COLORS.textMuted, fontSize: FONT.xs, marginTop: 6 },
+  editLabel: { fontSize: FONT.xs, fontWeight: '800', color: COLORS.textDim, letterSpacing: 1.2, marginTop: SPACING.md, marginBottom: 8 },
+  chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
+  chapterTime: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', width: 44 },
+  chapterTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '600', flex: 1 },
+  chapterAddRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  chInput: { backgroundColor: COLORS.inputBg, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.surfaceBorder, paddingHorizontal: 10, paddingVertical: 8, color: COLORS.text, fontSize: FONT.sm },
+  chAddBtn: { width: 38, height: 38, borderRadius: RADIUS.sm, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  transcriptInput: { backgroundColor: COLORS.inputBg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.surfaceBorder, padding: 12, color: COLORS.text, fontSize: FONT.sm, minHeight: 100, textAlignVertical: 'top' },
+  saveRow: { alignItems: 'center', paddingVertical: 10, marginTop: 8, borderRadius: RADIUS.md, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.surfaceBorder },
+  saveText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
 });

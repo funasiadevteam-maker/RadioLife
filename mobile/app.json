@@ -39,6 +39,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": true
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -50,7 +57,8 @@
       "expo-audio",
       "expo-secure-store",
       "expo-apple-authentication",
-      "expo-font"
+      "expo-font",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

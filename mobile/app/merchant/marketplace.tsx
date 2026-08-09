@@ -216,6 +216,12 @@ export default function Marketplace() {
                       <Text style={s.drawText}>Draw</Text>
                     </TouchableOpacity>
                   )}
+                  {c.type === 'featured' && (
+                    <TouchableOpacity onPress={() => router.push(`/merchant/insights/${c.campaign_id}` as any)}
+                      testID={`mkt-insights-${c.campaign_id}`} style={s.drawBtn}>
+                      <Ionicons name="stats-chart" size={13} color={COLORS.gold} />
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <View style={s.statsRow} testID={`mkt-stats-${c.campaign_id}`}>
                   {campStats(c).map((st2) => (

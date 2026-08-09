@@ -5617,6 +5617,13 @@ try:
 except Exception as _e:
     logger.warning("Phase MKT.1 merchant_marketplace router not loaded: %s", _e)
 
+try:
+    from routes.creator_video import router as _creator_video_router
+    app.include_router(_creator_video_router)
+    logger.info("Phase CS.1 routes wired: /api/podcasts/episodes/{id}/video|chapters|transcript|media")
+except Exception as _e:
+    logger.warning("Phase CS.1 creator_video router not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router

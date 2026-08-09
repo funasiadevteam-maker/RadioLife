@@ -1,0 +1,60 @@
+{
+  "summary": "Phase CS.1 (Creator Studio video podcast) + Listing Insights tested end-to-end on backend + mobile. BACKEND: 16/16 PASS (test_iter51_cs1_insights.py). CS.1 verified: GET /api/podcasts/episodes/{id}/media (404 unknown, default audio shape); PUT /chapters (owner-only 403 for stranger, 401 anon, persists sorted by start_seconds); PUT /transcript (persists + length); POST /video (rejects text/plain with 400 unsupported_video_type, uploads video/mp4 to Tigris + returns a real https signed URL, subsequent GET /media returns media_type='video' + signed URL, 403 for non-owner). Insights verified: GET /api/merchant/featured/{id}/insights?days=7 shape (series length=7, keys day/impressions/clicks/spend_usd, totals include impressions/clicks/spend_usd/budget_usd), days clamped to 30, auth required, and today's series point reflects a live +1 impression via GET /api/discovery/featured and +1 click via POST /api/discovery/featured/{id}/click. Click-fraud cap enforced: first click charged=true, second same-day click charged=false. Regression: iter49 (19) + iter50 (23p/1s) still pass = 42 more. MOBILE (Expo web preview 390x844, demo login): /merchant/insights/mc_81ac66b25c43 renders insights-root + insights-chart + 7 insights-bar-* + totals (Views/Taps/Tap rate/Spend) — today's bar visibly reflects our test impression. /podcast/episode/ep_ui_demo (seeded audio-only episode) renders mobile-episode-player + mobile-episode-transcript + mobile-transcript-toggle (transcript expands correctly). /creator/episode/ep_ui_demo renders episode-video-editor with ALL creator testIDs: episode-upload-video, episode-chapter-title/min/sec, episode-chapter-add, episode-chapter-0 with episode-chapter-remove-0 (from seeded chapters), episode-chapters-save, episode-transcript-input, episode-transcript-save. /merchant/marketplace shows 12 mkt-insights-* links including target campaign. Seeded fixtures: podcast_creators/channels/episodes cr_ui_demo/ch_ui_demo/ep_ui_demo (kept for future runs); test-only stranger docs are self-cleaned.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Consumer episode — chapters visibility", "issue": "mobile-episode-chapters is nested INSIDE EpisodeVideoBlock (renders only when media.video_url is present). For an audio-only episode where creator has saved chapters via PUT /chapters, listeners never see the tappable chapters. Spec suggests chapters should be usable with audio too (creator UI saves them regardless of media_type). Consider decoupling the chapters block from the video block so it renders whenever chapters.length>0.", "affected_testIDs": ["mobile-episode-chapters", "mobile-chapter-*"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated on React Native Web — use 'boxShadow'. CARRIED from iter38-50."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' CARRIED from iter38-50."},
+        {"component": "Mixed Content (tunein logos)", "issue": "http://cdn-profiles.tunein.com/... logos loaded over HTTPS page. CARRIED from iter47-50."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter51_cs1_insights.py",
+    "/app/backend/tests/test_iter50_mkt4.py",
+    "/app/backend/tests/test_iter49_mkt3.py",
+    "/app/test_reports/pytest/iter51.xml",
+    "/tmp/iter51_insights.png",
+    "/tmp/iter51_consumer.png",
+    "/tmp/iter51_creator.png",
+    "/tmp/iter51_marketplace.png"
+  ],
+  "action_items": [
+    "MEDIUM: Decouple mobile-episode-chapters from EpisodeVideoBlock in /app/mobile/app/podcast/episode/[id].tsx so chapters render on audio-only episodes too (currently nested inside `if (!ExpoVideo?.VideoView || !player) return null` block, gated further by media.video_url).",
+    "LOW (CARRIED iter38-50): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (CARRIED iter38-50): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (CARRIED iter47-50): switch tunein.com logo URLs from http:// to https:// (or proxy)."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/creator_video.py:76 — content-type check `if video.content_type and video.content_type not in _VIDEO_TYPES` will PASS uploads that omit Content-Type entirely (curl -F without type). Consider `if not video.content_type or video.content_type not in _VIDEO_TYPES` OR sniff by extension.",
+    "backend/routes/creator_video.py:79 — key includes uuid.uuid4() so each upload creates a NEW Tigris object; previous video_storage_key is orphaned (not deleted). Consider `st.delete(key=old_key)` before overwrite to avoid Tigris cost drift.",
+    "backend/routes/creator_video.py — no duration_seconds computed on upload. Media response returns duration from stored field; UI shows '—' unless creator sets duration_sec manually. Consider ffprobe / mediainfo (or client-side) to populate it.",
+    "backend/routes/merchant_marketplace.py:672-675 — impression accounting per item runs inside the response path (not fire-and-forget as the comment claims). Under load this doubles the Mongo write count per GET /api/discovery/featured. Consider BackgroundTasks or batching.",
+    "mobile/app/podcast/episode/[id].tsx:280 — chapters nested in EpisodeVideoBlock (see integration issue above).",
+    "mobile/app/podcast/episode/[id].tsx:317 — StyleSheet has `transcriptText: {...},  backBtn: {...}` on a single line — cosmetic but easy to miss."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter51_cs1_insights.py",
+    "/app/test_reports/iteration_51.json",
+    "/app/test_reports/pytest/iter51.xml"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 iter51 + iter49 19/19 + iter50 23p/1s = 58p / 1s)",
+    "frontend": "Mobile CS.1 + Insights 100% of spec testIDs verified (creator editor: 10/10 testIDs; consumer player+transcript: rendered; insights: root+chart+7 bars+totals; marketplace insights links: 12 found). One integration nit: consumer chapters won't render on audio-only episodes (design coupling)."
+  },
+  "test_credentials": "Demo: POST /api/auth/demo → session_token. Web admin: admin@bigfm.dubai / AdminPass123!",
+  "seed_data_creation": "Seeded stable demo-owned creator/channel/episode: podcast_creators.id=cr_ui_demo, podcast_channels.id=ch_ui_demo, podcast_episodes.id=ep_ui_demo (title='Demo Episode UI', with 2 chapters + transcript, no video). Left in place for future retest.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Regression suites: test_iter51_cs1_insights.py (16 — CS.1 media/chapters/transcript/video-upload/ownership + Insights shape/clamp/auth/bump/fraud-cap + light regression), test_iter50_mkt4.py (23p/1s), test_iter49_mkt3.py (19). Export REACT_APP_BACKEND_URL + MONGO_URL + DB_NAME before running. Seeded fixtures cr_ui_demo/ch_ui_demo/ep_ui_demo can be re-used to test creator UI. For counter-bump tests use _find_active_featured_for_demo() (mc_7fe45437e320 is paused/over-budget). Tigris upload confirmed working end-to-end (real https signed URL returned).",
+  "rca of the issue": "Consumer chapters not rendering on audio-only episodes — RCA: /app/mobile/app/podcast/episode/[id].tsx EpisodeVideoBlock function (~line 260) contains BOTH the video player AND the chapters list. It early-returns `null` when `!ExpoVideo?.VideoView || !player`, and `player` is only created via `ExpoVideo.useVideoPlayer(media.video_url, ...)` which needs a video URL. Consumer podcast_episode/{id}/media therefore never surfaces chapters for audio-only episodes even though PUT /chapters saves them just fine. Fix: extract the chapters map into its own component gated on `chapters.length > 0` (not on video presence)."
+}

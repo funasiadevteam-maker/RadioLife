@@ -25,6 +25,31 @@ export async function getEpisode(epId: string) {
   return r.data;
 }
 
+// Creator Studio — video, chapters & transcript.
+export async function getEpisodeMedia(epId: string) {
+  const r = await api.get(`/podcasts/episodes/${epId}/media`);
+  return r.data;
+}
+
+export async function uploadEpisodeVideo(epId: string, file: { uri: string; name: string; mimeType?: string }) {
+  const form = new FormData();
+  form.append('video', { uri: file.uri, name: file.name, type: file.mimeType || 'video/mp4' } as any);
+  const r = await api.post(`/podcasts/episodes/${epId}/video`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return r.data;
+}
+
+export async function putEpisodeChapters(epId: string, chapters: { title: string; start_seconds: number }[]) {
+  const r = await api.put(`/podcasts/episodes/${epId}/chapters`, { chapters });
+  return r.data;
+}
+
+export async function putEpisodeTranscript(epId: string, transcript: string) {
+  const r = await api.put(`/podcasts/episodes/${epId}/transcript`, { transcript });
+  return r.data;
+}
+
 export async function getEpisodeMagicClips(epId: string) {
   const r = await api.get(`/podcasts/episodes/${epId}/magic-clips`);
   return r.data?.items || [];

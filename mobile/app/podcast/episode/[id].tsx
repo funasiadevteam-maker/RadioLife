@@ -10,11 +10,13 @@ import * as WebBrowser from 'expo-web-browser';
 import { COLORS, SPACING, RADIUS, FONT, common } from '../../../src/constants/theme';
 import {
   getEpisode, getEpisodeMagicClips, getEpisodeShoppableCards,
-  episodeAudioUrl, shoppableClickUrl, subscribe,
+  episodeAudioUrl, shoppableClickUrl, subscribe, getEpisodeMedia,
 } from '../../../src/api/podcastApi';
 
 let AudioModule: any = null;
 try { AudioModule = require('expo-audio'); } catch {}
+let ExpoVideo: any = null;
+try { ExpoVideo = require('expo-video'); } catch {}
 
 function fmtSec(s: number) {
   const m = Math.floor(s / 60);
@@ -34,6 +36,7 @@ export default function EpisodeDetailScreen() {
   const [episode, setEpisode] = useState<any>(null);
   const [clips, setClips] = useState<any[]>([]);
   const [cards, setCards] = useState<any[]>([]);
+  const [media, setMedia] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [paywall, setPaywall] = useState<any>(null); // 402 payload
   const [playing, setPlaying] = useState(false);
@@ -47,12 +50,14 @@ export default function EpisodeDetailScreen() {
     try {
       const ep = await getEpisode(id);
       setEpisode(ep);
-      const [mc, sc] = await Promise.all([
+      const [mc, sc, md] = await Promise.all([
         getEpisodeMagicClips(id).catch(() => []),
         getEpisodeShoppableCards(id).catch(() => []),
+        getEpisodeMedia(id).catch(() => null),
       ]);
       setClips(mc);
       setCards(sc);
+      setMedia(md);
     } catch (e: any) {
       if (e?.response?.status === 402) {
         setPaywall(e.response.data);
@@ -192,6 +197,10 @@ export default function EpisodeDetailScreen() {
           ) : null}
         </View>
 
+        {/* Video + chapters + transcript */}
+        {media?.video_url ? <EpisodeVideoBlock media={media} /> : null}
+        {media?.transcript ? <TranscriptBlock transcript={media.transcript} /> : null}
+
         {/* Shoppable cards */}
         {cards.length > 0 && (
           <View testID="mobile-episode-shoppable" style={st.section}>
@@ -248,8 +257,64 @@ export default function EpisodeDetailScreen() {
   );
 }
 
+function EpisodeVideoBlock({ media }: { media: any }) {
+  const player = ExpoVideo?.useVideoPlayer
+    ? ExpoVideo.useVideoPlayer(media.video_url, (p: any) => { p.loop = false; })
+    : null;
+  const chapters: { title: string; start_seconds: number }[] = media.chapters || [];
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const seek = (sec: number) => { if (player) { try { player.currentTime = sec; player.play(); } catch {} } };
+
+  if (!ExpoVideo?.VideoView || !player) return null;
+  const VideoView = ExpoVideo.VideoView;
+  return (
+    <View style={st.section} testID="mobile-episode-video">
+      <VideoView
+        player={player}
+        style={st.videoPlayer}
+        allowsPictureInPicture
+        startsPictureInPictureAutomatically={false}
+        contentFit="contain"
+        nativeControls
+      />
+      {chapters.length > 0 && (
+        <View testID="mobile-episode-chapters" style={{ marginTop: SPACING.md }}>
+          <Text style={common.sectionTitle}>Chapters</Text>
+          {chapters.map((c, i) => (
+            <TouchableOpacity key={`${c.start_seconds}-${i}`} style={st.chapterRow}
+              onPress={() => seek(c.start_seconds)} testID={`mobile-chapter-${i}`}>
+              <Text style={st.chapterTime}>{fmt(c.start_seconds)}</Text>
+              <Text style={st.chapterTitle} numberOfLines={1}>{c.title}</Text>
+              <Ionicons name="play-circle-outline" size={18} color={COLORS.primary} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function TranscriptBlock({ transcript }: { transcript: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={st.section} testID="mobile-episode-transcript">
+      <TouchableOpacity style={st.transcriptToggle} onPress={() => setOpen(!open)} testID="mobile-transcript-toggle">
+        <Text style={common.sectionTitle}>Transcript</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textDim} />
+      </TouchableOpacity>
+      {open && <Text style={st.transcriptText}>{transcript}</Text>}
+    </View>
+  );
+}
+
+
 const st = StyleSheet.create({
-  backBtn: { padding: SPACING.lg },
+  videoPlayer: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000', borderRadius: RADIUS.md },
+  chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
+  chapterTime: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', width: 44 },
+  chapterTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '600', flex: 1 },
+  transcriptToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  transcriptText: { color: COLORS.textDim, fontSize: FONT.sm, lineHeight: 21, marginTop: 8 },  backBtn: { padding: SPACING.lg },
   playerArea: { alignItems: 'center', paddingHorizontal: SPACING.lg, marginBottom: SPACING.lg },
   playBtn: {
     width: 80, height: 80, borderRadius: 40,

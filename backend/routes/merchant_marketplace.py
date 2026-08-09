@@ -672,7 +672,43 @@ async def discovery_featured(request: Request, market: Optional[str] = None,
     for item in out:
         await db.merchant_campaigns.update_one(
             {"campaign_id": item["campaign_id"]}, {"$inc": {"impressions": 1}})
+        await _bump_featured_daily(db, item["campaign_id"], impressions=1)
     return {"items": out, "total": len(out)}
+
+
+async def _bump_featured_daily(db, campaign_id: str, *, impressions: int = 0,
+                               clicks: int = 0, spend_usd: float = 0.0):
+    day = _now().strftime("%Y-%m-%d")
+    await db.featured_daily.update_one(
+        {"campaign_id": campaign_id, "day": day},
+        {"$inc": {"impressions": impressions, "clicks": clicks, "spend_usd": spend_usd},
+         "$setOnInsert": {"campaign_id": campaign_id, "day": day}},
+        upsert=True)
+
+
+@router.get("/api/merchant/featured/{campaign_id}/insights")
+async def featured_insights(campaign_id: str, request: Request, days: int = 7,
+                            user: dict = Depends(current_user)):
+    db = request.app.state.db
+    c = await _owned_campaign(db, campaign_id, user)
+    days = max(1, min(days, 30))
+    today = _now()
+    series = []
+    rows = {}
+    async for d in db.featured_daily.find({"campaign_id": campaign_id}):
+        rows[d["day"]] = d
+    for i in range(days - 1, -1, -1):
+        from datetime import timedelta
+        day = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        r = rows.get(day, {})
+        series.append({"day": day,
+                       "impressions": int(r.get("impressions", 0)),
+                       "clicks": int(r.get("clicks", 0)),
+                       "spend_usd": round(float(r.get("spend_usd", 0.0)), 2)})
+    totals = {"impressions": c.get("impressions", 0), "clicks": c.get("clicks", 0),
+              "spend_usd": round(c.get("spent_usd", 0.0), 2), "budget_usd": c.get("budget_usd", 0)}
+    return {"campaign_id": campaign_id, "title": c.get("title"),
+            "series": series, "totals": totals}
 
 
 @router.post("/api/discovery/featured/{campaign_id}/click")
@@ -701,6 +737,7 @@ async def discovery_featured_click(campaign_id: str, request: Request,
     if new_spent >= c.get("budget_usd", 0):
         upd["$set"]["status"] = "paused"
     await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
+    await _bump_featured_daily(db, campaign_id, clicks=1, spend_usd=cost_usd)
     return {"ok": True, "merchant_id": c.get("merchant_id"), "charged": True}
 
 
