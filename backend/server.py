@@ -1498,6 +1498,13 @@ async def _deferred_bootstrap(app_: FastAPI):
         logger.info(f"Extra house games bootstrap: {extra}")
     except Exception as e:
         logger.warning(f"phase 8a bootstrap: {e}")
+    # Super Marketplace — Phase A foundation seed (rates, categories, commission).
+    try:
+        from services.marketplace import seed_marketplace_foundation
+        ms = await seed_marketplace_foundation(db)
+        logger.info(f"Marketplace Phase A bootstrap: {ms}")
+    except Exception as e:
+        logger.warning(f"marketplace phase A bootstrap: {e}")
     # Phase 8b — Gamification distribution: milestone auto-unlock engine,
     # partner-token redemption gating, public landing pages, RJ-mention log.
     try:
@@ -5640,6 +5647,19 @@ try:
     logger.info("Phase MON.3 routes wired: /api/bigcoin/topup/packages|checkout|status")
 except Exception as _e:
     logger.warning("Phase MON.3 bigcoin_topup router not loaded: %s", _e)
+
+# Super Marketplace — Phase A foundation (economics, categories, registration, shop).
+try:
+    from routes.marketplace_admin import router as _mkt_admin_router
+    from routes.marketplace_merchant import router as _mkt_merchant_router
+    from routes.shop import router as _shop_router
+    app.include_router(_mkt_admin_router)
+    app.include_router(_mkt_merchant_router)
+    app.include_router(_shop_router)
+    logger.info("Marketplace Phase A routes wired: /api/admin/marketplace/* "
+                "/api/merchant/marketplace/* /api/shop/*")
+except Exception as _e:
+    logger.warning("Marketplace Phase A routers not loaded: %s", _e)
 
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:

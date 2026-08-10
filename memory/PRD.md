@@ -329,6 +329,25 @@ Approved multi-phase build (spec: 80 sections). Decisions: build BOTH surfaces i
 - **Phase A (next)**: Admin BigPoints Economics ($0.03/point issuance cost, admin-configurable by market/category/merchant override) · Admin Category + Commission rules engine (no hardcoded %) · "Sell on RadioLife" 10-step business registration (reusing Stripe Connect) · Shop nav + Shop Home shell · Merchant BigPoints settings + cost preview + funding (prepaid + auto-deduct).
 - Phases B–F: Restaurant pickup, Services/booking, Ecommerce, Gift cards/memberships/events, AI concierge + promoted marketplace.
 
+## SUPER MARKETPLACE — Phase A1 (backend + admin) SHIPPED (2026-08-10)
+Foundation for the local super-app. "BigPoints" = existing BigCoin; only the merchant-side issuance cost + platform commission are new.
+- **services/marketplace.py**: economics engine. Default BigPoint issuance cost **$0.03/point (3.0¢)**, admin-configurable via `bigpoint_rates` (scopes global/market/category/merchant; resolver specificity merchant>category>market>global, effective-dated). Category commission via `marketplace_commission_rules` (priority merchant>market_category>category>market>global). `compute_economics()` splits commission vs BigPoints fee vs merchant net. Boot seed `seed_marketplace_foundation` (9 categories + per-category commission + global rate). Fixed Mongo tz-naive datetime compare with `_aware()`.
+- **routes/marketplace_admin.py** (`/api/admin/marketplace/*`, admin-only): CRUD bigpoint-rates, categories, commission-rules; businesses list + approve/reject; dashboard.
+- **routes/marketplace_merchant.py** (`/api/merchant/marketplace/*`): "Sell on RadioLife" onboarding (validations: bad_category, commission_agreement_required, bigpoints_required, below_min_bigpoints, restaurant price_parity_required) → pending profile mirrored into `businesses` (inactive until approved) + `merchant_bigpoint_accounts`; bigpoints settings + live $ cost preview; funding (prepaid Stripe top-up + status-credit; auto-reload; funding_mode prepaid|auto_deduct).
+- **routes/shop.py** (`/api/shop/*`, public): categories, home (headline + 5 sections), businesses (approved only, sortable by bigpoints/rating/featured), business detail (+ ways-to-earn).
+- **Web admin page** `/admin/marketplace` (AdminMarketplacePhaseA.jsx, legacy dark shell): Economics / Categories / Commission / Approvals tabs.
+- Tests: iteration_55 — **34/34 pytest pass** (auth guards, validations, resolver specificity end-to-end, Stripe fund, approve→shop visibility). No blockers.
+
+### Marketplace Phase A — REMAINING (next sub-steps)
+- **A2 — "Sell on RadioLife" registration UI** on both surfaces (mobile Expo wizard + web page) hitting `/onboarding`.
+- **A3 — Shop shell UI**: mobile new SHOP tab + nav (Home/Listen/Shop/Play/Wallet, Profile→avatar) + Shop Home; web Shop nav + Shop Home. Cream/orange.
+- Then Phases B–F (restaurant pickup, services/booking, ecommerce, gift cards/memberships/events, AI concierge + promoted).
+
+### Still pending (agreed "also this round", not yet built)
+- **Games Daily Streak** (bonus for playing all house games in a day).
+- **Reorder Favourites** (save favourite venue + rebook usual slot).
+- **Gift Card Auto-Apply** — deferred to Phase B (needs Marketplace checkout).
+
 ## Backlog (P0/P1/P2)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

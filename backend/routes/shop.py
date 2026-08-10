@@ -1,0 +1,137 @@
+"""Marketplace Consumer API — Shop Home, categories, and business listings.
+Reads APPROVED marketplace profiles.  Platform-agnostic (mobile + web)."""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, Request
+
+from auth import current_user_optional
+from services.marketplace import resolve_point_cost_cents
+
+router = APIRouter(prefix="/api/shop", tags=["shop"])
+
+
+def _card(p: Dict[str, Any]) -> Dict[str, Any]:
+    bp = p.get("bigpoints", {}) or {}
+    return {
+        "business_id": p.get("business_id"),
+        "public_name": p.get("public_name"),
+        "category": p.get("category"),
+        "subcategory": p.get("subcategory"),
+        "description": p.get("description"),
+        "logo_url": p.get("logo_url"),
+        "cover_url": (p.get("cover_urls") or [None])[0],
+        "city": p.get("market"),
+        "sells": p.get("sells", []),
+        "default_bigpoints": bp.get("default_points", 0),
+        "points_per_dollar": bp.get("points_per_dollar"),
+        "rating": p.get("rating"),
+        "featured": bool(p.get("featured")),
+        "sponsored": bool(p.get("sponsored")),
+    }
+
+
+@router.get("/categories")
+async def categories(request: Request):
+    db = request.app.state.db
+    out = []
+    async for c in db.marketplace_categories.find({"active": True}).sort("name", 1):
+        c.pop("_id", None)
+        for k in ("created_at", "updated_at"):
+            c.pop(k, None)
+        out.append(c)
+    return {"items": out}
+
+
+@router.get("/businesses")
+async def businesses(request: Request, category: Optional[str] = None,
+                     market: Optional[str] = None, q: Optional[str] = None,
+                     sort: str = "featured", limit: int = 40,
+                     user: dict = Depends(current_user_optional)):
+    db = request.app.state.db
+    query: Dict[str, Any] = {"status": "approved"}
+    if category:
+        query["category"] = category
+    if market:
+        query["market"] = market
+    if q:
+        query["public_name"] = {"$regex": q, "$options": "i"}
+    items = [_card(p) async for p in db.marketplace_profiles.find(query).limit(max(1, min(limit, 100)))]
+    if sort == "bigpoints":
+        items.sort(key=lambda x: x.get("default_bigpoints", 0), reverse=True)
+    elif sort == "rating":
+        items.sort(key=lambda x: (x.get("rating") or 0), reverse=True)
+    else:  # featured — sponsored/featured first
+        items.sort(key=lambda x: (x.get("sponsored", False), x.get("featured", False),
+                                  x.get("default_bigpoints", 0)), reverse=True)
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/businesses/{business_id}")
+async def business_detail(business_id: str, request: Request,
+                          user: dict = Depends(current_user_optional)):
+    db = request.app.state.db
+    p = await db.marketplace_profiles.find_one({"business_id": business_id, "status": "approved"})
+    if not p:
+        from fastapi import HTTPException
+        raise HTTPException(404, {"code": "business_not_found"})
+    card = _card(p)
+    card["locations"] = p.get("locations", [])
+    card["phone"] = p.get("phone")
+    card["website"] = p.get("website")
+    card["cover_urls"] = p.get("cover_urls", [])
+    # Ways to earn here
+    bp = p.get("bigpoints", {}) or {}
+    card["ways_to_earn"] = [
+        {"label": "Order / Buy", "points": bp.get("default_points", 0), "icon": "bag-check"},
+        {"label": "Check In", "points": 50, "icon": "location"},
+        {"label": "Pay with RadioLife", "points": 50, "icon": "wallet"},
+    ]
+    return {"business": card}
+
+
+@router.get("/home")
+async def shop_home(request: Request, market: Optional[str] = None,
+                    user: dict = Depends(current_user_optional)):
+    db = request.app.state.db
+    mk = market or (user or {}).get("market")
+    cats = []
+    async for c in db.marketplace_categories.find({"active": True}).sort("name", 1).limit(12):
+        cats.append({"key": c["key"], "name": c["name"], "icon": c.get("icon")})
+
+    base: Dict[str, Any] = {"status": "approved"}
+    if mk:
+        base_market = {**base, "market": mk}
+    else:
+        base_market = base
+
+    async def _list(q, sortfn=None, limit=10):
+        out = [_card(p) async for p in db.marketplace_profiles.find(q).limit(limit)]
+        if sortfn:
+            out.sort(key=sortfn, reverse=True)
+        return out
+
+    recommended = await _list(base_market, lambda x: x.get("default_bigpoints", 0), 10)
+    most_points = await _list(base, lambda x: x.get("default_bigpoints", 0), 10)
+    food = await _list({**base, "category": "restaurant"}, None, 10)
+    services = await _list({**base, "sells": "services"}, None, 10)
+    featured = await _list({**base, "featured": True}, None, 10)
+
+    return {
+        "headline": "SHOP LOCAL. EARN BIGPOINTS.",
+        "market": mk,
+        "categories": cats,
+        "filters": ["Nearby", "Open Now", "Top Rated", "Most BigPoints",
+                    "Special Offers", "Available Today", "Book Now", "Pickup Today"],
+        "sections": [
+            {"key": "recommended", "title": "Recommended for You", "items": recommended},
+            {"key": "earn_more", "title": "Earn More BigPoints", "items": most_points},
+            {"key": "food", "title": "Food Ready for Pickup", "items": food},
+            {"key": "services", "title": "Popular Services", "items": services},
+            {"key": "featured", "title": "Featured Businesses", "items": featured},
+        ],
+    }
+
+
+__all__ = ["router"]
