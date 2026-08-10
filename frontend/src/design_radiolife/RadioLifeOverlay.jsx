@@ -50,6 +50,9 @@ import ShopProductsRadioLife from "./screens/ShopProductsRadioLife";
 import ShopProductOrdersRadioLife from "./screens/ShopProductOrdersRadioLife";
 import MerchantProductsRadioLife from "./screens/MerchantProductsRadioLife";
 import LoyaltyRadioLife from "./screens/LoyaltyRadioLife";
+// Phase E — merchant gift cards.
+import ShopGiftCardsRadioLife from "./screens/ShopGiftCardsRadioLife";
+import MerchantGiftCardsRadioLife from "./screens/MerchantGiftCardsRadioLife";
 
 const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
@@ -68,10 +71,12 @@ function screenFor(pathname) {
   if (pathname === "/shop/merchant/menu") return MerchantMenuRadioLife;
   if (pathname === "/shop/merchant/services") return MerchantServicesRadioLife;
   if (pathname === "/shop/merchant/products") return MerchantProductsRadioLife;
+  if (pathname === "/shop/merchant/giftcards") return MerchantGiftCardsRadioLife;
   if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;
   if (pathname.startsWith("/shop/services/")) return ShopServicesRadioLife;
   if (pathname.startsWith("/shop/products/")) return ShopProductsRadioLife;
+  if (pathname.startsWith("/shop/giftcards/")) return ShopGiftCardsRadioLife;
   if (pathname.startsWith("/shop/")) return ShopBusinessRadioLife;
   if (pathname === "/discover") return DiscoverRadioLife;
   if (pathname === "/play") return GamingRadioLife;

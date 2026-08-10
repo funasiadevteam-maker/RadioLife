@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Star, Coins, Phone, Globe, Zap } from "lucide-react";
+import { ChevronLeft, Star, Coins, Phone, Globe, Zap, Gift } from "lucide-react";
 import { API } from "@/AuthContext";
 
 export default function ShopBusinessRadioLife() {
@@ -68,7 +68,13 @@ export default function ShopBusinessRadioLife() {
         )}
       </div>
 
-      <div className="fixed bottom-20 left-0 right-0 px-4 max-w-3xl mx-auto">
+      <div className="fixed bottom-20 left-0 right-0 px-4 max-w-3xl mx-auto space-y-2">
+        {b.has_giftcards && (
+          <Link to={`/shop/giftcards/${b.business_id}`} data-testid="shop-detail-giftcard"
+            className="flex items-center justify-center gap-2 bg-white border-2 border-orange-600 text-orange-600 font-black rounded-full py-2.5 shadow">
+            <Gift size={16} />Buy a gift card
+          </Link>
+        )}
         {sells.includes("services") || sells.includes("appointments") ? (
           <Link to={`/shop/services/${b.business_id}`} data-testid="shop-detail-cta"
             className="flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3 shadow-lg">

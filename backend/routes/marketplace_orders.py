@@ -40,14 +40,24 @@ def _clean(o: Dict[str, Any]) -> Dict[str, Any]:
     return o
 
 
-async def _pick_gift_card(db, user) -> Optional[Dict[str, Any]]:
+async def _pick_gift_card(db, user, business_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     uid = user.get("user_id")
     email = (user.get("email") or "").lower()
+    owner = [{"owner_user_id": uid}, {"gifted_to_email": email}]
     best = None
     async for c in db.gift_cards.find(
-            {"status": "active", "balance_cents": {"$gt": 0},
-             "$or": [{"owner_user_id": uid}, {"gifted_to_email": email}]}):
-        if best is None or c.get("balance_cents", 0) > best.get("balance_cents", 0):
+            {"status": "active", "balance_cents": {"$gt": 0}, "$or": owner}):
+        cb = c.get("business_id")
+        # Venue-scoped cards only apply at their own venue; generic cards apply anywhere.
+        if cb and business_id and cb != business_id:
+            continue
+        exact = bool(cb and business_id and cb == business_id)
+        best_exact = bool(best and best.get("business_id") == business_id and business_id)
+        if best is None:
+            best = c
+        elif exact and not best_exact:
+            best = c  # prefer a card scoped to this venue
+        elif exact == best_exact and c.get("balance_cents", 0) > best.get("balance_cents", 0):
             best = c
     return best
 
@@ -112,7 +122,7 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
     gift_applied = 0
     gift_card_id = None
     if body.use_gift_card:
-        gc = await _pick_gift_card(db, user)
+        gc = await _pick_gift_card(db, user, body.business_id)
         if gc:
             gift_applied = min(int(gc.get("balance_cents", 0)), subtotal)
             gift_card_id = gc.get("card_id")

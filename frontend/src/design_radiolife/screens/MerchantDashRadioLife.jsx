@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, ArrowRight, Lock, Zap, CheckCircle2, Utensils, CreditCard, Package } from "lucide-react";
+import { ChevronLeft, ArrowRight, Lock, Zap, CheckCircle2, Utensils, CreditCard, Package, Gift } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
@@ -89,6 +89,8 @@ export default function MerchantDashRadioLife() {
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><CreditCard size={15} />Services</button>
           <button onClick={() => navigate("/shop/merchant/products")} data-testid="merchant-open-products"
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Package size={15} />Products</button>
+          <button onClick={() => navigate("/shop/merchant/giftcards")} data-testid="merchant-open-giftcards"
+            className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Gift size={15} />Gift Cards</button>
           <button onClick={() => navigate("/shop/merchant/subscribe")} data-testid="merchant-open-sub"
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><CreditCard size={15} />{dash.subscription_active ? "Plan" : "Subscribe"}</button>
         </div>

@@ -1,0 +1,57 @@
+{
+  "summary": "Iter 60 — Phase E (Wave B) item 1 = MERCHANT GIFT CARDS backend + web + mobile FULL COVERAGE. Backend: 10/10 pytest passed (100%) in /app/backend/tests/test_iter60_marketplace_giftcards.py. Verified: (a) merchant CRUD — GET /api/merchant/marketplace/giftcards (returns demo's seeded item pinned to biz_8484f6f985d5), POST /items creates with denominations_cents [1000,2500,5000] + allow_points+allow_card+active + points_per_dollar=100, PATCH /items/{id} updates denoms + toggles allow_points off, DELETE /items/{id} removes, PATCH/DELETE unknown -> 404. (b) Denomination validation — empty list -> 400/422, all <100 -> 400 bad_denominations, >1_000_000 -> 400 bad_denominations. (c) Unauth to /api/merchant/marketplace/giftcards -> 401/403. (d) Consumer GET /api/shop/businesses/biz_8484f6f985d5/giftcards -> 200 with business_id, public_name, points_per_dollar=100, points_balance (int), items[] containing seeded $25/$50/$100. Unknown biz -> 404. (e) GET /api/shop/businesses/biz_8484f6f985d5 now returns has_giftcards=true. Cross-tenant check: other businesses' /giftcards listings only return their own items (no leak). (f) POST /api/giftcards/purchase method=points for demo -> 400 insufficient_points (expected, demo ~1600 pts < 2500). method=card -> 200 with checkout_url starting http + session_id; GET /purchase/{session_id}/status -> 200 pending (Stripe hosted page not completable in automation). WEB (RadioLife overlay, 1400x900, demo cookie via /api/auth/demo): /shop/merchant/giftcards renders rl-merchant-giftcards-page with mgc-form + mgc-denoms + mgc-allow-card + mgc-allow-points + mgc-save + 1 seeded mgc-item; e2e — filled '10, 20' + clicked mgc-save -> new mgc-item appears (count 1->2 -> back to 1 after mgc-del-{pid}); mgc-edit-{pid} clickable and pre-fills form (title changes to 'Edit gift card'). /shop/giftcards/biz_8484f6f985d5 renders rl-shop-giftcards-page with 1 gc-product-* + 3 gc-denom-* pills ($25/$50/$100) + gc-method-card + gc-method-points (shows '2500 pts') + gc-gift-email + gc-buy='Buy $25 gift card'. Entry links: /shop/merchant merchant-open-giftcards FOUND; /shop/biz_8484f6f985d5 shop-detail-giftcard FOUND (correctly gated by has_giftcards). MOBILE (Expo web preview, 390x844, demo bearer via demo-login-btn): /merchant/giftcards renders mgc-root + mgc-form + mgc-denoms + mgc-allow-card + mgc-allow-points + mgc-save + 1 mgc-item ($25 · $50 · $100 · Card · Points), UI matches web parity. /shop/giftcards/biz_8484f6f985d5 renders gc-root + 1 gc-product + 3 gc-denom-* pills + gc-method-card (selected) + gc-method-points='2500 pts' + gc-buy='Buy $25 gift card'. Entry links: /merchant/dashboard merchant-open-giftcards FOUND; /shop/biz_8484f6f985d5 shop-detail-giftcard FOUND. Full web<>mobile PARITY — same testIDs, same data, same denomination pills, same method toggles, same buy CTA. No red screens, no blocking bugs.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/shop/merchant/giftcards & /shop/giftcards/{id} at 1400px desktop", "issues": ["Same carryover cosmetic issue flagged in iter57-59: RadioLife overlay content sits in a narrow ~700px centered column (wave A max-w-3xl) leaving ~50% empty whitespace to the right on wide desktops. Not a blocker; mobile-first layout served as-is on desktop."]},
+        {"screen": "React DevTools console noise", "issues": ["'A props object containing a key prop is being spread into JSX' warning fires 3x on every /shop/* page load — coming from a shared list mapper (spread {...props, key}). Cosmetic React 18 warning, does not affect rendering."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Console warns 'shadow* style props are deprecated. Use boxShadow' on every /merchant/* & /shop/giftcards/* screen. Cosmetic warning only, carryover from iter59. Migrate shadowColor/shadowOffset/shadowOpacity/shadowRadius to boxShadow across StyleSheet.create calls."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents' warning still emitted on shop/home layout — carryover from iter59, non-blocking."},
+        {"component": "Mixed Content", "issue": "Console warns on Mixed Content for http://cdn-profiles.tunein.com/... images loaded on /home before navigating to gift-cards. Cosmetic on web preview; loads over http even though page is https. Not caused by Phase E."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter60_marketplace_giftcards.py",
+    "/app/test_reports/pytest/iter60.xml"
+  ],
+  "action_items": [
+    "(OPTIONAL/LOW) Auto-clean the shared `key` in spread props on RadioLife list mappers (3x console errors per /shop/* page load).",
+    "(OPTIONAL/LOW) Migrate mobile StyleSheet shadow* props to boxShadow (react-native-web deprecation warnings).",
+    "(OPTIONAL/LOW) Migrate mobile props.pointerEvents to style.pointerEvents.",
+    "(OPTIONAL) Consider widening the RadioLife /shop/* max-w on desktop or keeping current mobile-first framing — cosmetic carryover from iter57-59."
+  ],
+  "critical_code_review_comments": [
+    "routes/marketplace_giftcards.py:75-80 — the product doc stores `sponsor_name` snapshotted from marketplace_profiles.public_name at create time. If the merchant later renames their business, `sponsor_name` on existing gift-card PRODUCTS is stale until they PATCH (the PATCH branch at lines 92-94 does refresh sponsor_name). But issued gift_cards (routes/gift_cards.py:74) also snapshot sponsor_name at MINT time and stay stale forever. Consider deriving sponsor_name on read from the current marketplace_profiles record.",
+    "routes/marketplace_giftcards.py:52 — `_validate_denoms` silently DROPS out-of-range denoms and only raises 400 if the resulting list is empty. E.g. request [100, 2_000_000] returns 200 with [100] persisted — the client thinks 2M was accepted. Should either reject the entire request when any denom is out of range OR echo back the cleaned list so the client can reconcile.",
+    "routes/marketplace_giftcards.py:76 — `category` falls back to 'shop' which may not match the merchant's actual profile category (e.g. cafe/restaurant/wellness). Consider requiring category or defaulting to p.get('category') and only falling back to 'shop' if truly missing.",
+    "routes/marketplace_orders.py:43-62 (& marketplace_products.py:296) — `_pick_gift_card` iterates ALL of a user's active gift cards to pick best. For high-volume users this is O(N) per checkout. Add a Mongo compound index on gift_cards({owner_user_id:1, status:1, business_id:1, balance_cents:-1}).",
+    "routes/marketplace_giftcards.py:112-130 — consumer listing does NOT filter by market/geo. A user in Los Angeles browsing a Dubai venue's /giftcards page can buy a card that will only redeem in Dubai. Document this on the UI (venue-scoped redemption note) — the ShopGiftCardsRadioLife.jsx success text mentions 'auto-applies at checkout' but doesn't clarify VENUE-scoped.",
+    "frontend/ShopGiftCardsRadioLife.jsx:47 & mobile/[id].tsx — alert() on purchase failure is a poor UX for insufficient_points. Show inline error near gc-buy button (mobile already suppresses in some paths; verify both surfaces surface the error clearly).",
+    "MerchantGiftCardsRadioLife.jsx:23 & 33 — silent try/catch swallows load & save errors (alerts on parse failure only). A backend 400 bad_denominations after client validation fails silently — surface the error to the merchant."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter60_marketplace_giftcards.py",
+    "/app/test_reports/iteration_60.json",
+    "/app/test_reports/pytest/iter60.xml"
+  ],
+  "success_rate": {"backend": "100% (10/10 pytest)", "frontend": "Web: 100% (rl-merchant-giftcards-page CRUD e2e verified, rl-shop-giftcards-page renders + gc-buy CTA correct, both entry links FOUND); Mobile: 100% (mgc-root+form+items, gc-root+products+denoms+methods, both entry links FOUND, full parity with web)"},
+  "test_credentials": "Demo (cookie via POST /api/auth/demo on web, bearer via demo-login-btn on mobile) — demo@bigfm.dubai owns biz_8484f6f985d5 (approved+active) with pre-seeded gift-card product denoms $25/$50/$100. Points balance ~1600 (below 2500 = expected insufficient_points on smallest denom).",
+  "seed_data_creation": "Backend suite creates+deletes an ephemeral gcprod_* product per run (test_merchant_create_update_delete_giftcard). Web UI test also creates+deletes 1 gift-card product ('10, 20') on demo biz. Net-neutral — final state matches iter59.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "REGRESSION FILE: /app/backend/tests/test_iter60_marketplace_giftcards.py — 10 pytest tests covering merchant gift-card CRUD, denom validation, consumer listing, has_giftcards flag, purchase points/card paths, cross-tenant isolation. Re-run: `cd /app/backend && REACT_APP_BACKEND_URL=<url> MONGO_URL=mongodb://localhost:27017 DB_NAME=bigfm python -m pytest tests/test_iter60_marketplace_giftcards.py -v`. Uses cookie-based demo session (falls back to Authorization: Bearer if token returned). The venue-scoped `_pick_gift_card` fn was NOT exhaustively unit-tested end-to-end (would require completing a Stripe checkout to actually mint a venue-scoped card, then placing an order on a DIFFERENT venue and confirming the card doesn't auto-apply). Code review confirms the logic is correct (line 52 of marketplace_orders.py: `if cb and business_id and cb != business_id: continue`). Full parity verified: same testIDs on web and mobile, same denominations, same behavior. Phase E items still to build: Memberships → Packages → Events → Multi-Merchant Cart.",
+  "rca of the issue": "No blocking bugs. Phase E Wave B item 1 (Merchant Gift Cards) ships cleanly on both web and mobile. Backend correctly scopes new products to the merchant's biz_id (marketplace_giftcards.py:75), consumer listing filters by business_id+active (line 122), business_detail exposes has_giftcards from a live gift_card_products count (shop.py:87-88), and _pick_gift_card in both order routers respects venue scoping (marketplace_orders.py:52-53). One notable behavior: /validate_denoms silently drops out-of-range values without raising — flagged in code review, not a functional bug."
+}

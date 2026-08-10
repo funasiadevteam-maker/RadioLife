@@ -90,6 +90,13 @@ export default function BusinessDetail() {
       </ScrollView>
 
       <View style={s.footer}>
+        {biz.has_giftcards && (
+          <TouchableOpacity style={s.giftBtn} testID="shop-detail-giftcard"
+            onPress={() => router.push(`/shop/giftcards/${biz.business_id}`)}>
+            <Ionicons name="gift" size={16} color={COLORS.primary} />
+            <Text style={s.giftBtnText}>Buy a gift card</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={common.btnPrimary} testID="shop-detail-cta"
           onPress={() => {
             if (sells.includes('services')) router.push(`/shop/services/${biz.business_id}`);
@@ -125,4 +132,6 @@ const s = StyleSheet.create({
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   contactText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '700' },
   footer: { padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder, backgroundColor: COLORS.bg },
+  giftBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 2, borderColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 11, marginBottom: 10 },
+  giftBtnText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
 });

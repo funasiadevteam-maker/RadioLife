@@ -293,14 +293,23 @@ class ProductCheckoutBody(BaseModel):
     use_gift_card: bool = True
 
 
-async def _pick_gift_card(db, user):
+async def _pick_gift_card(db, user, business_id: Optional[str] = None):
     uid = user.get("user_id")
     email = (user.get("email") or "").lower()
     best = None
     async for c in db.gift_cards.find(
             {"status": "active", "balance_cents": {"$gt": 0},
              "$or": [{"owner_user_id": uid}, {"gifted_to_email": email}]}):
-        if best is None or c.get("balance_cents", 0) > best.get("balance_cents", 0):
+        cb = c.get("business_id")
+        if cb and business_id and cb != business_id:
+            continue
+        exact = bool(cb and business_id and cb == business_id)
+        best_exact = bool(best and best.get("business_id") == business_id and business_id)
+        if best is None:
+            best = c
+        elif exact and not best_exact:
+            best = c
+        elif exact == best_exact and c.get("balance_cents", 0) > best.get("balance_cents", 0):
             best = c
     return best
 
@@ -360,7 +369,7 @@ async def product_checkout(body: ProductCheckoutBody, request: Request,
     gross = subtotal + delivery_fee
     gift_applied, gift_card_id = 0, None
     if body.use_gift_card:
-        gc = await _pick_gift_card(db, user)
+        gc = await _pick_gift_card(db, user, body.business_id)
         if gc:
             gift_applied = min(int(gc.get("balance_cents", 0)), gross)
             gift_card_id = gc.get("card_id")
