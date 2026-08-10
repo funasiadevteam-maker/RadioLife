@@ -1,0 +1,60 @@
+{
+  "summary": "Iter 53 — 4 approved features: (1) Buy More BigCoin (Stripe topup), (2) Gift Card scratch-reveal + send-thanks, (3) Video PIP button, (4) Booking Reminders. BACKEND (pytest test_iter53_topup_reveal_reminders.py): 13/13 pass. BigCoin topup: /packages returns 4 items + points_balance (auth-gated, 401 without token), tp_500/1000/2500/5000 with correct total_bigcoin = bigcoin+bonus; /checkout with bogus package → 404, valid tp_500 → 200 with checkout_url starting https:// + session_id starting cs_; /status returns 'pending' before pay, 404 on unknown session. Gift Cards: /mine returns received_gift for all cards; POST /reveal on owned card flips revealed=true; POST /reveal on unknown → 404; POST /thanks on self-purchased returns 400 no_gifter (as spec); seeded a gifted card via mongo (buyer!=recipient) → /mine shows received_gift=true, /reveal ok, /thanks 200, thanks_sent flips to true, and a giftcard_thanks entry lands in station_notifications for the buyer's user_id. Bookings: /mine returns items with sponsor_name+venue_title (status=confirmed); POST /book enqueues a booking_reminder notification into station_notifications AND it surfaces in GET /api/me/notifications. MOBILE (Expo web preview, 390x844, demo login): /bigcoin-topup renders topup-root, topup-balance=788, all 4 topup-pkg-* buttons, topup-need-banner appears with ?needed=200 param; wallet tab shows wallet-topup-btn (labeled 'Top Up'); /giftcards Shop tab → after selecting method=points + gc-amt-5000 (>balance), gc-topup-gc_grind_coffee nudge renders; /giftcards My Cards tab shows the demo's own card (self-purchased) so no scratch/thanks UI (spec-expected — received_gift=false for self-purchased); /bookings renders bookings-reminder banner with 3 bk-mine-* lines from prior bookings. PIP: verified via source inspection at /app/mobile/app/podcast/episode/[id].tsx:352 — testID='mobile-episode-pip-btn' inside EpisodeVideoBlock which renders only when media.video_url is truthy (line 211). No video episode exists in DB (podcast_episodes has 0 with media_type=video / video_storage_key), so the button can't be rendered against real data without seeding video content + storage key. Spec explicitly says 'functional PIP only on native build; just verify the button renders where a video episode exists' — code is present but preview validation blocked by data.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Video PIP button rendering", "issue": "Cannot verify mobile-episode-pip-btn rendering in preview — no episode with a valid video_storage_key (or any media_type='video') exists in podcast_episodes. Media endpoint /api/podcasts/episodes/{id}/media derives video_url only from a signed URL against ep.video_storage_key (see /app/backend/routes/creator_video.py:44-50); a raw ep.video_url field is not surfaced. Seeded test data with video_url string was ignored; adding video_storage_key would fail signing against Tigris in preview. Suggest seeding one demo video episode via Creator Studio upload flow so QA can validate the button renders.", "affected_testIDs": ["mobile-episode-pip-btn"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated on RN-Web — use 'boxShadow'. CARRIED from iter38-52."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' CARRIED from iter38-52."},
+        {"component": "Mixed Content (tunein logos)", "issue": "http://cdn-profiles.tunein.com/... logos loaded over HTTPS. CARRIED from iter47-52."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter53_topup_reveal_reminders.py",
+    "/app/test_reports/pytest/iter53.xml",
+    "/tmp/iter53_topup.png",
+    "/tmp/iter53_wallet.png",
+    "/tmp/iter53_gc_mine.png",
+    "/tmp/iter53_bookings.png",
+    "/tmp/iter53_video_pip.png"
+  ],
+  "action_items": [
+    "LOW: Consider seeding a demo video podcast episode (with a real video_storage_key or a plain video_url passthrough in _media_payload) so QA can validate mobile-episode-pip-btn renders without needing a full upload. Currently video_url is ONLY produced by signing against ep.video_storage_key (backend/routes/creator_video.py:44) — plain ep.video_url on the doc is discarded.",
+    "LOW: Gift Card /mine — legacy cards created before the reveal/thanks feature return items without `revealed` / `thanks_sent` keys. Mobile client tolerates via optional chaining, but consider default-projecting these fields (`revealed: c.get('revealed', True), thanks_sent: c.get('thanks_sent', False)`) so contract is stable.",
+    "LOW (carried iter38-52): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (carried iter38-52): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (carried iter47-52): switch tunein.com logo URLs from http:// to https:// (or proxy)."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/bigcoin_topup.py:71 — origin_url falls back to BIGFM_PUBLIC_BASE_URL. Currently mobile client passes EXPO_PUBLIC_BACKEND_URL which is the API host; success_url therefore points at the backend URL rather than a real completion screen. Same pattern flagged for gift cards in iter52 — one shared fix would be to accept null and prefer BIGFM_PUBLIC_BASE_URL server-side.",
+    "backend/routes/bigcoin_topup.py:97-120 — /{session_id}/status has no ownership check: any authenticated user knowing a session_id could poll another user's topup. Consider filtering by `user_id: user['user_id']` on find_one (or verifying rec['user_id'] == uid before returning).",
+    "backend/routes/gift_cards.py:238-242 — reveal_card issues an unconditional $set revealed=true even if already revealed (safe but wasteful) and does not gate on gift_to_email — self-purchased cards are already revealed by construction (line 79) but the endpoint has no `revealed==false` precondition, so a caller can force revealed_at to update repeatedly. Consider `{revealed: {$ne: true}}` in the update filter.",
+    "backend/routes/merchant_marketplace.py:807-816 — booking_reminder enqueue is wrapped in try/except with only a logger.warning; a failure here would silently ship a booking with no reminder. That's acceptable for MVP but consider promoting to a background job with retry, since spec calls out the reminder as a primary feature.",
+    "mobile/app/bigcoin-topup.tsx:42 — origin_url: process.env.EXPO_PUBLIC_BACKEND_URL — see backend note above; this URL is not a user-facing surface. Consider omitting so server falls back to BIGFM_PUBLIC_BASE_URL.",
+    "mobile/app/podcast/episode/[id].tsx:352 — PIP button UI is present and testID-tagged, but there is no user-facing indication that PIP is a native-only capability (per spec). Consider a subtle 'Requires native app' hint or dev-only badge to avoid confused taps in preview."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter53_topup_reveal_reminders.py",
+    "/app/test_reports/iteration_53.json",
+    "/app/test_reports/pytest/iter53.xml"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 pass)",
+    "frontend": "Mobile: bigcoin-topup + wallet-topup-btn + gc-topup nudge + bookings-reminder all verified; PIP button code present but preview-blocked by lack of a seeded video episode."
+  },
+  "test_credentials": "Demo listener: POST /api/auth/demo → bearer token in `session_token` (demo@bigfm.dubai).",
+  "seed_data_creation": "Test used inline mongo seed of a gifted gift-card (buyer=fake TEST user, recipient=demo) inside test_thanks_gifted_card_notifies_buyer — cleaned up in finally block (card + user + notifications). Booking test created one confirmed booking on The Grind Coffee (kept, mirrors the /bookings/mine list). No permanent video-episode seed (attempted then rolled back).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Regression suites: test_iter53_topup_reveal_reminders.py (13p), test_iter52_gc_bookings.py (11p/1s), test_iter51_cs1_insights.py (16p). Export REACT_APP_BACKEND_URL. Mobile PIP button remains code-verified only; to validate rendering, seed a video podcast episode with video_storage_key pointing at a real Tigris object (or amend backend/routes/creator_video.py:_media_payload to also honor ep.video_url when video_storage_key is empty). Balance is 788 BigCoin; use /bigcoin-topup pkg tp_500 for the cheapest Stripe test top-up.",
+  "rca of the issue": "N/A — no functional regressions this iteration. Only doc note: PIP preview validation is blocked by test-data gap, not a code bug."
+}

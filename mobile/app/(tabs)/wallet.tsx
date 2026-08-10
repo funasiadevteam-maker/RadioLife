@@ -156,6 +156,12 @@ export default function WalletScreen() {
             </View>
             <Text style={st.actionLabel}>Bookings</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={st.actionBtn} onPress={() => router.push('/bigcoin-topup')} testID="wallet-topup-btn">
+            <View style={st.actionIcon}>
+              <Ionicons name="add-circle" size={20} color={COLORS.gold} />
+            </View>
+            <Text style={st.actionLabel}>Top Up</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Tabs */}

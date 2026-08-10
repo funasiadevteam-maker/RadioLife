@@ -28,10 +28,17 @@ export default function Bookings() {
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [booked, setBooked] = useState<Record<string, string>>({});
+  const [mine, setMine] = useState<{ booking_id: string; slot: string; sponsor_name?: string; venue_title?: string; party_size?: number }[]>([]);
 
   const load = useCallback(async () => {
-    try { const r = await api.get('/bookings/available'); setItems(r.data.items || []); }
-    catch { /* unauth */ }
+    try {
+      const [avail, m] = await Promise.all([
+        api.get('/bookings/available'),
+        api.get('/bookings/mine').catch(() => ({ data: { items: [] } })),
+      ]);
+      setItems(avail.data.items || []);
+      setMine(m.data.items || []);
+    } catch { /* unauth */ }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -46,6 +53,7 @@ export default function Bookings() {
       setBooked((p) => ({ ...p, [v.campaign_id]: `${slot} · party of ${party}` }));
       celebrate({ points: 0, title: `Booked at ${r.data.sponsor_name || v.title}!` });
       setOpenId(null); setSlot(''); setName(''); setPhone('');
+      load();
     } catch { /* inactive */ }
     finally { setBusy(false); }
   };
@@ -67,6 +75,21 @@ export default function Bookings() {
           onRefresh={() => { setRefreshing(true); load(); }} />}
         testID="bookings-root">
         <Text style={s.intro}>Reserve a table or appointment at local venues.</Text>
+
+        {mine.length > 0 && (
+          <View style={s.reminder} testID="bookings-reminder">
+            <View style={s.remHead}>
+              <Ionicons name="notifications" size={16} color={COLORS.primary} />
+              <Text style={s.remTitle}>Upcoming reservations</Text>
+            </View>
+            {mine.slice(0, 3).map((b) => (
+              <Text key={b.booking_id} style={s.remLine} testID={`bk-mine-${b.booking_id}`}>
+                {b.venue_title || b.sponsor_name} · {b.slot}{b.party_size ? ` · party of ${b.party_size}` : ''}
+              </Text>
+            ))}
+            <Text style={s.remHint}>We&apos;ll remind you before your slot.</Text>
+          </View>
+        )}
 
         {items.length === 0 && (
           <View style={s.card}>
@@ -145,6 +168,11 @@ const s = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder, backgroundColor: COLORS.bg },
   topTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900' },
   intro: { color: COLORS.textDim, fontSize: FONT.sm, marginBottom: SPACING.md },
+  reminder: { backgroundColor: COLORS.primary + '0F', borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.primary + '44', padding: SPACING.md, marginBottom: SPACING.md },
+  remHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  remTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
+  remLine: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700', marginBottom: 3 },
+  remHint: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 4 },
   card: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md, marginBottom: SPACING.md },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: SPACING.sm },
   vIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary + '18', alignItems: 'center', justifyContent: 'center' },

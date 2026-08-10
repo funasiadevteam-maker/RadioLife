@@ -1,8 +1,8 @@
 // Gift Card Market — buy or gift local venue gift cards with points or card.
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +19,8 @@ interface Product {
 interface Card {
   card_id: string; code: string; sponsor_name?: string;
   amount_cents: number; balance_cents: number; status: string;
-  gifted_to_email?: string | null;
+  gifted_to_email?: string | null; revealed?: boolean;
+  thanks_sent?: boolean; received_gift?: boolean; message?: string | null;
 }
 
 const CAT_ICON: Record<string, string> = {
@@ -181,7 +182,13 @@ export default function GiftCards() {
                         )}
                       </View>
                       {method === 'points' && !canAfford && (
-                        <Text style={s.warn}>Need {pointsCost - balance} more BigCoin.</Text>
+                        <TouchableOpacity style={s.topupNudge}
+                          onPress={() => router.push({ pathname: '/bigcoin-topup', params: { needed: String(pointsCost - balance) } })}
+                          testID={`gc-topup-${p.product_id}`}>
+                          <Ionicons name="add-circle" size={16} color={COLORS.primary} />
+                          <Text style={s.topupText}>Need {pointsCost - balance} more — buy BigCoin</Text>
+                          <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+                        </TouchableOpacity>
                       )}
 
                       <Text style={s.label}>GIFT TO (OPTIONAL)</Text>
@@ -222,25 +229,84 @@ export default function GiftCards() {
               </View>
             )}
             {mine.map((c) => (
-              <View key={c.card_id} style={s.card} testID={`gc-mine-${c.card_id}`}>
-                <View style={s.head}>
-                  <View style={s.vIcon}><Ionicons name="gift" size={20} color={COLORS.primary} /></View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={s.title} numberOfLines={1}>{c.sponsor_name || 'Gift Card'}</Text>
-                    <Text style={s.sub}>{c.code}</Text>
-                  </View>
-                  <Text style={s.bal}>{money(c.balance_cents)}</Text>
-                </View>
-                <Text style={s.mineMeta}>
-                  {money(c.amount_cents)} value · {c.status}
-                  {c.gifted_to_email ? ` · gifted to ${c.gifted_to_email}` : ''}
-                </Text>
-              </View>
+              <GiftCardRow key={c.card_id} card={c} onReveal={load} onThanks={load} />
             ))}
           </>
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function GiftCardRow({ card, onReveal, onThanks }: {
+  card: Card; onReveal: () => void; onThanks: () => void;
+}) {
+  const [revealed, setRevealed] = useState(!!card.revealed);
+  const [thanksSent, setThanksSent] = useState(!!card.thanks_sent);
+  const [busy, setBusy] = useState(false);
+  const cover = useRef(new Animated.Value(revealed ? 0 : 1)).current;
+  const isGift = !!card.received_gift;
+
+  const scratch = async () => {
+    if (busy) return;
+    setBusy(true);
+    Animated.timing(cover, { toValue: 0, duration: 550, useNativeDriver: true }).start();
+    try { await api.post(`/giftcards/${card.card_id}/reveal`); setRevealed(true); onReveal(); }
+    catch { /* ignore */ }
+    finally { setBusy(false); }
+  };
+
+  const sendThanks = async () => {
+    setBusy(true);
+    try { await api.post(`/giftcards/${card.card_id}/thanks`, { message: 'Thank you so much for the gift!' }); setThanksSent(true); onThanks(); }
+    catch { /* ignore */ }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <View style={s.card} testID={`gc-mine-${card.card_id}`}>
+      <View style={s.head}>
+        <View style={s.vIcon}><Ionicons name="gift" size={20} color={COLORS.primary} /></View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={s.title} numberOfLines={1}>{card.sponsor_name || 'Gift Card'}</Text>
+          <Text style={s.sub}>{revealed ? card.code : (isGift ? 'A gift for you!' : card.code)}</Text>
+        </View>
+        <Text style={s.bal}>{money(card.balance_cents)}</Text>
+      </View>
+
+      {isGift && !revealed ? (
+        <View style={s.scratchWrap}>
+          {!!card.message && <Text style={s.giftMsg}>“{card.message}”</Text>}
+          <Animated.View style={[s.scratchCover, { opacity: cover }]} pointerEvents="none">
+            <Ionicons name="sparkles" size={20} color="#fff" />
+            <Text style={s.scratchText}>Tap to scratch &amp; reveal</Text>
+          </Animated.View>
+          <TouchableOpacity style={s.scratchHit} onPress={scratch}
+            disabled={busy} testID={`gc-scratch-${card.card_id}`} />
+        </View>
+      ) : (
+        <>
+          <Text style={s.mineMeta}>
+            {money(card.amount_cents)} value · {card.status}
+            {card.gifted_to_email ? ` · gifted to ${card.gifted_to_email}` : ''}
+          </Text>
+          {isGift && (
+            thanksSent ? (
+              <View style={s.thanksDone} testID={`gc-thanks-done-${card.card_id}`}>
+                <Ionicons name="heart" size={14} color={COLORS.primary} />
+                <Text style={s.thanksDoneText}>Thanks sent</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={s.thanksBtn} onPress={sendThanks} disabled={busy}
+                testID={`gc-thanks-${card.card_id}`}>
+                <Ionicons name="heart-outline" size={15} color={COLORS.primary} />
+                <Text style={s.thanksText}>Send thanks</Text>
+              </TouchableOpacity>
+            )
+          )}
+        </>
+      )}
+    </View>
   );
 }
 
@@ -273,5 +339,16 @@ const s = StyleSheet.create({
   bookBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary, backgroundColor: COLORS.primary + '10' },
   bookText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
   warn: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '700', marginTop: 6 },
+  topupNudge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: RADIUS.md, backgroundColor: COLORS.primary + '10', borderWidth: 1, borderColor: COLORS.primary + '44' },
+  topupText: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', flex: 1 },
+  scratchWrap: { marginTop: 4, borderRadius: RADIUS.md, overflow: 'hidden', minHeight: 56, justifyContent: 'center', backgroundColor: COLORS.inputBg },
+  giftMsg: { color: COLORS.textDim, fontSize: FONT.sm, fontStyle: 'italic', padding: 12 },
+  scratchCover: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary },
+  scratchText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
+  scratchHit: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+  thanksBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10, paddingVertical: 8, paddingHorizontal: 14, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.primary, backgroundColor: COLORS.primary + '10' },
+  thanksText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
+  thanksDone: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  thanksDoneText: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800' },
   empty: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', marginTop: 8 },
 });

@@ -76,6 +76,7 @@ async def _issue_card(db, *, product: Dict[str, Any], amount_cents: int, buyer_i
         "balance_cents": amount_cents, "owner_user_id": owner_id, "buyer_user_id": buyer_id,
         "gifted_to_email": (gift_to_email or None), "message": message,
         "method": method, "status": "active", "idempotency_key": idempotency_key,
+        "revealed": gift_to_email is None, "thanks_sent": False,
         "created_at": _now(),
     }
     await db.gift_cards.insert_one(dict(card))
@@ -210,12 +211,63 @@ async def my_cards(request: Request, user: dict = Depends(current_user)):
     async for c in db.gift_cards.find(
             {"$or": [{"owner_user_id": uid}, {"gifted_to_email": email}]}).sort("created_at", -1):
         c.pop("_id", None)
+        c["received_gift"] = bool(c.get("buyer_user_id") and c.get("buyer_user_id") != uid)
         owned.append(c)
     async for c in db.gift_cards.find(
             {"buyer_user_id": uid, "gifted_to_email": {"$nin": [None, ""]}}).sort("created_at", -1):
         c.pop("_id", None)
         sent.append(c)
     return {"items": owned, "sent": sent, "total": len(owned)}
+
+
+async def _my_card(db, card_id: str, user: dict) -> Dict[str, Any]:
+    uid = user.get("user_id")
+    email = (user.get("email") or "").lower()
+    card = await db.gift_cards.find_one(
+        {"card_id": card_id,
+         "$or": [{"owner_user_id": uid}, {"gifted_to_email": email}]})
+    if not card:
+        raise HTTPException(404, {"code": "card_not_found"})
+    return card
+
+
+@router.post("/{card_id}/reveal")
+async def reveal_card(card_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _my_card(db, card_id, user)
+    await db.gift_cards.update_one(
+        {"card_id": card_id}, {"$set": {"revealed": True, "revealed_at": _now()}})
+    card = await db.gift_cards.find_one({"card_id": card_id})
+    card.pop("_id", None)
+    return {"ok": True, "card": card}
+
+
+class ThanksBody(BaseModel):
+    message: Optional[str] = Field(None, max_length=280)
+
+
+@router.post("/{card_id}/thanks")
+async def thank_gifter(card_id: str, body: ThanksBody, request: Request,
+                       user: dict = Depends(current_user)):
+    db = request.app.state.db
+    card = await _my_card(db, card_id, user)
+    buyer_id = card.get("buyer_user_id")
+    if not buyer_id or buyer_id == user.get("user_id"):
+        raise HTTPException(400, {"code": "no_gifter"})
+    try:
+        from routes.notifications import _enqueue
+        await _enqueue(
+            db, owner_user_id=buyer_id, station_id="giftcards",
+            station_slug="giftcards", type_="giftcard_thanks",
+            payload={"card_id": card_id, "sponsor_name": card.get("sponsor_name"),
+                     "from_name": user.get("name") or user.get("email"),
+                     "message": (body.message or "Thank you for the gift card!")[:200]},
+            dedupe_key=f"giftcard_thanks:{card_id}")
+    except Exception:
+        pass
+    await db.gift_cards.update_one(
+        {"card_id": card_id}, {"$set": {"thanks_sent": True, "thanks_at": _now()}})
+    return {"ok": True}
 
 
 __all__ = ["router"]

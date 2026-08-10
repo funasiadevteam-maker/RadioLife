@@ -802,6 +802,19 @@ async def create_booking(campaign_id: str, body: BookingBody, request: Request,
         "status": "confirmed", "created_at": _now(),
     }
     await db.venue_bookings.insert_one(dict(booking))
+    # In-app reminder — drop a confirmation + reminder into the listener's inbox.
+    try:
+        from routes.notifications import _enqueue
+        await _enqueue(
+            db, owner_user_id=user.get("user_id"), station_id="bookings",
+            station_slug="bookings", type_="booking_reminder",
+            payload={"campaign_id": campaign_id, "booking_id": booking["booking_id"],
+                     "sponsor_name": c.get("sponsor_name"), "title": c.get("title"),
+                     "slot": body.slot, "party_size": body.party_size,
+                     "booking_type": c.get("booking_type", "table")},
+            dedupe_key=f"booking_reminder:{booking['booking_id']}")
+    except Exception as _e:
+        logger.warning("booking reminder enqueue failed for %s: %s", campaign_id, _e)
     # CPA — the merchant pays only now that a booking happened.
     cost_usd = int(c.get("bid_cents", 0)) / 100.0
     new_spent = round(c.get("spent_usd", 0.0) + cost_usd, 4)
@@ -811,6 +824,21 @@ async def create_booking(campaign_id: str, body: BookingBody, request: Request,
     await db.merchant_campaigns.update_one({"campaign_id": campaign_id}, upd)
     booking.pop("_id", None)
     return {"ok": True, "booking": booking, "sponsor_name": c.get("sponsor_name")}
+
+
+@router.get("/api/bookings/mine")
+async def my_bookings(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    out = []
+    async for b in db.venue_bookings.find(
+            {"user_id": user.get("user_id"), "status": "confirmed"}).sort("created_at", -1).limit(20):
+        c = await db.merchant_campaigns.find_one(
+            {"campaign_id": b.get("campaign_id")}, {"sponsor_name": 1, "title": 1})
+        b.pop("_id", None)
+        b["sponsor_name"] = (c or {}).get("sponsor_name")
+        b["venue_title"] = (c or {}).get("title")
+        out.append(b)
+    return {"items": out, "total": len(out)}
 
 
 @router.get("/api/merchant/bookings/{campaign_id}")

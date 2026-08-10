@@ -334,7 +334,8 @@ function EpisodeVideoBlock({ media }: { media: any }) {
     : null;
   const chapters: { title: string; start_seconds: number }[] = media.chapters || [];
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const seek = (sec: number) => { if (player) { try { player.currentTime = sec; player.play(); } catch {} } };
+  const seek = (sec: number) => { if (player) { try { player.currentTime = sec; player.play(); } catch { /* noop */ } } };
+  const enterPip = () => { if (player) { try { player.startPictureInPicture(); } catch { /* pip unsupported */ } } };
 
   if (!ExpoVideo?.VideoView || !player) return null;
   const VideoView = ExpoVideo.VideoView;
@@ -348,6 +349,10 @@ function EpisodeVideoBlock({ media }: { media: any }) {
         contentFit="contain"
         nativeControls
       />
+      <TouchableOpacity style={st.pipBtn} onPress={enterPip} testID="mobile-episode-pip-btn" activeOpacity={0.8}>
+        <Ionicons name="scan-outline" size={16} color={COLORS.primary} />
+        <Text style={st.pipText}>Picture-in-Picture</Text>
+      </TouchableOpacity>
       {chapters.length > 0 && (
         <View testID="mobile-episode-chapters" style={{ marginTop: SPACING.md }}>
           <Text style={common.sectionTitle}>Chapters</Text>
@@ -381,6 +386,8 @@ function TranscriptBlock({ transcript }: { transcript: string }) {
 
 const st = StyleSheet.create({
   videoPlayer: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000', borderRadius: RADIUS.md },
+  pipBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: SPACING.sm, paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary, backgroundColor: COLORS.primary + '10' },
+  pipText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
   chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
   chapterTime: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', width: 44 },
   chapterTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '600', flex: 1 },
