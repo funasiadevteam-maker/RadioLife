@@ -1,0 +1,49 @@
+{
+  "summary": "Phase E item 5 (Multi-Merchant Cart) verified end-to-end on shared backend + web (RadioLife overlay) + mobile (Expo). Backend pytest 6/6 pass (1 skipped: two-venue split needs seed of >=2 product-selling venues — seed only ships biz_8484f6f985d5 with product inventory). All error paths confirmed: duplicate_business=400, address_required=400, business_unavailable=404, empty groups=422, unauth=401. Single-venue happy path confirmed: cart_id issued, order_ids array (per-venue) returned, session_id/checkout_url present when total>0, cart_id + session_id persisted on each product_order. Web: shop-cart-button + shop-cart-badge in ShopRadioLife header increments to 1 after prod-add-*; clicking icon navigates to /shop/cart (rl-shop-cart-page); cart-group-*, cart-item-*, cart-pickup-*, cart-delivery-*, and cart-checkout all wired; POST /shop/cart/checkout returned 200 with order_ids and cart_id (this iteration's demo user had gift-card balance covering the amount so session_id=null and code correctly bypassed Stripe — full-price Stripe redirect path was not exercised end-to-end but the API returns proper checkout_url when total>0 per backend tests via a fresh demo). Mobile: /shop/products/[id] renders prod-add-* which adds to Zustand useProductCart; prod-go-cart floats and navigates to /shop/product-cart (pcart-root); pcart-group-*, pcart-inc-*/pcart-dec-*, pcart-pickup-*/pcart-delivery-*, pcart-checkout all present; checkout POST returned 200 with order_ids + cart_id and celebrate 'Order placed with gift card! 🎉' overlay rendered. Full parity across web+mobile — same testID names (mirrored), same request shape, same backend contract. No critical bugs.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "ShopCartRadioLife empty state", "issues": ["After a gift-card-covered checkout, clear() removes groups but navigate('/shop/product-orders') briefly shows empty-cart state before route change; feels like a flash. Consider setting a redirect flag before clear(). Not a blocker."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_multi_merchant_cart.py",
+    "/app/test_reports/pytest/iter64_cart.xml"
+  ],
+  "action_items": [
+    "Consider seeding a second product-selling business (approved + subscription_active + priced in-stock products) so the two-venue split test is not permanently skipped. This is the only way to exercise the multi-venue orders array + shared cart_id in CI.",
+    "Optional hardening: web useProductCart.js has NO persist migration for pre-existing 'rl-shop-cart' keys — old stored carts will still hydrate; this is fine but note if store shape ever changes.",
+    "Optional hardening: mobile useProductCart.ts is in-memory only (no persist) — cart is lost on app reload. Web version persists to localStorage; mobile parity would improve UX with AsyncStorage/SecureStore persistence (see zustand/middleware persist)."
+  ],
+  "critical_code_review_comments": [
+    "cart_checkout Stripe hardcodes currency='usd' (line 576). Same pattern in memberships/packages/events noted in prior iterations — collect and refactor.",
+    "cart_checkout _price_group is called in a list comprehension with await inside; readable but each group blocks sequentially. For carts with many venues this could be parallelized with asyncio.gather. Not a correctness issue.",
+    "cart_checkout does NOT decrement stock or deduct gift card until the Stripe webhook / status poll settles. product_order_status handles this on poll — but a listener who never returns to the app leaves stock over-counted. Consider a periodic reconciler / webhook path.",
+    "duplicate_business check is O(n) linear on request thread — fine.",
+    "grand_total_cents in response sums per-order totals AFTER per-venue gift-card apply; UI 'Checkout ... · $X' currently shows the pre-gift subtotal (from client-side cart). Consider mentioning 'may be reduced by gift cards' or use grand_total_cents from the response after a preview call.",
+    "Mobile useProductCart.ts is missing zustand persist middleware — cart resets on app reload (web version persists). Small UX gap vs web parity."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_multi_merchant_cart.py",
+    "/app/test_reports/iteration_64.json"
+  ],
+  "success_rate": { "backend": "100% (6/6 executed, 1 skipped due to seed)", "frontend": "100%" },
+  "test_credentials": "Web/Mobile demo via POST /api/auth/demo → session_token bearer. demo@bigfm.dubai.",
+  "seed_data_creation": "None. Tests use existing seed biz_8484f6f985d5 with prod_4839d28c5f59 (price=500, stock=10) and prod_b954b4b39cf8 (price=0, stock=10). Two orders were created during testing (one web po_c13c3085f6d7, one mobile po_74987db8ac06) both covered by demo user's active gift card so no real Stripe checkout was needed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Multi-Merchant Cart (Phase E item 5) is complete on backend + web + mobile. The two-venue split test skips because seed lacks a 2nd approved subscription_active business with priced+stocked products — biz_8484f6f985d5 is the only one. To exercise the full multi-venue split, either (a) seed a 2nd product-selling business or (b) approve one of the existing demo businesses (grill/threads/glow/spice/pulse/brew) and add products via the merchant flow. The endpoint itself is verified via all 4 error paths + single-venue happy path + persistence check. Also note demo user has a large gift-card balance that fully covers small carts → session_id/checkout_url come back null. To force a Stripe session, either use use_gift_card=false in the payload OR add many high-price items to exceed gift balance. UI cart-checkout button always sends use_gift_card:true.",
+  "rca of the issue": ""
+}

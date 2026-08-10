@@ -272,6 +272,46 @@ export default function GamesHub() {
           ))}
         </View>
 
+        {/* Trivia Section — links to the full trivia hub (solo topics + live rooms) */}
+        <Text style={s.sectionTitle}>TRIVIA</Text>
+        <TouchableOpacity
+          style={s.triviaCard}
+          onPress={() => router.push('/trivia')}
+          activeOpacity={0.85}
+          testID="trivia-hub-card"
+        >
+          <View style={s.triviaIconWrap}>
+            <Ionicons name="bulb" size={28} color="#f59e0b" />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.predictTitle}>Trivia Challenge</Text>
+            <Text style={s.predictDesc}>
+              Pick a topic and play solo, or host & join live rooms with friends.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+        </TouchableOpacity>
+        <View style={s.triviaBtnRow}>
+          <TouchableOpacity
+            style={s.triviaBtn}
+            onPress={() => router.push('/trivia/rooms/create')}
+            activeOpacity={0.85}
+            testID="trivia-host-btn"
+          >
+            <Ionicons name="add" size={15} color="#fff" />
+            <Text style={s.triviaBtnText}>Host live room</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.triviaBtnGhost}
+            onPress={() => router.push('/trivia/join')}
+            activeOpacity={0.85}
+            testID="trivia-join-btn"
+          >
+            <Ionicons name="people" size={15} color={COLORS.primary} />
+            <Text style={s.triviaBtnGhostText}>Join with code</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Predict & Win Section */}
         <Text style={s.sectionTitle}>PREDICTIONS</Text>
         <TouchableOpacity
@@ -466,6 +506,31 @@ const s = StyleSheet.create({
   },
   predictTitle: { fontSize: FONT.lg, fontWeight: '900', color: COLORS.text, marginBottom: 2 },
   predictDesc: { fontSize: FONT.sm, color: COLORS.textDim, lineHeight: 18 },
+
+  // Trivia
+  triviaCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: '#f59e0b40',
+    padding: SPACING.lg, marginBottom: SPACING.md,
+  },
+  triviaIconWrap: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: '#f59e0b15',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  triviaBtnRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.lg },
+  triviaBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 11,
+  },
+  triviaBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '800' },
+  triviaBtnGhost: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.full, paddingVertical: 11,
+    borderWidth: 1, borderColor: COLORS.primary,
+  },
+  triviaBtnGhostText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
 
   // Campaign grid
   campaignGrid: { gap: 8, marginBottom: SPACING.lg },

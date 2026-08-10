@@ -12,6 +12,7 @@ import {
   Newspaper, Users as UsersIcon,
   Globe2,  // Phase 42-A — Live Radio nav icon
   Trophy,  // Phase 42-E1.2 — Predict & Win nav icon
+  ShoppingBag,  // Super Marketplace — Shop nav icon
 } from "lucide-react";
 
 import { useViewport } from "./useViewport";
@@ -69,6 +70,11 @@ const PRIMARY_NAV = [
   { key: "wallet",   label: "Wallet",     icon: WalletIcon,  path: "/wallet" },
 ];
 const SECONDARY_NAV = [
+  // Super Marketplace — Shop surfaced in the sidebar so listeners can
+  // reach the local marketplace (shops, food, services, products) from
+  // the classic design too. `/shop` always renders the RadioLife Shop
+  // overlay regardless of the active design variant.
+  { key: "shop",        label: "Shop",            icon: ShoppingBag, path: "/shop" },
   // Phase 41 P1 — News + Community surfaced in the sidebar nav. News
   // is the AI News Radio + /news headlines surface (shipped Phase 40);
   // Community is the user-station discovery + Create-My-Radio funnel

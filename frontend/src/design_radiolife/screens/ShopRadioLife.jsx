@@ -2,9 +2,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Search, Star, Store, ArrowRight, Coins } from "lucide-react";
+import { Search, Star, Store, ArrowRight, Coins, ShoppingCart } from "lucide-react";
 import { API } from "@/AuthContext";
 import { RLCard, RLChip } from "../DesignSystem";
+import { useProductCart } from "../useProductCart";
 
 function BizCard({ b }) {
   return (
@@ -37,6 +38,7 @@ export default function ShopRadioLife() {
   const [sort, setSort] = useState("featured");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const cartCount = useProductCart((st) => Object.values(st.groups).reduce((n, g) => n + g.items.reduce((m, i) => m + i.qty, 0), 0));
 
   useEffect(() => {
     Promise.all([
@@ -63,10 +65,21 @@ export default function ShopRadioLife() {
 
   return (
     <div className="px-4 pt-6 pb-8 space-y-4" data-testid="rl-shop-page">
-      <header>
-        <div className="text-orange-600 text-[11px] font-black tracking-widest">RADIOLIFE SHOP</div>
-        <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight mt-1">
-          {home?.headline || "SHOP LOCAL. EARN BIGPOINTS."}</h1>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-orange-600 text-[11px] font-black tracking-widest">RADIOLIFE SHOP</div>
+          <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight mt-1">
+            {home?.headline || "SHOP LOCAL. EARN BIGPOINTS."}</h1>
+        </div>
+        <Link to="/shop/cart" data-testid="shop-cart-button"
+          className="relative shrink-0 w-11 h-11 rounded-full bg-white border border-slate-200 flex items-center justify-center hover:shadow-md transition-shadow">
+          <ShoppingCart size={20} className="text-slate-700" />
+          {cartCount > 0 && (
+            <span data-testid="shop-cart-badge"
+              className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-orange-600 text-white text-[11px] font-black flex items-center justify-center">
+              {cartCount}</span>
+          )}
+        </Link>
       </header>
 
       <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-3">

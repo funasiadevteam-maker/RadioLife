@@ -47,6 +47,7 @@ import ShopBookingsRadioLife from "./screens/ShopBookingsRadioLife";
 import MerchantServicesRadioLife from "./screens/MerchantServicesRadioLife";
 // Phase D — ecommerce products, product orders, loyalty.
 import ShopProductsRadioLife from "./screens/ShopProductsRadioLife";
+import ShopCartRadioLife from "./screens/ShopCartRadioLife";
 import ShopProductOrdersRadioLife from "./screens/ShopProductOrdersRadioLife";
 import MerchantProductsRadioLife from "./screens/MerchantProductsRadioLife";
 import LoyaltyRadioLife from "./screens/LoyaltyRadioLife";
@@ -73,6 +74,7 @@ function screenFor(pathname) {
   if (pathname === "/shop") return ShopRadioLife;
   if (pathname === "/sell") return SellOnRadioLife;
   if (pathname === "/shop/orders") return ShopOrdersRadioLife;
+  if (pathname === "/shop/cart") return ShopCartRadioLife;
   if (pathname === "/shop/product-orders") return ShopProductOrdersRadioLife;
   if (pathname === "/shop/loyalty") return LoyaltyRadioLife;
   if (pathname === "/shop/bookings") return ShopBookingsRadioLife;

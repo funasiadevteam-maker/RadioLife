@@ -445,6 +445,158 @@ async def product_checkout(body: ProductCheckoutBody, request: Request,
             "delivery_fee_cents": delivery_fee, "gift_card_applied_cents": gift_applied}
 
 
+# ───────────── Multi-merchant cart (splits into one order per venue) ─────────────
+class CartGroup(BaseModel):
+    business_id: str
+    items: List[ProductCheckoutItem]
+    fulfillment: str = "pickup"
+    address: Optional[str] = Field(None, max_length=400)
+
+
+class CartCheckoutBody(BaseModel):
+    groups: List[CartGroup] = Field(..., min_length=1, max_length=20)
+    use_gift_card: bool = True
+    origin_url: Optional[str] = None
+
+
+async def _price_group(db, user, g: CartGroup, use_gift: bool = True):
+    """Validate + price one venue's basket. Returns a prepared dict or raises."""
+    if not g.items:
+        raise HTTPException(400, {"code": "empty_group", "business_id": g.business_id})
+    profile = await db.marketplace_profiles.find_one(
+        {"business_id": g.business_id, "status": "approved", "subscription_active": True})
+    if not profile:
+        raise HTTPException(404, {"code": "business_unavailable", "business_id": g.business_id})
+    delivery_cfg = profile.get("product_delivery") or DEFAULT_DELIVERY
+    if g.fulfillment == "delivery":
+        if not delivery_cfg.get("delivery"):
+            raise HTTPException(400, {"code": "delivery_unavailable", "business_id": g.business_id})
+        if not g.address:
+            raise HTTPException(400, {"code": "address_required", "business_id": g.business_id})
+    elif not delivery_cfg.get("pickup", True):
+        raise HTTPException(400, {"code": "pickup_unavailable", "business_id": g.business_id})
+
+    line_items, subtotal = [], 0
+    for ci in g.items:
+        prod = await db.products.find_one(
+            {"product_id": ci.product_id, "business_id": g.business_id, "active": True})
+        if not prod:
+            raise HTTPException(400, {"code": "product_unavailable", "product_id": ci.product_id})
+        price = int(prod.get("price_cents", 0))
+        avail = int(prod.get("stock", 0))
+        if ci.variant_label:
+            v = next((vv for vv in prod.get("variants", []) if vv["label"] == ci.variant_label), None)
+            if not v:
+                raise HTTPException(400, {"code": "variant_unavailable", "product_id": ci.product_id})
+            if int(v.get("price_cents") or 0) > 0:
+                price = int(v["price_cents"])
+            avail = int(v.get("stock", 0))
+        elif prod.get("variants"):
+            raise HTTPException(400, {"code": "variant_required", "product_id": ci.product_id})
+        if avail < ci.qty:
+            raise HTTPException(409, {"code": "out_of_stock", "product_id": ci.product_id})
+        subtotal += price * ci.qty
+        line_items.append({"product_id": ci.product_id, "variant_label": ci.variant_label,
+                           "name": prod.get("name"), "price_cents": price, "qty": ci.qty})
+    if subtotal <= 0:
+        raise HTTPException(400, {"code": "zero_total", "business_id": g.business_id})
+
+    delivery_fee = 0
+    if g.fulfillment == "delivery":
+        fee = int(delivery_cfg.get("fee_cents", 0))
+        free_over = int(delivery_cfg.get("free_over_cents", 0))
+        delivery_fee = 0 if (free_over > 0 and subtotal >= free_over) else fee
+
+    gross = subtotal + delivery_fee
+    gift_applied, gift_card_id = 0, None
+    if user and use_gift:
+        gc = await _pick_gift_card(db, user, g.business_id)
+        if gc:
+            gift_applied = min(int(gc.get("balance_cents", 0)), gross)
+            gift_card_id = gc.get("card_id")
+    total = gross - gift_applied
+    points = int(effective_points(profile).get("points", 0))
+    return {"profile": profile, "line_items": line_items, "subtotal": subtotal,
+            "delivery_fee": delivery_fee, "gift_applied": gift_applied,
+            "gift_card_id": gift_card_id, "total": total, "points": points}
+
+
+@consumer_router.post("/cart/checkout")
+async def cart_checkout(body: CartCheckoutBody, request: Request,
+                        user: dict = Depends(current_user)):
+    db = request.app.state.db
+    seen = set()
+    for g in body.groups:
+        if g.business_id in seen:
+            raise HTTPException(400, {"code": "duplicate_business", "business_id": g.business_id})
+        seen.add(g.business_id)
+
+    cart_id = new_id("cart")
+    prepared = [(g, await _price_group(db, user, g, body.use_gift_card)) for g in body.groups]
+
+    orders, paying = [], []
+    for g, pr in prepared:
+        order_id = new_id("po")
+        order = {"order_id": order_id, "cart_id": cart_id, "business_id": g.business_id,
+                 "business_name": pr["profile"].get("public_name"), "user_id": user.get("user_id"),
+                 "items": pr["line_items"], "subtotal_cents": pr["subtotal"],
+                 "delivery_fee_cents": pr["delivery_fee"], "fulfillment": g.fulfillment,
+                 "address": g.address, "gift_card_applied_cents": pr["gift_applied"],
+                 "gift_card_id": pr["gift_card_id"], "total_cents": pr["total"],
+                 "points_to_award": pr["points"], "points_awarded_done": False,
+                 "status": "pending_payment", "payment_status": "pending", "session_id": None,
+                 "status_history": [], "created_at": now(), "updated_at": now()}
+        orders.append((order, pr))
+        if pr["total"] > 0:
+            paying.append((order, pr))
+
+    async def _settle_free(order, pr):
+        if pr["gift_card_id"] and pr["gift_applied"] > 0:
+            card = await db.gift_cards.find_one({"card_id": pr["gift_card_id"]})
+            bal = int((card or {}).get("balance_cents", 0)); take = min(bal, pr["gift_applied"]); newb = bal - take
+            await db.gift_cards.update_one({"card_id": pr["gift_card_id"]},
+                {"$set": {"balance_cents": newb, "status": "active" if newb > 0 else "spent", "updated_at": now()}})
+            await db.gift_card_redemptions.insert_one({"redemption_id": new_id("gcr"), "card_id": pr["gift_card_id"],
+                "user_id": user.get("user_id"), "amount_cents": take, "balance_after_cents": newb,
+                "source": "marketplace_cart", "created_at": now()})
+        for li in pr["line_items"]:
+            if li.get("variant_label"):
+                await db.products.update_one({"product_id": li["product_id"], "variants.label": li["variant_label"]},
+                                             {"$inc": {"variants.$.stock": -li["qty"]}})
+            else:
+                await db.products.update_one({"product_id": li["product_id"]}, {"$inc": {"stock": -li["qty"]}})
+
+    session_id, checkout_url = None, None
+    if paying:
+        if not stripe.api_key:
+            raise HTTPException(503, {"code": "stripe_unconfigured"})
+        origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+        if not origin:
+            raise HTTPException(400, {"code": "origin_required"})
+        line_items = [{"price_data": {"currency": "usd",
+                       "product_data": {"name": f"{o['business_name']} — Order"},
+                       "unit_amount": o["total_cents"]}, "quantity": 1} for o, _ in paying]
+        session = stripe.checkout.Session.create(
+            mode="payment", line_items=line_items,
+            success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{origin}/payment/cancel",
+            metadata={"kind": "product_cart", "cart_id": cart_id})
+        session_id, checkout_url = session.id, session.url
+
+    for order, pr in orders:
+        if pr["total"] <= 0:
+            await _settle_free(order, pr)
+            order.update({"status": "paid", "payment_status": "paid",
+                          "status_history": [{"status": "paid", "at": now()}]})
+        else:
+            order["session_id"] = session_id
+        await db.product_orders.insert_one(dict(order))
+
+    return {"ok": True, "cart_id": cart_id, "order_ids": [o["order_id"] for o, _ in orders],
+            "checkout_url": checkout_url, "session_id": session_id,
+            "grand_total_cents": sum(o["total_cents"] for o, _ in orders)}
+
+
 @consumer_router.get("/product-orders")
 async def my_product_orders(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
