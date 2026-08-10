@@ -39,8 +39,10 @@ export default function CookieBanner() {
 
   // Phase AD.11 — suppress on admin routes (ops staff consent
   // separately via internal onboarding).  Rendered as null so the
-  // banner never obscures admin tables / actions.
+  // banner never obscures admin tables / actions.  Also suppressed on
+  // RadioLife Shop/Sell surfaces where a fixed bottom CTA would clash.
   if (pathname.startsWith("/admin")) return null;
+  if (pathname === "/shop" || pathname.startsWith("/shop/") || pathname === "/sell") return null;
 
   const acceptAll = () => {
     const v = { essential: true, analytics: true, advertising: true,

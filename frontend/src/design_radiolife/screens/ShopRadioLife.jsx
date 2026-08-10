@@ -115,7 +115,7 @@ export default function ShopRadioLife() {
               <RLChip key={k} active={sort === k} onClick={() => setSort(k)} data-testid={`shop-sort-${k}`}>{l}</RLChip>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {items.map((b) => <BizCard key={b.business_id} b={b} />)}
           </div>
           {items.length === 0 && <div className="text-center text-slate-400 py-8">No businesses found.</div>}
@@ -124,7 +124,7 @@ export default function ShopRadioLife() {
         sections.map((sec) => (
           <section key={sec.key} data-testid={`shop-section-${sec.key}`}>
             <h2 className="text-lg font-black text-slate-900 mb-2">{sec.title}</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {sec.items.slice(0, 6).map((b) => <BizCard key={b.business_id + sec.key} b={b} />)}
             </div>
           </section>

@@ -392,6 +392,15 @@ Backend (pre-built, curl-verified earlier; formally verified this turn): `routes
 - Tests: **iteration_59 — backend 31/31 pytest PASS**; web + mobile all testIDs functional; **100% cross-surface parity; no blocking bugs**. AI-photo endpoint not re-run (slow/rate-limit; upload path green).
 - Non-blocking follow-ups (from iter59 review): desktop whitespace on RadioLife `/shop/*` (mobile-first layout); cookie banner overlaps bottom CTA; RN `shadow*`/`pointerEvents` deprecation warnings; merchant balance-decrement ordering on delivered; unthrottled Stripe polling on order-status GET; loyalty tiers hardcoded in code (not admin-tunable yet).
 
+## SUPER MARKETPLACE — Wave A (Admin Loyalty Tuning + Shop Desktop Polish) SHIPPED (2026-06 fork)
+First wave of the post-Phase-D backlog (build order confirmed with user: Wave A → Phase E → Multi-Merchant Cart).
+- **Admin Loyalty Tuning**: loyalty tiers/perks are no longer hardcoded. `services/loyalty.py` now loads the ladder from `marketplace_loyalty_config` (single doc `config_id="global"`, idempotently seeded from `DEFAULT_TIERS` on first read; `get_tiers()` sorts ascending by min_points). New admin endpoints `GET/PUT /api/admin/marketplace/loyalty` (validates: non-empty, unique keys, base tier min_points==0). Web admin `/admin/marketplace` gains a **Loyalty Tiers** tab (`mkt-tab-loyalty`) — per-tier color/key/name/min-pts/bonus-%/perks editor with add/remove + Save (`loy-save`). Consumer `GET /api/shop/loyalty` + `award_with_tier_bonus` read the live config. Verified via curl (GET seeds defaults, PUT updates + validation 400) and admin-UI screenshot (4 tiers editable).
+- **Shop Desktop Polish**: `AppShellRadioLife` takes a `wide` prop → container `max-w-3xl` (vs `max-w-md`) for all `/shop/*` + `/sell` routes (passed from `RadioLifeOverlay` via `shopRoute`); business grids on Shop home/browse now `grid-cols-2 sm:grid-cols-3`; fixed CTAs on business-detail + products cart widened to `max-w-3xl`. Cookie banner now suppressed on Shop/Sell routes (was overlapping the bottom checkout CTA). Verified via desktop screenshot (3-up grid fills width, no banner overlap).
+- Self-tested (curl + screenshots); loyalty award path unchanged (defaults identical to prior hardcoded tiers, exercised by iter59 delivery/pickup/booking flows). No mobile changes in this wave.
+
+## SUPER MARKETPLACE — Wave B = Phase E (Gift Cards / Memberships / Packages / Events) — NEXT
+User-confirmed order: (1) Merchant Gift Cards, (2) Memberships, (3) Packages, (4) Events. Memberships = **recurring Stripe subscriptions** AND **entitlement/benefit rules** (e.g. "1 free coffee daily", meal plans — customer redeems included items per rules). Then Wave C = Multi-Merchant Cart (split into one order per merchant at checkout, single payment).
+
 ## Backlog (P0/P1/P2)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

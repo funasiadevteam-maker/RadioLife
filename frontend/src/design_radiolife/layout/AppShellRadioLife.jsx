@@ -10,6 +10,7 @@ export default function AppShellRadioLife({
   children,
   showBottomNav = true,
   bare = false,
+  wide = false,
   className = "",
 }) {
   const setVariant = useDesignVariantStore((s) => s.setVariant);
@@ -32,7 +33,7 @@ export default function AppShellRadioLife({
           <Sparkles size={12} /> Legacy
         </button>
       )}
-      <div className={"mx-auto max-w-md " + (showBottomNav ? "pb-24" : "pb-4")}>
+      <div className={"mx-auto " + (wide ? "max-w-3xl" : "max-w-md") + " " + (showBottomNav ? "pb-24" : "pb-4")}>
         {children}
       </div>
       {showBottomNav && !bare && <BottomNavRadioLife />}

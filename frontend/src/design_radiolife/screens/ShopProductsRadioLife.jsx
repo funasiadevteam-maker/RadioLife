@@ -108,7 +108,7 @@ export default function ShopProductsRadioLife() {
       </div>
 
       {entries.length > 0 && (
-        <div className="fixed bottom-16 left-0 right-0 max-w-md mx-auto px-4 py-3 bg-white border-t border-slate-200" data-testid="prod-cart-bar">
+        <div className="fixed bottom-16 left-0 right-0 max-w-3xl mx-auto px-4 py-3 bg-white border-t border-slate-200" data-testid="prod-cart-bar">
           <div className="max-h-24 overflow-y-auto mb-2 space-y-1">
             {entries.map(([k, it]) => (
               <div key={k} className="flex items-center justify-between text-sm">

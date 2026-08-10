@@ -19,7 +19,7 @@ export default function AdminMarketplacePhaseA() {
       </div>
       <div style={s.tabs}>
         {[["economics", "BigPoints Economics"], ["categories", "Categories"],
-          ["commission", "Commission Rules"], ["approvals", "Approvals"]].map(([k, label]) => (
+          ["commission", "Commission Rules"], ["loyalty", "Loyalty Tiers"], ["approvals", "Approvals"]].map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)} data-testid={`mkt-tab-${k}`}
             style={{ ...s.tabBtn, ...(tab === k ? s.tabActive : {}) }}>{label}</button>
         ))}
@@ -27,6 +27,7 @@ export default function AdminMarketplacePhaseA() {
       {tab === "economics" && <Economics />}
       {tab === "categories" && <Categories />}
       {tab === "commission" && <Commission />}
+      {tab === "loyalty" && <Loyalty />}
       {tab === "approvals" && <Approvals />}
     </div>
   );
@@ -162,6 +163,62 @@ function Commission() {
             {r.active ? "active" : "inactive"}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function Loyalty() {
+  const [tiers, setTiers] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const load = useCallback(async () => {
+    try { const { data } = await axios.get(`${API}/loyalty`, CFG); setTiers(data.tiers || []); }
+    catch { toast.error("Failed to load loyalty tiers"); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const upd = (i, patch) => setTiers((t) => t.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
+  const addTier = () => setTiers((t) => [...t, { key: `tier${t.length + 1}`, name: "New Tier", min_points: 0, bonus_pct: 0, color: "#888888", perks: [] }]);
+  const removeTier = (i) => setTiers((t) => t.filter((_, idx) => idx !== i));
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body = { tiers: tiers.map((t) => ({ key: t.key.trim(), name: t.name.trim(), min_points: Number(t.min_points) || 0, bonus_pct: Number(t.bonus_pct) || 0, color: t.color || "#888888", perks: (Array.isArray(t.perks) ? t.perks : String(t.perks || "").split(",")).map((p) => p.trim()).filter(Boolean) })) };
+      const { data } = await axios.put(`${API}/loyalty`, body, CFG);
+      setTiers(data.tiers || []); toast.success("Loyalty tiers saved");
+    } catch (e) { toast.error(e?.response?.data?.detail?.code || "Save failed (base tier must start at 0, keys unique)"); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div data-testid="mkt-loyalty">
+      <div style={s.card}>
+        <div style={s.cardTitle}>Loyalty ladder — thresholds & bonus % (from lifetime BigPoints)</div>
+        <div style={s.dim}>The lowest tier must start at 0 points. Bonus % is applied on marketplace rewards.</div>
+      </div>
+      {tiers.map((t, i) => (
+        <div key={i} style={s.listRow} data-testid={`loy-tier-${i}`}>
+          <input type="color" value={t.color || "#888888"} data-testid={`loy-color-${i}`}
+            onChange={(e) => upd(i, { color: e.target.value })} style={{ width: 34, height: 34, border: "none", background: "none", cursor: "pointer" }} />
+          <input style={{ ...s.miniInput, width: 90 }} value={t.key} placeholder="key" data-testid={`loy-key-${i}`}
+            onChange={(e) => upd(i, { key: e.target.value })} />
+          <input style={{ ...s.miniInput, width: 110 }} value={t.name} placeholder="name" data-testid={`loy-name-${i}`}
+            onChange={(e) => upd(i, { name: e.target.value })} />
+          <label style={s.inline}>Min pts
+            <input style={s.miniInput} type="number" value={t.min_points} data-testid={`loy-min-${i}`}
+              onChange={(e) => upd(i, { min_points: e.target.value })} /></label>
+          <label style={s.inline}>Bonus %
+            <input style={s.miniInput} type="number" value={t.bonus_pct} data-testid={`loy-bonus-${i}`}
+              onChange={(e) => upd(i, { bonus_pct: e.target.value })} /></label>
+          <input style={{ ...s.input, flex: 1, minWidth: 160 }} placeholder="perks (comma separated)"
+            value={Array.isArray(t.perks) ? t.perks.join(", ") : t.perks} data-testid={`loy-perks-${i}`}
+            onChange={(e) => upd(i, { perks: e.target.value.split(",") })} />
+          <button style={s.danger} onClick={() => removeTier(i)} data-testid={`loy-remove-${i}`}>Remove</button>
+        </div>
+      ))}
+      <div style={s.row}>
+        <button style={s.ghost} onClick={addTier} data-testid="loy-add">+ Add tier</button>
+        <button style={s.primary} onClick={save} disabled={saving} data-testid="loy-save">{saving ? "Saving…" : "Save Loyalty Tiers"}</button>
+      </div>
     </div>
   );
 }

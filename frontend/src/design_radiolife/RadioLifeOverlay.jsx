@@ -120,7 +120,7 @@ export default function RadioLifeOverlay() {
     <div
       className="fixed inset-0 z-[80] overflow-y-auto"
       data-testid="rl-overlay">
-      <AppShellRadioLife showBottomNav={!hideNav && !isBare} bare={isBare}>
+      <AppShellRadioLife showBottomNav={!hideNav && !isBare} bare={isBare} wide={shopRoute}>
         <Screen />
       </AppShellRadioLife>
     </div>

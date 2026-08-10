@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from auth import require_admin
 from services.marketplace import now, new_id, resolve_point_cost_cents, resolve_commission
+from services.loyalty import get_tiers as loyalty_get_tiers
 
 router = APIRouter(prefix="/api/admin/marketplace", tags=["marketplace-admin"])
 
@@ -231,6 +232,46 @@ async def dashboard(request: Request, _a=Depends(require_admin)):
         "example_point_cost_cents": await resolve_point_cost_cents(db),
         "example_commission": await resolve_commission(db, category="restaurant"),
     }
+
+
+# ───────────── Loyalty Tiers (admin-configurable) ─────────────
+class LoyaltyTier(BaseModel):
+    key: str = Field(..., min_length=1, max_length=40)
+    name: str = Field(..., min_length=1, max_length=60)
+    min_points: int = Field(..., ge=0, le=100_000_000)
+    bonus_pct: float = Field(..., ge=0, le=100)
+    color: str = Field("#b08d57", min_length=3, max_length=20)
+    perks: List[str] = []
+
+
+class LoyaltyConfigBody(BaseModel):
+    tiers: List[LoyaltyTier]
+
+
+@router.get("/loyalty")
+async def get_loyalty(request: Request, _a=Depends(require_admin)):
+    db = request.app.state.db
+    return {"tiers": await loyalty_get_tiers(db)}
+
+
+@router.put("/loyalty")
+async def put_loyalty(body: LoyaltyConfigBody, request: Request, _a=Depends(require_admin)):
+    db = request.app.state.db
+    if not body.tiers:
+        raise HTTPException(400, {"code": "tiers_required"})
+    tiers = [t.model_dump() for t in body.tiers]
+    keys = [t["key"] for t in tiers]
+    if len(set(keys)) != len(keys):
+        raise HTTPException(400, {"code": "duplicate_tier_keys"})
+    tiers.sort(key=lambda t: t["min_points"])
+    if tiers[0]["min_points"] != 0:
+        raise HTTPException(400, {"code": "base_tier_must_start_at_zero"})
+    await db.marketplace_loyalty_config.update_one(
+        {"config_id": "global"},
+        {"$set": {"tiers": tiers, "updated_at": now()},
+         "$setOnInsert": {"config_id": "global", "created_at": now()}},
+        upsert=True)
+    return {"ok": True, "tiers": tiers}
 
 
 __all__ = ["router"]
