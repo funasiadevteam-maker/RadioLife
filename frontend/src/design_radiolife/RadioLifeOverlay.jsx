@@ -56,6 +56,9 @@ import MerchantGiftCardsRadioLife from "./screens/MerchantGiftCardsRadioLife";
 // Phase E — memberships.
 import ShopMembershipsRadioLife from "./screens/ShopMembershipsRadioLife";
 import MerchantMembershipsRadioLife from "./screens/MerchantMembershipsRadioLife";
+// Phase E — packages.
+import ShopPackagesRadioLife from "./screens/ShopPackagesRadioLife";
+import MerchantPackagesRadioLife from "./screens/MerchantPackagesRadioLife";
 
 const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
@@ -76,12 +79,14 @@ function screenFor(pathname) {
   if (pathname === "/shop/merchant/products") return MerchantProductsRadioLife;
   if (pathname === "/shop/merchant/giftcards") return MerchantGiftCardsRadioLife;
   if (pathname === "/shop/merchant/memberships") return MerchantMembershipsRadioLife;
+  if (pathname === "/shop/merchant/packages") return MerchantPackagesRadioLife;
   if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;
   if (pathname.startsWith("/shop/services/")) return ShopServicesRadioLife;
   if (pathname.startsWith("/shop/products/")) return ShopProductsRadioLife;
   if (pathname.startsWith("/shop/giftcards/")) return ShopGiftCardsRadioLife;
   if (pathname.startsWith("/shop/memberships/")) return ShopMembershipsRadioLife;
+  if (pathname.startsWith("/shop/packages/")) return ShopPackagesRadioLife;
   if (pathname.startsWith("/shop/")) return ShopBusinessRadioLife;
   if (pathname === "/discover") return DiscoverRadioLife;
   if (pathname === "/play") return GamingRadioLife;

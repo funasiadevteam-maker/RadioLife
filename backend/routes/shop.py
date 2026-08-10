@@ -88,6 +88,8 @@ async def business_detail(business_id: str, request: Request,
         await db.gift_card_products.find_one({"business_id": business_id, "active": True}))
     card["has_memberships"] = bool(
         await db.membership_plans.find_one({"business_id": business_id, "active": True}))
+    card["has_packages"] = bool(
+        await db.package_products.find_one({"business_id": business_id, "active": True}))
     # Happy Hour live state for consumer.
     from services.marketplace import effective_points
     eff = effective_points(p)

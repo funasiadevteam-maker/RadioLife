@@ -93,6 +93,8 @@ export default function MerchantDashRadioLife() {
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Gift size={15} />Gift Cards</button>
           <button onClick={() => navigate("/shop/merchant/memberships")} data-testid="merchant-open-memberships"
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Crown size={15} />Memberships</button>
+          <button onClick={() => navigate("/shop/merchant/packages")} data-testid="merchant-open-packages"
+            className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Package size={15} />Packages</button>
           <button onClick={() => navigate("/shop/merchant/subscribe")} data-testid="merchant-open-sub"
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><CreditCard size={15} />{dash.subscription_active ? "Plan" : "Subscribe"}</button>
         </div>

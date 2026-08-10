@@ -104,6 +104,13 @@ export default function BusinessDetail() {
             <Text style={s.memBtnText}>Memberships</Text>
           </TouchableOpacity>
         )}
+        {biz.has_packages && (
+          <TouchableOpacity style={s.giftBtn} testID="shop-detail-package"
+            onPress={() => router.push(`/shop/packages/${biz.business_id}`)}>
+            <Ionicons name="cube" size={16} color={COLORS.primary} />
+            <Text style={s.giftBtnText}>Packages</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={common.btnPrimary} testID="shop-detail-cta"
           onPress={() => {
             if (sells.includes('services')) router.push(`/shop/services/${biz.business_id}`);
