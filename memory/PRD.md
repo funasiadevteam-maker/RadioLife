@@ -302,7 +302,19 @@ remove friction in the trivia funnel (one-click topic start).
 - **Fix during this session — wallet_v2_service Points balance**: Phase F-2 ledger flip left `/api/wallet/me` reading the legacy `users.bigcoin_balance` mirror. AD.8 daily-code awards go through `PointsService.award(source="daily_code_claim")` which does NOT dual-write. Patched `wallet_v2_service.py:166-181` to source `points_balance` from `PointsService.get_balance()` (ledger truth) with legacy fallback.
 - Tests: 22/22 backend PASS (`test_ad8_daily_code_and_auction_boost.py` at iteration_29) — includes multi-day backdated seed harness for 3d/7d/14d ladder rungs + streak-reset when yesterday missing + 20% pending_admin gate for all three boostable ad_types. Frontend live-verified in both `?design=legacy` and `?design=radiolife`. Zero regressions.
 
+## Phase MON.3 — Booking CPA + Gift Card Market (mobile UI) + Chapter Scrubber Markers (2026-08-10) — SHIPPED
+- **Booking CPA (mobile)**: `/app/mobile/app/bookings.tsx` wired into the Wallet tab action row (`wallet-bookings-btn`). Lists venues from active booking-type campaigns (`GET /api/bookings/available`), expandable slot/party/name/phone form → `POST /api/bookings/{campaign_id}/book` with confetti confirmation.
+- **Gift Card Market (mobile)**: new `/app/mobile/app/giftcards.tsx` wired into Wallet action row (`wallet-giftcards-btn`). Shop tab lists auto-seeded catalog (`GET /api/giftcards/catalog`) with BigCoin balance pill; per-product buy panel supports amount denominations + pay-with points|card + optional gift-to email/message → `POST /api/giftcards/purchase` (points redeems instantly & celebrates; card opens Stripe checkout via WebBrowser). "My Cards" tab lists owned/gifted cards (`GET /api/giftcards/mine`).
+- **Chapter Scrubber Markers**: `podcast/episode/[id].tsx` — new `ChapterScrubber` component draws gold chapter tick marks + progress fill/thumb on the audio player track; tap a marker to seek. Falls back to a chapter-derived layout duration when real duration is 0/unknown so markers always render (fix from iter52 HIGH).
+- Backend for gift cards (`routes/gift_cards.py`, Phase GC.1) and bookings (in `routes/merchant_marketplace.py`) was pre-built; this phase delivered the mobile UIs + scrubber.
+- Tests: iteration_52 — 11/12 backend PASS (points purchase skipped: demo balance < smallest denom, not a bug). Mobile: all testIDs present; scrubber markers confirmed rendering (count=2) after fix. Self-verified via screenshot.
+- **Known minor (non-blocking, not in scope this phase)**: giftcards points-purchase idempotency key uses a fresh uuid per request (client `busy` guard prevents double-tap); giftcards Stripe `origin_url` uses the API host (consistent with existing platform checkout pattern).
+
 ## Backlog (P0/P1/P2)
+- **P1** Picture-in-Picture for Creator Studio video podcasts.
+- **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).
+- **P2** More business monetization: Lead Gen CPL, Prepaid Offers, Business Memberships.
+- **P2** Verify 100% cream/orange "New Look" parity across remaining components.
 - **P2 · Deferred** AD.7.1 — Split-the-bill (needs group-checkout primitives, deferred from AD.3).
 - **P2 · Blocked** AD.9 — Podcast Completion Points (blocked on Track 3 podcast infra).
 - **P2 · Blocked** AD.5 — Trivia Sponsorship (blocked on trivia infra maturation).

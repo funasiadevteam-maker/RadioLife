@@ -277,7 +277,14 @@ function ChapterScrubber({ pos, dur, chapters, onSeek }: {
   onSeek: (sec: number) => void;
 }) {
   const [w, setW] = useState(0);
-  if (dur <= 0 && chapters.length === 0) return null;
+  const hasChapters = chapters.length > 0;
+  // Real playback duration drives the fill/thumb; when unknown (e.g. before
+  // playback or a seeded episode with duration 0) fall back to the last
+  // chapter start so markers still lay out correctly.
+  const layoutDur = dur > 0
+    ? dur
+    : (hasChapters ? Math.max(...chapters.map((c) => c.start_seconds)) * 1.15 + 30 : 0);
+  if (layoutDur <= 0) return null;
   const pct = dur > 0 ? Math.min(1, Math.max(0, pos / dur)) : 0;
   return (
     <View style={st.scrubberWrap} testID="mobile-episode-scrubber">
@@ -287,13 +294,13 @@ function ChapterScrubber({ pos, dur, chapters, onSeek }: {
         onPress={(e) => { if (dur > 0 && w > 0) onSeek((e.nativeEvent.locationX / w) * dur); }}
       >
         <View style={[st.scrubFill, { width: `${pct * 100}%` }]} />
-        {dur > 0 && chapters.map((c, i) => (
+        {chapters.map((c, i) => (
           <TouchableOpacity
             key={`m-${c.start_seconds}-${i}`}
             testID={`mobile-scrubber-marker-${i}`}
             hitSlop={10}
             onPress={() => onSeek(c.start_seconds)}
-            style={[st.scrubMarker, { left: `${Math.min(100, Math.max(0, (c.start_seconds / dur) * 100))}%` }]}
+            style={[st.scrubMarker, { left: `${Math.min(100, Math.max(0, (c.start_seconds / layoutDur) * 100))}%` }]}
           />
         ))}
         {dur > 0 && <View style={[st.scrubThumb, { left: `${pct * 100}%` }]} />}
