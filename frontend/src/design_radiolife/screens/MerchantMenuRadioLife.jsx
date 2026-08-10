@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Sparkles, Image as ImageIcon, FileText, Grid3x3, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, Sparkles, Image as ImageIcon, FileText, Grid3x3, Pencil, Trash2, Camera } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
@@ -27,7 +27,9 @@ export default function MerchantMenuRadioLife() {
   const [importing, setImporting] = useState(null);
   const [preview, setPreview] = useState(null);
   const [msg, setMsg] = useState(null);
-  const imgRef = useRef(); const pdfRef = useRef(); const xlsRef = useRef();
+  const [photoBusy, setPhotoBusy] = useState(null);
+  const [photoTarget, setPhotoTarget] = useState(null);
+  const imgRef = useRef(); const pdfRef = useRef(); const xlsRef = useRef(); const photoRef = useRef();
 
   const load = useCallback(async () => {
     try { const r = await axios.get(`${API}/merchant/marketplace/menu`); setItems(r.data.items || []); }
@@ -49,6 +51,24 @@ export default function MerchantMenuRadioLife() {
   };
   const edit = (it) => { setEditingId(it.item_id); setForm({ section: it.section || "", name: it.name || "", description: it.description || "", price: ((it.price_cents || 0) / 100).toString() }); };
   const del = async (id) => { try { await axios.delete(`${API}/merchant/marketplace/menu/items/${id}`); load(); } catch { /* ignore */ } };
+
+  const clickPhoto = (itemId) => { setPhotoTarget(itemId); photoRef.current?.click(); };
+  const onPhotoFile = async (e) => {
+    const file = e.target.files?.[0]; const itemId = photoTarget;
+    e.target.value = "";
+    if (!file || !itemId) return;
+    setPhotoBusy(itemId);
+    try {
+      const b64 = await fileToBase64(file);
+      await axios.post(`${API}/merchant/marketplace/menu/items/${itemId}/photo`, { file_base64: b64, ext: "jpg" });
+      load();
+    } catch { /* ignore */ } finally { setPhotoBusy(null); setPhotoTarget(null); }
+  };
+  const aiPhoto = async (itemId) => {
+    setPhotoBusy(itemId);
+    try { await axios.post(`${API}/merchant/marketplace/menu/items/${itemId}/photo/ai`, {}); load(); }
+    catch { /* ignore */ } finally { setPhotoBusy(null); }
+  };
 
   const runAiUrl = async () => {
     if (!importUrl.trim()) return;
@@ -116,6 +136,7 @@ export default function MerchantMenuRadioLife() {
           <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => onFile(e, "pdf")} />
           <input ref={xlsRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => onFile(e, "file")} />
         </div>
+        <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={onPhotoFile} />
 
         {preview && preview.length > 0 && (
           <div className="bg-white border-2 border-green-500 rounded-2xl p-4" data-testid="import-preview">
@@ -150,10 +171,17 @@ export default function MerchantMenuRadioLife() {
           <div key={sec}>
             <h3 className="text-base font-black text-slate-900 mb-2">{sec}</h3>
             {grouped[sec].map((it) => (
-              <div key={it.item_id} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-3 mb-2" data-testid={`builder-item-${it.item_id}`}>
+              <div key={it.item_id} className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3 mb-2" data-testid={`builder-item-${it.item_id}`}>
+                {it.image_url
+                  ? <img src={it.image_url} alt={it.name} className="w-12 h-12 rounded-lg object-cover bg-slate-100" />
+                  : <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center"><Camera size={16} className="text-slate-400" /></div>}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-900">{it.name}</div>
                   <div className="text-sm font-black text-orange-600">{money(it.price_cents)}</div>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => clickPhoto(it.item_id)} disabled={!!photoBusy} data-testid={`builder-upload-${it.item_id}`} className="flex items-center gap-1 bg-orange-50 text-orange-600 rounded-full px-2 py-1 text-[10px] font-black disabled:opacity-50"><ImageIcon size={12} />Upload</button>
+                    <button onClick={() => aiPhoto(it.item_id)} disabled={!!photoBusy} data-testid={`builder-aiphoto-${it.item_id}`} className="flex items-center gap-1 bg-orange-50 text-orange-600 rounded-full px-2 py-1 text-[10px] font-black disabled:opacity-50">{photoBusy === it.item_id ? "…" : <><Sparkles size={12} />AI Photo</>}</button>
+                  </div>
                 </div>
                 <button onClick={() => edit(it)} data-testid={`builder-edit-${it.item_id}`} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center"><Pencil size={15} className="text-blue-600" /></button>
                 <button onClick={() => del(it.item_id)} data-testid={`builder-del-${it.item_id}`} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center"><Trash2 size={15} className="text-rose-600" /></button>

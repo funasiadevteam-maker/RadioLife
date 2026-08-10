@@ -82,11 +82,13 @@ export default function MerchantDashRadioLife() {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <button onClick={() => navigate("/shop/merchant/menu")} data-testid="merchant-open-menu"
-            className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3"><Utensils size={16} />Menu Builder</button>
+            className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Utensils size={15} />Menu</button>
+          <button onClick={() => navigate("/shop/merchant/services")} data-testid="merchant-open-services"
+            className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><CreditCard size={15} />Services</button>
           <button onClick={() => navigate("/shop/merchant/subscribe")} data-testid="merchant-open-sub"
-            className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3"><CreditCard size={16} />{dash.subscription_active ? "Subscription" : "Subscribe"}</button>
+            className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><CreditCard size={15} />{dash.subscription_active ? "Plan" : "Subscribe"}</button>
         </div>
 
         {/* Happy Hour */}

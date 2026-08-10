@@ -184,6 +184,34 @@ async def _finalize_paid(db, order: Dict[str, Any], user) -> None:
          "$push": {"status_history": {"status": "accepted", "at": now()}}})
 
 
+@router.post("/{order_id}/reorder")
+async def reorder(order_id: str, request: Request, user: dict = Depends(current_user)):
+    """Return the still-available items from a past order so the client can
+    re-fill the cart (prices refreshed from the current menu)."""
+    db = request.app.state.db
+    o = await db.marketplace_orders.find_one(
+        {"order_id": order_id, "user_id": user.get("user_id")})
+    if not o:
+        raise HTTPException(404, {"code": "order_not_found"})
+    profile = await db.marketplace_profiles.find_one(
+        {"business_id": o["business_id"], "status": "approved", "subscription_active": True})
+    if not profile:
+        raise HTTPException(400, {"code": "business_unavailable"})
+    items, dropped = [], []
+    for li in o.get("items", []):
+        it = await db.menu_items.find_one(
+            {"item_id": li["item_id"], "business_id": o["business_id"], "available": True})
+        if it:
+            items.append({"item_id": it["item_id"], "name": it.get("name"),
+                          "price_cents": int(it.get("price_cents", 0)), "qty": li.get("qty", 1)})
+        else:
+            dropped.append(li.get("name"))
+    if not items:
+        raise HTTPException(400, {"code": "nothing_available"})
+    return {"ok": True, "business_id": o["business_id"],
+            "business_name": profile.get("public_name"), "items": items, "dropped": dropped}
+
+
 @router.get("")
 async def my_orders(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
@@ -270,6 +298,24 @@ async def update_order_status(order_id: str, body: StatusBody, request: Request,
     await db.marketplace_orders.update_one(
         {"order_id": order_id},
         {"$set": upd, "$push": {"status_history": {"status": new_status, "at": now()}}})
+
+    # Live order alerts — notify the buyer in-app on key transitions.
+    if new_status in ("ready", "picked_up"):
+        try:
+            from routes.notifications import _enqueue
+            biz = p.get("public_name") or "Your order"
+            if new_status == "ready":
+                title, bodytxt = "Order Ready for Pickup! 🎉", f"{biz} · order #{o.get('pickup_code')} is ready. Head over!"
+            else:
+                title, bodytxt = "Enjoy! 🥡", f"{biz} · order #{o.get('pickup_code')} picked up. BigPoints on the way!"
+            await _enqueue(
+                db, owner_user_id=o["user_id"], station_id="marketplace",
+                station_slug="marketplace", type_=f"order_{new_status}",
+                payload={"title": title, "body": bodytxt, "order_id": order_id,
+                         "pickup_code": o.get("pickup_code"), "business_name": biz},
+                dedupe_key=f"order_{new_status}_{order_id}")
+        except Exception:
+            pass
 
     # Award BigPoints to the buyer on pickup (idempotent).
     if new_status == "picked_up" and not o.get("points_awarded_done"):

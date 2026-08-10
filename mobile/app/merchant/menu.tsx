@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../src/api/client';
@@ -13,6 +14,7 @@ import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme
 import { uriToBase64 } from '../../src/utils/fileToBase64';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+const absUrl = (u?: string | null) => (!u ? null : u.startsWith('http') ? u : `${process.env.EXPO_PUBLIC_BACKEND_URL}${u}`);
 
 export default function MenuBuilder() {
   const router = useRouter();
@@ -25,6 +27,7 @@ export default function MenuBuilder() {
   const [importing, setImporting] = useState<string | null>(null);
   const [preview, setPreview] = useState<any[] | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try { const r = await api.get('/merchant/marketplace/menu'); setItems(r.data.items || []); }
@@ -59,6 +62,19 @@ export default function MenuBuilder() {
 
   const del = async (id: string) => {
     try { await api.delete(`/merchant/marketplace/menu/items/${id}`); load(); } catch { /* ignore */ }
+  };
+
+  const uploadPhoto = async (itemId: string) => {
+    const res = await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+    if (res.canceled || !res.assets?.[0]?.base64) return;
+    setPhotoBusy(itemId);
+    try { await api.post(`/merchant/marketplace/menu/items/${itemId}/photo`, { file_base64: res.assets[0].base64, ext: 'jpg' }); load(); }
+    catch { /* ignore */ } finally { setPhotoBusy(null); }
+  };
+  const aiPhoto = async (itemId: string) => {
+    setPhotoBusy(itemId);
+    try { await api.post(`/merchant/marketplace/menu/items/${itemId}/photo/ai`, {}); load(); }
+    catch { /* ignore */ } finally { setPhotoBusy(null); }
   };
 
   const runAiUrl = async () => {
@@ -216,9 +232,21 @@ export default function MenuBuilder() {
               <Text style={s.section}>{sec}</Text>
               {grouped[sec].map((it) => (
                 <View key={it.item_id} style={s.itemRow} testID={`builder-item-${it.item_id}`}>
+                  {absUrl(it.image_url)
+                    ? <Image source={{ uri: absUrl(it.image_url)! }} style={s.thumb} contentFit="cover" transition={150} />
+                    : <View style={[s.thumb, s.thumbEmpty]}><Ionicons name="fast-food-outline" size={18} color={COLORS.textMuted} /></View>}
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={s.itemName}>{it.name}</Text>
                     <Text style={s.itemPrice}>{money(it.price_cents)}</Text>
+                    <View style={s.photoBtns}>
+                      <TouchableOpacity onPress={() => uploadPhoto(it.item_id)} disabled={!!photoBusy} testID={`builder-upload-${it.item_id}`} style={s.photoBtn}>
+                        {photoBusy === it.item_id ? <ActivityIndicator size="small" color={COLORS.primary} />
+                          : <><Ionicons name="cloud-upload-outline" size={13} color={COLORS.primary} /><Text style={s.photoBtnText}>Upload</Text></>}
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => aiPhoto(it.item_id)} disabled={!!photoBusy} testID={`builder-aiphoto-${it.item_id}`} style={s.photoBtn}>
+                        <Ionicons name="sparkles" size={13} color={COLORS.primary} /><Text style={s.photoBtnText}>AI Photo</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   <TouchableOpacity onPress={() => edit(it)} style={s.iconBtn} testID={`builder-edit-${it.item_id}`}>
                     <Ionicons name="pencil" size={16} color={COLORS.secondary} />
@@ -258,6 +286,11 @@ const s = StyleSheet.create({
   input: { backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: FONT.sm, marginTop: 8 },
   section: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', marginBottom: 8 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginBottom: 8 },
+  thumb: { width: 48, height: 48, borderRadius: RADIUS.sm, backgroundColor: COLORS.inputBg },
+  thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  photoBtns: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 4 },
+  photoBtnText: { color: COLORS.primary, fontSize: 10, fontWeight: '800' },
   itemName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   itemPrice: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900', marginTop: 2 },
   iconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },

@@ -41,6 +41,10 @@ import ShopOrdersRadioLife from "./screens/ShopOrdersRadioLife";
 import MerchantDashRadioLife from "./screens/MerchantDashRadioLife";
 import MerchantMenuRadioLife from "./screens/MerchantMenuRadioLife";
 import MerchantSubscribeRadioLife from "./screens/MerchantSubscribeRadioLife";
+// Phase C — service bookings.
+import ShopServicesRadioLife from "./screens/ShopServicesRadioLife";
+import ShopBookingsRadioLife from "./screens/ShopBookingsRadioLife";
+import MerchantServicesRadioLife from "./screens/MerchantServicesRadioLife";
 
 const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
@@ -52,10 +56,13 @@ function screenFor(pathname) {
   if (pathname === "/shop") return ShopRadioLife;
   if (pathname === "/sell") return SellOnRadioLife;
   if (pathname === "/shop/orders") return ShopOrdersRadioLife;
+  if (pathname === "/shop/bookings") return ShopBookingsRadioLife;
   if (pathname === "/shop/merchant") return MerchantDashRadioLife;
   if (pathname === "/shop/merchant/menu") return MerchantMenuRadioLife;
+  if (pathname === "/shop/merchant/services") return MerchantServicesRadioLife;
   if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;
+  if (pathname.startsWith("/shop/services/")) return ShopServicesRadioLife;
   if (pathname.startsWith("/shop/")) return ShopBusinessRadioLife;
   if (pathname === "/discover") return DiscoverRadioLife;
   if (pathname === "/play") return GamingRadioLife;

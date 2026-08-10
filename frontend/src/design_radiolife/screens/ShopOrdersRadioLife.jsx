@@ -2,8 +2,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Check, Coins, Receipt } from "lucide-react";
+import { ChevronLeft, Check, Coins, Receipt, Repeat } from "lucide-react";
 import { API } from "@/AuthContext";
+import { useShopCart } from "../useShopCart";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const STEPS = ["accepted", "preparing", "ready", "picked_up"];
@@ -13,6 +14,15 @@ export default function ShopOrdersRadioLife() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const cart = useShopCart();
+
+  const reorder = async (orderId) => {
+    try {
+      const r = await axios.post(`${API}/shop/orders/${orderId}/reorder`);
+      cart.replaceWith(r.data.business_id, r.data.business_name, r.data.items);
+      navigate(`/shop/menu/${r.data.business_id}`);
+    } catch { /* ignore */ }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +85,10 @@ export default function ShopOrdersRadioLife() {
                   <Coins size={13} />{o.points_awarded_done ? `+${o.points_to_award} earned` : `${o.points_to_award} on pickup`}
                 </div>
               </div>
+              <button onClick={() => reorder(o.order_id)} data-testid={`order-reorder-${o.order_id}`}
+                className="mt-3 w-full flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-full py-2.5">
+                <Repeat size={15} />Order Again
+              </button>
             </div>
           );
         })}

@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
+import { useCartStore } from '../../src/stores/useCartStore';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 const STEPS = ['accepted', 'preparing', 'ready', 'picked_up'];
@@ -25,6 +26,15 @@ export default function Orders() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const cart = useCartStore();
+
+  const reorder = useCallback(async (orderId: string) => {
+    try {
+      const r = await api.post(`/shop/orders/${orderId}/reorder`);
+      cart.replaceWith(r.data.business_id, r.data.business_name, r.data.items);
+      router.push('/shop/cart');
+    } catch { /* ignore */ }
+  }, [cart, router]);
 
   const load = useCallback(async () => {
     try {
@@ -101,6 +111,10 @@ export default function Orders() {
                   </Text>
                 </View>
               </View>
+              <TouchableOpacity style={s.reorderBtn} onPress={() => reorder(o.order_id)} testID={`order-reorder-${o.order_id}`}>
+                <Ionicons name="repeat" size={15} color={COLORS.primary} />
+                <Text style={s.reorderText}>Order Again</Text>
+              </TouchableOpacity>
             </View>
           );
         })}
@@ -130,4 +144,6 @@ const s = StyleSheet.create({
   ptsBox: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.gold + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: RADIUS.full },
   ptsGlyph: { color: COLORS.gold, fontSize: FONT.sm, fontWeight: '900' },
   ptsText: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '800' },
+  reorderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, paddingVertical: 10, marginTop: 12 },
+  reorderText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.sm },
 });

@@ -20,6 +20,10 @@ export const useShopCart = create((set, get) => ({
     return items.length ? { items } : { items: [], businessId: null, businessName: null };
   }),
   clear: () => set({ items: [], businessId: null, businessName: null }),
+  replaceWith: (bizId, bizName, items) => set({
+    businessId: bizId, businessName: bizName,
+    items: (items || []).map((i) => ({ item_id: i.item_id, name: i.name, price_cents: i.price_cents, qty: i.qty || 1 })),
+  }),
   count: () => get().items.reduce((n, i) => n + i.qty, 0),
   subtotal: () => get().items.reduce((n, i) => n + i.price_cents * i.qty, 0),
 }));

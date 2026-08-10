@@ -1506,6 +1506,8 @@ async def _deferred_bootstrap(app_: FastAPI):
         dm = await seed_demo_businesses(db)
         from services.marketplace import seed_demo_menus
         dmn = await seed_demo_menus(db)
+        from routes.marketplace_services import ensure_services_indexes
+        await ensure_services_indexes(db)
         logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn}")
     except Exception as e:
         logger.warning(f"marketplace phase A bootstrap: {e}")
@@ -5202,6 +5204,20 @@ try:
 except Exception as _e_bnr_mount:
     logger.warning(f"Phase AD.11: banners mount failed ({_e_bnr_mount})")
 
+# Marketplace Phase B — menu photos static serving (uploads + AI generated).
+try:
+    import os as _os
+    _os.makedirs("/app/backend/static/menu_photos", exist_ok=True)
+    app.mount(
+        "/api/static/menu_photos",
+        StaticFiles(directory="/app/backend/static/menu_photos"),
+        name="menu_photos",
+    )
+    logger.info("Marketplace: menu_photos StaticFiles mounted")
+except Exception as _e_mp_mount:
+    logger.warning(f"Marketplace: menu_photos mount failed ({_e_mp_mount})")
+
+
 # Phase AD.12 — notification creatives static serving.
 try:
     import os as _os
@@ -5669,6 +5685,11 @@ try:
     app.include_router(_mkt_menu_router)
     app.include_router(_mkt_orders_router)
     app.include_router(_mkt_morders_router)
+    # Phase C — service bookings.
+    from routes.marketplace_services import router as _mkt_svc_router
+    from routes.marketplace_services import consumer_router as _mkt_svc_consumer_router
+    app.include_router(_mkt_svc_router)
+    app.include_router(_mkt_svc_consumer_router)
     logger.info("Marketplace Phase A routes wired: /api/admin/marketplace/* "
                 "/api/merchant/marketplace/* /api/shop/*")
 except Exception as _e:

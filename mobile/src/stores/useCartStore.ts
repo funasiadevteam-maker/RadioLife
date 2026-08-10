@@ -15,6 +15,7 @@ type CartState = {
   dec: (itemId: string) => void;
   remove: (itemId: string) => void;
   clear: () => void;
+  replaceWith: (bizId: string, bizName: string, items: { item_id: string; name: string; price_cents: number; qty?: number }[]) => void;
   count: () => number;
   subtotal: () => number;
   conflicts: (bizId: string) => boolean;
@@ -56,6 +57,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     return items.length ? { items } : { items: [], businessId: null, businessName: null };
   }),
   clear: () => set({ items: [], businessId: null, businessName: null }),
+  replaceWith: (bizId, bizName, items) => set({
+    businessId: bizId, businessName: bizName,
+    items: (items || []).map((i) => ({ item_id: i.item_id, name: i.name, price_cents: i.price_cents, qty: i.qty || 1 })),
+  }),
   count: () => get().items.reduce((n, i) => n + i.qty, 0),
   subtotal: () => get().items.reduce((n, i) => n + i.price_cents * i.qty, 0),
 }));

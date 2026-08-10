@@ -107,9 +107,13 @@ export default function MerchantDashboard() {
                 <Ionicons name="restaurant" size={16} color={COLORS.primary} />
                 <Text style={s.linkText}>Menu Builder</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/services')} testID="merchant-open-services">
+                <Ionicons name="cut" size={16} color={COLORS.primary} />
+                <Text style={s.linkText}>Services</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/subscribe')} testID="merchant-open-sub">
                 <Ionicons name="card" size={16} color={COLORS.primary} />
-                <Text style={s.linkText}>{dash.subscription_active ? 'Subscription' : 'Subscribe'}</Text>
+                <Text style={s.linkText}>{dash.subscription_active ? 'Plan' : 'Subscribe'}</Text>
               </TouchableOpacity>
             </View>
 

@@ -162,4 +162,46 @@ async def import_file(body: FileImportBody, request: Request, user: dict = Depen
     return {"ok": True, "items": items, "count": len(items)}
 
 
+@router.post("/items/{item_id}/photo")
+async def upload_photo(item_id: str, request: Request, user: dict = Depends(current_user)):
+    """Merchant uploads a photo (base64) for a menu item."""
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    it = await db.menu_items.find_one({"item_id": item_id, "business_id": p["business_id"]})
+    if not it:
+        raise HTTPException(404, {"code": "item_not_found"})
+    body = await request.json()
+    b64 = body.get("file_base64")
+    if not b64:
+        raise HTTPException(400, {"code": "file_required"})
+    from services import menu_photos as mp
+    try:
+        url = mp.save_base64(item_id, b64, body.get("ext", "png"))
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    await db.menu_items.update_one({"item_id": item_id},
+                                   {"$set": {"image_url": url, "updated_at": now()}})
+    return {"ok": True, "image_url": url}
+
+
+@router.post("/items/{item_id}/photo/ai")
+async def ai_photo(item_id: str, request: Request, user: dict = Depends(current_user)):
+    """Generate an AI dish photo (Nano Banana) for a menu item."""
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    it = await db.menu_items.find_one({"item_id": item_id, "business_id": p["business_id"]})
+    if not it:
+        raise HTTPException(404, {"code": "item_not_found"})
+    from services import menu_photos as mp
+    try:
+        url = await mp.generate_ai(item_id, name=it.get("name", ""),
+                                   description=it.get("description") or "",
+                                   section=it.get("section") or "")
+    except Exception as e:
+        raise HTTPException(502, {"code": "ai_photo_failed", "detail": str(e)[:200]})
+    await db.menu_items.update_one({"item_id": item_id},
+                                   {"$set": {"image_url": url, "updated_at": now()}})
+    return {"ok": True, "image_url": url}
+
+
 __all__ = ["router"]

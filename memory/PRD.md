@@ -370,10 +370,16 @@ Mobile (Expo): `shop/menu/[id].tsx`, `shop/cart.tsx`, `shop/orders.tsx`, `mercha
 Tests: iteration_57 — backend 27/28 then 28/28 after fix (happy_hour projection in shop.py fixed + verified; picked_up→canceled now guarded). Full lifecycle E2E incl. points-on-pickup verified. Mobile smoke 100%. Web /shop/* verified rendering via forced overlay.
 Known MVP limitation: gift-card reservation is not locked across simultaneous checkout sessions (single-merchant, low-concurrency — acceptable for MVP).
 
-## SUPER MARKETPLACE — remaining
-- Phases C–F: services/booking, ecommerce, gift cards/memberships/events, AI concierge + promoted marketplace.
-- P3: multi-merchant cart; restaurant price-parity monitoring admin tools.
-- Web polish: optionally persist RadioLife variant so OTHER RadioLife screens (/home,/wallet) load without the enable toggle (Phase B /shop/* already forced-on).
+## SUPER MARKETPLACE — Phase C + enhancements SHIPPED (2026-08-10)
+Backend (new/updated): `routes/marketplace_services.py` (services+bookings), `services/menu_photos.py`, extended `routes/marketplace_menu.py`, `routes/marketplace_orders.py`, `server.py` (menu_photos StaticFiles mount + services indexes).
+- **Reorder Favourites**: `POST /api/shop/orders/{id}/reorder` → returns still-available items (refreshed prices) + dropped[]; client re-fills cart. Web + mobile "Order Again".
+- **Live Order Alerts**: on merchant status → `ready` (and `picked_up`) an in-app `station_notifications` row is enqueued for the buyer (dedupe_key `order_{status}_{id}`). In-app only (no push).
+- **Menu Photos**: merchant UPLOAD (`POST /menu/items/{id}/photo`, base64, Pillow-validated + 8MB cap) OR AI generate (`/photo/ai`, Gemini Nano Banana `gemini-3.1-flash-image-preview`). Served public at `/api/static/menu_photos/`. Thumbnails on consumer menu + builder (both surfaces).
+- **Service Bookings (Phase C, non-food)**: `service_items` (name, duration, price, reservation_fee_cents credited toward service, bigpoints) + weekly `service_availability` on profile. Consumer: `GET /api/shop/businesses/{id}/services`, `/services/{sid}/slots?date=`, `POST /api/shop/service-bookings/checkout` (reservation fee via Stripe, or free/confirmed if fee 0; 409 slot_taken), `GET /service-bookings[/{id}/status]`. Merchant: services CRUD, `GET/PATCH /availability`, `GET /bookings`, `PATCH /bookings/{id}/status` (confirmed→completed awards BigPoints, →no_show). Enforced by subscription_active.
+Web screens: `/shop/services/:id`, `/shop/bookings`, `/shop/merchant/services`; Reorder on `/shop/orders`; photo controls on `/shop/merchant/menu`.
+Mobile screens: `shop/services/[id].tsx`, `shop/bookings.tsx`, `merchant/services.tsx`; Reorder on `shop/orders.tsx`; photo controls on `merchant/menu.tsx`; Shop-tab quick links Orders/Bookings/Merchant.
+Tests: iteration_58 — backend 35/35 passed; both surfaces smoke-verified; full web/mobile parity; no blocking bugs. Fixed post-test: menu-photo bytes now Pillow-validated (rejects non-images).
+Deferred lows: desktop whitespace on `/shop/services/:id` (mobile-first layout); slots use UTC "today" (no merchant TZ); multi-merchant cart; price-parity monitoring.
 
 ## Backlog (P0/P1/P2)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.

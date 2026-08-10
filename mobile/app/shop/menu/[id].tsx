@@ -11,6 +11,7 @@ import { COLORS, SPACING, FONT, RADIUS, common } from '../../../src/constants/th
 import { useCartStore } from '../../../src/stores/useCartStore';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+const absUrl = (u?: string | null) => (!u ? null : u.startsWith('http') ? u : `${process.env.EXPO_PUBLIC_BACKEND_URL}${u}`);
 
 export default function BusinessMenu() {
   const router = useRouter();
@@ -68,6 +69,9 @@ export default function BusinessMenu() {
                 const q = qtyFor(it.item_id);
                 return (
                   <View key={it.item_id} style={s.itemRow} testID={`menu-item-${it.item_id}`}>
+                    {absUrl(it.image_url) && (
+                      <Image source={{ uri: absUrl(it.image_url)! }} style={s.itemThumb} contentFit="cover" transition={150} />
+                    )}
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={s.itemName}>{it.name}</Text>
                       {!!it.description && <Text style={s.itemDesc} numberOfLines={2}>{it.description}</Text>}
@@ -129,6 +133,7 @@ const s = StyleSheet.create({
   hhText: { color: '#fff', fontSize: FONT.xs, fontWeight: '900' },
   secTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', marginBottom: 8 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginBottom: 8 },
+  itemThumb: { width: 56, height: 56, borderRadius: RADIUS.sm, backgroundColor: COLORS.inputBg },
   itemName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   itemDesc: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2, lineHeight: 16 },
   itemPrice: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900', marginTop: 4 },

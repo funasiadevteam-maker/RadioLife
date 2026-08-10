@@ -95,7 +95,11 @@ export default function ShopHome() {
         <View style={s.quickRow}>
           <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/orders')} testID="shop-my-orders">
             <Ionicons name="receipt-outline" size={18} color={COLORS.primary} />
-            <Text style={s.quickText}>My Orders</Text>
+            <Text style={s.quickText}>Orders</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/bookings')} testID="shop-my-bookings">
+            <Ionicons name="calendar-outline" size={18} color={COLORS.primary} />
+            <Text style={s.quickText}>Bookings</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/merchant/dashboard')} testID="shop-merchant-dash">
             <Ionicons name="storefront-outline" size={18} color={COLORS.primary} />

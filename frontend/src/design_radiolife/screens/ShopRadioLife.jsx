@@ -92,9 +92,11 @@ export default function ShopRadioLife() {
         <ArrowRight size={22} />
       </Link>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <Link to="/shop/orders" data-testid="shop-my-orders"
-          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">My Orders</Link>
+          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Orders</Link>
+        <Link to="/shop/bookings" data-testid="shop-my-bookings"
+          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Bookings</Link>
         <Link to="/shop/merchant" data-testid="shop-merchant-dash"
           className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Merchant</Link>
       </div>

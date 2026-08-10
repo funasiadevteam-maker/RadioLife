@@ -77,6 +77,7 @@ export default function ShopMenuRadioLife() {
               const q = qtyFor(it.item_id);
               return (
                 <div key={it.item_id} className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3 mb-2" data-testid={`menu-item-${it.item_id}`}>
+                  {it.image_url && <img src={it.image_url} alt={it.name} className="w-14 h-14 rounded-lg object-cover bg-slate-100" />}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-slate-900">{it.name}</div>
                     {it.description && <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{it.description}</div>}
