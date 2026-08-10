@@ -1,0 +1,61 @@
+{
+  "summary": "Iter 52 — Gift Cards + Bookings + Podcast episode chapter markers tested end-to-end. BACKEND (pytest test_iter52_gc_bookings.py) 11 pass, 1 skip (12 total): giftcards catalog (auth required, 3 seeded products present, points_balance+ppd shape), giftcards purchase (bad denom → 400 bad_denomination, unknown product → 404, card path returns valid Stripe checkout_url starting with https + cs_ session_id), giftcards mine shape, bookings available (auth required, correct shape), bookings book flow (booked Grind Coffee dinner slot ok=True). Points purchase test SKIPPED — demo balance 788 < 1000 pts needed for $10 grind_coffee card (documented, not a bug). MOBILE (Expo web preview, 390x844, demo login): wallet action row now shows wallet-giftcards-btn + wallet-bookings-btn ✓; /giftcards renders giftcards-root with gc-balance='788', gc-tab-shop, gc-tab-mine, gc-open-gc_grind_coffee expands to gc-amt-* + gc-method-points + gc-method-card + gc-buy-*; My Cards tab shows 1 existing card RL-0513-F949-7633 ($10 active) ✓; /bookings renders bookings-root with 1 venue (Grind Coffee Dinner), bk-open-* expands to 3 bk-slot-* + bk-party + bk-name + bk-phone + bk-confirm-* ✓. PODCAST SCRUBBER: mobile-episode-scrubber renders but mobile-scrubber-marker-* count = 0 — SPEC MISS (see integration issues). ChaptersBlock below still lists Intro/Main correctly. Regression: prior iter49-51 suites unaffected.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Podcast episode — chapter markers on scrubber", "issue": "mobile-scrubber-marker-* markers never render for the seeded audio-only episode ep_ui_demo because the map is gated on `dur > 0` AND the media response returns `duration_seconds: 0`. Parent passes `dur || media?.duration_seconds || 0` which stays 0 for audio pre-playback. Fix options: (a) code — in ChapterScrubber (line ~290) infer a fallback duration = max(chapters[].start_seconds) + margin when dur=0 so tick markers still render at correct proportional positions; (b) data — persist duration_seconds on ep_ui_demo (and generally compute it on upload / ingest). Currently the spec testID mobile-scrubber-marker-0 is unreachable for audio episodes without playback + a live duration.", "affected_testIDs": ["mobile-episode-scrubber", "mobile-scrubber-marker-0"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated on React Native Web — use 'boxShadow'. CARRIED from iter38-51."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' CARRIED from iter38-51."},
+        {"component": "Mixed Content (tunein logos)", "issue": "http://cdn-profiles.tunein.com/... logos loaded over HTTPS page. CARRIED from iter47-51."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter52_gc_bookings.py",
+    "/app/test_reports/pytest/iter52.xml",
+    "/tmp/iter52_wallet.png",
+    "/tmp/iter52_giftcards.png",
+    "/tmp/iter52_gc_mine.png",
+    "/tmp/iter52_bookings.png",
+    "/tmp/iter52_episode.png"
+  ],
+  "action_items": [
+    "HIGH: Make mobile-scrubber-marker-* render for audio episodes with chapters even when live playback duration is 0. Preferred fix in /app/mobile/app/podcast/episode/[id].tsx ChapterScrubber (~line 280-298): use `const effDur = dur > 0 ? dur : (chapters.length ? Math.max(...chapters.map(c=>c.start_seconds)) + 60 : 0);` and gate marker map on `effDur > 0` (or simply `chapters.length > 0` and position with effDur). Alternatively persist duration_seconds on seeded ep_ui_demo so the current gating passes.",
+    "MEDIUM (carried iter51): backend/routes/creator_video.py — compute duration_seconds server-side (ffprobe) on video/audio upload; today it stays 0 unless manually set, which breaks the scrubber markers as shown above.",
+    "LOW: Points purchase e2e couldn't be fully asserted (demo balance 788 < 1000 needed for smallest $10 card). Either seed extra points on demo user or expose a $5 (500¢/500pt) denom on gc_grind_coffee to keep the e2e cheap.",
+    "LOW (carried iter38-51): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (carried iter38-51): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (carried iter47-51): switch tunein.com logo URLs from http:// to https:// (or proxy)."
+  ],
+  "critical_code_review_comments": [
+    "mobile/app/podcast/episode/[id].tsx:280,290 — ChapterScrubber gates marker rendering on `dur > 0`. When both the live player duration and media.duration_seconds are 0, the scrubber shows but no markers ever appear. See action item HIGH above.",
+    "backend/routes/gift_cards.py:143 — `origin_url` is required for card purchase but the mobile client passes `EXPO_PUBLIC_BACKEND_URL` which is the API host, not a user-facing site. success_url therefore points at the backend URL, not a real web/mobile completion screen. Consider requiring a dedicated frontend url or picking BIGFM_PUBLIC_BASE_URL server-side (already fallback) so mobile can pass null.",
+    "backend/routes/gift_cards.py:127 — idempotency_key is `giftcard:points:{uid}:{uuid4[:8]}` which is randomized every call — the `_issue_card` idempotency guard is effectively a no-op. A retry from a flaky network will double-charge points. Consider requiring a client-supplied Idempotency-Key header (or hash of product_id+amount+ts).",
+    "backend/routes/gift_cards.py:69 — resolving `gifted_to_email` to an existing user via lowercased email means the buyer's own email typo becomes their own card (silent). Consider explicit verification/notification instead of best-effort lookup.",
+    "mobile/app/giftcards.tsx:85 — `origin_url: process.env.EXPO_PUBLIC_BACKEND_URL` — see backend note above; this URL is not a user-facing surface.",
+    "mobile/app/bookings.tsx:47 — after successful booking, the local `booked[]` map is keyed by campaign_id, but the venue list is not re-fetched, so if the campaign fills up on server-side (bookings === cap) it will still show 'Book now' in the UI. Consider awaiting `load()` on success."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter52_gc_bookings.py",
+    "/app/test_reports/iteration_52.json",
+    "/app/test_reports/pytest/iter52.xml"
+  ],
+  "success_rate": {
+    "backend": "100% executed (11 pass / 1 skip = 12 total)",
+    "frontend": "Mobile: giftcards + bookings + wallet action row 100% of spec testIDs verified. Podcast scrubber markers: 0/expected (integration issue documented)."
+  },
+  "test_credentials": "Demo listener: POST /api/auth/demo → bearer token (demo@bigfm.dubai). Web admin (unused this run): admin@bigfm.dubai / AdminPass123!",
+  "seed_data_creation": "No new seeds. Existing ep_ui_demo (audio-only, duration_seconds=0, 2 chapters) still present. Card purchase test created 1 Stripe checkout session (payment not completed). Gift card RL-0513-F949-7633 present on demo user from prior points purchase.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Suites for regression: test_iter52_gc_bookings.py (12: 11p/1s), test_iter51_cs1_insights.py (16), test_iter50_mkt4.py (23p/1s), test_iter49_mkt3.py (19). Export REACT_APP_BACKEND_URL. Points purchase test skips if demo balance <1000 — top up via admin adjust or listening minutes if you want to prove the points path. Mobile scrubber marker fix has code-side and data-side options — verify whichever main agent picks by re-checking /podcast/episode/ep_ui_demo for `mobile-scrubber-marker-0..1` selectors post-fix.",
+  "rca of the issue": "mobile-scrubber-marker-* missing on /podcast/episode/ep_ui_demo — RCA: /app/mobile/app/podcast/episode/[id].tsx ChapterScrubber (lines 280 + 290) guards marker rendering on `dur > 0`. `dur` is passed as `dur || media?.duration_seconds || 0`. GET /api/podcasts/episodes/ep_ui_demo/media returns `duration_seconds: 0` (confirmed via curl this run), and audio has not started playback, so both fall back to 0 → the `chapters.map(...)` loop is short-circuited and no marker testIDs appear in the DOM even though 2 chapters (Intro @0s, Main @60s) exist. Two clean fixes are listed under action_items."
+}

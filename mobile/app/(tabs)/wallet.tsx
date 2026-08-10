@@ -144,6 +144,18 @@ export default function WalletScreen() {
             </View>
             <Text style={st.actionLabel}>Deals</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={st.actionBtn} onPress={() => router.push('/giftcards')} testID="wallet-giftcards-btn">
+            <View style={st.actionIcon}>
+              <Ionicons name="gift" size={20} color={COLORS.gold} />
+            </View>
+            <Text style={st.actionLabel}>Gift Cards</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={st.actionBtn} onPress={() => router.push('/bookings')} testID="wallet-bookings-btn">
+            <View style={st.actionIcon}>
+              <Ionicons name="calendar" size={20} color={COLORS.primary} />
+            </View>
+            <Text style={st.actionLabel}>Bookings</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Tabs */}
@@ -448,8 +460,8 @@ const st = StyleSheet.create({
   pointsProgressFill: { height: 7, backgroundColor: '#fff', borderRadius: 4 },
   pointsProgressHint: { fontSize: 11, color: 'rgba(255,255,255,0.92)', fontWeight: '600', marginTop: 5 },
   /* Action Row */
-  actionRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
-  actionBtn: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: SPACING.md },
+  actionBtn: { flexBasis: '30%', flexGrow: 1, alignItems: 'center', gap: 6, paddingVertical: 14, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
   actionIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.text },
   /* Tabs */

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, StyleSheet, Alert, Linking,
+  ActivityIndicator, StyleSheet, Alert, Linking, Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -108,6 +108,10 @@ export default function EpisodeDetailScreen() {
     }
   };
 
+  const seekAudio = useCallback(async (sec: number) => {
+    try { await soundRef.current?.setPositionAsync(sec * 1000); setPos(sec); } catch { /* not loaded */ }
+  }, []);
+
   const onSubscribe = async () => {
     if (!paywall?.channel_id) return;
     setSubBusy(true);
@@ -189,9 +193,15 @@ export default function EpisodeDetailScreen() {
             <Ionicons name={playing ? 'pause' : 'play'} size={40} color="#fff" />
           </TouchableOpacity>
           <Text style={st.epTitle}>{episode?.title}</Text>
-          {dur > 0 && (
-            <Text style={st.scrubberText}>{fmtSec(pos)} / {fmtSec(dur)}</Text>
-          )}
+          <ChapterScrubber
+            pos={pos}
+            dur={dur || media?.duration_seconds || 0}
+            chapters={media?.chapters || []}
+            onSeek={seekAudio}
+          />
+          {(dur > 0 || media?.duration_seconds) ? (
+            <Text style={st.scrubberText}>{fmtSec(pos)} / {fmtSec(dur || media?.duration_seconds || 0)}</Text>
+          ) : null}
           {episode?.description ? (
             <Text style={st.epDesc} numberOfLines={6}>{episode.description}</Text>
           ) : null}
@@ -258,6 +268,37 @@ export default function EpisodeDetailScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ChapterScrubber({ pos, dur, chapters, onSeek }: {
+  pos: number; dur: number;
+  chapters: { title: string; start_seconds: number }[];
+  onSeek: (sec: number) => void;
+}) {
+  const [w, setW] = useState(0);
+  if (dur <= 0 && chapters.length === 0) return null;
+  const pct = dur > 0 ? Math.min(1, Math.max(0, pos / dur)) : 0;
+  return (
+    <View style={st.scrubberWrap} testID="mobile-episode-scrubber">
+      <Pressable
+        style={st.scrubTrack}
+        onLayout={(e) => setW(e.nativeEvent.layout.width)}
+        onPress={(e) => { if (dur > 0 && w > 0) onSeek((e.nativeEvent.locationX / w) * dur); }}
+      >
+        <View style={[st.scrubFill, { width: `${pct * 100}%` }]} />
+        {dur > 0 && chapters.map((c, i) => (
+          <TouchableOpacity
+            key={`m-${c.start_seconds}-${i}`}
+            testID={`mobile-scrubber-marker-${i}`}
+            hitSlop={10}
+            onPress={() => onSeek(c.start_seconds)}
+            style={[st.scrubMarker, { left: `${Math.min(100, Math.max(0, (c.start_seconds / dur) * 100))}%` }]}
+          />
+        ))}
+        {dur > 0 && <View style={[st.scrubThumb, { left: `${pct * 100}%` }]} />}
+      </Pressable>
+    </View>
   );
 }
 
@@ -346,6 +387,11 @@ const st = StyleSheet.create({
   },
   epTitle: { fontSize: FONT.xl, fontWeight: '800', color: COLORS.text, textAlign: 'center', marginBottom: 4 },
   scrubberText: { fontSize: FONT.xs, color: COLORS.textDim, fontVariant: ['tabular-nums'], marginBottom: 8 },
+  scrubberWrap: { width: '100%', paddingHorizontal: 4, marginTop: 4, marginBottom: 6 },
+  scrubTrack: { height: 6, borderRadius: 3, backgroundColor: COLORS.surfaceBorder, justifyContent: 'center' },
+  scrubFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: COLORS.primary },
+  scrubMarker: { position: 'absolute', top: -3, width: 3, height: 12, borderRadius: 1.5, marginLeft: -1.5, backgroundColor: COLORS.gold },
+  scrubThumb: { position: 'absolute', top: -4, width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: COLORS.primary, borderWidth: 2, borderColor: COLORS.card },
   epDesc: { fontSize: FONT.sm, color: COLORS.textDim, lineHeight: 20, textAlign: 'center' },
   section: { paddingHorizontal: SPACING.lg, marginTop: SPACING.lg },
   shopCard: {
