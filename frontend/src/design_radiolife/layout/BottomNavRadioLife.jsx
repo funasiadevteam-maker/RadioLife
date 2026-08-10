@@ -3,13 +3,13 @@
 // scroll listener; parent controls visibility.
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Radio, Compass, Gift, User as UserIcon, CreditCard } from "lucide-react";
+import { Radio, Store, Gift, User as UserIcon, CreditCard } from "lucide-react";
 import { RL_COLORS } from "../DesignSystem";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { key: "listen",    label: "Listen",   Icon: Radio,       to: "/radio" },
-  { key: "discover",  label: "Discover", Icon: Compass,     to: "/discover" },
+  { key: "shop",      label: "Shop",     Icon: Store,       to: "/shop" },
   { key: "pay",        label: "Pay",       Icon: CreditCard, to: "/pay",     center: true },
   { key: "rewards",  label: "Rewards", Icon: Gift,          to: "/wallet" },
   { key: "profile",  label: "Profile",  Icon: UserIcon,   to: "/profile" },

@@ -165,8 +165,8 @@ async def set_bp_settings(body: BigPointsConfig, request: Request, user: dict = 
 
 
 class PreviewBody(BaseModel):
-    points: Optional[int] = None
-    order_value_cents: Optional[int] = None
+    points: Optional[int] = Field(None, ge=0, le=1_000_000)
+    order_value_cents: Optional[int] = Field(None, ge=0)
 
 
 @router.post("/bigpoints/preview")

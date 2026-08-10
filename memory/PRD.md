@@ -348,6 +348,21 @@ Foundation for the local super-app. "BigPoints" = existing BigCoin; only the mer
 - **Reorder Favourites** (save favourite venue + rebook usual slot).
 - **Gift Card Auto-Apply** — deferred to Phase B (needs Marketplace checkout).
 
+## SUPER MARKETPLACE — Phase A2+A3 (Shop UI, both surfaces) SHIPPED (2026-08-10)
+- **Demo businesses** (`seed_demo_businesses`, idempotent upsert on boot): 6 approved storefronts (Grill House, Spice Route, Brew & Bean, Glow Beauty, Urban Threads, Pulse Fitness) with cover images + BigPoints, so Shop looks alive.
+- **Mobile Shop**: new **SHOP tab** (nav now Home/Listen/Shop/Play/Wallet/More; Games→Play). Screens: `(tabs)/shop.tsx` (Shop Home — headline, search, category chips, filters, Sell CTA, business-card rails), `shop/[id].tsx` (detail + ways-to-earn + CTA), `shop/browse.tsx` (search/sort/category grid), `sell.tsx` ("Sell on RadioLife" wizard with live $0.03 cost preview + commission/parity agreements → `/onboarding`). Cream/orange.
+- **Web Shop** (RadioLife overlay + Tailwind): `ShopRadioLife.jsx` (home+browse), `ShopBusinessRadioLife.jsx` (detail), `SellOnRadioLife.jsx` (registration). Routes `/shop`, `/shop/:id`, `/sell` mapped in RadioLifeOverlay; bottom nav **Shop replaced Discover**. NOTE: like every RadioLife web screen, Shop shows once the "Enable RadioLife design" variant is on (platform-wide behavior, not Shop-specific; variant persistence deliberately left unchanged).
+- **Games Daily Streak**: `routes/games_streak.py` — play all 4 new house games in a day → 100 BigCoin bonus (`GET/POST /api/games_v2/daily-streak[/claim]`, idempotent per day). Mobile banner in Play tab (`daily-streak-banner`, progress dots, claim).
+- **Reorder Favourites**: `routes/favourites.py` — toggle favourite venue, list with usual slot, one-tap rebook (`/api/favourites/venues*`). Mobile heart on booking cards + Favourites+rebook section in Reservations.
+- Tests: iteration_56 — backend 25/26 pass (1 skip: no public booking-campaign catalog to auto-discover a campaign_id); mobile all testIDs verified; web screens verified working behind the design toggle.
+- Hardening applied post-test: preview points `ge=0`; demo seed now upserts (cover/points refresh on boot).
+
+## SUPER MARKETPLACE — remaining
+- Gift Card Auto-Apply (Phase B, needs checkout).
+- Phase B: Restaurant pickup (menus, cart, checkout, order mgmt) — this unlocks BigPoints pending→earned on completion + gift-card auto-apply.
+- Phases C–F: services/booking, ecommerce, gift cards/memberships/events, AI concierge + promoted marketplace.
+- Web polish: optionally persist RadioLife variant so /shop loads without the enable toggle (platform-wide decision).
+
 ## Backlog (P0/P1/P2)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

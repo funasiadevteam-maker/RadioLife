@@ -31,6 +31,10 @@ import PodcastDetailRadioLife from "./screens/PodcastDetailRadioLife";
 // Phase C — Trivia landing + room.
 import TriviaRadioLife from "./screens/TriviaRadioLife";
 import TriviaRoomRadioLife from "./screens/TriviaRoomRadioLife";
+// Super Marketplace Phase A — Shop.
+import ShopRadioLife from "./screens/ShopRadioLife";
+import ShopBusinessRadioLife from "./screens/ShopBusinessRadioLife";
+import SellOnRadioLife from "./screens/SellOnRadioLife";
 
 const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
@@ -39,6 +43,9 @@ const BARE_PATHS = [/^\/login(\b|\/)/, /^\/onboarding(\b|\/)/];
 function screenFor(pathname) {
   if (pathname === "/" || pathname === "/home") return HomeRadioLife;
   if (pathname === "/radio") return ListenRadioLife;
+  if (pathname === "/shop") return ShopRadioLife;
+  if (pathname === "/sell") return SellOnRadioLife;
+  if (pathname.startsWith("/shop/")) return ShopBusinessRadioLife;
   if (pathname === "/discover") return DiscoverRadioLife;
   if (pathname === "/play") return GamingRadioLife;
   if (pathname === "/wallet") return RewardsWalletRadioLife;

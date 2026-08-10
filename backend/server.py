@@ -1502,7 +1502,9 @@ async def _deferred_bootstrap(app_: FastAPI):
     try:
         from services.marketplace import seed_marketplace_foundation
         ms = await seed_marketplace_foundation(db)
-        logger.info(f"Marketplace Phase A bootstrap: {ms}")
+        from services.marketplace import seed_demo_businesses
+        dm = await seed_demo_businesses(db)
+        logger.info(f"Marketplace Phase A bootstrap: {ms} {dm}")
     except Exception as e:
         logger.warning(f"marketplace phase A bootstrap: {e}")
     # Phase 8b — Gamification distribution: milestone auto-unlock engine,
@@ -5660,6 +5662,15 @@ try:
                 "/api/merchant/marketplace/* /api/shop/*")
 except Exception as _e:
     logger.warning("Marketplace Phase A routers not loaded: %s", _e)
+
+try:
+    from routes.games_streak import router as _games_streak_router
+    from routes.favourites import router as _favourites_router
+    app.include_router(_games_streak_router)
+    app.include_router(_favourites_router)
+    logger.info("Routes wired: /api/games_v2/daily-streak /api/favourites/*")
+except Exception as _e:
+    logger.warning("games_streak/favourites routers not loaded: %s", _e)
 
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:

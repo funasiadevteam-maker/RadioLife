@@ -1,0 +1,56 @@
+{
+  "summary": "Iter 56 — Super Marketplace Phase A (A2+A3) + Games Daily Streak + Reorder Favourites + Seed Demo Businesses. Backend: 25/26 pytest passed (1 skipped) in /app/backend/tests/test_iter56_shop_ui_streak_fav.py. Verified: (a) /api/shop/businesses returns all 6 seeded demos (biz_demo_grill/spice/brew/glow/threads/pulse) with valid cover_url + default_bigpoints; (b) /api/shop/home headline='SHOP LOCAL. EARN BIGPOINTS.' + all 5 section keys (recommended/earn_more/food/services/featured) + 8 filters + 9 categories; (c) /api/shop/businesses/biz_demo_grill returns ways_to_earn (Order/Buy 250, Check In 50, Pay with RadioLife 50); (d) /api/shop/businesses search+sort+category filter work; (e) /api/merchant/marketplace/onboarding — auth guard, commission_agreement_required, price_parity_required (restaurant), below_min_bigpoints all return 400 with correct codes; happy-path 200 (already pending for demo); (f) /api/merchant/marketplace/bigpoints/preview default cost_per_point_cents=3.0 and estimated_cost_cents=300 for 100pts, and 100pts for $50 order @2pts/$; (g) /api/games_v2/daily-streak returns 4-game payload + all_done + claimed; POST /claim idempotent (already_claimed 400 on re-run); (h) /api/favourites/venues GET/POST/rebook work — 404 on unknown campaign, list returns items+total. Mobile UI: Shop tab loads with all 6 seed businesses, cream/orange theme, search input, 9 category chips, 4-8 filter chips, Sell CTA, 4 sections rendered (recommended empty because demo market='Dallas SE' not 'Dubai' where seeds live — not a bug, matches backend filtering by market). Shop detail (/shop/biz_demo_grill) renders shop-detail-root + 3 shop-earn-* rows + shop-detail-cta. Sell wizard (/sell) shows YOUR BIGPOINTS COST live preview '150 × $0.03 $4.50' ✓, 9 sell-cat-*, 7 sell-offer-*, sell-commission-agree ✓, sell-submit ✓ (sell-parity only shown when category=restaurant per spec). Play tab: daily-streak-banner + 4 streak-dot-* + 'Bonus claimed today' streak-claimed state ✓ (claim btn hidden because demo already claimed). Reservations: fav-section + fav-mc_... + fav-rebook-mc_... visible. Bookings: bk-fav-mc_... heart toggle visible. Web (RadioLife variant): /shop, /shop/:id, /sell all exist and gated behind 'Enable RadioLife design' toggle — clicking Enable opens the RadioLife overlay showing SHOP in bottom nav (rl-nav-shop/listen/pay/rewards/profile), cream/orange business detail with ways-to-earn and 'Book Now · Earn 200' CTA rendered. Full page.goto resets to gate — expected per iter55 architecture. rl-shop-page/shop-search-input/shop-sell-cta testIDs NOT reachable via direct goto because the standalone route displays a gate card instead of the RadioLifeOverlay component. This matches user's note ('If web variant can't be forced to radiolife in test, prioritise mobile + backend and clearly report web status').",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Direct navigation to /shop, /sell, /shop/:id when RadioLife variant not persisted", "issue": "Route shows a gate card ('Enable RadioLife design to preview the Shop') with a single 'Enable RadioLife' button instead of the actual shop content. rl-shop-page/rl-sell-page/rl-shop-detail-page testIDs are only mounted inside the RadioLifeOverlay when variant='radiolife' — clicking Enable opens the overlay for one screen but subsequent full navigations reset. Result: testers who navigate directly cannot reach the shop UI without user interaction. Consider persisting variant='radiolife' in localStorage/cookie once Enable is clicked so refresh + direct nav keeps the overlay mounted.", "affected_selectors": ["rl-shop-page", "rl-sell-page", "rl-shop-detail-page", "shop-sell-cta", "shop-search-input"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Shop tab (/shop)", "issues": ["Mixed Content warnings from http://cdn-profiles.tunein.com/... logos loaded over HTTPS host — safari/chrome block these silently. Fix by proxying tunein logos through /api/img-proxy or a signed URL, or store station logos in Tigris and use those URLs."]},
+        {"screen": "Global", "issues": ["Multiple React Native Web deprecation warnings: 'shadow*' style props deprecated (use boxShadow) and 'props.pointerEvents is deprecated' (use style.pointerEvents). Cosmetic only — will break in a future RN Web major."]}
+      ],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Shop landing", "platform": "web", "issue": "Mobile Shop tab renders shop-home-root + all sections/categories/businesses on first navigation. Web /shop requires an extra 'Enable RadioLife' click and does NOT persist the variant across full-page navigations. Same underlying screens, different accessibility.", "expected": "Both surfaces reach the Shop with equivalent effort once authenticated", "actual": "Mobile: 1 tap on Shop tab. Web: navigate + click Enable RadioLife per navigation."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter56_shop_ui_streak_fav.py",
+    "/app/test_reports/pytest/iter56.xml"
+  ],
+  "action_items": [
+    "(WEB) Persist RadioLife design variant into localStorage/cookie the moment the user clicks 'Enable RadioLife' so /shop, /sell, /shop/:id load the overlay content on refresh and direct-nav, not the gate card. This will make rl-shop-page/shop-sell-cta/etc directly testable and gives real users a stable Shop experience.",
+    "(MOBILE) Proxy or replace http://cdn-profiles.tunein.com/... station logos to avoid Mixed Content downgrade warnings on the HTTPS Expo web preview.",
+    "(MOBILE — cosmetic) Migrate shadow* style props to boxShadow and props.pointerEvents to style.pointerEvents to silence RN Web deprecation warnings.",
+    "(BACKEND — non-blocking, defence-in-depth carried from iter55) /api/merchant/marketplace/onboarding still lets any authenticated listener become a merchant with a single POST — consider requiring a distinct 'merchant' role or an opt-in flag before Phase B opens product listings.",
+    "(BACKEND — non-blocking) /api/merchant/marketplace/bigpoints/preview still accepts negative `points`; add ge=0 to Pydantic PreviewBody."
+  ],
+  "critical_code_review_comments": [
+    "routes/shop.py:117 shop_home 'food' section uses hard-coded {category: 'restaurant'} — good — but 'services' uses {sells: 'services'} which requires demo seeds to include 'services' in their `sells` array. Verified biz_demo_glow has sells=['services'] etc, so it works today but is silently brittle to seed drift; extract the section filters into a named constant + unit test.",
+    "routes/favourites.py:82 rebook — takes booking_type from campaign.booking_type (default 'table') but does NOT validate against merchant_campaigns.booking_type enum. If a merchant's campaign has an invalid/unknown booking_type stored, rebook will silently create a booking with a garbage type. Consider .get('booking_type') validated against a whitelist.",
+    "routes/games_streak.py:74 claim_streak — hardcodes STREAK_BONUS_POINTS = 100. If admin ever wants to A/B this value, it requires a code deploy. Move to a marketplace_settings doc keyed by market/segment for future flexibility (also documented in the response as bonus_points, which is good).",
+    "services/marketplace.py:186 seed_demo_businesses — is idempotent by business_id but does NOT re-sync fields if a demo's cover_url/points change in code (find_one skip). If the DEMO_BUSINESSES table is updated with a new photo or a corrected default_points, existing profiles keep the stale values. Should upsert with $set instead of skip-on-found.",
+    "Web RadioLifeOverlay integration (frontend/src/design_radiolife/screens/*RadioLife.jsx) — does not appear to persist the 'radiolife enabled' flag anywhere durable. Fix in the toggle handler by writing `localStorage.setItem('design_variant','radiolife')` and reading it in the App shell on boot."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter56_shop_ui_streak_fav.py",
+    "/app/test_reports/iteration_56.json",
+    "/app/test_reports/pytest/iter56.xml"
+  ],
+  "success_rate": {"backend": "100% (25 passed, 1 skipped — booking-campaign catalog endpoint unavailable to demo user)", "frontend": "Mobile: 100% (all requested testIDs found and screens render correctly on Expo web preview). Web: partial — RadioLife overlay renders when Enable is clicked (rl-nav-shop present, cream/orange detail with ways-to-earn+CTA works), but standalone /shop/*/sell routes sit behind a per-navigation Enable-RadioLife gate — 5 requested testIDs not reachable via direct goto (rl-shop-page, rl-shop-detail-page, rl-sell-page, shop-search-input, shop-sell-cta on the /shop landing route)."},
+  "test_credentials": "Demo listener: POST /api/auth/demo -> session_token as Bearer (demo@bigfm.dubai). Web demo login also sets an httpOnly cookie via same endpoint (used credentials:'include').",
+  "seed_data_creation": "None — all 6 seed_demo_businesses were already present from iter55 startup seeding. Test file creates + re-uses the demo user's marketplace_profile (idempotent upsert on owner_user_id) but does not persist new named seeds. daily_streak_claims row for demo/today may be created if the claim test lands on a fresh run; already claimed today at time of this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "REGRESSION FILE: /app/backend/tests/test_iter56_shop_ui_streak_fav.py — 26 pytest tests. Runs green against the same running backend. Same cookie-leak _NoCookieSession trick as iter55. Mobile Expo web preview at https://mobile-games-v2.expo.preview.emergentagent.com works out-of-the-box: tap 'Try the demo' -> Shop/Play/Wallet/Reservations tabs all rendered with the iter56 testIDs. Web RadioLife overlay only mounts after user clicks the 'Enable RadioLife' button on the current page and the state does NOT persist across `page.goto` — so playwright tests should either (a) drive the overlay via SPA navigation clicks (rl-nav-shop after enabling once) rather than full navigations, or (b) wait for main agent to fix persistence (see action_items). Note: the demo user's market resolves to Dallas SE from geo/IP not Dubai — this means /api/shop/home 'recommended' section (market-scoped) is empty for the demo user and the mobile UI drops that section. Not a bug, but a common false-positive to watch.",
+  "rca of the issue": "N/A — no functional backend bugs. Web overlay gating is a design choice with a small UX gap (variant not persisted); mobile fully passes. All requested features (seed, mobile shop tab, sell wizard live cost preview, daily streak, favourites, backend $0.03 economics) verified end-to-end."
+}

@@ -9,6 +9,61 @@ import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import AdBanner from '../../src/components/AdBanner';
 import { fetchPlayAndWin, HOUSE_CAMPAIGNS } from '../../src/api/gamesApi';
 import useBigCoinStore from '../../src/stores/useBigCoinStore';
+import api from '../../src/api/client';
+import { useReward } from '../../src/components/RewardOverlay';
+
+function DailyStreakBanner() {
+  const { celebrate } = useReward();
+  const [data, setData] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    try { const r = await api.get('/games_v2/daily-streak'); setData(r.data); }
+    catch { /* ignore */ }
+  }, []);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  if (!data) return null;
+  const claim = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post('/games_v2/daily-streak/claim');
+      celebrate({ points: r.data.points, title: 'Daily streak bonus!' });
+      load();
+    } catch { /* ignore */ }
+    finally { setBusy(false); }
+  };
+  return (
+    <View style={s.streakCard} testID="daily-streak-banner">
+      <View style={s.streakHead}>
+        <Ionicons name="flame" size={18} color={COLORS.primary} />
+        <Text style={s.streakTitle}>Daily Streak</Text>
+        <View style={{ flex: 1 }} />
+        <Text style={s.streakProg}>{data.played_count}/{data.total}</Text>
+      </View>
+      <Text style={s.streakSub}>Play all {data.total} games today for a {data.bonus_points} BigCoin bonus.</Text>
+      <View style={s.dotRow}>
+        {data.games.map((g: any) => (
+          <View key={g.campaign_id} style={[s.dot, g.played && s.dotOn]} testID={`streak-dot-${g.campaign_id}`}>
+            <Ionicons name={g.played ? 'checkmark' : 'ellipse-outline'} size={13}
+              color={g.played ? '#fff' : COLORS.textMuted} />
+          </View>
+        ))}
+      </View>
+      {data.claimed ? (
+        <View style={s.streakDone} testID="streak-claimed">
+          <Ionicons name="checkmark-circle" size={15} color={COLORS.green} />
+          <Text style={s.streakDoneText}>Bonus claimed today</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={[s.streakBtn, !data.all_done && { opacity: 0.5 }]}
+          onPress={claim} disabled={busy || !data.all_done} testID="streak-claim-btn">
+          {busy ? <ActivityIndicator color="#fff" />
+            : <Text style={s.streakBtnText}>{data.all_done ? `Claim ${data.bonus_points} BigCoin` : 'Keep playing'}</Text>}
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
 
 /* Games hub (Phase 39M.3).
    Feed comes from GET /api/games_v2/play_and_win. The old
@@ -195,6 +250,8 @@ export default function GamesHub() {
         {/* Sponsored banner */}
         <AdBanner zone="games" />
 
+        <DailyStreakBanner />
+
         {/* Quick Games Grid */}
         <Text style={s.sectionTitle}>QUICK GAMES</Text>
         <View style={s.quickGrid}>
@@ -365,6 +422,19 @@ const s = StyleSheet.create({
     fontSize: FONT.sm, fontWeight: '800', color: COLORS.textDim,
     letterSpacing: 1, marginBottom: SPACING.md, marginTop: SPACING.sm,
   },
+
+  streakCard: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
+  streakHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  streakTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
+  streakProg: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
+  streakSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 4 },
+  dotRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 12 },
+  dot: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.surfaceBorder, alignItems: 'center', justifyContent: 'center' },
+  dotOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  streakBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 11, alignItems: 'center' },
+  streakBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
+  streakDone: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingVertical: 8 },
+  streakDoneText: { color: COLORS.green, fontSize: FONT.sm, fontWeight: '800' },
 
   // Quick games
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: SPACING.lg },

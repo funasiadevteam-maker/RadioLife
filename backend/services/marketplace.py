@@ -151,6 +151,75 @@ async def seed_marketplace_foundation(db) -> Dict[str, Any]:
     return summary
 
 
+DEMO_BUSINESSES = [
+    {"id": "biz_demo_grill", "public_name": "The Grill House", "category": "restaurant",
+     "subcategory": "Steakhouse", "description": "Flame-grilled steaks, burgers and mezze — pickup ready in 20 min.",
+     "cover": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200",
+     "sells": ["menu"], "points": 250, "ppd": 3.0, "rating": 4.7, "featured": True, "sponsored": True},
+    {"id": "biz_demo_spice", "public_name": "Spice Route Kitchen", "category": "restaurant",
+     "subcategory": "Indian", "description": "Authentic Indian curries, biryani and fresh naan for pickup.",
+     "cover": "https://images.unsplash.com/photo-1578474846511-04ba529f0b88?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200",
+     "sells": ["menu"], "points": 150, "ppd": 2.0, "rating": 4.6, "featured": True, "sponsored": False},
+    {"id": "biz_demo_brew", "public_name": "Brew & Bean Café", "category": "restaurant",
+     "subcategory": "Café", "description": "Specialty coffee, pastries and brunch. Order ahead & skip the line.",
+     "cover": "https://images.unsplash.com/photo-1453614512568-c4024d13c247?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200",
+     "sells": ["menu"], "points": 100, "ppd": 2.0, "rating": 4.8, "featured": False, "sponsored": False},
+    {"id": "biz_demo_glow", "public_name": "Glow Hair & Beauty", "category": "beauty",
+     "subcategory": "Salon", "description": "Cuts, colour and spa treatments. Book your slot & earn on every visit.",
+     "cover": "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200",
+     "sells": ["services", "appointments"], "points": 200, "ppd": 2.0, "rating": 4.9, "featured": True, "sponsored": False},
+    {"id": "biz_demo_threads", "public_name": "Urban Threads", "category": "retail",
+     "subcategory": "Fashion", "description": "Curated streetwear and accessories. Shop local, earn BigPoints.",
+     "cover": "https://images.unsplash.com/photo-1558898452-e5c989f41b27?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200",
+     "sells": ["products"], "points": 120, "ppd": 2.0, "rating": 4.4, "featured": False, "sponsored": True},
+    {"id": "biz_demo_pulse", "public_name": "Pulse Fitness Studio", "category": "fitness",
+     "subcategory": "Gym", "description": "Classes, PT and memberships. Book a session and earn as you sweat.",
+     "cover": "https://images.unsplash.com/photo-1637430308606-86576d8fef3c?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200",
+     "sells": ["services", "memberships"], "points": 180, "ppd": 2.0, "rating": 4.5, "featured": False, "sponsored": False},
+]
+
+
+async def seed_demo_businesses(db, market: str = "Dubai") -> Dict[str, Any]:
+    """Idempotent — seed a handful of APPROVED demo storefronts so the Shop
+    looks alive from day one."""
+    created = 0
+    for b in DEMO_BUSINESSES:
+        # Upsert so cover/points/rating tweaks propagate on re-seed, while
+        # preserving created_at and any admin status change.
+        existed = await db.marketplace_profiles.find_one({"business_id": b["id"]}, {"_id": 1})
+        await db.marketplace_profiles.update_one(
+            {"business_id": b["id"]},
+            {"$set": {
+                "public_name": b["public_name"], "description": b["description"],
+                "category": b["category"], "subcategory": b["subcategory"],
+                "cover_urls": [b["cover"]], "sells": b["sells"],
+                "bigpoints": {"mode": "default", "default_points": b["points"],
+                              "points_per_dollar": b["ppd"], "product_overrides": {},
+                              "service_overrides": {}},
+                "rating": b["rating"], "featured": b["featured"], "sponsored": b["sponsored"],
+                "market": market, "updated_at": now()},
+             "$setOnInsert": {
+                "business_id": b["id"], "owner_user_id": "system_demo",
+                "business_type": b["category"], "legal_name": b["public_name"] + " LLC",
+                "phone": "+971 4 000 0000", "email": None, "website": None,
+                "logo_url": None, "locations": [{"city": market, "address": "Downtown"}],
+                "verification": {}, "stripe_account_id": None, "funding_mode": "auto_deduct",
+                "commission_agreed": True, "price_parity": None,
+                "status": "approved", "rejection_reason": None,
+                "approved_at": now(), "created_at": now()}},
+            upsert=True)
+        await db.businesses.update_one(
+            {"business_id": b["id"]},
+            {"$set": {"business_id": b["id"], "owner_user_id": "system_demo",
+                      "name": b["public_name"], "category": b["category"],
+                      "city": market, "active": True, "verified": True,
+                      "updated_at": now()},
+             "$setOnInsert": {"created_at": now()}}, upsert=True)
+        if not existed:
+            created += 1
+    return {"demo_businesses_created": created}
+
+
 # ───────────────────────── Resolvers ─────────────────────────
 async def resolve_point_cost_cents(db, *, market: Optional[str] = None,
                                    category: Optional[str] = None,
@@ -250,6 +319,6 @@ def compute_economics(*, gmv_cents: int, commissionable_cents: int,
 
 __all__ = [
     "DEFAULT_POINT_COST_CENTS", "now", "new_id",
-    "ensure_marketplace_indexes", "seed_marketplace_foundation",
+    "ensure_marketplace_indexes", "seed_marketplace_foundation", "seed_demo_businesses",
     "resolve_point_cost_cents", "resolve_commission", "compute_economics",
 ]

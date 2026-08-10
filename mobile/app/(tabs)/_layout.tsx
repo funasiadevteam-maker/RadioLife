@@ -45,13 +45,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="shop"
+        options={{
+          title: 'Shop',
+          tabBarIcon: ({ color, size }) => <Ionicons name="storefront-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="radio"
         options={{ href: null }}
       />
       <Tabs.Screen
         name="games"
         options={{
-          title: 'Games',
+          title: 'Play',
           tabBarIcon: ({ color, size }) => <Ionicons name="game-controller-outline" size={size} color={color} />,
         }}
       />

@@ -20,17 +20,34 @@ export default function Reservations() {
   const router = useRouter();
   const { celebrate } = useReward();
   const [items, setItems] = useState<Booking[]>([]);
+  const [favs, setFavs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    try { const r = await api.get('/bookings/mine'); setItems(r.data.items || []); }
-    catch { /* unauth */ }
+    try {
+      const [r, fv] = await Promise.all([
+        api.get('/bookings/mine'),
+        api.get('/favourites/venues').catch(() => ({ data: { items: [] } })),
+      ]);
+      setItems(r.data.items || []);
+      setFavs(fv.data.items || []);
+    } catch { /* unauth */ }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const rebook = async (campaignId: string) => {
+    setBusyId(campaignId);
+    try {
+      const r = await api.post(`/favourites/venues/${campaignId}/rebook`);
+      celebrate({ points: 0, title: `Rebooked ${r.data.venue_title || ''} · ${r.data.slot}` });
+      await load();
+    } catch { /* ignore */ }
+    finally { setBusyId(null); }
+  };
 
   const reschedule = async (b: Booking, slot: string) => {
     setBusyId(b.booking_id);
@@ -66,6 +83,26 @@ export default function Reservations() {
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={COLORS.primary}
           onRefresh={() => { setRefreshing(true); load(); }} />}
         testID="reservations-root">
+
+        {favs.length > 0 && (
+          <View style={{ marginBottom: SPACING.md }} testID="fav-section">
+            <Text style={s.favHeader}>Your favourites</Text>
+            {favs.map((fv) => (
+              <View key={fv.campaign_id} style={s.favCard} testID={`fav-${fv.campaign_id}`}>
+                <Ionicons name="heart" size={18} color={COLORS.primary} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={s.title} numberOfLines={1}>{fv.venue_title || fv.sponsor_name}</Text>
+                  <Text style={s.sub}>{fv.usual_slot ? `Usual: ${fv.usual_slot}` : 'Tap to book your usual'}</Text>
+                </View>
+                <TouchableOpacity style={s.rebookBtn} disabled={!fv.active || busyId === fv.campaign_id}
+                  onPress={() => rebook(fv.campaign_id)} testID={`fav-rebook-${fv.campaign_id}`}>
+                  {busyId === fv.campaign_id ? <ActivityIndicator color="#fff" />
+                    : <Text style={s.rebookText}>{fv.active ? 'Rebook' : 'Closed'}</Text>}
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
 
         {items.length === 0 && (
           <View style={s.card}>
@@ -160,4 +197,8 @@ const s = StyleSheet.create({
   linkBtn: { alignSelf: 'center', marginTop: 10, padding: 6 },
   linkText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700' },
   empty: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', marginTop: 8 },
+  favHeader: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 8 },
+  favCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: 12, marginBottom: 8 },
+  rebookBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingVertical: 9, borderRadius: RADIUS.full, minWidth: 84, alignItems: 'center' },
+  rebookText: { color: '#fff', fontSize: FONT.sm, fontWeight: '800' },
 });

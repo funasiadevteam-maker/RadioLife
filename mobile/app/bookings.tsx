@@ -28,16 +28,28 @@ export default function Bookings() {
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [booked, setBooked] = useState<Record<string, string>>({});
+
+  const toggleFav = async (campaignId: string) => {
+    setFavs((prev) => {
+      const next = new Set(prev);
+      if (next.has(campaignId)) next.delete(campaignId); else next.add(campaignId);
+      return next;
+    });
+    try { await api.post(`/favourites/venues/${campaignId}`); } catch { load(); }
+  };
   const [mine, setMine] = useState<{ booking_id: string; slot: string; sponsor_name?: string; venue_title?: string; party_size?: number }[]>([]);
+  const [favs, setFavs] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
-      const [avail, m] = await Promise.all([
+      const [avail, m, fv] = await Promise.all([
         api.get('/bookings/available'),
         api.get('/bookings/mine').catch(() => ({ data: { items: [] } })),
+        api.get('/favourites/venues').catch(() => ({ data: { items: [] } })),
       ]);
       setItems(avail.data.items || []);
       setMine(m.data.items || []);
+      setFavs(new Set((fv.data.items || []).map((x: any) => x.campaign_id)));
     } catch { /* unauth */ }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
@@ -113,6 +125,11 @@ export default function Bookings() {
                   <Text style={s.title} numberOfLines={1}>{v.title}</Text>
                   <Text style={s.sub}>{v.sponsor_name} · {v.booking_type}</Text>
                 </View>
+                <TouchableOpacity onPress={() => toggleFav(v.campaign_id)} hitSlop={10}
+                  testID={`bk-fav-${v.campaign_id}`} style={{ padding: 4 }}>
+                  <Ionicons name={favs.has(v.campaign_id) ? 'heart' : 'heart-outline'}
+                    size={22} color={favs.has(v.campaign_id) ? COLORS.primary : COLORS.textMuted} />
+                </TouchableOpacity>
               </View>
 
               {done ? (

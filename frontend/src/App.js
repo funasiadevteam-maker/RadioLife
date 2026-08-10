@@ -992,6 +992,12 @@ function AppRouter() {
         <ProtectedRoute><ScanEntry /></ProtectedRoute>} />
       <Route path="/discover" element={
         <ProtectedRoute><RadioLifeStubPage title="Discover" hint="Enable RadioLife design to preview Discover." /></ProtectedRoute>} />
+      <Route path="/shop" element={
+        <ProtectedRoute><RadioLifeStubPage title="Shop" hint="Enable RadioLife design to preview the Shop." /></ProtectedRoute>} />
+      <Route path="/shop/:id" element={
+        <ProtectedRoute><RadioLifeStubPage title="Business" hint="Enable RadioLife design to preview the business." /></ProtectedRoute>} />
+      <Route path="/sell" element={
+        <ProtectedRoute><RadioLifeStubPage title="Sell on RadioLife" hint="Enable RadioLife design to list your business." /></ProtectedRoute>} />
       <Route path="/coupon/:coupon_id" element={
         <ProtectedRoute><RadioLifeStubPage title="Coupon" hint="Enable RadioLife design to preview Redeem." /></ProtectedRoute>} />
       </Routes>
