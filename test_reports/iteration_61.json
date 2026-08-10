@@ -1,0 +1,61 @@
+{
+  "summary": "Phase E item 2 (Marketplace Memberships) fully tested across shared backend, web (RadioLife overlay) and mobile (Expo). 14/14 backend pytest cases pass covering merchant CRUD (list w/ member_count, create/update/delete, bad_interval 400), consumer flows (business_memberships w/ mine+benefits, subscribe already_member + new-plan checkout_url, mine, cancel), and the claim engine (option_required, invalid option, period decrement + limit_reached). Web merchant + shop memberships UIs, mem-mine, subscribe button, option chips, claim buttons, and business-detail entry link all present. Mobile merchant + shop memberships screens, mem-mine, subscribe/claim, business-detail and merchant-dashboard entry links all present. Only bug found: web MerchantDashRadioLife is missing the merchant-open-memberships entry link (parity gap — mobile has it).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {
+          "component": "MerchantDashRadioLife",
+          "issue": "Missing 'Memberships' entry-link button on merchant dashboard. All other entries (Menu, Services, Products, Gift Cards, Plan) are present but merchant-open-memberships is not rendered. Users can only reach /shop/merchant/memberships by typing the URL. Reference: /app/frontend/src/design_radiolife/screens/MerchantDashRadioLife.jsx (grid around lines 86-95)",
+          "selector": "[data-testid='merchant-open-memberships']",
+          "priority": "HIGH"
+        }
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {
+          "screen": "MerchantDashboard (mobile)",
+          "issues": ["Action row (Menu Builder / Services / Products / Gift Cards / Memberships / Plan) overflows horizontally with icons overlapping labels at 390px width. Pre-existing pattern, not introduced by memberships; flagged for future polish."]
+        }
+      ],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {
+      "flow": "Merchant dashboard entry to Memberships",
+      "platform": "web",
+      "issue": "merchant-open-memberships testID exists on mobile (/app/mobile/app/merchant/dashboard.tsx:122) but is not rendered on web MerchantDashRadioLife",
+      "expected": "Web merchant dashboard should include a Memberships tile like mobile does",
+      "actual": "Web only shows Menu, Services, Products, Gift Cards, Plan"
+    }
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_marketplace_memberships.py",
+    "/app/test_reports/pytest/iter61_memberships.xml"
+  ],
+  "action_items": [
+    "Add merchant-open-memberships tile to /app/frontend/src/design_radiolife/screens/MerchantDashRadioLife.jsx (navigate('/shop/merchant/memberships')) to match mobile parity"
+  ],
+  "critical_code_review_comments": [
+    "subscribe endpoint hardcodes currency='usd'; consider deriving from business/market for internationalization",
+    "cancel_membership silently swallows Stripe exceptions (except: pass) — consider logging so ops can spot orphaned subscriptions",
+    "membership_claims.count_documents is called on every /businesses/{id}/memberships and /memberships/mine per benefit — fine at current scale but could hit N+1 with many entitlements; consider aggregate group_by(benefit_id) in future"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_marketplace_memberships.py"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "92%" },
+  "test_credentials": "demo@bigfm.dubai via POST /api/auth/demo (web cookie) / demo-login-btn (mobile bearer). Demo owns biz_8484f6f985d5 and is active member of the seeded Coffee Club plan.",
+  "seed_data_creation": "Test cases create/delete throwaway TEST_* plans; no persistent seed added.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend membership CRUD + claim engine are solid. Only fix required is adding merchant-open-memberships tile on web merchant dashboard. After that, re-run playwright to confirm the link renders and navigates to /shop/merchant/memberships. Note: daily 'Free coffee' benefit will already be at limit_reached in most test runs (that is correct behaviour, not a bug).",
+  "rca of the issue": "The web MerchantDashRadioLife.jsx grid of merchant tiles was not updated when memberships was added in Phase E item 2; mobile dashboard.tsx was updated. Fix: add a Crown-icon button navigating to /shop/merchant/memberships with data-testid='merchant-open-memberships' in the same grid block that renders merchant-open-giftcards."
+}

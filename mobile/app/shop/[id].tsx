@@ -97,6 +97,13 @@ export default function BusinessDetail() {
             <Text style={s.giftBtnText}>Buy a gift card</Text>
           </TouchableOpacity>
         )}
+        {biz.has_memberships && (
+          <TouchableOpacity style={s.memBtn} testID="shop-detail-membership"
+            onPress={() => router.push(`/shop/memberships/${biz.business_id}`)}>
+            <Ionicons name="ribbon" size={16} color={COLORS.gold} />
+            <Text style={s.memBtnText}>Memberships</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={common.btnPrimary} testID="shop-detail-cta"
           onPress={() => {
             if (sells.includes('services')) router.push(`/shop/services/${biz.business_id}`);
@@ -134,4 +141,6 @@ const s = StyleSheet.create({
   footer: { padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder, backgroundColor: COLORS.bg },
   giftBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 2, borderColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 11, marginBottom: 10 },
   giftBtnText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
+  memBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 2, borderColor: COLORS.gold, borderRadius: RADIUS.full, paddingVertical: 11, marginBottom: 10 },
+  memBtnText: { color: COLORS.gold, fontSize: FONT.sm, fontWeight: '900' },
 });

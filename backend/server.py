@@ -5730,6 +5730,11 @@ try:
     from routes.marketplace_giftcards import consumer_router as _mkt_gc_consumer_router
     app.include_router(_mkt_gc_router)
     app.include_router(_mkt_gc_consumer_router)
+    # Phase E — memberships (recurring + benefit rules).
+    from routes.marketplace_memberships import router as _mkt_mbr_router
+    from routes.marketplace_memberships import consumer_router as _mkt_mbr_consumer_router
+    app.include_router(_mkt_mbr_router)
+    app.include_router(_mkt_mbr_consumer_router)
     logger.info("Marketplace Phase A routes wired: /api/admin/marketplace/* "
                 "/api/merchant/marketplace/* /api/shop/*")
 except Exception as _e:
