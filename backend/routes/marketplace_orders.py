@@ -16,7 +16,6 @@ from pydantic import BaseModel, Field
 
 from auth import current_user
 from services.marketplace import now, new_id, effective_points
-from services.points_service import PointsService
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -321,9 +320,10 @@ async def update_order_status(order_id: str, body: StatusBody, request: Request,
     if new_status == "picked_up" and not o.get("points_awarded_done"):
         pts = int(o.get("points_to_award", 0))
         if pts > 0:
-            await PointsService(db).award(
-                user_id=o["user_id"], source="marketplace_order",
-                source_id=order_id, delta=pts, enforce_caps=False,
+            from services.loyalty import award_with_tier_bonus
+            await award_with_tier_bonus(
+                db, user_id=o["user_id"], source="marketplace_order",
+                source_id=order_id, base_points=pts,
                 idempotency_key=f"order_pickup_{order_id}",
                 metadata={"business_id": p["business_id"], "note": "Pickup order reward"})
             # Deduct from prepaid BigPoints inventory if that's the funding mode.

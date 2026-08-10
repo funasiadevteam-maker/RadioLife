@@ -5,12 +5,14 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
 import api from '../../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../../src/constants/theme';
 import { useReward } from '../../../src/components/RewardOverlay';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+const absUrl = (u?: string | null) => (!u ? null : u.startsWith('http') ? u : `${process.env.EXPO_PUBLIC_BACKEND_URL}${u}`);
 const dayLabel = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -82,6 +84,7 @@ export default function ServiceBooking() {
         {(data.services || []).map((svc: any) => (
           <TouchableOpacity key={svc.service_id} onPress={() => selectService(svc)}
             style={[s.svcCard, selected?.service_id === svc.service_id && s.svcCardOn]} testID={`svc-${svc.service_id}`}>
+            {absUrl(svc.image_url) && <Image source={{ uri: absUrl(svc.image_url)! }} style={s.svcThumb} contentFit="cover" transition={150} />}
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.svcName}>{svc.name}</Text>
               {!!svc.description && <Text style={s.svcDesc} numberOfLines={2}>{svc.description}</Text>}
@@ -131,6 +134,7 @@ const s = StyleSheet.create({
   sectionTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', marginTop: SPACING.lg, marginBottom: 10 },
   svcCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 14, marginBottom: 8 },
   svcCardOn: { borderColor: COLORS.primary },
+  svcThumb: { width: 52, height: 52, borderRadius: RADIUS.sm, backgroundColor: COLORS.inputBg },
   svcName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   svcDesc: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
   svcMeta: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', marginTop: 4 },

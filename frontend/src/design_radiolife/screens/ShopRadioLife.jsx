@@ -100,6 +100,13 @@ export default function ShopRadioLife() {
         <Link to="/shop/merchant" data-testid="shop-merchant-dash"
           className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Merchant</Link>
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Link to="/shop/product-orders" data-testid="shop-my-product-orders"
+          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Product Orders</Link>
+        <Link to="/shop/loyalty" data-testid="shop-my-loyalty"
+          className="flex items-center justify-center gap-2 bg-amber-100 text-amber-950 font-black rounded-xl py-3">
+          <Star size={16} className="fill-amber-500 text-amber-500" />My Loyalty</Link>
+      </div>
 
       {browsing ? (
         <>

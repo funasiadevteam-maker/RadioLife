@@ -67,6 +67,7 @@ export default function ShopServicesRadioLife() {
           <button key={svc.service_id} onClick={() => { setSelected(svc); setDateIdx(0); loadSlots(svc, 0); }}
             data-testid={`svc-${svc.service_id}`}
             className={`w-full text-left flex items-center gap-3 bg-white border rounded-xl p-3.5 mb-2 ${selected?.service_id === svc.service_id ? "border-orange-600" : "border-slate-200"}`}>
+            {svc.image_url && <img src={svc.image_url} alt={svc.name} className="w-14 h-14 rounded-lg object-cover bg-slate-100" />}
             <div className="flex-1 min-w-0">
               <div className="text-sm font-bold text-slate-900">{svc.name}</div>
               {svc.description && <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{svc.description}</div>}

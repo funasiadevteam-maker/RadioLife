@@ -1,12 +1,21 @@
 // RadioLife Merchant — services catalogue + incoming bookings (web).
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, Pencil, Trash2, Camera, Image as ImageIcon, Sparkles } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const BOOK_NEXT = { confirmed: [{ label: "Mark Completed", status: "completed" }, { label: "No Show", status: "no_show" }] };
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result || "").toString().split(",")[1] || "");
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function MerchantServicesRadioLife() {
   const navigate = useNavigate();
@@ -16,6 +25,9 @@ export default function MerchantServicesRadioLife() {
   const [form, setForm] = useState({ name: "", description: "", duration: "30", price: "", fee: "", points: "" });
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(null);
+  const [photoTarget, setPhotoTarget] = useState(null);
+  const photoRef = useRef();
 
   const load = useCallback(async () => {
     try {
@@ -46,12 +58,23 @@ export default function MerchantServicesRadioLife() {
   const del = async (id) => { try { await axios.delete(`${API}/merchant/marketplace/services/items/${id}`); load(); } catch { /* ignore */ } };
   const setBooking = async (id, status) => { try { await axios.patch(`${API}/merchant/marketplace/services/bookings/${id}/status`, { status }); load(); } catch { /* ignore */ } };
 
+  const clickPhoto = (sid) => { setPhotoTarget(sid); photoRef.current?.click(); };
+  const onPhotoFile = async (e) => {
+    const file = e.target.files?.[0]; const sid = photoTarget; e.target.value = "";
+    if (!file || !sid) return;
+    setPhotoBusy(sid);
+    try { const b64 = await fileToBase64(file); await axios.post(`${API}/merchant/marketplace/services/items/${sid}/photo`, { file_base64: b64, ext: "jpg" }); load(); }
+    catch { /* ignore */ } finally { setPhotoBusy(null); setPhotoTarget(null); }
+  };
+  const aiPhoto = async (sid) => { setPhotoBusy(sid); try { await axios.post(`${API}/merchant/marketplace/services/items/${sid}/photo/ai`, {}); load(); } catch { /* ignore */ } finally { setPhotoBusy(null); } };
+
   if (loading) return <div className="px-4 pt-10 text-center text-slate-500">Loading…</div>;
 
   const Input = (props) => <input {...props} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />;
 
   return (
     <div className="pb-24" data-testid="rl-merchant-services-page">
+      <input ref={photoRef} type="file" accept="image/*" onChange={onPhotoFile} className="hidden" />
       <div className="flex items-center gap-3 px-4 pt-4 pb-2">
         <button onClick={() => navigate("/shop/merchant")} data-testid="msvc-back" className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><ChevronLeft size={20} /></button>
         <h1 className="text-xl font-black text-slate-900">Services &amp; Bookings</h1>
@@ -78,9 +101,16 @@ export default function MerchantServicesRadioLife() {
         {!services.length && <p className="text-slate-500 text-sm">No services yet.</p>}
         {services.map((sv) => (
           <div key={sv.service_id} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-3" data-testid={`msvc-item-${sv.service_id}`}>
+            {sv.image_url
+              ? <img src={sv.image_url} alt={sv.name} className="w-12 h-12 rounded-lg object-cover bg-slate-100" />
+              : <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center"><Camera size={16} className="text-slate-400" /></div>}
             <div className="flex-1 min-w-0">
               <div className="text-sm font-bold text-slate-900">{sv.name}</div>
               <div className="text-xs font-black text-orange-600">{sv.duration_min} min · {money(sv.price_cents)}{sv.reservation_fee_cents > 0 ? ` · ${money(sv.reservation_fee_cents)} reserve` : ""}</div>
+              <div className="flex gap-2 mt-1">
+                <button onClick={() => clickPhoto(sv.service_id)} disabled={!!photoBusy} data-testid={`msvc-upload-${sv.service_id}`} className="flex items-center gap-1 bg-orange-50 text-orange-600 rounded-full px-2 py-1 text-[10px] font-black disabled:opacity-50"><ImageIcon size={12} />Upload</button>
+                <button onClick={() => aiPhoto(sv.service_id)} disabled={!!photoBusy} data-testid={`msvc-aiphoto-${sv.service_id}`} className="flex items-center gap-1 bg-orange-50 text-orange-600 rounded-full px-2 py-1 text-[10px] font-black disabled:opacity-50">{photoBusy === sv.service_id ? "…" : <><Sparkles size={12} />AI</>}</button>
+              </div>
             </div>
             <button onClick={() => edit(sv)} data-testid={`msvc-edit-${sv.service_id}`} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center"><Pencil size={15} className="text-blue-600" /></button>
             <button onClick={() => del(sv.service_id)} data-testid={`msvc-del-${sv.service_id}`} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center"><Trash2 size={15} className="text-rose-600" /></button>

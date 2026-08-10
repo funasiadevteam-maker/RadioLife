@@ -94,6 +94,7 @@ export default function BusinessDetail() {
           onPress={() => {
             if (sells.includes('services')) router.push(`/shop/services/${biz.business_id}`);
             else if (sells.includes('menu') || biz.has_menu) router.push(`/shop/menu/${biz.business_id}`);
+            else if (sells.includes('products')) router.push(`/shop/products/${biz.business_id}`);
             else router.push('/bookings');
           }}>
           <Ionicons name="flash" size={16} color="#fff" />

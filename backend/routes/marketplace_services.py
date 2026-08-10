@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 
 from auth import current_user, current_user_optional
 from services.marketplace import now, new_id, effective_points
-from services.points_service import PointsService
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -109,6 +108,45 @@ async def delete_service(service_id: str, request: Request, user: dict = Depends
     return {"ok": True}
 
 
+@router.post("/items/{service_id}/photo")
+async def service_photo(service_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    s = await db.service_items.find_one({"service_id": service_id, "business_id": p["business_id"]})
+    if not s:
+        raise HTTPException(404, {"code": "service_not_found"})
+    body = await request.json()
+    b64 = body.get("file_base64")
+    if not b64:
+        raise HTTPException(400, {"code": "file_required"})
+    from services import menu_photos as mp
+    try:
+        url = mp.save_base64(service_id, b64, body.get("ext", "png"))
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    await db.service_items.update_one({"service_id": service_id},
+                                      {"$set": {"image_url": url, "updated_at": now()}})
+    return {"ok": True, "image_url": url}
+
+
+@router.post("/items/{service_id}/photo/ai")
+async def service_photo_ai(service_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    s = await db.service_items.find_one({"service_id": service_id, "business_id": p["business_id"]})
+    if not s:
+        raise HTTPException(404, {"code": "service_not_found"})
+    from services import menu_photos as mp
+    try:
+        url = await mp.generate_service_ai(service_id, name=s.get("name", ""),
+                                            description=s.get("description") or "")
+    except Exception as e:
+        raise HTTPException(502, {"code": "ai_photo_failed", "detail": str(e)[:200]})
+    await db.service_items.update_one({"service_id": service_id},
+                                      {"$set": {"image_url": url, "updated_at": now()}})
+    return {"ok": True, "image_url": url}
+
+
 # ───────────── Merchant: weekly availability ─────────────
 class AvailabilityBody(BaseModel):
     slot_minutes: int = Field(30, ge=5, le=240)
@@ -177,9 +215,10 @@ async def update_booking_status(booking_id: str, body: BookingStatusBody, reques
     if body.status == "completed" and not b.get("points_awarded_done"):
         pts = int(b.get("points_to_award", 0))
         if pts > 0:
-            await PointsService(db).award(
-                user_id=b["user_id"], source="marketplace_service",
-                source_id=booking_id, delta=pts, enforce_caps=False,
+            from services.loyalty import award_with_tier_bonus
+            await award_with_tier_bonus(
+                db, user_id=b["user_id"], source="marketplace_service",
+                source_id=booking_id, base_points=pts,
                 idempotency_key=f"booking_complete_{booking_id}",
                 metadata={"business_id": p["business_id"], "note": "Service booking reward"})
             await db.merchant_bigpoint_accounts.update_one(

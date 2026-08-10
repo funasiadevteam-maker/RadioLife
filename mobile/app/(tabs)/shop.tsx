@@ -107,6 +107,13 @@ export default function ShopHome() {
           </TouchableOpacity>
         </View>
 
+        <View style={s.quickRow}>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/loyalty')} testID="shop-my-loyalty">
+            <Ionicons name="ribbon-outline" size={18} color={COLORS.gold} />
+            <Text style={s.quickText}>My Loyalty</Text>
+          </TouchableOpacity>
+        </View>
+
         {sections.map((sec) => (
           <View key={sec.key} style={{ marginTop: SPACING.lg }} testID={`shop-section-${sec.key}`}>
             <Text style={s.sectionTitle}>{sec.title}</Text>

@@ -6,10 +6,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+const absUrl = (u?: string | null) => (!u ? null : u.startsWith('http') ? u : `${process.env.EXPO_PUBLIC_BACKEND_URL}${u}`);
 const BOOK_NEXT: Record<string, { label: string; status: string }[]> = {
   confirmed: [{ label: 'Mark Completed', status: 'completed' }, { label: 'No Show', status: 'no_show' }],
 };
@@ -22,6 +25,15 @@ export default function MerchantServices() {
   const [form, setForm] = useState({ name: '', description: '', duration: '30', price: '', fee: '', points: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState<string | null>(null);
+
+  const uploadPhoto = async (sid: string) => {
+    const res = await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+    if (res.canceled || !res.assets?.[0]?.base64) return;
+    setPhotoBusy(sid);
+    try { await api.post(`/merchant/marketplace/services/items/${sid}/photo`, { file_base64: res.assets[0].base64, ext: 'jpg' }); load(); } catch { /* ignore */ } finally { setPhotoBusy(null); }
+  };
+  const aiPhoto = async (sid: string) => { setPhotoBusy(sid); try { await api.post(`/merchant/marketplace/services/items/${sid}/photo/ai`, {}); load(); } catch { /* ignore */ } finally { setPhotoBusy(null); } };
 
   const load = useCallback(async () => {
     try {
@@ -98,9 +110,14 @@ export default function MerchantServices() {
           {!services.length && <Text style={s.empty}>No services yet.</Text>}
           {services.map((sv) => (
             <View key={sv.service_id} style={s.svcRow} testID={`msvc-item-${sv.service_id}`}>
+              {absUrl(sv.image_url) ? <Image source={{ uri: absUrl(sv.image_url)! }} style={s.thumb} contentFit="cover" /> : <View style={[s.thumb, { alignItems: 'center', justifyContent: 'center' }]}><Ionicons name="cut-outline" size={16} color={COLORS.textMuted} /></View>}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={s.svcName}>{sv.name}</Text>
                 <Text style={s.svcMeta}>{sv.duration_min} min · {money(sv.price_cents)}{sv.reservation_fee_cents > 0 ? ` · ${money(sv.reservation_fee_cents)} reserve` : ''}</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                  <TouchableOpacity onPress={() => uploadPhoto(sv.service_id)} disabled={!!photoBusy} style={s.photoBtn} testID={`msvc-upload-${sv.service_id}`}>{photoBusy === sv.service_id ? <ActivityIndicator size="small" color={COLORS.primary} /> : <><Ionicons name="cloud-upload-outline" size={13} color={COLORS.primary} /><Text style={s.photoText}>Upload</Text></>}</TouchableOpacity>
+                  <TouchableOpacity onPress={() => aiPhoto(sv.service_id)} disabled={!!photoBusy} style={s.photoBtn} testID={`msvc-aiphoto-${sv.service_id}`}><Ionicons name="sparkles" size={13} color={COLORS.primary} /><Text style={s.photoText}>AI</Text></TouchableOpacity>
+                </View>
               </View>
               <TouchableOpacity onPress={() => edit(sv)} style={s.iconBtn} testID={`msvc-edit-${sv.service_id}`}><Ionicons name="pencil" size={16} color={COLORS.secondary} /></TouchableOpacity>
               <TouchableOpacity onPress={() => del(sv.service_id)} style={s.iconBtn} testID={`msvc-del-${sv.service_id}`}><Ionicons name="trash" size={16} color={COLORS.red} /></TouchableOpacity>

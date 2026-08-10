@@ -92,3 +92,40 @@ async def generate_ai(item_id: str, *, name: str, description: str = "",
     elif "webp" in mt:
         ext = "webp"
     return save_bytes(item_id, data, ext)
+
+
+
+async def _generate(item_id: str, prompt: str) -> str:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import uuid as _uuid
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"photo_{_uuid.uuid4().hex}",
+                   system_message="You are a professional commercial photograph generator.")
+    chat.with_model("gemini", NANO_BANANA).with_params(modalities=["image", "text"])
+    _text, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
+    if not images:
+        raise RuntimeError("no_image_generated")
+    img = images[0]
+    data = base64.b64decode(img["data"])
+    mt = (img.get("mime_type") or "").lower()
+    ext = "jpg" if ("jpeg" in mt or "jpg" in mt) else ("webp" if "webp" in mt else "png")
+    return save_bytes(item_id, data, ext)
+
+
+async def generate_service_ai(item_id: str, *, name: str, description: str = "") -> str:
+    prompt = (
+        f"A clean, inviting promotional photo representing the service \"{name}\""
+        + (f" ({description})" if description else "")
+        + ". Bright, professional lifestyle setting, soft natural light, high detail, "
+        "no text, no watermark, no visible faces."
+    )
+    return await _generate(item_id, prompt)
+
+
+async def generate_product_ai(item_id: str, *, name: str, description: str = "") -> str:
+    prompt = (
+        f"A professional e-commerce product photo of \"{name}\""
+        + (f" ({description})" if description else "")
+        + ". Centered on a clean white studio background, soft shadows, crisp detail, "
+        "catalog-quality, no text, no watermark."
+    )
+    return await _generate(item_id, prompt)

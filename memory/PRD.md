@@ -381,6 +381,17 @@ Mobile screens: `shop/services/[id].tsx`, `shop/bookings.tsx`, `merchant/service
 Tests: iteration_58 — backend 35/35 passed; both surfaces smoke-verified; full web/mobile parity; no blocking bugs. Fixed post-test: menu-photo bytes now Pillow-validated (rejects non-images).
 Deferred lows: desktop whitespace on `/shop/services/:id` (mobile-first layout); slots use UTC "today" (no merchant TZ); multi-merchant cart; price-parity monitoring.
 
+## SUPER MARKETPLACE — Phase D (Ecommerce Products + Loyalty Tiers + Service Photos + Booking Reminders) SHIPPED (2026-06 fork)
+Backend (pre-built, curl-verified earlier; formally verified this turn): `routes/marketplace_products.py`, `services/loyalty.py`; extended `routes/marketplace_services.py` (service photos), `server.py` (booking-reminder cron loop).
+- **Ecommerce Products**: merchant catalogue CRUD with variants (label/price/stock), per-product upload OR AI photo (Nano Banana), delivery config (pickup/delivery/fee/free-over). Consumer `GET /api/shop/businesses/{id}/products`; single-merchant cart → `POST /api/shop/product-orders/checkout` (gift-card auto-apply → Stripe for remainder, stock decrement, delivery fee). Fulfillment lifecycle paid→packed→shipped→delivered (`PATCH /api/merchant/marketplace/products/orders/{id}/status`, invalid transitions rejected, `product_shipped` notification enqueued); **BigPoints awarded to buyer on delivered via `award_with_tier_bonus` (idempotent)**; prepaid merchants deduct balance; cancel restocks.
+- **Loyalty Tiers** (`services/loyalty.py`): Bronze/Silver/Gold/Platinum from lifetime positive ledger deltas (0/1k/5k/15k → +0/5/10/15% bonus). `GET /api/shop/loyalty` (tier, progress, perks, all_tiers). `award_with_tier_bonus` awards base points then a separate loyalty-bonus ledger row.
+- **Service Photos**: `POST /api/merchant/marketplace/services/items/{id}/photo` + `/photo/ai`; consumer services now expose `image_url`.
+- **Booking Reminders**: morning-of in-app reminder cron loop in `server.py`.
+- **Web screens added THIS turn** (RadioLife overlay, forced `/shop/*`): `ShopProductsRadioLife` (`/shop/products/:id`), `ShopProductOrdersRadioLife` (`/shop/product-orders`), `MerchantProductsRadioLife` (`/shop/merchant/products`), `LoyaltyRadioLife` (`/shop/loyalty`); service-photo controls added to `MerchantServicesRadioLife` + consumer thumbnails on `ShopServicesRadioLife`. Entry links wired: MerchantDash `merchant-open-products`, Shop home `shop-my-product-orders`/`shop-my-loyalty`, business-detail CTA → products.
+- **Mobile entry points wired THIS turn**: shop `[id]` products CTA, merchant dashboard `merchant-open-products`, shop-home `shop-my-loyalty`, consumer service thumbnail.
+- Tests: **iteration_59 — backend 31/31 pytest PASS**; web + mobile all testIDs functional; **100% cross-surface parity; no blocking bugs**. AI-photo endpoint not re-run (slow/rate-limit; upload path green).
+- Non-blocking follow-ups (from iter59 review): desktop whitespace on RadioLife `/shop/*` (mobile-first layout); cookie banner overlaps bottom CTA; RN `shadow*`/`pointerEvents` deprecation warnings; merchant balance-decrement ordering on delivered; unthrottled Stripe polling on order-status GET; loyalty tiers hardcoded in code (not admin-tunable yet).
+
 ## Backlog (P0/P1/P2)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

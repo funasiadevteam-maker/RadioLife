@@ -1508,7 +1508,37 @@ async def _deferred_bootstrap(app_: FastAPI):
         dmn = await seed_demo_menus(db)
         from routes.marketplace_services import ensure_services_indexes
         await ensure_services_indexes(db)
+        from routes.marketplace_products import ensure_products_indexes
+        await ensure_products_indexes(db)
         logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn}")
+
+        async def _booking_reminder_cron():
+            import asyncio
+            import datetime as _dt
+            from routes.notifications import _enqueue as _enq
+            while True:
+                try:
+                    await asyncio.sleep(600)  # every 10 minutes
+                    today = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+                    async for bk in db.service_bookings.find(
+                            {"status": "confirmed", "date": today,
+                             "reminder_sent": {"$ne": True}}):
+                        try:
+                            await _enq(db, owner_user_id=bk["user_id"], station_id="marketplace",
+                                       station_slug="marketplace", type_="booking_reminder",
+                                       payload={"title": "Appointment today ⏰",
+                                                "body": f"{bk.get('business_name')} · {bk.get('service_name')} at {bk.get('start_time')} today.",
+                                                "booking_id": bk["booking_id"]},
+                                       dedupe_key=f"booking_reminder_{bk['booking_id']}")
+                        except Exception:
+                            pass
+                        await db.service_bookings.update_one(
+                            {"booking_id": bk["booking_id"]}, {"$set": {"reminder_sent": True}})
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.warning(f"booking reminder cron error: {e}")
+        app.state.booking_reminder_task = __import__("asyncio").create_task(_booking_reminder_cron())
     except Exception as e:
         logger.warning(f"marketplace phase A bootstrap: {e}")
     # Phase 8b — Gamification distribution: milestone auto-unlock engine,
@@ -5690,6 +5720,11 @@ try:
     from routes.marketplace_services import consumer_router as _mkt_svc_consumer_router
     app.include_router(_mkt_svc_router)
     app.include_router(_mkt_svc_consumer_router)
+    # Phase D — ecommerce products + loyalty.
+    from routes.marketplace_products import router as _mkt_prod_router
+    from routes.marketplace_products import consumer_router as _mkt_prod_consumer_router
+    app.include_router(_mkt_prod_router)
+    app.include_router(_mkt_prod_consumer_router)
     logger.info("Marketplace Phase A routes wired: /api/admin/marketplace/* "
                 "/api/merchant/marketplace/* /api/shop/*")
 except Exception as _e:
