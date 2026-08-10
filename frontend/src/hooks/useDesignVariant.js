@@ -23,6 +23,19 @@ function readQueryVariant() {
   }
 }
 
+// Shop / Sell are RadioLife-only surfaces — always render them in the
+// RadioLife variant so customers land straight in the Shop (no toggle).
+function readPathVariant() {
+  try {
+    if (typeof window === "undefined") return null;
+    const p = window.location.pathname || "";
+    if (p === "/shop" || p.startsWith("/shop/") || p === "/sell") return "radiolife";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function readInitial() {
   // Query-param wins if valid — write-through to localStorage so subsequent
   // in-app navigations without the query param stay on the same variant.
@@ -32,6 +45,14 @@ function readInitial() {
       if (typeof window !== "undefined") window.localStorage.setItem(LS_KEY, q);
     } catch { /* private mode etc — ignore */ }
     return q;
+  }
+  // Shop routes force RadioLife (persisted so nav stays on it).
+  const pathV = readPathVariant();
+  if (pathV) {
+    try {
+      if (typeof window !== "undefined") window.localStorage.setItem(LS_KEY, pathV);
+    } catch { /* ignore */ }
+    return pathV;
   }
   try {
     const v = typeof window !== "undefined" && window.localStorage.getItem(LS_KEY);

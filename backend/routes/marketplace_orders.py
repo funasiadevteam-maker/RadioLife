@@ -1,0 +1,294 @@
+"""Marketplace Orders API — Restaurant Pickup (Phase B).
+
+Consumer cart checkout (single-merchant), gift-card auto-apply, Stripe
+payment, and the order lifecycle (accepted → preparing → ready → picked_up).
+BigPoints are awarded to the buyer when the order is marked picked_up.
+"""
+from __future__ import annotations
+
+import os
+import random
+from typing import Any, Dict, List, Optional
+
+import stripe
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+
+from auth import current_user
+from services.marketplace import now, new_id, effective_points
+from services.points_service import PointsService
+
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
+
+router = APIRouter(prefix="/api/shop/orders", tags=["marketplace-orders"])
+merchant_router = APIRouter(prefix="/api/merchant/marketplace/orders",
+                            tags=["marketplace-merchant-orders"])
+
+LIFECYCLE = ["pending_payment", "accepted", "preparing", "ready", "picked_up", "canceled"]
+ADVANCE = {"accepted": "preparing", "preparing": "ready", "ready": "picked_up"}
+
+
+def _clean(o: Dict[str, Any]) -> Dict[str, Any]:
+    o.pop("_id", None)
+    for k in ("created_at", "updated_at"):
+        v = o.get(k)
+        if hasattr(v, "isoformat"):
+            o[k] = v.isoformat()
+    for h in o.get("status_history", []) or []:
+        v = h.get("at")
+        if hasattr(v, "isoformat"):
+            h["at"] = v.isoformat()
+    return o
+
+
+async def _pick_gift_card(db, user) -> Optional[Dict[str, Any]]:
+    uid = user.get("user_id")
+    email = (user.get("email") or "").lower()
+    best = None
+    async for c in db.gift_cards.find(
+            {"status": "active", "balance_cents": {"$gt": 0},
+             "$or": [{"owner_user_id": uid}, {"gifted_to_email": email}]}):
+        if best is None or c.get("balance_cents", 0) > best.get("balance_cents", 0):
+            best = c
+    return best
+
+
+async def _deduct_gift_card(db, card_id: str, amount_cents: int, user) -> None:
+    card = await db.gift_cards.find_one({"card_id": card_id})
+    if not card:
+        return
+    bal = int(card.get("balance_cents", 0))
+    take = min(bal, amount_cents)
+    new_bal = bal - take
+    await db.gift_cards.update_one(
+        {"card_id": card_id},
+        {"$set": {"balance_cents": new_bal,
+                  "status": "active" if new_bal > 0 else "spent", "updated_at": now()}})
+    await db.gift_card_redemptions.insert_one({
+        "redemption_id": new_id("gcr"), "card_id": card_id,
+        "user_id": user.get("user_id"), "amount_cents": take,
+        "balance_after_cents": new_bal, "source": "marketplace_order",
+        "created_at": now()})
+
+
+class CheckoutItem(BaseModel):
+    item_id: str
+    qty: int = Field(1, ge=1, le=50)
+
+
+class CheckoutBody(BaseModel):
+    business_id: str
+    items: List[CheckoutItem]
+    origin_url: Optional[str] = None
+    use_gift_card: bool = True
+    note: Optional[str] = Field(None, max_length=300)
+
+
+@router.post("/checkout")
+async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    if not body.items:
+        raise HTTPException(400, {"code": "empty_cart"})
+    profile = await db.marketplace_profiles.find_one(
+        {"business_id": body.business_id, "status": "approved", "subscription_active": True})
+    if not profile:
+        raise HTTPException(404, {"code": "business_unavailable"})
+
+    # Validate items server-side (single-merchant cart).
+    line_items: List[Dict[str, Any]] = []
+    subtotal = 0
+    for ci in body.items:
+        it = await db.menu_items.find_one(
+            {"item_id": ci.item_id, "business_id": body.business_id, "available": True})
+        if not it:
+            raise HTTPException(400, {"code": "item_unavailable", "item_id": ci.item_id})
+        price = int(it.get("price_cents", 0))
+        subtotal += price * ci.qty
+        line_items.append({"item_id": ci.item_id, "name": it.get("name"),
+                           "price_cents": price, "qty": ci.qty})
+    if subtotal <= 0:
+        raise HTTPException(400, {"code": "zero_total"})
+
+    # Gift-card auto-apply (highest-balance active card first).
+    gift_applied = 0
+    gift_card_id = None
+    if body.use_gift_card:
+        gc = await _pick_gift_card(db, user)
+        if gc:
+            gift_applied = min(int(gc.get("balance_cents", 0)), subtotal)
+            gift_card_id = gc.get("card_id")
+    total = subtotal - gift_applied
+
+    eff = effective_points(profile)
+    points_to_award = int(eff.get("points", 0))
+    pickup_code = f"{random.randint(0, 9999):04d}"
+    order_id = new_id("ord")
+    order = {
+        "order_id": order_id, "business_id": body.business_id,
+        "business_name": profile.get("public_name"),
+        "user_id": user.get("user_id"), "items": line_items,
+        "subtotal_cents": subtotal, "gift_card_applied_cents": gift_applied,
+        "gift_card_id": gift_card_id, "total_cents": total,
+        "points_to_award": points_to_award, "points_multiplier": eff.get("multiplier", 1),
+        "happy_hour": eff.get("happy_hour", False), "points_awarded_done": False,
+        "note": body.note, "pickup_code": pickup_code,
+        "status": "pending_payment", "payment_status": "pending",
+        "session_id": None, "status_history": [],
+        "created_at": now(), "updated_at": now(),
+    }
+
+    if total <= 0:
+        # Fully covered by gift card — no Stripe needed.
+        if gift_card_id:
+            await _deduct_gift_card(db, gift_card_id, gift_applied, user)
+        order["status"] = "accepted"
+        order["payment_status"] = "paid"
+        order["status_history"] = [{"status": "accepted", "at": now()}]
+        await db.marketplace_orders.insert_one(dict(order))
+        return {"ok": True, "order_id": order_id, "status": "accepted",
+                "checkout_url": None, "total_cents": 0,
+                "gift_card_applied_cents": gift_applied, "pickup_code": pickup_code}
+
+    if not stripe.api_key:
+        raise HTTPException(503, {"code": "stripe_unconfigured"})
+    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    if not origin:
+        raise HTTPException(400, {"code": "origin_required"})
+    session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[{"price_data": {"currency": "usd",
+                     "product_data": {"name": f"{profile.get('public_name')} — Pickup Order"},
+                     "unit_amount": total}, "quantity": 1}],
+        success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{origin}/payment/cancel",
+        metadata={"kind": "marketplace_order", "order_id": order_id,
+                  "business_id": body.business_id})
+    order["session_id"] = session.id
+    await db.marketplace_orders.insert_one(dict(order))
+    return {"ok": True, "order_id": order_id, "status": "pending_payment",
+            "checkout_url": session.url, "session_id": session.id,
+            "total_cents": total, "gift_card_applied_cents": gift_applied,
+            "pickup_code": pickup_code}
+
+
+async def _finalize_paid(db, order: Dict[str, Any], user) -> None:
+    """Called once when payment confirmed — deduct gift card, move to accepted."""
+    if order.get("payment_status") == "paid":
+        return
+    if order.get("gift_card_id") and order.get("gift_card_applied_cents", 0) > 0:
+        await _deduct_gift_card(db, order["gift_card_id"],
+                                order["gift_card_applied_cents"], user)
+    await db.marketplace_orders.update_one(
+        {"order_id": order["order_id"], "payment_status": {"$ne": "paid"}},
+        {"$set": {"payment_status": "paid", "status": "accepted", "updated_at": now()},
+         "$push": {"status_history": {"status": "accepted", "at": now()}}})
+
+
+@router.get("")
+async def my_orders(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    items = [_clean(o) async for o in db.marketplace_orders.find(
+        {"user_id": user.get("user_id")}).sort("created_at", -1).limit(50)]
+    return {"items": items}
+
+
+@router.get("/{order_id}")
+async def order_detail(order_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    o = await db.marketplace_orders.find_one(
+        {"order_id": order_id, "user_id": user.get("user_id")})
+    if not o:
+        raise HTTPException(404, {"code": "order_not_found"})
+    return {"order": _clean(o)}
+
+
+@router.get("/{order_id}/status")
+async def order_status(order_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    o = await db.marketplace_orders.find_one(
+        {"order_id": order_id, "user_id": user.get("user_id")})
+    if not o:
+        raise HTTPException(404, {"code": "order_not_found"})
+    if o.get("payment_status") != "paid" and o.get("session_id") and stripe.api_key:
+        try:
+            sess = stripe.checkout.Session.retrieve(o["session_id"])
+            if sess.get("payment_status") == "paid" or sess.get("status") == "complete":
+                await _finalize_paid(db, o, user)
+                o = await db.marketplace_orders.find_one({"order_id": order_id})
+        except Exception:
+            pass
+    return {"status": o.get("status"), "payment_status": o.get("payment_status"),
+            "order": _clean(o)}
+
+
+# ───────────── Merchant order management ─────────────
+async def _my_business(db, user) -> Dict[str, Any]:
+    p = await db.marketplace_profiles.find_one({"owner_user_id": user.get("user_id")})
+    if not p:
+        raise HTTPException(404, {"code": "no_marketplace_profile"})
+    return p
+
+
+@merchant_router.get("")
+async def merchant_orders(request: Request, status: Optional[str] = None,
+                          user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    q: Dict[str, Any] = {"business_id": p["business_id"]}
+    if status:
+        q["status"] = status
+    else:
+        q["payment_status"] = "paid"  # merchants only see paid orders by default
+    items = [_clean(o) async for o in db.marketplace_orders.find(q).sort("created_at", -1).limit(80)]
+    return {"items": items}
+
+
+class StatusBody(BaseModel):
+    status: str
+
+
+@merchant_router.patch("/{order_id}/status")
+async def update_order_status(order_id: str, body: StatusBody, request: Request,
+                              user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    o = await db.marketplace_orders.find_one(
+        {"order_id": order_id, "business_id": p["business_id"]})
+    if not o:
+        raise HTTPException(404, {"code": "order_not_found"})
+    new_status = body.status
+    if new_status == "canceled":
+        if o.get("status") in ("picked_up", "canceled"):
+            raise HTTPException(400, {"code": "cannot_cancel", "status": o.get("status")})
+    elif ADVANCE.get(o.get("status")) != new_status:
+        raise HTTPException(400, {"code": "invalid_transition",
+                                  "from": o.get("status"), "to": new_status})
+    if o.get("payment_status") != "paid" and new_status != "canceled":
+        raise HTTPException(400, {"code": "order_unpaid"})
+
+    upd: Dict[str, Any] = {"status": new_status, "updated_at": now()}
+    await db.marketplace_orders.update_one(
+        {"order_id": order_id},
+        {"$set": upd, "$push": {"status_history": {"status": new_status, "at": now()}}})
+
+    # Award BigPoints to the buyer on pickup (idempotent).
+    if new_status == "picked_up" and not o.get("points_awarded_done"):
+        pts = int(o.get("points_to_award", 0))
+        if pts > 0:
+            await PointsService(db).award(
+                user_id=o["user_id"], source="marketplace_order",
+                source_id=order_id, delta=pts, enforce_caps=False,
+                idempotency_key=f"order_pickup_{order_id}",
+                metadata={"business_id": p["business_id"], "note": "Pickup order reward"})
+            # Deduct from prepaid BigPoints inventory if that's the funding mode.
+            await db.merchant_bigpoint_accounts.update_one(
+                {"business_id": p["business_id"], "funding_mode": "prepaid"},
+                {"$inc": {"balance_points": -pts}, "$set": {"updated_at": now()}})
+        await db.marketplace_orders.update_one(
+            {"order_id": order_id}, {"$set": {"points_awarded_done": True}})
+
+    o = await db.marketplace_orders.find_one({"order_id": order_id})
+    return {"ok": True, "order": _clean(o)}
+
+
+__all__ = ["router", "merchant_router"]

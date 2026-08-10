@@ -357,11 +357,23 @@ Foundation for the local super-app. "BigPoints" = existing BigCoin; only the mer
 - Tests: iteration_56 — backend 25/26 pass (1 skip: no public booking-campaign catalog to auto-discover a campaign_id); mobile all testIDs verified; web screens verified working behind the design toggle.
 - Hardening applied post-test: preview points `ge=0`; demo seed now upserts (cover/points refresh on boot).
 
+## SUPER MARKETPLACE — Phase B (Restaurant Pickup + Subscriptions) SHIPPED (2026-08-10)
+Backend (new): `routes/marketplace_subscription.py`, `routes/marketplace_menu.py`, `routes/marketplace_orders.py`, `services/menu_import.py`; extended `services/marketplace.py`, `routes/shop.py`, `routes/marketplace_admin.py`.
+- **Merchant Subscriptions**: Starter $29/mo, Pro $99/mo (seeded `subscription_plans`). Stripe Checkout `mode=subscription`. `GET/POST /api/merchant/marketplace/subscription[/plans|/checkout|/status/{sid}]`. ENFORCEMENT: `/api/shop/*` only lists businesses with `subscription_active=true`. Demo businesses auto-granted active (Pro). Admin comp/revoke: `POST /api/admin/marketplace/businesses/{id}/comp-subscription|revoke-subscription`.
+- **Menu Builder**: CRUD + bulk `/api/merchant/marketplace/menu[/items[/{id}]|/bulk]`. Consumer `GET /api/shop/businesses/{id}/menu` (grouped sections). Demo menus seeded for grill/spice/brew.
+- **AI menu import**: `POST /api/merchant/marketplace/menu/import/ai` (source_type image|pdf|url) via Gemini 2.5 Flash (EMERGENT_LLM_KEY); `/import/file` for Excel/CSV (openpyxl + csv). Returns preview items → bulk save.
+- **Orders / Restaurant Pickup**: single-merchant cart → `POST /api/shop/orders/checkout` with **gift-card auto-apply** (highest-balance active card, deducted on payment) → Stripe for remainder (or free if fully covered). Lifecycle `accepted→preparing→ready→picked_up` via `PATCH /api/merchant/marketplace/orders/{id}/status`; **BigPoints awarded to buyer on picked_up** (idempotent, PointsService); prepaid merchants deduct inventory. Pickup code per order.
+- **2X Happy Hour**: `PATCH /api/merchant/marketplace/happy-hour`; `effective_points()` applies multiplier during active window (reflected in menu + order points).
+- **Merchant Dashboard**: `GET /api/merchant/marketplace/dashboard` (order counts, revenue, points spent, menu count, subscription + happy-hour state).
+Web (RadioLife overlay, all under forced `/shop/*` — no design toggle needed): `/shop/menu/:id`, `/shop/orders`, `/shop/merchant`, `/shop/merchant/menu`, `/shop/merchant/subscribe`.
+Mobile (Expo): `shop/menu/[id].tsx`, `shop/cart.tsx`, `shop/orders.tsx`, `merchant/dashboard.tsx`, `merchant/menu.tsx`, `merchant/subscribe.tsx`; cart store `useCartStore`.
+Tests: iteration_57 — backend 27/28 then 28/28 after fix (happy_hour projection in shop.py fixed + verified; picked_up→canceled now guarded). Full lifecycle E2E incl. points-on-pickup verified. Mobile smoke 100%. Web /shop/* verified rendering via forced overlay.
+Known MVP limitation: gift-card reservation is not locked across simultaneous checkout sessions (single-merchant, low-concurrency — acceptable for MVP).
+
 ## SUPER MARKETPLACE — remaining
-- Gift Card Auto-Apply (Phase B, needs checkout).
-- Phase B: Restaurant pickup (menus, cart, checkout, order mgmt) — this unlocks BigPoints pending→earned on completion + gift-card auto-apply.
 - Phases C–F: services/booking, ecommerce, gift cards/memberships/events, AI concierge + promoted marketplace.
-- Web polish: optionally persist RadioLife variant so /shop loads without the enable toggle (platform-wide decision).
+- P3: multi-merchant cart; restaurant price-parity monitoring admin tools.
+- Web polish: optionally persist RadioLife variant so OTHER RadioLife screens (/home,/wallet) load without the enable toggle (Phase B /shop/* already forced-on).
 
 ## Backlog (P0/P1/P2)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.

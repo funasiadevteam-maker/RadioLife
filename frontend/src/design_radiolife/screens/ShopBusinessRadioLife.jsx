@@ -69,10 +69,17 @@ export default function ShopBusinessRadioLife() {
       </div>
 
       <div className="fixed bottom-20 left-0 right-0 px-4 max-w-md mx-auto">
-        <Link to="/wallet" data-testid="shop-detail-cta"
-          className="flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3 shadow-lg">
-          <Zap size={16} />{cta} · Earn {b.default_bigpoints}
-        </Link>
+        {(sells.includes("menu") || b.has_menu) ? (
+          <Link to={`/shop/menu/${b.business_id}`} data-testid="shop-detail-cta"
+            className="flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3 shadow-lg">
+            <Zap size={16} />{cta} · Earn {b.default_bigpoints}
+          </Link>
+        ) : (
+          <Link to="/wallet" data-testid="shop-detail-cta"
+            className="flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3 shadow-lg">
+            <Zap size={16} />{cta} · Earn {b.default_bigpoints}
+          </Link>
+        )}
       </div>
     </div>
   );

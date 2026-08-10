@@ -99,6 +99,24 @@ async def ensure_marketplace_indexes(db) -> None:
     await db.marketplace_profiles.create_index("status")
     await db.merchant_bigpoint_accounts.create_index("business_id", unique=True)
     await db.bigpoint_funding_transactions.create_index([("business_id", 1), ("created_at", -1)])
+    # Phase B — subscriptions, menus, orders.
+    await db.subscription_plans.create_index("plan_id", unique=True)
+    await db.merchant_subscriptions.create_index("business_id", unique=True)
+    await db.menu_items.create_index([("business_id", 1), ("sort", 1)])
+    await db.menu_items.create_index("item_id", unique=True)
+    await db.marketplace_orders.create_index("order_id", unique=True)
+    await db.marketplace_orders.create_index([("user_id", 1), ("created_at", -1)])
+    await db.marketplace_orders.create_index([("business_id", 1), ("created_at", -1)])
+    await db.marketplace_orders.create_index("session_id")
+
+
+async def is_business_sellable(db, business_id: str) -> bool:
+    """A business may list/sell only with an active paid subscription."""
+    p = await db.marketplace_profiles.find_one(
+        {"business_id": business_id}, {"subscription_active": 1, "status": 1})
+    if not p or p.get("status") != "approved":
+        return False
+    return bool(p.get("subscription_active"))
 
 
 async def seed_marketplace_foundation(db) -> Dict[str, Any]:
@@ -148,7 +166,45 @@ async def seed_marketplace_foundation(db) -> Dict[str, Any]:
             "min_fee_cents": 0, "max_fee_cents": None,
             "effective_date": now(), "active": True,
             "created_at": now(), "updated_at": now()})
+
+    # 4) Merchant subscription plans (Starter / Pro) — admin-editable.
+    for p in DEFAULT_PLANS:
+        await db.subscription_plans.update_one(
+            {"plan_id": p["plan_id"]},
+            {"$setOnInsert": {**p, "active": True, "created_at": now(), "updated_at": now()}},
+            upsert=True)
     return summary
+
+
+DEFAULT_PLANS = [
+    {"plan_id": "starter", "name": "Starter", "price_cents": 2900, "interval": "month",
+     "features": ["List your business", "BigPoints rewards", "Up to 50 menu items"]},
+    {"plan_id": "pro", "name": "Pro", "price_cents": 9900, "interval": "month",
+     "features": ["Everything in Starter", "Featured placement eligibility",
+                  "Unlimited menu items", "Happy Hour boosts"]},
+]
+
+
+def happy_hour_active(hh: Dict[str, Any]) -> bool:
+    if not hh or not hh.get("enabled"):
+        return False
+    h = datetime.now(timezone.utc).hour
+    start, end = int(hh.get("start_hour", 0)), int(hh.get("end_hour", 0))
+    if start == end:
+        return False
+    if start < end:
+        return start <= h < end
+    return h >= start or h < end  # wraps past midnight
+
+
+def effective_points(profile: Dict[str, Any]) -> Dict[str, Any]:
+    bp = profile.get("bigpoints", {}) or {}
+    base = int(bp.get("default_points", 0))
+    hh = profile.get("happy_hour") or {}
+    if happy_hour_active(hh):
+        mult = float(hh.get("multiplier", 2))
+        return {"points": int(round(base * mult)), "happy_hour": True, "multiplier": mult}
+    return {"points": base, "happy_hour": False, "multiplier": 1}
 
 
 DEMO_BUSINESSES = [
@@ -197,7 +253,7 @@ async def seed_demo_businesses(db, market: str = "Dubai") -> Dict[str, Any]:
                               "points_per_dollar": b["ppd"], "product_overrides": {},
                               "service_overrides": {}},
                 "rating": b["rating"], "featured": b["featured"], "sponsored": b["sponsored"],
-                "market": market, "updated_at": now()},
+                "market": market, "subscription_active": True, "updated_at": now()},
              "$setOnInsert": {
                 "business_id": b["id"], "owner_user_id": "system_demo",
                 "business_type": b["category"], "legal_name": b["public_name"] + " LLC",
@@ -217,7 +273,58 @@ async def seed_demo_businesses(db, market: str = "Dubai") -> Dict[str, Any]:
              "$setOnInsert": {"created_at": now()}}, upsert=True)
         if not existed:
             created += 1
+        # Grant demo storefronts an active Pro subscription so the Shop stays
+        # populated even with subscription enforcement on.
+        await db.merchant_subscriptions.update_one(
+            {"business_id": b["id"]},
+            {"$set": {"business_id": b["id"], "plan_id": "pro", "status": "active",
+                      "source": "demo_grant", "current_period_end": None,
+                      "updated_at": now()},
+             "$setOnInsert": {"created_at": now()}}, upsert=True)
     return {"demo_businesses_created": created}
+
+
+DEMO_MENUS: Dict[str, List[Dict[str, Any]]] = {
+    "biz_demo_grill": [
+        {"section": "Starters", "name": "Loaded Nachos", "description": "Melted cheese, jalapeños, salsa.", "price_cents": 2800},
+        {"section": "Starters", "name": "Buffalo Wings", "description": "Six wings, blue-cheese dip.", "price_cents": 3200},
+        {"section": "Mains", "name": "Signature Ribeye", "description": "300g flame-grilled, house rub.", "price_cents": 9500},
+        {"section": "Mains", "name": "Grill House Burger", "description": "Double patty, smoked cheddar, fries.", "price_cents": 5500},
+        {"section": "Drinks", "name": "Fresh Lemonade", "description": "Mint & lime.", "price_cents": 1800},
+    ],
+    "biz_demo_spice": [
+        {"section": "Curries", "name": "Butter Chicken", "description": "Creamy tomato, fenugreek.", "price_cents": 4200},
+        {"section": "Curries", "name": "Paneer Tikka Masala", "description": "Grilled paneer, spiced gravy.", "price_cents": 3800},
+        {"section": "Biryani", "name": "Chicken Dum Biryani", "description": "Saffron rice, served with raita.", "price_cents": 4500},
+        {"section": "Breads", "name": "Garlic Naan", "description": "Tandoor-baked, fresh garlic.", "price_cents": 1200},
+    ],
+    "biz_demo_brew": [
+        {"section": "Coffee", "name": "Flat White", "description": "Double ristretto, silky milk.", "price_cents": 2200},
+        {"section": "Coffee", "name": "Cold Brew", "description": "18-hour steeped.", "price_cents": 2400},
+        {"section": "Bakery", "name": "Butter Croissant", "description": "Baked fresh daily.", "price_cents": 1600},
+        {"section": "Brunch", "name": "Avocado Toast", "description": "Sourdough, poached egg.", "price_cents": 3900},
+    ],
+}
+
+
+async def seed_demo_menus(db) -> Dict[str, Any]:
+    """Idempotent — seed menus for demo restaurants so ordering works day one."""
+    created = 0
+    for biz_id, items in DEMO_MENUS.items():
+        for i, it in enumerate(items):
+            item_id = f"mi_{biz_id}_{i}"
+            res = await db.menu_items.update_one(
+                {"item_id": item_id},
+                {"$set": {"business_id": biz_id, "section": it["section"],
+                          "name": it["name"], "description": it["description"],
+                          "price_cents": it["price_cents"], "image_url": None,
+                          "bigpoints": None, "available": True, "sort": i,
+                          "updated_at": now()},
+                 "$setOnInsert": {"item_id": item_id, "created_at": now()}},
+                upsert=True)
+            if res.upserted_id is not None:
+                created += 1
+    return {"demo_menu_items_created": created}
 
 
 # ───────────────────────── Resolvers ─────────────────────────
@@ -320,5 +427,6 @@ def compute_economics(*, gmv_cents: int, commissionable_cents: int,
 __all__ = [
     "DEFAULT_POINT_COST_CENTS", "now", "new_id",
     "ensure_marketplace_indexes", "seed_marketplace_foundation", "seed_demo_businesses",
+    "seed_demo_menus", "is_business_sellable", "happy_hour_active", "effective_points",
     "resolve_point_cost_cents", "resolve_commission", "compute_economics",
 ]

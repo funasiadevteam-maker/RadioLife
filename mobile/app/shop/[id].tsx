@@ -91,7 +91,10 @@ export default function BusinessDetail() {
 
       <View style={s.footer}>
         <TouchableOpacity style={common.btnPrimary} testID="shop-detail-cta"
-          onPress={() => router.push('/bookings')}>
+          onPress={() => {
+            if (sells.includes('menu') || biz.has_menu) router.push(`/shop/menu/${biz.business_id}`);
+            else router.push('/bookings');
+          }}>
           <Ionicons name="flash" size={16} color="#fff" />
           <Text style={common.btnPrimaryText}>{primaryCta} · Earn {biz.default_bigpoints}</Text>
         </TouchableOpacity>

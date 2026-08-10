@@ -50,7 +50,7 @@ async def businesses(request: Request, category: Optional[str] = None,
                      sort: str = "featured", limit: int = 40,
                      user: dict = Depends(current_user_optional)):
     db = request.app.state.db
-    query: Dict[str, Any] = {"status": "approved"}
+    query: Dict[str, Any] = {"status": "approved", "subscription_active": True}
     if category:
         query["category"] = category
     if market:
@@ -72,7 +72,8 @@ async def businesses(request: Request, category: Optional[str] = None,
 async def business_detail(business_id: str, request: Request,
                           user: dict = Depends(current_user_optional)):
     db = request.app.state.db
-    p = await db.marketplace_profiles.find_one({"business_id": business_id, "status": "approved"})
+    p = await db.marketplace_profiles.find_one({"business_id": business_id, "status": "approved",
+                                                "subscription_active": True})
     if not p:
         from fastapi import HTTPException
         raise HTTPException(404, {"code": "business_not_found"})
@@ -81,6 +82,13 @@ async def business_detail(business_id: str, request: Request,
     card["phone"] = p.get("phone")
     card["website"] = p.get("website")
     card["cover_urls"] = p.get("cover_urls", [])
+    card["has_menu"] = "menu" in (p.get("sells") or []) or bool(
+        await db.menu_items.find_one({"business_id": business_id, "available": True}))
+    # Happy Hour live state for consumer.
+    from services.marketplace import effective_points
+    eff = effective_points(p)
+    card["happy_hour"] = eff.get("happy_hour", False)
+    card["points_multiplier"] = eff.get("multiplier", 1)
     # Ways to earn here
     bp = p.get("bigpoints", {}) or {}
     card["ways_to_earn"] = [
@@ -100,7 +108,7 @@ async def shop_home(request: Request, market: Optional[str] = None,
     async for c in db.marketplace_categories.find({"active": True}).sort("name", 1).limit(12):
         cats.append({"key": c["key"], "name": c["name"], "icon": c.get("icon")})
 
-    base: Dict[str, Any] = {"status": "approved"}
+    base: Dict[str, Any] = {"status": "approved", "subscription_active": True}
     if mk:
         base_market = {**base, "market": mk}
     else:
@@ -131,6 +139,42 @@ async def shop_home(request: Request, market: Optional[str] = None,
             {"key": "services", "title": "Popular Services", "items": services},
             {"key": "featured", "title": "Featured Businesses", "items": featured},
         ],
+    }
+
+
+@router.get("/businesses/{business_id}/menu")
+async def business_menu(business_id: str, request: Request,
+                        user: dict = Depends(current_user_optional)):
+    db = request.app.state.db
+    p = await db.marketplace_profiles.find_one(
+        {"business_id": business_id, "status": "approved", "subscription_active": True},
+        {"public_name": 1, "cover_urls": 1, "bigpoints": 1, "happy_hour": 1})
+    if not p:
+        from fastapi import HTTPException
+        raise HTTPException(404, {"code": "business_not_found"})
+    from services.marketplace import effective_points
+    eff = effective_points(p)
+    sections: Dict[str, List[Dict[str, Any]]] = {}
+    order: List[str] = []
+    async for it in db.menu_items.find(
+            {"business_id": business_id, "available": True}).sort("sort", 1):
+        sec = it.get("section") or "Menu"
+        if sec not in sections:
+            sections[sec] = []
+            order.append(sec)
+        sections[sec].append({
+            "item_id": it["item_id"], "name": it.get("name"),
+            "description": it.get("description"), "price_cents": it.get("price_cents", 0),
+            "image_url": it.get("image_url"), "bigpoints": it.get("bigpoints"),
+        })
+    return {
+        "business_id": business_id,
+        "public_name": p.get("public_name"),
+        "cover_url": (p.get("cover_urls") or [None])[0],
+        "default_bigpoints": (p.get("bigpoints") or {}).get("default_points", 0),
+        "happy_hour": eff.get("happy_hour", False),
+        "points_multiplier": eff.get("multiplier", 1),
+        "sections": [{"title": s, "items": sections[s]} for s in order],
     }
 
 

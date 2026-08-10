@@ -1504,7 +1504,9 @@ async def _deferred_bootstrap(app_: FastAPI):
         ms = await seed_marketplace_foundation(db)
         from services.marketplace import seed_demo_businesses
         dm = await seed_demo_businesses(db)
-        logger.info(f"Marketplace Phase A bootstrap: {ms} {dm}")
+        from services.marketplace import seed_demo_menus
+        dmn = await seed_demo_menus(db)
+        logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn}")
     except Exception as e:
         logger.warning(f"marketplace phase A bootstrap: {e}")
     # Phase 8b — Gamification distribution: milestone auto-unlock engine,
@@ -5658,6 +5660,15 @@ try:
     app.include_router(_mkt_admin_router)
     app.include_router(_mkt_merchant_router)
     app.include_router(_shop_router)
+    # Phase B — subscriptions, menus, orders.
+    from routes.marketplace_subscription import router as _mkt_sub_router
+    from routes.marketplace_menu import router as _mkt_menu_router
+    from routes.marketplace_orders import router as _mkt_orders_router
+    from routes.marketplace_orders import merchant_router as _mkt_morders_router
+    app.include_router(_mkt_sub_router)
+    app.include_router(_mkt_menu_router)
+    app.include_router(_mkt_orders_router)
+    app.include_router(_mkt_morders_router)
     logger.info("Marketplace Phase A routes wired: /api/admin/marketplace/* "
                 "/api/merchant/marketplace/* /api/shop/*")
 except Exception as _e:

@@ -188,6 +188,36 @@ async def reject_business(business_id: str, body: ApprovalBody, request: Request
     return {"ok": True, "status": "rejected"}
 
 
+@router.post("/businesses/{business_id}/comp-subscription")
+async def comp_subscription(business_id: str, request: Request, _a=Depends(require_admin)):
+    """Admin comp — grant/activate a merchant subscription without payment.
+    Useful for partners, demos, and support."""
+    db = request.app.state.db
+    p = await db.marketplace_profiles.find_one({"business_id": business_id})
+    if not p:
+        raise HTTPException(404, {"code": "business_not_found"})
+    await db.merchant_subscriptions.update_one(
+        {"business_id": business_id},
+        {"$set": {"business_id": business_id, "plan_id": "pro", "status": "active",
+                  "source": "admin_comp", "current_period_end": None, "updated_at": now()},
+         "$setOnInsert": {"created_at": now()}}, upsert=True)
+    await db.marketplace_profiles.update_one(
+        {"business_id": business_id},
+        {"$set": {"subscription_active": True, "updated_at": now()}})
+    return {"ok": True, "subscription_active": True}
+
+
+@router.post("/businesses/{business_id}/revoke-subscription")
+async def revoke_subscription(business_id: str, request: Request, _a=Depends(require_admin)):
+    db = request.app.state.db
+    await db.merchant_subscriptions.update_one(
+        {"business_id": business_id}, {"$set": {"status": "canceled", "updated_at": now()}})
+    await db.marketplace_profiles.update_one(
+        {"business_id": business_id},
+        {"$set": {"subscription_active": False, "updated_at": now()}})
+    return {"ok": True, "subscription_active": False}
+
+
 @router.get("/dashboard")
 async def dashboard(request: Request, _a=Depends(require_admin)):
     db = request.app.state.db

@@ -92,6 +92,17 @@ export default function ShopHome() {
           <Ionicons name="arrow-forward-circle" size={30} color="#fff" />
         </TouchableOpacity>
 
+        <View style={s.quickRow}>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/orders')} testID="shop-my-orders">
+            <Ionicons name="receipt-outline" size={18} color={COLORS.primary} />
+            <Text style={s.quickText}>My Orders</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/merchant/dashboard')} testID="shop-merchant-dash">
+            <Ionicons name="storefront-outline" size={18} color={COLORS.primary} />
+            <Text style={s.quickText}>Merchant</Text>
+          </TouchableOpacity>
+        </View>
+
         {sections.map((sec) => (
           <View key={sec.key} style={{ marginTop: SPACING.lg }} testID={`shop-section-${sec.key}`}>
             <Text style={s.sectionTitle}>{sec.title}</Text>
@@ -153,6 +164,9 @@ const s = StyleSheet.create({
   sellCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: 16 },
   sellTitle: { color: '#fff', fontSize: FONT.md, fontWeight: '900' },
   sellSub: { color: '#fff', opacity: 0.9, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
+  quickRow: { flexDirection: 'row', gap: 10, paddingHorizontal: SPACING.md, marginTop: SPACING.sm },
+  quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, paddingVertical: 12 },
+  quickText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.sm },
   sectionTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900', paddingHorizontal: SPACING.md, marginBottom: 10 },
   card: { width: 220, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, overflow: 'hidden' },
   coverWrap: { position: 'relative' },

@@ -92,6 +92,13 @@ export default function ShopRadioLife() {
         <ArrowRight size={22} />
       </Link>
 
+      <div className="grid grid-cols-2 gap-3">
+        <Link to="/shop/orders" data-testid="shop-my-orders"
+          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">My Orders</Link>
+        <Link to="/shop/merchant" data-testid="shop-merchant-dash"
+          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Merchant</Link>
+      </div>
+
       {browsing ? (
         <>
           <div className="flex items-center gap-2">

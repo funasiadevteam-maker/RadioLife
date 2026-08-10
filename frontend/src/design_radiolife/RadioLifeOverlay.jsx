@@ -35,6 +35,12 @@ import TriviaRoomRadioLife from "./screens/TriviaRoomRadioLife";
 import ShopRadioLife from "./screens/ShopRadioLife";
 import ShopBusinessRadioLife from "./screens/ShopBusinessRadioLife";
 import SellOnRadioLife from "./screens/SellOnRadioLife";
+// Phase B — Restaurant pickup, orders, merchant.
+import ShopMenuRadioLife from "./screens/ShopMenuRadioLife";
+import ShopOrdersRadioLife from "./screens/ShopOrdersRadioLife";
+import MerchantDashRadioLife from "./screens/MerchantDashRadioLife";
+import MerchantMenuRadioLife from "./screens/MerchantMenuRadioLife";
+import MerchantSubscribeRadioLife from "./screens/MerchantSubscribeRadioLife";
 
 const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
@@ -45,6 +51,11 @@ function screenFor(pathname) {
   if (pathname === "/radio") return ListenRadioLife;
   if (pathname === "/shop") return ShopRadioLife;
   if (pathname === "/sell") return SellOnRadioLife;
+  if (pathname === "/shop/orders") return ShopOrdersRadioLife;
+  if (pathname === "/shop/merchant") return MerchantDashRadioLife;
+  if (pathname === "/shop/merchant/menu") return MerchantMenuRadioLife;
+  if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
+  if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;
   if (pathname.startsWith("/shop/")) return ShopBusinessRadioLife;
   if (pathname === "/discover") return DiscoverRadioLife;
   if (pathname === "/play") return GamingRadioLife;
@@ -77,7 +88,10 @@ export default function RadioLifeOverlay() {
   const { user } = useAuth();
   const { pathname } = useLocation();
 
-  if (variant !== "radiolife") return null;
+  // Shop / Sell are RadioLife-only surfaces — always overlay them so
+  // customers land straight in the Shop without flipping the design toggle.
+  const shopRoute = pathname === "/shop" || pathname.startsWith("/shop/") || pathname === "/sell";
+  if (variant !== "radiolife" && !shopRoute) return null;
   const Screen = screenFor(pathname);
   if (!Screen) return null;
 
