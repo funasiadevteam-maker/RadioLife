@@ -5740,6 +5740,11 @@ try:
     from routes.marketplace_packages import consumer_router as _mkt_pkg_consumer_router
     app.include_router(_mkt_pkg_router)
     app.include_router(_mkt_pkg_consumer_router)
+    # Phase E — events (ticketed, capacity-limited).
+    from routes.marketplace_events import router as _mkt_evt_router
+    from routes.marketplace_events import consumer_router as _mkt_evt_consumer_router
+    app.include_router(_mkt_evt_router)
+    app.include_router(_mkt_evt_consumer_router)
     logger.info("Marketplace Phase A routes wired: /api/admin/marketplace/* "
                 "/api/merchant/marketplace/* /api/shop/*")
 except Exception as _e:

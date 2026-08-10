@@ -127,6 +127,10 @@ export default function MerchantDashboard() {
                 <Ionicons name="cube" size={16} color={COLORS.primary} />
                 <Text style={s.linkText}>Packages</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/events')} testID="merchant-open-events">
+                <Ionicons name="calendar" size={16} color={COLORS.primary} />
+                <Text style={s.linkText}>Events</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/subscribe')} testID="merchant-open-sub">
                 <Ionicons name="card" size={16} color={COLORS.primary} />
                 <Text style={s.linkText}>{dash.subscription_active ? 'Plan' : 'Subscribe'}</Text>

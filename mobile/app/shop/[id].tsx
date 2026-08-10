@@ -111,6 +111,13 @@ export default function BusinessDetail() {
             <Text style={s.giftBtnText}>Packages</Text>
           </TouchableOpacity>
         )}
+        {biz.has_events && (
+          <TouchableOpacity style={s.evtBtn} testID="shop-detail-event"
+            onPress={() => router.push(`/shop/events/${biz.business_id}`)}>
+            <Ionicons name="calendar" size={16} color={COLORS.secondary} />
+            <Text style={s.evtBtnText}>Events</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={common.btnPrimary} testID="shop-detail-cta"
           onPress={() => {
             if (sells.includes('services')) router.push(`/shop/services/${biz.business_id}`);
@@ -150,4 +157,6 @@ const s = StyleSheet.create({
   giftBtnText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
   memBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 2, borderColor: COLORS.gold, borderRadius: RADIUS.full, paddingVertical: 11, marginBottom: 10 },
   memBtnText: { color: COLORS.gold, fontSize: FONT.sm, fontWeight: '900' },
+  evtBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 2, borderColor: COLORS.secondary, borderRadius: RADIUS.full, paddingVertical: 11, marginBottom: 10 },
+  evtBtnText: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '900' },
 });

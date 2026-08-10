@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Star, Coins, Phone, Globe, Zap, Gift, Crown, Package as PackageIcon } from "lucide-react";
+import { ChevronLeft, Star, Coins, Phone, Globe, Zap, Gift, Crown, Package as PackageIcon, CalendarDays } from "lucide-react";
 import { API } from "@/AuthContext";
 
 export default function ShopBusinessRadioLife() {
@@ -85,6 +85,12 @@ export default function ShopBusinessRadioLife() {
           <Link to={`/shop/packages/${b.business_id}`} data-testid="shop-detail-package"
             className="flex items-center justify-center gap-2 bg-white border-2 border-orange-600 text-orange-600 font-black rounded-full py-2.5 shadow">
             <PackageIcon size={16} />Packages
+          </Link>
+        )}
+        {b.has_events && (
+          <Link to={`/shop/events/${b.business_id}`} data-testid="shop-detail-event"
+            className="flex items-center justify-center gap-2 bg-white border-2 border-blue-500 text-blue-600 font-black rounded-full py-2.5 shadow">
+            <CalendarDays size={16} />Events
           </Link>
         )}
         {sells.includes("services") || sells.includes("appointments") ? (
