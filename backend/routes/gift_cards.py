@@ -212,6 +212,8 @@ async def my_cards(request: Request, user: dict = Depends(current_user)):
             {"$or": [{"owner_user_id": uid}, {"gifted_to_email": email}]}).sort("created_at", -1):
         c.pop("_id", None)
         c["received_gift"] = bool(c.get("buyer_user_id") and c.get("buyer_user_id") != uid)
+        c.setdefault("revealed", not c["received_gift"])
+        c.setdefault("thanks_sent", False)
         owned.append(c)
     async for c in db.gift_cards.find(
             {"buyer_user_id": uid, "gifted_to_email": {"$nin": [None, ""]}}).sort("created_at", -1):

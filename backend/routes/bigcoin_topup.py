@@ -96,7 +96,7 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
 @router.get("/{session_id}/status")
 async def status(session_id: str, request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
-    rec = await db.bigcoin_topups.find_one({"session_id": session_id})
+    rec = await db.bigcoin_topups.find_one({"session_id": session_id, "user_id": user.get("user_id")})
     if not rec:
         raise HTTPException(404, {"code": "topup_not_found"})
     if rec.get("status") == "paid":

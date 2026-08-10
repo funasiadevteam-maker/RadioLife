@@ -353,6 +353,7 @@ function EpisodeVideoBlock({ media }: { media: any }) {
         <Ionicons name="scan-outline" size={16} color={COLORS.primary} />
         <Text style={st.pipText}>Picture-in-Picture</Text>
       </TouchableOpacity>
+      <Text style={st.pipHint}>Available on the installed app (not the web preview).</Text>
       {chapters.length > 0 && (
         <View testID="mobile-episode-chapters" style={{ marginTop: SPACING.md }}>
           <Text style={common.sectionTitle}>Chapters</Text>
@@ -388,6 +389,7 @@ const st = StyleSheet.create({
   videoPlayer: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000', borderRadius: RADIUS.md },
   pipBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: SPACING.sm, paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary, backgroundColor: COLORS.primary + '10' },
   pipText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
+  pipHint: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', textAlign: 'center', marginTop: 6 },
   chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
   chapterTime: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', width: 44 },
   chapterTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '600', flex: 1 },

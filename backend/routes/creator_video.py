@@ -48,9 +48,11 @@ def _media_payload(ep: Dict[str, Any]) -> Dict[str, Any]:
             video_url = obs.get_storage().get_signed_url(key=key, expires_in=6 * 3600)
         except Exception:
             video_url = None
+    if not video_url and ep.get("video_url"):
+        video_url = ep.get("video_url")
     return {
         "episode_id": ep.get("id"),
-        "media_type": ep.get("media_type") or ("video" if key else "audio"),
+        "media_type": ep.get("media_type") or ("video" if video_url else "audio"),
         "video_url": video_url,
         "chapters": ep.get("chapters") or [],
         "transcript": ep.get("transcript") or "",

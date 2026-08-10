@@ -310,6 +310,13 @@ remove friction in the trivia funnel (one-click topic start).
 - Tests: iteration_52 — 11/12 backend PASS (points purchase skipped: demo balance < smallest denom, not a bug). Mobile: all testIDs present; scrubber markers confirmed rendering (count=2) after fix. Self-verified via screenshot.
 - **Known minor (non-blocking, not in scope this phase)**: giftcards points-purchase idempotency key uses a fresh uuid per request (client `busy` guard prevents double-tap); giftcards Stripe `origin_url` uses the API host (consistent with existing platform checkout pattern).
 
+## Phase MON.4 — Buy BigCoin + Gift Card Reveal + Video PIP + Booking Reminders (2026-08-10) — SHIPPED
+- **Buy More BigCoin**: `routes/bigcoin_topup.py` — `GET /api/bigcoin/topup/packages` (4 packages, 100 BC=$1, bonus tiers), `POST /checkout` (Stripe), `GET /{session_id}/status` (credits ledger via PointsService, idempotent on session id, ownership-scoped). Mobile `/bigcoin-topup` screen + Wallet "Top Up" button (`wallet-topup-btn`) + inline "buy BigCoin" nudge on the Gift Card screen when points are short (`gc-topup-*`, passes `needed`).
+- **Gift Card Reveal + Thanks**: gift cards now carry `revealed`/`thanks_sent`; `/mine` returns `received_gift`. New `POST /api/giftcards/{card_id}/reveal` and `POST /{card_id}/thanks` (enqueues `giftcard_thanks` notification to the buyer). Mobile My Cards shows a tap-to-scratch animated cover for received gifts (`gc-scratch-*`) then a "Send thanks" tap-back (`gc-thanks-*` → `gc-thanks-done-*`).
+- **Video Picture-in-Picture**: PIP button (`mobile-episode-pip-btn`) on the video podcast player calling `player.startPictureInPicture()` (app.json already has `supportsPictureInPicture: true`). Added a "installed app only" hint. `_media_payload` now also honors a plain `ep.video_url` so PIP shows for episodes without a Tigris key. NOTE: PIP only works on a published native build, not Expo Go/web preview.
+- **Booking Reminders (in-app)**: `POST /api/bookings/{id}/book` enqueues a `booking_reminder` into the Notifications inbox; new `GET /api/bookings/mine`. Mobile Bookings screen shows an upcoming-reservations reminder banner (`bookings-reminder`).
+- Tests: iteration_53 — 13/13 backend pytest PASS; mobile UIs verified in Expo preview. PIP functional path validated only after Publish (native build).
+
 ## Backlog (P0/P1/P2)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).
