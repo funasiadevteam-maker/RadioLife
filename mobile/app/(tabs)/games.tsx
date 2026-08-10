@@ -101,7 +101,8 @@ export default function GamesHub() {
     played.filter((p) => p.campaign_id === campaignId && p.result === 'win').length;
 
   const featured = campaigns.find((c) => c.campaign_id === HOUSE_CAMPAIGNS.spin);
-  const others = campaigns.filter((c) => c.campaign_id !== HOUSE_CAMPAIGNS.spin);
+  const QUICK_IDS: string[] = [HOUSE_CAMPAIGNS.spin, HOUSE_CAMPAIGNS.trivia, HOUSE_CAMPAIGNS.lyric];
+  const others = campaigns.filter((c) => !QUICK_IDS.includes(c.campaign_id));
 
   const QUICK_GAMES = [
     { id: 'spin', icon: 'aperture-outline', label: 'Spin & Win', desc: 'Spin the wheel for BigCoin & coupons', color: '#a855f7', route: '/games/spin' },

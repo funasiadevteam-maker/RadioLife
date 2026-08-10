@@ -272,4 +272,33 @@ async def thank_gifter(card_id: str, body: ThanksBody, request: Request,
     return {"ok": True}
 
 
+class RedeemBody(BaseModel):
+    amount_cents: int = Field(..., gt=0, le=1_000_000)
+
+
+@router.post("/{card_id}/redeem")
+async def redeem_card(card_id: str, body: RedeemBody, request: Request,
+                      user: dict = Depends(current_user)):
+    db = request.app.state.db
+    card = await _my_card(db, card_id, user)
+    if card.get("status") != "active":
+        raise HTTPException(400, {"code": "card_inactive"})
+    balance = int(card.get("balance_cents", 0))
+    if body.amount_cents > balance:
+        raise HTTPException(400, {"code": "insufficient_balance", "have": balance})
+    new_balance = balance - body.amount_cents
+    await db.gift_cards.update_one(
+        {"card_id": card_id},
+        {"$set": {"balance_cents": new_balance,
+                  "status": "active" if new_balance > 0 else "spent",
+                  "updated_at": _now()}})
+    await db.gift_card_redemptions.insert_one({
+        "redemption_id": f"gcr_{uuid.uuid4().hex[:12]}", "card_id": card_id,
+        "user_id": user.get("user_id"), "amount_cents": body.amount_cents,
+        "balance_after_cents": new_balance, "created_at": _now()})
+    return {"ok": True, "amount_cents": body.amount_cents,
+            "balance_cents": new_balance,
+            "status": "active" if new_balance > 0 else "spent"}
+
+
 __all__ = ["router"]

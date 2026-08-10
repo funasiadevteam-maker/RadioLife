@@ -504,6 +504,130 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
 
 
 # =====================================================================
+# Extra always-on platform ("house") games — playable by every listener.
+# Reuses existing templates + generic player.  Idempotent on boot.
+# =====================================================================
+EXTRA_HOUSE_GAMES = [
+    {"id": "cmp_house_scratch", "template_id": "tpl_scratch_card",
+     "title": "RadioLife Scratch & Win",
+     "description": "Scratch the foil to reveal instant BigCoin. Play daily!",
+     "prizes": [
+         {"title": "5 BigCoin", "prize_type": "bigcoin", "value_amount": 5,
+          "probability_weight": 45, "inventory_total": 100000, "redemption_method": "in_app_wallet"},
+         {"title": "25 BigCoin", "prize_type": "bigcoin", "value_amount": 25,
+          "probability_weight": 30, "inventory_total": 40000, "redemption_method": "in_app_wallet"},
+         {"title": "75 BigCoin", "prize_type": "bigcoin", "value_amount": 75,
+          "probability_weight": 18, "inventory_total": 15000, "redemption_method": "in_app_wallet"},
+         {"title": "150 BigCoin", "prize_type": "bigcoin", "value_amount": 150,
+          "probability_weight": 7, "inventory_total": 6000, "redemption_method": "in_app_wallet"},
+     ]},
+    {"id": "cmp_house_mystery", "template_id": "tpl_mystery_box",
+     "title": "RadioLife Mystery Box",
+     "description": "Pick a box and reveal a surprise BigCoin prize.",
+     "prizes": [
+         {"title": "10 BigCoin", "prize_type": "bigcoin", "value_amount": 10,
+          "probability_weight": 50, "inventory_total": 80000, "redemption_method": "in_app_wallet"},
+         {"title": "40 BigCoin", "prize_type": "bigcoin", "value_amount": 40,
+          "probability_weight": 30, "inventory_total": 30000, "redemption_method": "in_app_wallet"},
+         {"title": "120 BigCoin", "prize_type": "bigcoin", "value_amount": 120,
+          "probability_weight": 20, "inventory_total": 10000, "redemption_method": "in_app_wallet"},
+     ]},
+    {"id": "cmp_house_memory", "template_id": "tpl_memory_match",
+     "title": "RadioLife Memory Match",
+     "description": "Match all the pairs before time runs out to win BigCoin.",
+     "prizes": [
+         {"title": "30 BigCoin", "prize_type": "bigcoin", "value_amount": 30,
+          "probability_weight": 100, "inventory_total": 999999, "max_per_user": 0,
+          "redemption_method": "in_app_wallet"},
+     ]},
+    {"id": "cmp_house_word", "template_id": "tpl_word_puzzle",
+     "title": "RadioLife Word Puzzle",
+     "description": "Guess the phrase before your strikes run out. Win BigCoin!",
+     "prizes": [
+         {"title": "25 BigCoin", "prize_type": "bigcoin", "value_amount": 25,
+          "probability_weight": 100, "inventory_total": 999999, "max_per_user": 0,
+          "redemption_method": "in_app_wallet"},
+     ]},
+]
+
+
+async def seed_extra_house_games(db, actor_user_id: str = "system") -> dict:
+    """Idempotent — seed 4 additional always-on platform games so every
+    listener has more to play in production.  Safe to call on every boot."""
+    summary = {"created": 0, "existing": 0}
+    for h in EXTRA_HOUSE_GAMES:
+        existing = await db.game_campaigns.find_one({"campaign_id": h["id"]})
+        if existing:
+            summary["existing"] += 1
+            if existing.get("end_at") is not None:
+                await db.game_campaigns.update_one(
+                    {"campaign_id": h["id"]}, {"$set": {"end_at": None, "updated_at": _now()}})
+            continue
+        tpl = await db.game_templates.find_one({"template_id": h["template_id"]})
+        if not tpl:
+            continue
+        cfg = dict(tpl.get("default_config_json") or {})
+        await db.game_campaigns.insert_one({
+            "_id": h["id"], "campaign_id": h["id"],
+            "advertiser_id": None, "business_id": None,
+            "template_id": h["template_id"], "title": h["title"],
+            "description": h["description"],
+            "sponsor_name": "RadioLife", "sponsor_logo_url": "/static/bigfm_logo.png",
+            "brand_colors_json": {"primary": "#F26B2A", "secondary": "#FBF5EC"},
+            "game_config_json": cfg,
+            "objective": "listener_engagement",
+            "budget_cents": None,
+            "bid_type": "platform_funded", "bid_amount_cents": 0,
+            "start_at": _now() - timedelta(days=1), "end_at": None,
+            "targeting_json": {"open_to_all": True},
+            "status": "active",
+            "is_platform_funded": True, "funded_source": "extra_house_games",
+            "created_by_user_id": actor_user_id,
+            "created_at": _now(), "updated_at": _now(),
+            "approved_by_user_id": "system", "approved_at": _now(),
+            "open_to_all": True, "rejection_reason": None,
+        })
+        for p in h["prizes"]:
+            pid = _new_id("prz")
+            await db.game_prizes.insert_one({
+                "_id": pid, "prize_id": pid, "campaign_id": h["id"],
+                "prize_type": p["prize_type"], "title": p["title"],
+                "description": p.get("description"),
+                "value_amount": p["value_amount"], "value_currency": p.get("value_currency"),
+                "probability_weight": int(p["probability_weight"]),
+                "inventory_total": int(p["inventory_total"]),
+                "inventory_remaining": int(p["inventory_total"]),
+                "max_per_user": int(p.get("max_per_user") or 0),
+                "redemption_method": p["redemption_method"],
+                "requires_location": False, "requires_staff_validation": False,
+                "expiration_policy_json": {"days_after_award": 30, "hard_expiry_at": None},
+                "linked_offer_id": None, "linked_badge_id": None,
+                "active": True, "created_at": _now(),
+            })
+        await db.game_redemption_rules.insert_one({
+            "_id": h["id"], "campaign_id": h["id"],
+            "one_time_use": True, "requires_qr": False,
+            "requires_location": False, "requires_staff_validation": False,
+            "expiration_days": 30, "terms_url": None,
+            "odds_disclosure_text": "Odds vary by prize tier. No purchase necessary.",
+            "no_purchase_necessary_text": "No purchase necessary; void where prohibited.",
+            "age_restriction": None, "geo_restrictions_json": {"allowed_countries": ["*"]},
+            "created_at": _now(), "updated_at": _now(),
+        })
+        await db.game_compliance_settings.insert_one({
+            "_id": h["id"], "campaign_id": h["id"],
+            "terms_text": "Standard RadioLife platform terms.",
+            "odds_disclosure": "Odds vary by prize tier.",
+            "no_purchase_necessary_text": "No purchase necessary; void where prohibited.",
+            "age_restriction": None, "geo_restrictions_json": {"allowed_countries": ["*"]},
+            "approval_status": "approved", "approved_by": "system",
+            "approved_at": _now(), "rejection_notes": None,
+        })
+        summary["created"] += 1
+    return summary
+
+
+# =====================================================================
 # Award engine
 # =====================================================================
 def _weighted_pick(weights: list[int], rng) -> int:
@@ -1420,7 +1544,7 @@ async def _campaign_public_view(db, c: dict) -> dict:
 
 __all__ = [
     "ensure_games_v2_indexes", "seed_games_v2",
-    "migrate_phase5_games", "start_session", "submit_session",
+    "migrate_phase5_games", "seed_extra_house_games", "start_session", "submit_session",
     "claim_to_wallet", "generate_qr", "redeem_qr",
     "public_play_and_win", "validate_prizes", "validate_compliance",
     "save_for_later_unlock",

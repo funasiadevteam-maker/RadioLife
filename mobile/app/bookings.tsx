@@ -77,18 +77,22 @@ export default function Bookings() {
         <Text style={s.intro}>Reserve a table or appointment at local venues.</Text>
 
         {mine.length > 0 && (
-          <View style={s.reminder} testID="bookings-reminder">
+          <TouchableOpacity style={s.reminder} testID="bookings-reminder"
+            onPress={() => router.push('/reservations')} activeOpacity={0.85}>
             <View style={s.remHead}>
               <Ionicons name="notifications" size={16} color={COLORS.primary} />
               <Text style={s.remTitle}>Upcoming reservations</Text>
+              <View style={{ flex: 1 }} />
+              <Text style={s.remManage}>Manage</Text>
+              <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
             </View>
             {mine.slice(0, 3).map((b) => (
               <Text key={b.booking_id} style={s.remLine} testID={`bk-mine-${b.booking_id}`}>
                 {b.venue_title || b.sponsor_name} · {b.slot}{b.party_size ? ` · party of ${b.party_size}` : ''}
               </Text>
             ))}
-            <Text style={s.remHint}>We&apos;ll remind you before your slot.</Text>
-          </View>
+            <Text style={s.remHint}>Tap to reschedule or cancel · we&apos;ll remind you before your slot.</Text>
+          </TouchableOpacity>
         )}
 
         {items.length === 0 && (
@@ -171,6 +175,7 @@ const s = StyleSheet.create({
   reminder: { backgroundColor: COLORS.primary + '0F', borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.primary + '44', padding: SPACING.md, marginBottom: SPACING.md },
   remHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   remTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
+  remManage: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', marginRight: 2 },
   remLine: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700', marginBottom: 3 },
   remHint: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 4 },
   card: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md, marginBottom: SPACING.md },

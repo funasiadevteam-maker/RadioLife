@@ -317,6 +317,18 @@ remove friction in the trivia funnel (one-click topic start).
 - **Booking Reminders (in-app)**: `POST /api/bookings/{id}/book` enqueues a `booking_reminder` into the Notifications inbox; new `GET /api/bookings/mine`. Mobile Bookings screen shows an upcoming-reservations reminder banner (`bookings-reminder`).
 - Tests: iteration_53 — 13/13 backend pytest PASS; mobile UIs verified in Expo preview. PIP functional path validated only after Publish (native build).
 
+## Phase MON.5 — House Games ×4 + Reservation Manager + Gift Card Redeem (2026-08-10) — SHIPPED
+- **4 new always-on platform games**: `seed_extra_house_games` (services/games_v2.py, run at boot) seeds cmp_house_scratch/mystery/memory/word (is_platform_funded, open_to_all, no expiry) reusing existing templates + generic `/game/[campaignId]` player. Surfaced in the Games tab "MORE GAMES LIVE NOW" (deduped so hardcoded spin/trivia/lyric don't repeat).
+- **Reservation Manager**: `/api/bookings/mine` now returns `status` + `available_slots`; new `POST /api/bookings/{id}/reschedule` and `/cancel`. Mobile `/reservations` screen (view/reschedule via slot chips/cancel); Bookings reminder banner is tappable → `/reservations`.
+- **Gift Card Redeem**: `POST /api/giftcards/{card_id}/redeem {amount_cents}` deducts balance (400 insufficient_balance, status→spent at 0, logs gift_card_redemptions). Mobile My Cards shows a Redeem action with an animated balance tick-down.
+- Tests: iteration_54 — 10 backend pytest pass / 3 data-skips (re-verified in UI); all mobile flows verified in Expo preview.
+- **Known (non-blocking)**: gift-card redeem is self-contained (no merchant/POS binding yet) — will bind to Marketplace checkout in Phase B; cancelled bookings drop off the reservations list on reload by design.
+
+## SUPER MARKETPLACE — planned (Phase A next)
+Approved multi-phase build (spec: 80 sections). Decisions: build BOTH surfaces in lockstep per phase; use existing cream/orange RadioLife brand (NOT the spec's stale purple/pink note); "BigPoints" = existing BigCoin/points ledger; reuse existing Stripe Connect (stripe_connect.py, merchant_onboarding.py) + businesses schema.
+- **Phase A (next)**: Admin BigPoints Economics ($0.03/point issuance cost, admin-configurable by market/category/merchant override) · Admin Category + Commission rules engine (no hardcoded %) · "Sell on RadioLife" 10-step business registration (reusing Stripe Connect) · Shop nav + Shop Home shell · Merchant BigPoints settings + cost preview + funding (prepaid + auto-deduct).
+- Phases B–F: Restaurant pickup, Services/booking, Ecommerce, Gift cards/memberships/events, AI concierge + promoted marketplace.
+
 ## Backlog (P0/P1/P2)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

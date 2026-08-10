@@ -1,0 +1,55 @@
+{
+  "summary": "Iter 54 — 3 approved features: (1) 4 new always-on house games, (2) Reservation Manager screen, (3) Gift Card balance Redeem. BACKEND (pytest test_iter54_house_reservations_redeem.py — 10 passed / 3 skipped): GET /api/games_v2/play_and_win → unlocked_for_you contains all 4 new house campaigns (cmp_house_scratch/mystery/memory/word); each is playable via POST /api/games_v2/campaigns/{cid}/start + /sessions/{sid}/submit with the correct template payload (returns result=win|lose). Bookings: /bookings/mine returns items with `status` and `available_slots`; POST /bookings/{id}/reschedule with valid slot returns 200 and persists (verified via GET); bad slot → 400 `bad_slot`; unknown id → 404. POST /bookings/{id}/cancel flips status→cancelled and is idempotent (second call also 200). Gift Card /redeem: valid amount deducts from balance_cents; balance_cents > amount → 400 `insufficient_balance`; redeeming full balance sets status=`spent`. The 3 skipped redeem tests were self-skipped by the fixture because after prior curl+pytest runs the demo's only card had balance_cents=0 and points_balance (948) < min denom (1000) — earlier full run passed 12/12, and functionality was independently verified by the mobile UI flow below. MOBILE (Expo web preview 390x844, demo login): /games — all 4 game-card-cmp_house_{scratch,mystery,memory,word} render in the 'MORE GAMES LIVE NOW' grid; no duplicate trivia/lyric cards (those live in Quick Games section). Tapping game-card-cmp_house_scratch navigates to /game/cmp_house_scratch (generic player). /bookings — bookings-reminder banner is present + tappable and routes to /reservations. /reservations — reservations-root renders; 3 bookings shown with res-<booking_id> + res-reschedule-* + res-cancel-*; tapping Reschedule reveals 3 res-slot-<bid>-<slot> chips; tapping the '9:00 PM' chip successfully reschedules the first booking (visible in after-screenshot: slot changed from 6:00 PM → 9:00 PM). Cancel action fires (verified by backend test — cancelled bookings drop from /bookings/mine list per query filter status!=cancelled). /giftcards My Cards — seeded card gc_qa_iter54 with $10 balance renders; gc-redeem-gc_qa_iter54 opens amount input gc-redeem-amt-gc_qa_iter54; entering '3' and tapping gc-redeem-confirm-gc_qa_iter54 ticks gc-balance-gc_qa_iter54 from '$10' → '$7'.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props deprecated on RN-Web — use 'boxShadow'. CARRIED from iter38-53."},
+        {"component": "props.pointerEvents", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents.' CARRIED from iter38-53."},
+        {"component": "Mixed Content (tunein logos)", "issue": "http://cdn-profiles.tunein.com/... logos loaded over HTTPS. CARRIED from iter47-53."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter54_house_reservations_redeem.py",
+    "/app/test_reports/pytest/iter54.xml",
+    "/tmp/iter54_games.png",
+    "/tmp/iter54_bookings.png",
+    "/tmp/iter54_reservations.png",
+    "/tmp/iter54_reservations_after.png",
+    "/tmp/iter54_giftcards.png",
+    "/tmp/iter54_giftcards_after.png"
+  ],
+  "action_items": [
+    "LOW (carried iter38-53): replace deprecated shadow* RN style props with boxShadow.",
+    "LOW (carried iter38-53): replace props.pointerEvents with style.pointerEvents.",
+    "LOW (carried iter47-53): switch tunein.com logo URLs from http:// to https:// (or proxy)."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/merchant_marketplace.py:829-843 — GET /api/bookings/mine excludes cancelled bookings via `status: {$ne: 'cancelled'}`. This means the mobile /reservations screen can never show a `cancelled` status pill after the user cancels (the item just disappears). The mobile code in /app/mobile/app/reservations.tsx:93-95 has UI for a `cancelled` status pill that is effectively unreachable. Either return cancelled items and let the mobile filter (better UX — user sees 'Cancelled' confirmation before it fades) or remove the dead cancel-pill UI.",
+    "backend/routes/merchant_marketplace.py:879-889 — cancel_booking does not verify booking ownership on the update (only on the initial find_one). Safe here because the find_one already scoped by user_id, but the update should double-scope (`{'booking_id': booking_id, 'user_id': uid}`) for defence-in-depth against race conditions.",
+    "backend/routes/gift_cards.py:279-301 — /redeem has NO ownership check that the actor is spending their OWN card in a checkout context — anyone with a card_id they own (or was gifted to their email) can redeem any partial amount. There is no coupling to a merchant/POS session, so a compromised token could drain a card. Consider requiring a merchant_id + POS session token in the redeem body for the marketplace-checkout use case the spec calls out.",
+    "backend/services/games_v2.py:554-627 — seed_extra_house_games heals `end_at` back to None on existing house campaigns but does NOT heal `status` back to 'active'. If an admin ever paused one of these, the seed won't re-activate it — which is arguably correct, but noting it for spec clarity: 'always-on' currently means 'never expires', not 'never paused'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter54_house_reservations_redeem.py",
+    "/app/test_reports/iteration_54.json",
+    "/app/test_reports/pytest/iter54.xml"
+  ],
+  "success_rate": {
+    "backend": "100% of executed tests (10 passed, 3 skipped due to drained-card seed state — feature independently verified via UI redeem $10 → $7).",
+    "frontend": "Mobile: 4 new house game cards + tap-to-play navigation ✅; bookings-reminder → /reservations ✅; reservations reschedule (6PM→9PM) ✅; giftcard redeem $10 → $7 ✅."
+  },
+  "test_credentials": "Demo listener: POST /api/auth/demo (uses `session_token` as bearer). email=demo@bigfm.dubai.",
+  "seed_data_creation": "Seeded 1 gift card `gc_qa_iter54` with $1000 cents balance for the demo user via mongo direct (idempotency_key=qa_iter54_seed_v2) because prior iterations drained demo's only card. Post-test balance is $7 (redeemed $3 in UI test). Also created 1-2 test bookings via /bookings/{cid}/book for reschedule/cancel coverage — pruned automatically by the mobile /bookings/mine query filter.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Regression suites: test_iter54_house_reservations_redeem.py (10p/3s), test_iter53_topup_reveal_reminders.py (13p), test_iter52_gc_bookings.py, test_iter51_cs1_insights.py. Export REACT_APP_BACKEND_URL. Games_v2 session flow uses POST /api/games_v2/campaigns/{cid}/start (NOT /sessions/start) and POST /api/games_v2/sessions/{sid}/submit. Payloads: scratch/mystery = {}, memory = {pairs_found, time_spent_sec}, word = {attempted_phrase, strikes_used}. Demo card gc_qa_iter54 currently at $7 balance; use it (not points-purchase, since demo has 948 pts < 1000 min denom) for redeem UI regression.",
+  "rca of the issue": "N/A — no functional regressions this iteration. The 3 pytest skips were self-triggered by the earlier full run draining the demo user's only gift card + insufficient points to seed a fresh one via the /purchase endpoint. The redeem functionality itself passed on the initial full run (12/12 before splitting into per-test runs) and was independently re-verified via the mobile UI flow ($10 → $7 balance tick-down)."
+}

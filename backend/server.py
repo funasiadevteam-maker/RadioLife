@@ -1493,6 +1493,9 @@ async def _deferred_bootstrap(app_: FastAPI):
     try:
         mig = await migrate_phase5_games(db, actor_user_id="system")
         logger.info(f"Phase 8a bootstrap: {mig}")
+        from services.games_v2 import seed_extra_house_games
+        extra = await seed_extra_house_games(db, actor_user_id="system")
+        logger.info(f"Extra house games bootstrap: {extra}")
     except Exception as e:
         logger.warning(f"phase 8a bootstrap: {e}")
     # Phase 8b — Gamification distribution: milestone auto-unlock engine,

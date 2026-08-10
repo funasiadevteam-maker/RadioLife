@@ -247,6 +247,14 @@ function GiftCardRow({ card, onReveal, onThanks }: {
   const cover = useRef(new Animated.Value(revealed ? 0 : 1)).current;
   const isGift = !!card.received_gift;
 
+  // Redeem state — balance ticks down with an animation.
+  const [balance, setBalance] = useState(card.balance_cents);
+  const [displayBal, setDisplayBal] = useState(card.balance_cents);
+  const [status, setStatus] = useState(card.status);
+  const [redeemOpen, setRedeemOpen] = useState(false);
+  const [amount, setAmount] = useState('');
+  const animBal = useRef(new Animated.Value(card.balance_cents)).current;
+
   const scratch = async () => {
     if (busy) return;
     setBusy(true);
@@ -263,6 +271,24 @@ function GiftCardRow({ card, onReveal, onThanks }: {
     finally { setBusy(false); }
   };
 
+  const redeem = async () => {
+    const cents = Math.round(parseFloat(amount || '0') * 100);
+    if (!cents || cents > balance) return;
+    setBusy(true);
+    try {
+      const r = await api.post(`/giftcards/${card.card_id}/redeem`, { amount_cents: cents });
+      const nb = r.data.balance_cents ?? (balance - cents);
+      // Tick the balance down.
+      const id = animBal.addListener(({ value }) => setDisplayBal(Math.round(value)));
+      Animated.timing(animBal, { toValue: nb, duration: 700, useNativeDriver: false })
+        .start(() => { animBal.removeListener(id); setDisplayBal(nb); });
+      setBalance(nb);
+      setStatus(r.data.status || (nb > 0 ? 'active' : 'spent'));
+      setRedeemOpen(false); setAmount('');
+    } catch { /* ignore */ }
+    finally { setBusy(false); }
+  };
+
   return (
     <View style={s.card} testID={`gc-mine-${card.card_id}`}>
       <View style={s.head}>
@@ -271,7 +297,9 @@ function GiftCardRow({ card, onReveal, onThanks }: {
           <Text style={s.title} numberOfLines={1}>{card.sponsor_name || 'Gift Card'}</Text>
           <Text style={s.sub}>{revealed ? card.code : (isGift ? 'A gift for you!' : card.code)}</Text>
         </View>
-        <Text style={s.bal}>{money(card.balance_cents)}</Text>
+        <Text style={[s.bal, displayBal === 0 && { color: COLORS.textMuted }]} testID={`gc-balance-${card.card_id}`}>
+          {money(displayBal)}
+        </Text>
       </View>
 
       {isGift && !revealed ? (
@@ -287,22 +315,51 @@ function GiftCardRow({ card, onReveal, onThanks }: {
       ) : (
         <>
           <Text style={s.mineMeta}>
-            {money(card.amount_cents)} value · {card.status}
+            {money(card.amount_cents)} value · {status}
             {card.gifted_to_email ? ` · gifted to ${card.gifted_to_email}` : ''}
           </Text>
-          {isGift && (
-            thanksSent ? (
-              <View style={s.thanksDone} testID={`gc-thanks-done-${card.card_id}`}>
-                <Ionicons name="heart" size={14} color={COLORS.primary} />
-                <Text style={s.thanksDoneText}>Thanks sent</Text>
+
+          {redeemOpen ? (
+            <View>
+              <Text style={s.label}>SPEND AT CHECKOUT ($)</Text>
+              <View style={s.redeemRow}>
+                <TextInput style={[s.input, { flex: 1 }]} value={amount} onChangeText={setAmount}
+                  keyboardType="decimal-pad" placeholder={`up to ${money(balance)}`}
+                  placeholderTextColor={COLORS.textMuted} testID={`gc-redeem-amt-${card.card_id}`} />
+                <TouchableOpacity style={s.redeemConfirm} onPress={redeem}
+                  disabled={busy} testID={`gc-redeem-confirm-${card.card_id}`}>
+                  {busy ? <ActivityIndicator color="#fff" />
+                    : <Text style={s.redeemConfirmText}>Redeem</Text>}
+                </TouchableOpacity>
               </View>
-            ) : (
-              <TouchableOpacity style={s.thanksBtn} onPress={sendThanks} disabled={busy}
-                testID={`gc-thanks-${card.card_id}`}>
-                <Ionicons name="heart-outline" size={15} color={COLORS.primary} />
-                <Text style={s.thanksText}>Send thanks</Text>
+              <TouchableOpacity onPress={() => { setRedeemOpen(false); setAmount(''); }} style={{ alignSelf: 'center', marginTop: 8, padding: 4 }}>
+                <Text style={s.linkText}>Cancel</Text>
               </TouchableOpacity>
-            )
+            </View>
+          ) : (
+            <View style={s.mineActions}>
+              {balance > 0 && (
+                <TouchableOpacity style={s.redeemBtn} onPress={() => setRedeemOpen(true)}
+                  testID={`gc-redeem-${card.card_id}`}>
+                  <Ionicons name="cart-outline" size={15} color="#fff" />
+                  <Text style={s.redeemText}>Redeem</Text>
+                </TouchableOpacity>
+              )}
+              {isGift && (
+                thanksSent ? (
+                  <View style={s.thanksDone} testID={`gc-thanks-done-${card.card_id}`}>
+                    <Ionicons name="heart" size={14} color={COLORS.primary} />
+                    <Text style={s.thanksDoneText}>Thanks sent</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={s.thanksBtn} onPress={sendThanks} disabled={busy}
+                    testID={`gc-thanks-${card.card_id}`}>
+                    <Ionicons name="heart-outline" size={15} color={COLORS.primary} />
+                    <Text style={s.thanksText}>Send thanks</Text>
+                  </TouchableOpacity>
+                )
+              )}
+            </View>
           )}
         </>
       )}
@@ -348,7 +405,14 @@ const s = StyleSheet.create({
   scratchHit: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   thanksBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10, paddingVertical: 8, paddingHorizontal: 14, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.primary, backgroundColor: COLORS.primary + '10' },
   thanksText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
-  thanksDone: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  thanksDone: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   thanksDoneText: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800' },
+  mineActions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' },
+  redeemBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 16, borderRadius: RADIUS.full, backgroundColor: COLORS.primary },
+  redeemText: { color: '#fff', fontSize: FONT.sm, fontWeight: '800' },
+  redeemRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  redeemConfirm: { backgroundColor: COLORS.primary, paddingHorizontal: 18, paddingVertical: 12, borderRadius: RADIUS.md, minWidth: 84, alignItems: 'center' },
+  redeemConfirmText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
+  linkText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700' },
   empty: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800', marginTop: 8 },
 });

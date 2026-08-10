@@ -831,14 +831,62 @@ async def my_bookings(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
     out = []
     async for b in db.venue_bookings.find(
-            {"user_id": user.get("user_id"), "status": "confirmed"}).sort("created_at", -1).limit(20):
+            {"user_id": user.get("user_id"), "status": {"$ne": "cancelled"}}).sort("created_at", -1).limit(30):
         c = await db.merchant_campaigns.find_one(
-            {"campaign_id": b.get("campaign_id")}, {"sponsor_name": 1, "title": 1})
+            {"campaign_id": b.get("campaign_id")}, {"sponsor_name": 1, "title": 1, "slots": 1, "booking_type": 1})
         b.pop("_id", None)
         b["sponsor_name"] = (c or {}).get("sponsor_name")
         b["venue_title"] = (c or {}).get("title")
+        b["booking_type"] = b.get("booking_type") or (c or {}).get("booking_type", "table")
+        b["available_slots"] = (c or {}).get("slots", [])
         out.append(b)
     return {"items": out, "total": len(out)}
+
+
+class RescheduleBody(BaseModel):
+    slot: str
+
+
+@router.post("/api/bookings/{booking_id}/reschedule")
+async def reschedule_booking(booking_id: str, body: RescheduleBody, request: Request,
+                             user: dict = Depends(current_user)):
+    db = request.app.state.db
+    b = await db.venue_bookings.find_one({"booking_id": booking_id, "user_id": user.get("user_id")})
+    if not b:
+        raise HTTPException(404, {"code": "booking_not_found"})
+    if b.get("status") == "cancelled":
+        raise HTTPException(400, {"code": "booking_cancelled"})
+    c = await db.merchant_campaigns.find_one({"campaign_id": b.get("campaign_id")}, {"slots": 1})
+    if body.slot not in ((c or {}).get("slots") or []):
+        raise HTTPException(400, {"code": "bad_slot"})
+    await db.venue_bookings.update_one(
+        {"booking_id": booking_id},
+        {"$set": {"slot": body.slot, "status": "confirmed", "updated_at": _now()}})
+    try:
+        from routes.notifications import _enqueue
+        await _enqueue(
+            db, owner_user_id=user.get("user_id"), station_id="bookings",
+            station_slug="bookings", type_="booking_reminder",
+            payload={"campaign_id": b.get("campaign_id"), "booking_id": booking_id,
+                     "sponsor_name": b.get("sponsor_name"), "title": b.get("venue_title"),
+                     "slot": body.slot, "rescheduled": True},
+            dedupe_key=f"booking_reschedule:{booking_id}:{body.slot}")
+    except Exception:
+        pass
+    return {"ok": True, "slot": body.slot}
+
+
+@router.post("/api/bookings/{booking_id}/cancel")
+async def cancel_booking(booking_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    b = await db.venue_bookings.find_one({"booking_id": booking_id, "user_id": user.get("user_id")})
+    if not b:
+        raise HTTPException(404, {"code": "booking_not_found"})
+    if b.get("status") == "cancelled":
+        return {"ok": True, "status": "cancelled"}
+    await db.venue_bookings.update_one(
+        {"booking_id": booking_id}, {"$set": {"status": "cancelled", "cancelled_at": _now()}})
+    return {"ok": True, "status": "cancelled"}
 
 
 @router.get("/api/merchant/bookings/{campaign_id}")
