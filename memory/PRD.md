@@ -436,6 +436,22 @@ First wave of the post-Phase-D backlog (build order confirmed with user: Wave A 
 User-confirmed order: (1) Merchant Gift Cards, (2) Memberships, (3) Packages, (4) Events. Memberships = **recurring Stripe subscriptions** AND **entitlement/benefit rules** (e.g. "1 free coffee daily", meal plans — customer redeems included items per rules). Then Wave C = Multi-Merchant Cart (split into one order per merchant at checkout, single payment).
 
 ## Backlog (P0/P1/P2)
+
+## SUPER MARKETPLACE — Multi-Merchant Cart SHIPPED (2026-06 fork)
+- Backend `POST /api/shop/cart/checkout` splits a multi-venue basket into one product_order per business under a single Stripe session (gift cards auto-apply per venue). Web: `useProductCart.js` (Zustand) + `ShopCartRadioLife.jsx` + cart icon/badge in Shop header (`shop-cart-button`). Mobile: `src/stores/useProductCart.ts` + `app/shop/product-cart.tsx` + products screen wired to add-to-cart. Verified via testing agent iter64 (both surfaces).
+
+## SAMPLE STOREFRONTS + SAMPLE GAMES SHIPPED (2026-06 fork) — Phase 1 of Shop-Desktop request
+- New idempotent seed `services/marketplace_samples.py` (wired in server.py startup after seed_demo_menus):
+  - **Fun Pizza Kitchen** (`biz_sample_funpizza`, restaurant): 8 menu items (pizzas/sides/dessert/coffee), **Weekly Pizza Club** membership $60/mo (1 pizza/week) + **Coffee Club** $9.99/mo (unlimited coffee). Images = Unsplash (funpizzakitchen.com CDN blocks hotlinking).
+  - **Ambreens Salon** (`biz_sample_ambreens`, beauty): 3 bookable services (Haircut/Colour/Facial) with seeded weekly `service_availability`, 1 product (Argan serum), 1 membership (Unlimited Blowouts $49/mo).
+  - **Sample games**: 3 live house campaigns per active game template (24 total, `cmp_smp_*`, open_to_all, bigcoin prizes) so every game type shows in Play & Win.
+- Discoverability: `GET /api/shop/businesses/{id}` now returns `has_products`; web business-detail (`ShopBusinessRadioLife.jsx`) shows a **Shop Products** button (`shop-detail-products`) when a services/menu business also has products. Legacy web left sidebar (`AppShell.jsx` SECONDARY_NAV) now has a **Shop** link (`nav-shop`). Mobile Play/Games hub gains a **Trivia** section (`trivia-hub-card` → /trivia, host/join live-room buttons).
+- Verified: testing agent iter65 (backend 8/8, web sidebar + detail CTAs, mobile trivia). Note: the two "membership/service unavailable" findings were test artifacts (tester used plan_id/service_id in URLs that expect a business_id; correct `/shop/memberships/{business_id}` + `/shop/services/{business_id}` confirmed working via curl).
+
+### NEXT — Phase 2 of Shop-Desktop request (user-approved, NOT yet started)
+- Make the web Shop **responsive**: true wide multi-column desktop layout on laptop (top nav / grids), keep app-style layout on phones. Add a **Shop widget + link on the web home page**.
+
+## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).
 - **P2** More business monetization: Lead Gen CPL, Prepaid Offers, Business Memberships.

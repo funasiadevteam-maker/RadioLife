@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 65 (Sample marketplace + sample house games seed + shop nav + mobile trivia section) tested end-to-end on shared backend + web + mobile. Backend pytest: 8/8 pass. Fun Pizza Kitchen (biz_sample_funpizza) — business_detail returns has_menu=true + has_memberships=true, menu returns exactly 8 items across Pizzas/Sides/Dessert/Coffee, 2 membership plans (Weekly Pizza Club + Coffee Club). Ambreens Salon (biz_sample_ambreens) — has_memberships=true + has_products=true, sells=['services','appointments','products','memberships'], /products returns Argan Repair Hair Serum (active), /services returns 3 services (Haircut & Style, Hair Colour, Signature Spa Facial) each with duration_min>0, service_availability seeded on profile. GET /api/games_v2/play_and_win (authed) returns >=24 cmp_smp_ house campaigns spanning all 8 game templates. Web (legacy shell, 1920 viewport): sidebar shows [data-testid='nav-shop'] labeled 'Shop' inside the 'More' group — click routes to /shop and renders rl-shop-page overlay (both storefronts visible in listings). Ambreens detail (/shop/biz_sample_ambreens) renders all 3 CTAs — shop-detail-membership ('Memberships'), shop-detail-products ('Shop Products'), shop-detail-cta ('Book Now · Earn 200'). Fun Pizza detail (/shop/biz_sample_funpizza) correctly renders shop-detail-membership ('Memberships') + shop-detail-cta ('Order Pickup · Earn 175') and OMITS shop-detail-products (correct — no products). Mobile (Expo web preview, 390x844): Games hub renders new TRIVIA section — trivia-hub-card, trivia-host-btn, trivia-join-btn all present with correct testIDs; trivia-hub-card navigates to /trivia. Existing predict-win-card + quick-game-spin/trivia/lyric still render. ONE BUG FOUND: web /shop/memberships/{plan_id} and /shop/services/{svc_id} routes both render an 'Unavailable' / 'Services unavailable.' state for the seeded sample plan (mplan_sample_biz_sample_ambreens_glam) and service (svc_sample_biz_sample_ambreens_0) — the shell chrome loads but the page body says the item can't be resolved. Backend detail lookups for these plan_id / service_id likely need matching consumer routes wired for the light-shell screens, OR the light shell is fetching from a route that hasn't been extended to sample data. Suspect the fetcher expects a merchant lookup by owner instead of resolving from marketplace_profiles/system_sample owner_user_id. Reporting to main agent for fix.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "ShopMembershipDetail (/shop/memberships/{id})", "issue": "Sample plan mplan_sample_biz_sample_ambreens_glam renders 'Services unavailable.' state — page loads chrome but the plan body never resolves.", "selector": "route /shop/memberships/{plan_id}", "priority": "HIGH"},
+        {"component": "ShopServiceDetail (/shop/services/{id})", "issue": "Sample service svc_sample_biz_sample_ambreens_0 renders 'Unavailable.' state — page loads chrome but the service body never resolves.", "selector": "route /shop/services/{service_id}", "priority": "HIGH"}
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "RadioLife /shop grid card", "issues": ["Fun Pizza Kitchen cover image renders as broken alt (looks like the FPK_COVER URL from funpizzakitchen.com CDN returns 4xx / is blocked by origin in the img element — shows the alt text 'Fun Pizza Kitchen' on grey placeholder instead of the image). Consider hosting the cover on Unsplash/CDN or downloading to /public."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_sample_marketplace.py",
+    "/app/test_reports/pytest/iter65_samples.xml"
+  ],
+  "action_items": [
+    "Fix web /shop/memberships/{plan_id} — sample plan mplan_sample_biz_sample_ambreens_glam falls through to 'Services unavailable.' — check the fetch/route wiring in ShopMembershipRadioLife (or equivalent) so it resolves membership_plans by plan_id regardless of owner (system_sample).",
+    "Fix web /shop/services/{service_id} — sample service svc_sample_biz_sample_ambreens_0 falls through to 'Unavailable.' — same root cause suspected: the sample services have owner_user_id='system_sample'; ensure the consumer service-detail lookup uses the public marketplace_profiles path and doesn't require an owner match.",
+    "Consider replacing Fun Pizza Kitchen FPK_COVER (funpizzakitchen.com/pluto-images/...) with an Unsplash-hosted or self-hosted cover — the current URL renders as broken alt in the /shop grid."
+  ],
+  "critical_code_review_comments": [
+    "services/marketplace_samples.py uses owner_user_id='system_sample' but does not seed a corresponding entry in the users collection — if any consumer detail path does a users lookup on the owner, the sample screens will 404. Suggest either creating a stub system_sample user or relaxing the join.",
+    "The Fun Pizza cover URL depends on a third-party CDN that appears to block hotlinking; move critical hero assets to /app/frontend/public or Unsplash."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sample_marketplace.py",
+    "/app/test_reports/iteration_65.json"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "80% (shop nav + business detail + mobile trivia pass; membership/service consumer detail screens fail to load body for sample data)"},
+  "test_credentials": "Web password login: test@bigfm.dubai / TestUser123! (cookie via POST /api/auth/login). Mobile: demo-login-btn.",
+  "seed_data_creation": "None. Existing startup seed (services.marketplace_samples.seed_sample_customers_and_games) already populated biz_sample_funpizza + biz_sample_ambreens + 24 cmp_smp_ campaigns.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Sample seed is idempotent and confirmed on backend. Web sidebar Shop link (data-testid nav-shop) + /shop overlay + Ambreens/FunPizza business detail all work with correct testIDs (shop-detail-membership, shop-detail-products, shop-detail-cta). Mobile games tab trivia section (trivia-hub-card, trivia-host-btn, trivia-join-btn) all wired and route correctly to /trivia, /trivia/rooms/create, /trivia/join respectively. OPEN BUG: web /shop/memberships/{id} and /shop/services/{id} render an unavailable-body state for the sample plan_id (mplan_sample_biz_sample_ambreens_glam) and service_id (svc_sample_biz_sample_ambreens_0). Reproduce by hitting those URLs after cookie login as test@bigfm.dubai — chrome loads but the interior body shows 'Services unavailable.' / 'Unavailable.'. Root cause likely in the light-shell fetch (probably a merchant-scoped lookup that doesn't match owner_user_id='system_sample'), NOT in the seed itself (backend detail endpoints for business/menu/products/services all return 200).",
+  "rca of the issue": "The sample storefronts are seeded with owner_user_id='system_sample' but no corresponding user document is created. If ShopMembershipRadioLife / ShopServiceRadioLife (or their fetch layer) resolves the plan/service via an owner-scoped endpoint that joins on users, the fetch returns empty and the UI renders the unavailable fallback. Fix by (a) creating a stub system_sample user, OR (b) ensuring consumer detail fetches use marketplace_profiles-only lookups keyed on plan_id/service_id."
+}

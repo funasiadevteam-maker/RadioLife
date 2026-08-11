@@ -90,6 +90,8 @@ async def business_detail(business_id: str, request: Request,
         await db.membership_plans.find_one({"business_id": business_id, "active": True}))
     card["has_packages"] = bool(
         await db.package_products.find_one({"business_id": business_id, "active": True}))
+    card["has_products"] = "products" in (p.get("sells") or []) or bool(
+        await db.products.find_one({"business_id": business_id, "active": True}))
     card["has_events"] = bool(
         await db.events.find_one({"business_id": business_id, "active": True}))
     # Happy Hour live state for consumer.

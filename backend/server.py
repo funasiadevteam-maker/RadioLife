@@ -1506,11 +1506,13 @@ async def _deferred_bootstrap(app_: FastAPI):
         dm = await seed_demo_businesses(db)
         from services.marketplace import seed_demo_menus
         dmn = await seed_demo_menus(db)
+        from services.marketplace_samples import seed_sample_customers_and_games
+        dsm = await seed_sample_customers_and_games(db)
         from routes.marketplace_services import ensure_services_indexes
         await ensure_services_indexes(db)
         from routes.marketplace_products import ensure_products_indexes
         await ensure_products_indexes(db)
-        logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn}")
+        logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn} {dsm}")
 
         async def _booking_reminder_cron():
             import asyncio
