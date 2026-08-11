@@ -27,7 +27,7 @@ consumer_router = APIRouter(prefix="/api/shop", tags=["marketplace-events-consum
 
 def _clean(d: Dict[str, Any]) -> Dict[str, Any]:
     d.pop("_id", None)
-    for k in ("created_at", "updated_at"):
+    for k in ("created_at", "updated_at", "checked_in_at"):
         v = d.get(k)
         if hasattr(v, "isoformat"):
             d[k] = v.isoformat()
@@ -269,6 +269,31 @@ async def my_tickets(request: Request, user: dict = Depends(current_user)):
     out = [_clean(x) async for x in db.event_tickets.find(
         {"user_id": user.get("user_id"), "status": "active"}).sort("created_at", -1)]
     return {"items": out}
+
+
+class CheckinBody(BaseModel):
+    code: str = Field(..., min_length=3, max_length=40)
+
+
+@router.post("/tickets/checkin")
+async def checkin_ticket(body: CheckinBody, request: Request, user: dict = Depends(current_user)):
+    """Merchant scans/enters a ticket code to check a guest in at the door."""
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    code = body.code.strip().upper()
+    t = await db.event_tickets.find_one({"code": code, "business_id": p["business_id"]})
+    if not t:
+        raise HTTPException(404, {"code": "ticket_not_found"})
+    if t.get("status") == "checked_in":
+        return {"ok": False, "status": "already_checked_in", "ticket": _clean(dict(t))}
+    if t.get("status") != "active":
+        return {"ok": False, "status": t.get("status", "invalid"), "ticket": _clean(dict(t))}
+    await db.event_tickets.update_one(
+        {"ticket_id": t["ticket_id"]},
+        {"$set": {"status": "checked_in", "checked_in_at": now(), "updated_at": now()}})
+    t["status"] = "checked_in"
+    t["checked_in_at"] = now()
+    return {"ok": True, "status": "checked_in", "ticket": _clean(dict(t))}
 
 
 __all__ = ["router", "consumer_router"]

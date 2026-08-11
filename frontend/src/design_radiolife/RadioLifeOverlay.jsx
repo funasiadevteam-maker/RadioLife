@@ -48,6 +48,8 @@ import MerchantServicesRadioLife from "./screens/MerchantServicesRadioLife";
 // Phase D — ecommerce products, product orders, loyalty.
 import ShopProductsRadioLife from "./screens/ShopProductsRadioLife";
 import ShopCartRadioLife from "./screens/ShopCartRadioLife";
+import ShopMyMembershipsRadioLife from "./screens/ShopMyMembershipsRadioLife";
+import MerchantTicketScanRadioLife from "./screens/MerchantTicketScanRadioLife";
 import ShopProductOrdersRadioLife from "./screens/ShopProductOrdersRadioLife";
 import MerchantProductsRadioLife from "./screens/MerchantProductsRadioLife";
 import LoyaltyRadioLife from "./screens/LoyaltyRadioLife";
@@ -75,6 +77,7 @@ function screenFor(pathname) {
   if (pathname === "/sell") return SellOnRadioLife;
   if (pathname === "/shop/orders") return ShopOrdersRadioLife;
   if (pathname === "/shop/cart") return ShopCartRadioLife;
+  if (pathname === "/shop/memberships") return ShopMyMembershipsRadioLife;
   if (pathname === "/shop/product-orders") return ShopProductOrdersRadioLife;
   if (pathname === "/shop/loyalty") return LoyaltyRadioLife;
   if (pathname === "/shop/bookings") return ShopBookingsRadioLife;
@@ -86,6 +89,7 @@ function screenFor(pathname) {
   if (pathname === "/shop/merchant/memberships") return MerchantMembershipsRadioLife;
   if (pathname === "/shop/merchant/packages") return MerchantPackagesRadioLife;
   if (pathname === "/shop/merchant/events") return MerchantEventsRadioLife;
+  if (pathname === "/shop/merchant/tickets") return MerchantTicketScanRadioLife;
   if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;
   if (pathname.startsWith("/shop/services/")) return ShopServicesRadioLife;
@@ -142,7 +146,7 @@ export default function RadioLifeOverlay() {
     <div
       className="fixed inset-0 z-[80] overflow-y-auto"
       data-testid="rl-overlay">
-      <AppShellRadioLife showBottomNav={!hideNav && !isBare} bare={isBare} wide={shopRoute}>
+      <AppShellRadioLife showBottomNav={!hideNav && !isBare} bare={isBare} wide={shopRoute} desktop={shopRoute}>
         <Screen />
       </AppShellRadioLife>
     </div>

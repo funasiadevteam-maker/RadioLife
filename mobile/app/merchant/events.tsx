@@ -51,6 +51,11 @@ export default function MerchantEvents() {
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} testID="mevt-back"><Ionicons name="chevron-back" size={26} color={COLORS.text} /></TouchableOpacity>
         <Text style={s.title}>Events</Text>
+        <TouchableOpacity onPress={() => router.push('/merchant/ticket-scan')} testID="mevt-scan-link"
+          style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primary, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}>
+          <Ionicons name="qr-code-outline" size={15} color="#fff" />
+          <Text style={{ color: '#fff', fontWeight: '900', fontSize: FONT.xs }}>Scan</Text>
+        </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={{ padding: SPACING.md, paddingBottom: 120 }} testID="mevt-root">
         <View style={s.card} testID="mevt-form">

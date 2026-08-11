@@ -311,7 +311,7 @@ async def list_flagships(db, *,
                                                     matches_language: Optional[str] = None,
                                                     matches_city: Optional[str] = None,
                                                     limit: int = 50) -> list[dict]:
-    q: dict = {"is_flagship": True}
+    q: dict = {"is_flagship": True, "dubai_hidden": {"$ne": True}}
     if category:
         q["flagship_categories"] = category.lower()
     if matches_language:
@@ -374,6 +374,7 @@ async def search_flagships_by_query(db, *, query: str, limit: int = 5) -> list[d
     q = query.strip().lower()
     docs = await db.imported_radio_stations.find({
         "is_flagship": True,
+        "dubai_hidden": {"$ne": True},
         "$or": [
             {"name":                        {"$regex": q, "$options": "i"}},
             {"tags_json":              {"$in": [q]}},

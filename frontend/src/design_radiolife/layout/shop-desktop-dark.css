@@ -1,0 +1,36 @@
+/* Desktop-only dark theme for the RadioLife Shop so it matches the legacy
+   dark website. Scoped to `.rl-shop-desktop-dark` (added by AppShell in
+   desktop shop mode) and gated to lg+ so phones keep the light app look.
+   Re-maps the handful of light Tailwind utilities the shop screens use —
+   no per-screen edits needed. Orange accents intentionally kept. */
+@media (min-width: 1024px) {
+  .rl-shop-desktop-dark,
+  .rl-shop-desktop-dark .rl-root {
+    background: #0b0b0d !important;
+  }
+  .rl-shop-desktop-dark .bg-white { background-color: #17171b !important; }
+  .rl-shop-desktop-dark .bg-slate-50,
+  .rl-shop-desktop-dark .bg-slate-50\/60,
+  .rl-shop-desktop-dark .bg-slate-100 { background-color: #1e1e23 !important; }
+  .rl-shop-desktop-dark .bg-slate-200 { background-color: #2a2a30 !important; }
+
+  .rl-shop-desktop-dark .text-slate-900 { color: #f4f4f5 !important; }
+  .rl-shop-desktop-dark .text-slate-800 { color: #e4e4e7 !important; }
+  .rl-shop-desktop-dark .text-slate-700 { color: #d4d4d8 !important; }
+  .rl-shop-desktop-dark .text-slate-600 { color: #b4b4bb !important; }
+  .rl-shop-desktop-dark .text-slate-500,
+  .rl-shop-desktop-dark .text-slate-400 { color: #9a9aa2 !important; }
+  .rl-shop-desktop-dark .text-slate-300 { color: #71717a !important; }
+
+  .rl-shop-desktop-dark .border-slate-200,
+  .rl-shop-desktop-dark .border-slate-100 { border-color: rgba(255, 255, 255, 0.08) !important; }
+
+  .rl-shop-desktop-dark .bg-orange-50 { background-color: rgba(234, 88, 12, 0.16) !important; }
+
+  .rl-shop-desktop-dark .shadow,
+  .rl-shop-desktop-dark .shadow-sm,
+  .rl-shop-desktop-dark .shadow-md { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4) !important; }
+
+  .rl-shop-desktop-dark input,
+  .rl-shop-desktop-dark textarea { color: #f4f4f5 !important; }
+}

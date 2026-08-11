@@ -112,6 +112,10 @@ export default function ShopHome() {
             <Ionicons name="ribbon-outline" size={18} color={COLORS.gold} />
             <Text style={s.quickText}>My Loyalty</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/my-memberships')} testID="shop-my-memberships">
+            <Ionicons name="ribbon" size={18} color={COLORS.primary} />
+            <Text style={s.quickText}>Memberships</Text>
+          </TouchableOpacity>
         </View>
 
         {sections.map((sec) => (

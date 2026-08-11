@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 66 — Desktop Shop Layout + Home Shop Widget + Membership Wallet + Ticket Scanning tested end-to-end on shared backend + web + mobile. Backend pytest 6/6 pass (1 skipped intentionally — pizza plan not seeded per spec): GET /api/shop/memberships/mine returns seeded 'Unlimited Blowouts' (Ambreens) + 'Coffee Club' (Fun Pizza) with plan_name/sponsor_name/price_cents/interval/current_period_end and benefits[] shape for BOTH web (test@) and mobile (demo@); POST /api/shop/memberships/{id}/claim decrements 'bnf_colour_off' then returns 400 limit_reached on repeat; POST /api/merchant/marketplace/events/tickets/checkin with TEST5678/DEMO5678 succeeds, repeat -> already_checked_in, NOPE9999 -> 404 ticket_not_found. Web @1920: /shop renders rl-desktop-topnav with all 5 links (listen/shop/pay/rewards/profile), bottom nav hidden; shop-my-memberships-link present. /shop/memberships (rl-my-memberships-page) shows 2 mymembership-* cards with 'Renews Sep 10, 2026', 3 benefit-* rows, 3 claim-* buttons — Claim Blowout decrements to '98 of 99 left this day' with 'Claimed! 🎉' indicator. /shop/merchant/tickets (rl-ticket-scan-page): scan-code-input + scan-submit present; TEST1234 -> success card 'Checked in ✓ RadioLife Live Showcase Code TEST1234 · Qty 1'; NOPE9999 -> 'Ticket not found'. Legacy home (/): home-shop-widget + home-shop-open + 4 home-shop-biz-* tiles present in DOM. Web @390px: rl-bottom-nav visible, rl-desktop-topnav hidden — responsive switching works. Mobile (Expo web preview @390x844): demo-login-btn works; shop-my-memberships quick button routes to /shop/my-memberships (mymem-root) — 3 cards (Coffee Club + Unlimited Blowouts + a leftover Coffee Club from older test rows) with 5 mymem-claim-* buttons + renewal dates. /merchant/ticket-scan (scan-root) with scan-code-input+scan-submit — DEMO1234 -> 'Checked in ✓ RadioLife Live Showcase · Code DEMO1234 · Qty 1'. Parity: identical happy path on both surfaces. ONE MINOR UX MISS on both platforms: the ticket-scan result card renders the SAME 'Checked in ✓' text on the FIRST successful check-in AND on the REPEAT attempt — the backend correctly returns different payloads (ok:true/status:checked_in vs ok:false/status:already_checked_in) but the UI treats both as success. Also several React 19 warnings 'a props object containing a key prop is being spread into JSX' in NavItem/Item/BottomTab (legacy nav components) — cosmetic only, no functional impact. React Router logs 'No routes matched location /shop/merchant/tickets' but the page still renders correctly via the RadioLifeOverlay catch-all — worth wiring a proper route later.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "MerchantTicketScanRadioLife (scan-result card)", "issue": "UI renders the same green 'Checked in ✓' state on both first check-in AND on repeat attempt (backend returns ok:false/status:already_checked_in on repeat, UI ignores). User can't tell whether the guest was just admitted or was already admitted.", "selector": "[data-testid='scan-result']", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/shop/merchant/tickets", "issues": ["React Router console warning: 'No routes matched location /shop/merchant/tickets' — the page still renders via RadioLifeOverlay catch-all, but the route should be declared to remove the warning."]},
+        {"screen": "Global (all pages)", "issues": ["React 19 warning: 'A props object containing a key prop is being spread into JSX' in NavItem / Item / BottomTab components — key should be passed directly, not spread. Cosmetic only."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "MerchantTicketScan (scan-result)", "issue": "Same as web — repeat scan on an already-checked-in code shows the same 'Checked in ✓' card. UI should render an 'Already checked in' variant when backend returns status=already_checked_in.", "testID": "scan-result", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Ticket check-in repeat", "platform": "both", "issue": "Both web and mobile fail to distinguish first check-in vs already_checked_in in the UI card (backend returns different status).", "expected": "Repeat scan shows amber/red 'Already checked in' card with checked_in_at timestamp", "actual": "Both surfaces render the same green 'Checked in ✓' card on first and repeat scans"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter66_wallet_and_scan.py",
+    "/app/test_reports/pytest/iter66_wallet_scan.xml"
+  ],
+  "action_items": [
+    "Web + Mobile: differentiate scan-result rendering for backend status='already_checked_in' vs 'checked_in' (both files: /app/frontend/src/design_radiolife/screens/MerchantTicketScanRadioLife.jsx and /app/mobile/app/merchant/ticket-scan.tsx). Ideally show an amber banner + the original checked_in_at timestamp when repeating.",
+    "Web: declare /shop/merchant/tickets and /shop/memberships as first-class routes so React Router stops logging 'No routes matched location' (the pages already render correctly via the RadioLifeOverlay fallback, but the console warning is misleading).",
+    "Web (low priority): fix React 19 spread-with-key warnings in NavItem / Item / BottomTab (legacy nav components). Non-blocking."
+  ],
+  "critical_code_review_comments": [
+    "routes/marketplace_events.py::checkin_ticket returns HTTP 200 + ok:false for already_checked_in — technically fine, but consider returning 409 Conflict so REST clients can branch on status code alone.",
+    "marketplace_samples.seed_demo_user_fixtures uses $unset checked_in_at on every seed run — this resets the 'spare' code (…5678) between backend restarts, which is exactly what the spec wants but means an operator can't rely on a stable checked-in-history across restarts. Fine for demo/dev; document if needed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter66_wallet_and_scan.py",
+    "/app/test_reports/iteration_66.json"
+  ],
+  "success_rate": {"backend": "100% (6/6 pass, 1 skip)", "frontend": "~95% (web + mobile happy paths all pass; only the repeat-scan UX variant is missing)"},
+  "test_credentials": "Web: test@bigfm.dubai / TestUser123! (cookie). Mobile: demo-login-btn -> demo@bigfm.dubai (bearer). Codes: TEST1234/TEST5678 (web merchant), DEMO1234/DEMO5678 (mobile merchant). Note: TEST1234 was consumed in this run (now permanently checked_in until the seed re-runs). TEST5678 is now also checked_in from pytest.",
+  "seed_data_creation": "None. services.marketplace_samples.seed_demo_user_fixtures already idempotently seeds 2 memberships + 2 tickets (each with $unset checked_in_at, so ticket status is reset on backend startup).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 4 features (desktop shop layout, home shop widget, membership wallet, ticket scanning) verified working on web (test@bigfm.dubai cookie) + mobile (demo@bigfm.dubai bearer) + shared backend. Backend pytest: /app/backend/tests/test_iter66_wallet_and_scan.py (6/6 pass, 1 skip). Only open UX issue: scan-result card does NOT differentiate first-check-in vs already-checked-in (both platforms). Backend seed_demo_user_fixtures $unsets checked_in_at each startup so codes reset — if you need fresh check-in, restart backend or use one of the spare codes (TEST5678 / DEMO5678). Data confirmed: web wallet has plan_ids ['mplan_sample_biz_sample_ambreens_glam', 'mplan_sample_biz_sample_funpizza_coffee']; mobile has same 2 + a leftover Coffee Club from an older TEST_iter56 seed (mplan_1232342be3c3) — this is harmless legacy data. React 19 spread-key warnings + React-Router no-match warnings exist but are cosmetic.",
+  "rca of the issue": "Ticket check-in UI parity gap: backend endpoint /api/merchant/marketplace/events/tickets/checkin correctly returns ok:false + status:'already_checked_in' + the original ticket (with checked_in_at) on the repeat call, but both the web (MerchantTicketScanRadioLife.jsx) and mobile (merchant/ticket-scan.tsx) scan-result renderers only branch on presence of a ticket, not on the status field. Fix: read result.status and render an amber/warning card variant when status === 'already_checked_in', showing the original checked_in_at timestamp."
+}

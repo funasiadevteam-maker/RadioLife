@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Trash2, Pencil, CalendarDays } from "lucide-react";
+import { ChevronLeft, Trash2, Pencil, CalendarDays, QrCode } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => (c === 0 ? "Free" : `$${(c / 100).toFixed(2)}`);
@@ -50,6 +50,10 @@ export default function MerchantEventsRadioLife() {
       <div className="flex items-center gap-3 px-4 pt-4 pb-2">
         <button onClick={() => navigate("/shop/merchant")} data-testid="mevt-back" className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><ChevronLeft size={20} /></button>
         <h1 className="text-xl font-black text-slate-900">Events</h1>
+        <button onClick={() => navigate("/shop/merchant/tickets")} data-testid="mevt-scan-link"
+          className="ml-auto inline-flex items-center gap-1.5 bg-orange-600 text-white text-sm font-black rounded-full px-4 py-2">
+          <QrCode size={15} /> Scan Tickets
+        </button>
       </div>
 
       <div className="px-4 space-y-4">

@@ -1513,6 +1513,16 @@ async def _deferred_bootstrap(app_: FastAPI):
         from routes.marketplace_products import ensure_products_indexes
         await ensure_products_indexes(db)
         logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn} {dsm}")
+        from services.radio_policy import apply_dubai_station_policy, backfill_station_genres
+        drp = await apply_dubai_station_policy(db)
+        logger.info(f"Radio Dubai policy: {drp}")
+
+        async def _bg_genre_backfill():
+            try:
+                await backfill_station_genres(db)
+            except Exception as _e:  # noqa: BLE001
+                logger.warning(f"Radio genre backfill task failed: {_e}")
+        asyncio.create_task(_bg_genre_backfill())
 
         async def _booking_reminder_cron():
             import asyncio

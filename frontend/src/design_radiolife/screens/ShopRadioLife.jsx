@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Search, Star, Store, ArrowRight, Coins, ShoppingCart } from "lucide-react";
+import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown } from "lucide-react";
 import { API } from "@/AuthContext";
 import { RLCard, RLChip } from "../DesignSystem";
 import { useProductCart } from "../useProductCart";
@@ -81,6 +81,17 @@ export default function ShopRadioLife() {
           )}
         </Link>
       </header>
+
+      <div className="flex gap-2 -mt-1">
+        <Link to="/shop/memberships" data-testid="shop-my-memberships-link"
+          className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3.5 py-1.5 text-xs font-black text-slate-700 hover:border-orange-300">
+          <Crown size={13} className="text-orange-600" /> My Memberships
+        </Link>
+        <Link to="/shop/orders" data-testid="shop-my-orders-link"
+          className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3.5 py-1.5 text-xs font-black text-slate-700 hover:border-orange-300">
+          <Store size={13} className="text-orange-600" /> My Orders
+        </Link>
+      </div>
 
       <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-3">
         <Search size={18} className="text-slate-400" />

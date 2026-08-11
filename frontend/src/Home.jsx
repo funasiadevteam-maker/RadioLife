@@ -44,6 +44,7 @@ import PromoBannerCard from "@/components/PromoBannerCard";
 // Phase FUN.1 — Flagship stations hero strip.
 import FlagshipStrip from "@/components/FlagshipStrip";
 import WaysToEarnCard from "@/rewards/WaysToEarnCard";
+import ShopHomeWidget from "@/components/ShopHomeWidget";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -125,6 +126,9 @@ export default function Home() {
 
       {/* Phase RWD.1 — Ways to Earn Today (persistent earn-loop entry point). */}
       <WaysToEarnCard />
+
+      {/* Super Marketplace — jump straight into the Shop from the home page. */}
+      <ShopHomeWidget />
 
       {/* ── Phase K.8 — Featured stations MOVED to the very top.
             The 4 RadioLife AI station tiles are the first thing visitors

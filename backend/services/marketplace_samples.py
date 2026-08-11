@@ -271,4 +271,55 @@ async def seed_sample_games(db) -> Dict[str, Any]:
 async def seed_sample_customers_and_games(db, market: str = "Dubai") -> Dict[str, Any]:
     a = await seed_sample_storefronts(db, market)
     b = await seed_sample_games(db)
-    return {**a, **b}
+    c = await seed_demo_user_fixtures(db)
+    return {**a, **b, **c}
+
+
+async def seed_demo_user_fixtures(db) -> Dict[str, Any]:
+    """Demo-friendly fixtures so the Membership Wallet + Ticket Scan screens
+    show real content without a Stripe round-trip. Seeded for BOTH the mobile
+    demo account and the web test account so each surface has data."""
+    from datetime import timedelta
+    out: List[str] = []
+    # (email, code_prefix) — web uses test@ (cookie), mobile uses demo@ (bearer).
+    for email, tag in (("demo@bigfm.dubai", "DEMO"), ("test@bigfm.dubai", "TEST")):
+        u = await db.users.find_one({"email": email}, {"user_id": 1})
+        if not u:
+            continue
+        uid = u["user_id"]
+        for key, plan_id, biz in (
+            ("ambreens", "mplan_sample_biz_sample_ambreens_glam", "biz_sample_ambreens"),
+            ("coffee", "mplan_sample_biz_sample_funpizza_coffee", "biz_sample_funpizza"),
+        ):
+            mid = f"mbr_{tag.lower()}_{key}"
+            await db.memberships.update_one(
+                {"membership_id": mid},
+                {"$set": {"membership_id": mid, "plan_id": plan_id, "business_id": biz,
+                          "user_id": uid, "status": "active",
+                          "stripe_subscription_id": f"sub_{mid}",
+                          "current_period_end": now() + timedelta(days=30), "updated_at": now()},
+                 "$setOnInsert": {"created_at": now()}}, upsert=True)
+        # A ticketed event + scannable ticket under the user's own business.
+        dp = await db.marketplace_profiles.find_one({"owner_user_id": uid}, {"business_id": 1, "public_name": 1})
+        if dp:
+            bid = dp["business_id"]
+            eid = f"evt_{tag.lower()}_showcase"
+            await db.events.update_one(
+                {"event_id": eid},
+                {"$set": {"event_id": eid, "business_id": bid, "sponsor_name": dp.get("public_name"),
+                          "title": "RadioLife Live Showcase", "description": "Demo event for ticket check-in.",
+                          "location": "Main Stage", "starts_at": (now() + timedelta(days=7)).isoformat(),
+                          "price_cents": 2500, "capacity": 200, "allow_points": True, "allow_card": True,
+                          "points_per_dollar": 100, "active": True, "updated_at": now()},
+                 "$setOnInsert": {"tickets_sold": 1, "created_at": now()}}, upsert=True)
+            for code in (f"{tag}1234", f"{tag}5678"):
+                await db.event_tickets.update_one(
+                    {"code": code},
+                    {"$set": {"code": code, "event_id": eid, "business_id": bid,
+                              "event_title": "RadioLife Live Showcase",
+                              "starts_at": (now() + timedelta(days=7)).isoformat(),
+                              "user_id": uid, "qty": 1, "method": "card", "status": "active"},
+                     "$setOnInsert": {"ticket_id": f"tkt_{code.lower()}", "created_at": now()},
+                     "$unset": {"checked_in_at": ""}}, upsert=True)
+            out.append(f"{email}:{tag}1234")
+    return {"demo_fixtures": out or "skipped_no_users"}

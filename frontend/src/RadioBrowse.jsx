@@ -56,14 +56,16 @@ function GridCard({ s, onActivate }) {
   const isPriority = !isFlagship && !!s.is_priority;
   const artUrl = resolveImg(s.logo_url || s.favicon);
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       data-testid={`radio-browse-card-${s.id}`}
       data-source={src}
       data-flagship={isFlagship ? "1" : ""}
       data-priority={isPriority ? "1" : ""}
       onClick={() => onActivate(s)}
-      className={`group text-left rounded-xl bg-white/[0.04]
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onActivate(s); } }}
+      className={`group text-left rounded-xl bg-white/[0.04] cursor-pointer
                           hover:bg-white/[0.08] border p-3
                           transition-colors duration-150
                           ${isFlagship
@@ -128,7 +130,13 @@ function GridCard({ s, onActivate }) {
           src === "community" ? "Community" :
           [s.country, s.language].filter(Boolean).join(" · ") || "Live"}
       </div>
-    </button>
+      {s.music_genre && (
+        <div className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full bg-accent-electric/15 text-accent-electric text-[10px] font-bold"
+          data-testid="station-genre">
+          {s.music_genre}
+        </div>
+      )}
+    </div>
   );
 }
 

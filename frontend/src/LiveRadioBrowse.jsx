@@ -56,6 +56,12 @@ function StationGridCard({ s, onPlay }) {
           ? "RadioLife AI-Curated"
           : [s.country, s.language].filter(Boolean).join(" · ") || "Live"}
       </div>
+      {s.music_genre && (
+        <div className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full bg-accent-electric/15 text-accent-electric text-[10px] font-bold"
+          data-testid="station-genre">
+          {s.music_genre}
+        </div>
+      )}
       {s.tags_json && s.tags_json.length > 0 && (
         <div className="text-[10px] text-white/30 mt-1 truncate">
           {s.tags_json.slice(0, 3).join(" · ")}

@@ -98,6 +98,7 @@ def _ai_channel_to_card(ch: Dict[str, Any], category: Optional[str]) -> Dict[str
         "name": ch.get("name"),
         "source": "bigfm_ai",
         "is_ai_curated": True,
+        "music_genre": ch.get("music_genre"),
         "category": category,
         "tags_json": ch.get("allowed_genres") or [],
         "favicon": (ch.get("thumbnail_url")
@@ -130,6 +131,7 @@ def _imported_to_card(s: Dict[str, Any]) -> Dict[str, Any]:
         "source": "imported",
         "is_ai_curated": False,
         "tags_json": s.get("tags_json") or [],
+        "music_genre": s.get("music_genre"),
         "favicon": s.get("favicon"),
         "logo_url": s.get("logo_url"),
         "homepage": s.get("homepage"),

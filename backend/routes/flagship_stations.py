@@ -70,7 +70,7 @@ async def list_priority_stations(request: Request, limit: int = 30):
     """Phase FUN.1-v2: Non-flagship Dubai stations tagged with is_priority."""
     db = request.app.state.db
     docs = await db.imported_radio_stations.find(
-        {"is_priority": True, "is_flagship": {"$ne": True}}
+        {"is_priority": True, "is_flagship": {"$ne": True}, "dubai_hidden": {"$ne": True}}
     ).sort([("name", 1)]).to_list(limit)
     items = []
     for d in docs:

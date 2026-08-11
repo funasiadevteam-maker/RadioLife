@@ -283,7 +283,7 @@ async def _browse_imported_fast(db, request, q, cat_slug, language, country,
                    {"category": cat_slug, "source_provider": "radiobrowser"},
                    projection={"station_id": 1})]
         station_ids = list(set(ids)) or ["__none__"]
-    base = {"$or": [{"active": True}, {"is_flagship": True}]}
+    base = {"$or": [{"active": True}, {"is_flagship": True}], "dubai_hidden": {"$ne": True}}
     if station_ids is not None:
         base["id"] = {"$in": station_ids}
     if language:
@@ -386,7 +386,7 @@ async def browse(
             station_ids = list(set(ids))
             if not station_ids:
                 station_ids = ["__none__"]
-        imp_q: Dict[str, Any] = {"$or": [
+        imp_q: Dict[str, Any] = {"dubai_hidden": {"$ne": True}, "$or": [
             {"active": True},
             {"is_flagship": True},   # Phase FUN.1.1 — always surface flagships
         ]}
@@ -421,7 +421,7 @@ async def browse(
         # result set (category / language / country / q) — those queries
         # already include flagship-friendly branches above.
         seen_ids = {c["id"] for c in imp_cards}
-        flag_q: Dict[str, Any] = {"is_flagship": True}
+        flag_q: Dict[str, Any] = {"is_flagship": True, "dubai_hidden": {"$ne": True}}
         if q:
             flag_q["$or"] = [
                 {"name":                                {"$regex": re.escape(q), "$options": "i"}},

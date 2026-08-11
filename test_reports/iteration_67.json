@@ -1,0 +1,57 @@
+{
+  "summary": "Iteration 67 — Dubai policy (allowlist + hide) + music_genre backfill + Desktop Shop dark theme tested on shared backend + web. Backend pytest 5/6 pass (1 real failure exposing a bug). PASSING: (1) /api/radio/browse?country=AE returns the 8 allowlisted UAE stations (Big 106.2 UAE, Talk 100.3 UAE, Luv 107.1 UAE, Beat 97.8, Big Melodies, Urban Beat, Luv Legends, Chilled Luv), each with a real music_genre (Bollywood/Talk Radio/Pop/Bollywood/Bollywood/Hip Hop/Classic Hits/Chill Lounge); Beat Anthems is excluded. (2) /api/radio/browse?source=imported&country=AE returns EXACTLY those 8 (imported-only path is clean). (3) /api/radio/browse?q=Beat excludes Beat Anthems while including Beat 97.8 + Urban Beat. (4) /api/stations/flagship (both ?region=DUBAI empty response, and default) excludes Beat Anthems via the dubai_hidden!=True guard. FAILING: (5) branded channels (source=bigfm_ai) have music_genre populated in db.channels (all 14 — VIP Lounge=Chill, Diamond Room=Bollywood, RadioLife News Radio=Talk Radio, etc.) but the /api/radio/browse response DROPS the field because _ai_channel_to_card() in /app/backend/routes/live_radio.py:89 never projects music_genre into the card. (6) On unfiltered /api/radio/browse?country=AE the response contains 8 AE stations + all 14 branded channels (22 total) because branded channels have country_code=None and the AE filter only narrows the imported tier — E1 should decide whether AE view should hide branded channels or leave them as globally curated (spec text is ambiguous — 'returns EXACTLY 8 UAE (country_code AE)' passes when checking country_code=AE items only). Web @1920 /shop: rl-desktop-topnav dark (bg rgba(11,11,13,0.95)), body bg rgb(10,10,15), rl-shop-desktop-dark shell class present, headings white — dark theme applied correctly (screenshot /tmp/shop_desktop_dark.png). Web @390 /shop: rl-bottom-nav visible, rl-desktop-topnav hidden, shop content area stays light/app-style — responsive switch works (screenshot /tmp/shop_mobile_light.png). Web /radio/browse?country=AE (RadioBrowse route): shows EXACTLY the 8 AE stations in the grid (FLAG pill, purple placeholders, 8 stations matched · AI 0 · Community 0 · Live 8) — but NO [data-testid='station-genre'] pill renders because the /radio/browse route mounts RadioBrowse.jsx which does not read music_genre; LiveRadioBrowse.jsx (which has the genre pill at line 59-64) is orphaned/dead code — /live-radio/browse redirects to /radio/browse via App.js:470. Also observed on every card: React hydration error 'In HTML, <button> cannot be a descendant of <button>' because FavoriteHeart renders a nested button inside the card button wrapper (RadioBrowse.jsx line 112 FavoriteHeart inside line 59 button). Cosmetic React 19 spread-with-key warnings persist (NavItem/Item/BottomTab) — carried over from iter 66.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/radio/browse (source=all)", "issue": "Branded channels (source=bigfm_ai) return music_genre=null even though db.channels has valid music_genre on all 14 rows (VIP Lounge=Chill, Bollywood Mehfil=Bollywood, RadioLife News Radio=Talk Radio, etc.). Root cause: _ai_channel_to_card() in /app/backend/routes/live_radio.py:89 does not project ch.get('music_genre') into the card dict. Add: 'music_genre': ch.get('music_genre') to the return dict (mirror _imported_to_card line 133). This blocks the acceptance criterion 'each branded channel gets an AI-inferred music_genre'.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "/api/radio/browse?country=AE", "issue": "Returns 22 items (8 AE + 14 branded channels with country_code=null) because AE filter only applies to imported tier, not to branded (channels collection). The 8 AE stations are exactly right; behavior is ambiguous vs the spec which says 'returns EXACTLY 8 UAE'. If the intent is to hide branded channels when a country filter is set, add a `country` guard on the AI tier in radio_unified.py:356-365."},
+      {"endpoint": "/api/stations/flagship?region=DUBAI", "issue": "Returns 0 items because no station has flagship_region='DUBAI' (values are 'AE'/'US'). ?region=AE also returns 0 because flagship_region is null on all 11 flagship rows. The dubai_hidden guard correctly keeps Beat Anthems out, but the region filter itself is effectively dead. Consider mapping DUBAI->AE or populating flagship_region."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "RadioBrowse GridCard", "issue": "React hydration error visible on every card: '<button> cannot be a descendant of <button>'. FavoriteHeart (data-testid=fav-heart-*) renders a <button> nested inside the card's outer <button data-testid=radio-browse-card-*>. Refactor the outer card to a <div role=button onClick=…> or hoist the favorite heart outside the click surface.", "selector": "[data-testid^='radio-browse-card-']", "priority": "MEDIUM"},
+        {"component": "RadioBrowse GridCard", "issue": "Genre pill [data-testid='station-genre'] does NOT render on the live /radio/browse route. LiveRadioBrowse.jsx has the pill code (line 59-64) but is orphaned — App.js routes both /radio/browse and /live-radio/browse to RadioBrowse.jsx, which has 0 references to music_genre. Either delete LiveRadioBrowse.jsx or port the pill JSX + music_genre read into RadioBrowse.jsx GridCard.", "selector": "[data-testid='station-genre']", "priority": "HIGH"}
+      ],
+      "integration_issues": [
+        {"flow": "Live Radio browse genre pill", "issue": "Even after the backend backfills music_genre on the 8 AE stations, the UI never surfaces it because the mounted component (RadioBrowse) does not read the field. Requires either component swap (mount LiveRadioBrowse at /radio/browse) or add the pill to RadioBrowse.", "affected_selectors": ["[data-testid='station-genre']", "[data-testid^='radio-browse-card-']"]}
+      ],
+      "design_issues": [
+        {"screen": "/shop (desktop dark)", "issues": ["Orders / Bookings / Merchant / Product Orders quick-tiles use dark-orange text on a very dark orange fill — WCAG contrast is borderline. Consider raising the fill lightness or switching label to white for readability."]},
+        {"screen": "Global (all pages)", "issues": ["React 19 spread-with-key warnings in NavItem / Item / BottomTab (legacy nav components) — carried over from iter 66. Cosmetic only."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter67_dubai_policy_and_genres.py",
+    "/app/test_reports/pytest/iter67_dubai_policy.xml"
+  ],
+  "action_items": [
+    "Backend: add 'music_genre': ch.get('music_genre') to _ai_channel_to_card() in /app/backend/routes/live_radio.py:89 so branded channels expose the LLM-inferred genre in the browse API.",
+    "Web: surface the [data-testid='station-genre'] pill on the live /radio/browse route. Either delete the orphan LiveRadioBrowse.jsx and port lines 59-64 into RadioBrowse.jsx GridCard, or re-mount LiveRadioBrowse at /radio/browse in App.js:436.",
+    "Web: fix the nested-button hydration error in RadioBrowse.jsx — the outer card <button data-testid='radio-browse-card-*'> wraps <FavoriteHeart> which itself renders a <button>. Refactor the outer surface to a div (role=button) or hoist the heart outside the click surface.",
+    "Backend (nice-to-have): decide whether /api/radio/browse?country=AE should hide branded channels; today it returns 8 AE + 14 branded = 22 items. If AE-only should be exactly 8, add a country guard on the AI tier in radio_unified.py:356-365.",
+    "Backend (nice-to-have): /api/stations/flagship?region=DUBAI returns [] because flagship_region is null on every row; either populate flagship_region='DUBAI' on the 8 allowlisted stations or map DUBAI->AE inside the endpoint.",
+    "Web (low priority, carried): fix React 19 spread-with-key warnings in NavItem / Item / BottomTab."
+  ],
+  "critical_code_review_comments": [
+    "LiveRadioBrowse.jsx (/app/frontend/src/LiveRadioBrowse.jsx) is dead code — the routes it was meant to serve (/live-radio, /live-radio/browse) all redirect to /radio* which mounts RadioBrowse.jsx. Delete or wire it in.",
+    "_ai_channel_to_card() and _imported_to_card() live in live_radio.py but are imported and used by radio_unified.py — projection drift like the missing music_genre field would be easier to catch if both card mappers shared a single dataclass / schema.",
+    "RadioBrowse.jsx GridCard renders a <button> that contains FavoriteHeart's own <button> — a long-standing React validation error that will become a hard hydration failure under React 19 strict mode. Convert the outer surface to a div/anchor with click handler."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter67_dubai_policy_and_genres.py",
+    "/app/test_reports/iteration_67.json"
+  ],
+  "success_rate": {"backend": "83% (5/6 pytest — 1 real failure exposing music_genre projection bug)", "frontend": "70% (dark shop desktop + light shop mobile + 8-station AE grid all pass; genre pill + nested-button are open)"},
+  "test_credentials": "Web: test@bigfm.dubai / TestUser123! (cookie via POST /api/auth/login).",
+  "seed_data_creation": "None. Dubai policy runs idempotently at backend startup; genre backfill already populated for the 8 AE stations + 14 branded channels in the DB.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "After E1 fixes: (a) add music_genre to _ai_channel_to_card in /app/backend/routes/live_radio.py, (b) port the genre pill into RadioBrowse.jsx (or wire LiveRadioBrowse), (c) fix nested-button in RadioBrowse card. Re-run /app/backend/tests/test_iter67_dubai_policy_and_genres.py — expect 6/6 pass. Then Playwright on /radio/browse?country=AE&source=imported — expect 8 cards each with a visible [data-testid='station-genre'] pill (Big 106.2 UAE -> Bollywood, Urban Beat -> Hip Hop, Chilled Luv -> Chill Lounge, etc.). Backend /api/stations/flagship?region=DUBAI still returns [] but no station leaks Beat Anthems — that's a separate nice-to-have.",
+  "rca of the issue": "Branded channels (source=bigfm_ai) missing music_genre in browse API: RCA — db.channels stores music_genre for all 14 branded channels (verified via direct Motor query), but _ai_channel_to_card() at /app/backend/routes/live_radio.py:89 constructs a dict with fields {id,name,source,category,tags_json,favicon,logo_url,country,country_code,language,votes,click_count,stream_url,stream_health_status,provider,is_flagship,is_priority,flagship_region,flagship_priority} — music_genre is not in the projection. _imported_to_card at line 125 correctly includes 'music_genre': s.get('music_genre'). Fix: add 'music_genre': ch.get('music_genre') to _ai_channel_to_card's return dict. Live Radio genre pill not visible in UI: RCA — LiveRadioBrowse.jsx has the [data-testid='station-genre'] pill but the router (/app/frontend/src/App.js:436) mounts RadioBrowse.jsx at /radio/browse, and /live-radio/browse (App.js:470) is a Navigate redirect to /radio/browse. RadioBrowse.jsx GridCard does not read s.music_genre. Fix: port lines 59-64 of LiveRadioBrowse.jsx into RadioBrowse.jsx GridCard, gated on s.music_genre truthy."
+}
