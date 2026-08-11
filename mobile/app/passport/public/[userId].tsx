@@ -78,7 +78,7 @@ export default function PublicPassportScreen() {
           <Ionicons name="alert-circle" size={36} color={COLORS.textDim} />
           <Text style={st.errorTitle}>Profile not available</Text>
           <Text style={st.errorSub}>
-            This listener hasn't made their profile public, or the link is invalid.
+            This listener hasn&apos;t made their profile public, or the link is invalid.
           </Text>
           <TouchableOpacity style={st.backBtn} onPress={() => router.back()} testID="pub-passport-back">
             <Ionicons name="arrow-back" size={14} color="#fff" />
@@ -170,7 +170,7 @@ export default function PublicPassportScreen() {
                 Refer & earn <Text style={{ color: COLORS.gold, fontWeight: '800' }}>100 BigCoin</Text>
               </Text>
               <Text style={st.referSub}>
-                Sign up via {data.display_name}'s link — they get 100 BC when you complete onboarding.
+                Sign up via {data.display_name}&apos;s link — they get 100 BC when you complete onboarding.
               </Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: SPACING.sm }}>
@@ -224,7 +224,7 @@ export default function PublicPassportScreen() {
             <Ionicons name="ribbon" size={28} color={COLORS.textDim} />
             <Text style={st.emptyTitle}>No badges shown</Text>
             <Text style={st.emptySub}>
-              {data.display_name} hasn't opted to display badges publicly.
+              {data.display_name} hasn&apos;t opted to display badges publicly.
             </Text>
           </View>
         )}

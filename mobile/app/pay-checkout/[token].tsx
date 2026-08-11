@@ -47,7 +47,7 @@ export default function PayCheckoutScreen() {
         qr_token: token, points_to_use: pts, tip_cents: tip,
       });
       setQuote(r.data);
-    } catch (e: any) {
+    } catch {
       setQuote(null);
     } finally { setQuoteBusy(false); }
   }, [token]);

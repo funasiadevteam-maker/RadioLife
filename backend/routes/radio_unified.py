@@ -274,7 +274,7 @@ async def discover(request: Request,
 
 # ─────────────────────── /browse ───────────────────────
 async def _browse_imported_fast(db, request, q, cat_slug, language, country,
-                                page: int, limit: int, user):
+                                page: int, limit: int, user, genre=None):
     """DB-paginated imported-only browse. Flagships first, then votes/clicks."""
     station_ids = None
     if cat_slug:
@@ -290,6 +290,8 @@ async def _browse_imported_fast(db, request, q, cat_slug, language, country,
         base["language"] = language.lower()
     if country:
         base["country_code"] = country.upper()
+    if genre:
+        base["music_genre"] = {"$regex": f"^{re.escape(genre)}$", "$options": "i"}
     if q:
         search_or = [
             {"name": {"$regex": re.escape(q), "$options": "i"}},
@@ -313,6 +315,20 @@ async def _browse_imported_fast(db, request, q, cat_slug, language, country,
         "filters_applied": {"q": q, "category": cat_slug,
                             "language": language, "country": country, "source": "imported"},
     }
+
+
+@router.get("/genres", description="Distinct music genres available for filtering the browse grid.")
+async def list_genres(request: Request):
+    db = request.app.state.db
+    genres = set()
+    for g in await db.channels.distinct("music_genre", {"active": True}):
+        if g:
+            genres.add(g)
+    for g in await db.imported_radio_stations.distinct(
+            "music_genre", {"active": True, "dubai_hidden": {"$ne": True}}):
+        if g:
+            genres.add(g)
+    return {"genres": sorted(genres)}
 
 
 @router.get("/browse",
@@ -350,7 +366,7 @@ async def browse(
     # and paginates correctly past page ~66.
     if sources == {"imported"}:
         return await _browse_imported_fast(
-            db, request, q, cat_slug, language, country, page, limit, user)
+            db, request, q, cat_slug, language, country, page, limit, user, genre)
 
     # AI tier.
     if "bigfm_ai" in sources:
@@ -361,6 +377,8 @@ async def browse(
                 ai_q["allowed_genres"] = {"$in": list(tags)}
         if q:
             ai_q["name"] = {"$regex": re.escape(q), "$options": "i"}
+        if genre:
+            ai_q["music_genre"] = {"$regex": f"^{re.escape(genre)}$", "$options": "i"}
         async for ch in db.channels.find(ai_q).limit(100):
             ai_cards.append(_ai_channel_to_card(ch, cat_slug))
 
@@ -390,6 +408,8 @@ async def browse(
             {"active": True},
             {"is_flagship": True},   # Phase FUN.1.1 — always surface flagships
         ]}
+        if genre:
+            imp_q["music_genre"] = {"$regex": f"^{re.escape(genre)}$", "$options": "i"}
         if station_ids is not None:
             imp_q["id"] = {"$in": station_ids}
         if language:
@@ -601,4 +621,6 @@ async def play(station_id: str, request: Request,
         "channel_slug": slug,
         "name": ch.get("name"),
         "spa_url": f"/radio?ch={slug}&autoplay=1",
+    }
+dio?ch={slug}&autoplay=1",
     }

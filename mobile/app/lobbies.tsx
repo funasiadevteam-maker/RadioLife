@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView, FlatList,
   ActivityIndicator, RefreshControl, Modal, TextInput, Switch, ScrollView, Alert, Pressable,
@@ -238,7 +238,7 @@ function CreateLobbyModal({ channels, caps, isPremium, onClose, onCreated, onGat
   const [channelSlug, setChannelSlug] = useState(channels[0]?.slug || '');
   const [mood, setMood] = useState('');
   const [isPublic, setIsPublic] = useState(true);
-  const [maxListeners, setMaxListeners] = useState(String(caps?.max_listeners || 50));
+  const [maxListeners] = useState(String(caps?.max_listeners || 50));
   const [busy, setBusy] = useState(false);
   const [showChPicker, setShowChPicker] = useState(false);
 

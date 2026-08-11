@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend-only e2e test of the Package Gifting UI on web (React) and mobile (Expo web preview). Both surfaces render the gift toggle, reveal email + message inputs on toggle, switch the primary CTA label from 'Buy' to 'Gift', and successfully initiate the gift purchase against POST /api/shop/packages/purchase. Web navigated to Stripe Checkout (cs_test_...); mobile called the same backend and stayed on-screen (WebBrowser.openBrowserAsync is a native API — no-op in Expo web preview but no crash). Regression: with the toggle off the CTA reverts to 'Buy' and existing purchases still show 'Redeem one' with counts intact (3/4 left) on both surfaces. Parity is intact between web and mobile.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Gift purchase card checkout on Expo web preview", "issue": "buy() uses WebBrowser.openBrowserAsync(checkout_url) which is a native-only API — in the Expo web preview it silently no-ops. Not a bug for real device builds, but reviewers testing via web cannot complete Stripe redirect. Consider window.open fallback when Platform.OS === 'web'.", "affected_testIDs": ["pkg-buy-card-pkgprod_8f3b0a6fdb34"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "(Optional/nice-to-have) On mobile buy(), branch on Platform.OS === 'web' to use window.location.href = checkout_url instead of WebBrowser.openBrowserAsync so the Stripe Checkout redirect works when the Expo app is served via web.",
+    "(Pre-existing, not this session) React warns about key being spread into JSX in the RadioLife layout NavItem/Item; unrelated to gifting but worth cleaning up."
+  ],
+  "critical_code_review_comments": [
+    "ShopPackagesRadioLife.jsx uses window.location.pathname.split('/shop/packages/')[1] to derive the business id; this is fragile if the SPA ever nests a further segment. Consider useParams() from react-router since this route lives inside RadioLifeOverlay.",
+    "Mobile buy() logs no confirmation when card-checkout is triggered from web (WebBrowser is native-only). Consider a Platform-aware branch."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "seed_data_creation": "None. Used existing seeded package pkgprod_8f3b0a6fdb34 ('5 Haircuts') under business biz_8484f6f985d5.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Web login: POST /api/auth/login test@bigfm.dubai / TestUser123! (cookie). Mobile: demo-login-btn on /login yields bearer for demo@bigfm.dubai. Web packages page uses SPA overlay so navigation via page.goto('/shop/packages/biz_8484f6f985d5') works after cookie is set. Gift testIDs verified: pkg-gift-toggle-{pid}, pkg-gift-email-{pid}, pkg-gift-message-{pid}, pkg-buy-card-{pid} (label 'Buy'|'Gift'), pkg-buy-points-{pid}.",
+  "rca of the issue": ""
+}

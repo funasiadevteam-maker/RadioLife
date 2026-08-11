@@ -109,10 +109,21 @@ async def delete_package(package_id: str, request: Request, user: dict = Depends
 
 # ───────────── Consumer ─────────────
 async def _activate(db, product: Dict[str, Any], user_id: str, method: str,
-                    session_id: Optional[str] = None, purchase_id: Optional[str] = None) -> Dict[str, Any]:
+                    session_id: Optional[str] = None, purchase_id: Optional[str] = None,
+                    gift_to_email: Optional[str] = None, message: Optional[str] = None) -> Dict[str, Any]:
     pid = purchase_id or new_id("pkg")
+    is_gift = bool(gift_to_email)
+    owner = user_id
+    gto = None
+    if is_gift:
+        gto = gift_to_email.lower().strip()
+        rec = await db.users.find_one({"email": gto}, {"user_id": 1})
+        owner = rec["user_id"] if rec else None  # unregistered → surfaces by email
     doc = {"purchase_id": pid, "package_id": product["package_id"],
-           "business_id": product["business_id"], "user_id": user_id,
+           "business_id": product["business_id"], "user_id": owner,
+           "buyer_user_id": user_id, "is_gift": is_gift, "gifted_to_email": gto,
+           "gift_message": (message or None) if is_gift else None,
+           "sponsor_name": product.get("sponsor_name"),
            "name": product["name"], "credits_total": product["credits"],
            "credits_remaining": product["credits"], "status": "active",
            "method": method, "session_id": session_id, "created_at": now(), "updated_at": now()}
@@ -134,10 +145,14 @@ async def business_packages(business_id: str, request: Request,
     mine = []
     balance = 0
     if user:
-        balance = await PointsService(db).get_balance(user.get("user_id"))
+        uid = user.get("user_id")
+        email = (user.get("email") or "").lower().strip()
+        balance = await PointsService(db).get_balance(uid)
+        ors: List[Dict[str, Any]] = [{"user_id": uid}]
+        if email:
+            ors.append({"gifted_to_email": email})
         async for m in db.packages.find(
-                {"business_id": business_id, "user_id": user.get("user_id"),
-                 "status": "active"}).sort("created_at", -1):
+                {"business_id": business_id, "status": "active", "$or": ors}).sort("created_at", -1):
             mine.append(_clean(dict(m)))
     return {"business_id": business_id, "public_name": biz.get("public_name"),
             "points_per_dollar": POINTS_PER_DOLLAR, "points_balance": balance,
@@ -148,6 +163,8 @@ class PurchaseBody(BaseModel):
     package_id: str
     method: str = Field(..., description="points | card")
     origin_url: Optional[str] = None
+    gift_to_email: Optional[str] = None
+    message: Optional[str] = Field(None, max_length=280)
 
 
 @consumer_router.post("/packages/purchase")
@@ -169,7 +186,8 @@ async def purchase_package(body: PurchaseBody, request: Request, user: dict = De
         await PointsService(db).spend(user_id=uid, source="package_purchase", amount=points_cost,
                                       source_id=body.package_id, idempotency_key=idem,
                                       metadata={"package_id": body.package_id})
-        pkg = await _activate(db, product, uid, "points")
+        pkg = await _activate(db, product, uid, "points",
+                              gift_to_email=body.gift_to_email, message=body.message)
         return {"ok": True, "method": "points", "points_spent": points_cost, "package": pkg}
 
     if body.method == "card":
@@ -188,9 +206,11 @@ async def purchase_package(body: PurchaseBody, request: Request, user: dict = De
                 "unit_amount": int(product["price_cents"])}, "quantity": 1}],
             success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{origin}/payment/cancel",
-            metadata={"kind": "marketplace_package", "package_id": body.package_id, "buyer_id": uid})
+            metadata={"kind": "marketplace_package", "package_id": body.package_id, "buyer_id": uid,
+                      "gift_to_email": body.gift_to_email or ""})
         await db.package_purchases.insert_one({
             "session_id": session.id, "buyer_user_id": uid, "package_id": body.package_id,
+            "gift_to_email": body.gift_to_email, "message": body.message,
             "status": "pending", "created_at": now()})
         return {"ok": True, "method": "card", "checkout_url": session.url, "session_id": session.id}
 
@@ -216,7 +236,8 @@ async def purchase_status(session_id: str, request: Request, user: dict = Depend
         product = await db.package_products.find_one({"package_id": pur["package_id"]})
         if not product:
             return {"status": "paid", "package": None}
-        pkg = await _activate(db, product, pur["buyer_user_id"], "card", session_id=session_id)
+        pkg = await _activate(db, product, pur["buyer_user_id"], "card", session_id=session_id,
+                              gift_to_email=pur.get("gift_to_email"), message=pur.get("message"))
         await db.package_purchases.update_one(
             {"session_id": session_id},
             {"$set": {"status": "paid", "purchase_id": pkg["purchase_id"], "paid_at": now()}})
@@ -227,8 +248,17 @@ async def purchase_status(session_id: str, request: Request, user: dict = Depend
 @consumer_router.get("/packages/mine")
 async def my_packages(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
-    out = [_clean(x) async for x in db.packages.find(
-        {"user_id": user.get("user_id"), "status": {"$in": ["active", "used_up"]}}).sort("created_at", -1)]
+    uid = user.get("user_id")
+    email = (user.get("email") or "").lower().strip()
+    ors: List[Dict[str, Any]] = [{"user_id": uid}]
+    if email:
+        ors.append({"gifted_to_email": email})
+    out = []
+    async for x in db.packages.find(
+            {"status": {"$in": ["active", "used_up"]}, "$or": ors}).sort("created_at", -1):
+        c = _clean(dict(x))
+        c["received_gift"] = bool(x.get("is_gift") and x.get("buyer_user_id") != uid)
+        out.append(c)
     return {"items": out}
 
 

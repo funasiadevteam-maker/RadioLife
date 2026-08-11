@@ -40,8 +40,8 @@ export default function CampaignWizard() {
   const [obj, setObj] = useState('awareness');
   const [budget, setBudget] = useState('80');
   const [dailyBudget, setDailyBudget] = useState('20');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate] = useState('');
+  const [endDate] = useState('');
   const [market, setMarket] = useState('dubai');
   const [channelSlugs, setChannelSlugs] = useState<string[]>([]);
   const [timeOfDay, setTimeOfDay] = useState<string[]>([]);

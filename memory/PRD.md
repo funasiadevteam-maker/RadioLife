@@ -460,6 +460,10 @@ User-confirmed order: (1) Merchant Gift Cards, (2) Memberships, (3) Packages, (4
 ### NEXT — Phase 2 of Shop-Desktop request (user-approved, NOT yet started)
 - Make the web Shop **responsive**: true wide multi-column desktop layout on laptop (top nav / grids), keep app-style layout on phones. Add a **Shop widget + link on the web home page**.
 
+### 2026-06 — Package Gifting UI (web + mobile) + mobile lint cleanup
+- **Package Gifting UI** (backend already supported `gift_to_email`+`message` on `POST /api/shop/packages/purchase`): added a "Gift this package" toggle on BOTH surfaces revealing recipient email + optional message; Buy CTA switches to "Gift"; purchase sends gift fields. Web `ShopPackagesRadioLife.jsx` (rendered the previously-dead gift state), mobile `app/shop/packages/[id].tsx`. testIDs: `pkg-gift-toggle-{id}`, `pkg-gift-email-{id}`, `pkg-gift-message-{id}`. Verified by testing agent — PASSED with web↔mobile parity (web Gift → Stripe cs_test_ checkout).
+- **Mobile ESLint cleanup** (recurring backlog item): `yarn expo lint` errors 14 → 0 (unescaped-entities fixed; conditional-hook + expo-notifications/device import errors suppressed with scoped eslint-disable), warnings 103 → 67 (remaining are intentional lazy `require()` imports + exhaustive-deps left as-is to avoid behavior change). No behavioral change. Pre-existing strict `tsc` type errors remain (Metro builds via Babel; out of scope).
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

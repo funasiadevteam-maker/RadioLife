@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import api, { BACKEND } from '../../src/api/client';
+import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
 const TONES = ['friendly', 'energetic', 'luxurious', 'chill', 'urgent'];

@@ -43,7 +43,7 @@ export default function MerchantTicketScan() {
         <Text style={s.title}>Scan Tickets</Text>
       </View>
       <View style={{ padding: SPACING.md }} testID="scan-root">
-        <Text style={s.sub}>Enter a guest's ticket code to check them in at the door.</Text>
+        <Text style={s.sub}>Enter a guest&apos;s ticket code to check them in at the door.</Text>
         <View style={s.card}>
           <View style={s.inputWrap}>
             <Ionicons name="qr-code-outline" size={22} color={COLORS.primary} />

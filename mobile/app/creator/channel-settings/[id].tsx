@@ -7,13 +7,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
-import { COLORS, SPACING, RADIUS, FONT, common } from '../../../src/constants/theme';
+import { COLORS, SPACING, FONT, common } from '../../../src/constants/theme';
 import {
   getChannelSettings, patchChannelSettings,
   getLightningSplits, putLightningSplits,
   getStripeAccount, createStripeAccount, getStripeOnboardingLink,
   getSubscriptionPlan, createSubscriptionPlan, patchSubscriptionPlan,
-  getEpisodeMagicClips,
 } from '../../../src/api/podcastApi';
 
 const EMPTY_RECIPIENT = () => ({ name: '', type: 'node', address: '', split_pct: 0, fee_pct: 0 });
@@ -220,7 +219,7 @@ export default function ChannelSettingsScreen() {
             </View>
           ) : (
             <Text testID="mobile-lightning-disabled-hint" style={{ fontSize: FONT.xs, color: COLORS.textDim, marginTop: 8, lineHeight: 16 }}>
-              When enabled, recipients you list here will be emitted in the channel's RSS feed.
+              When enabled, recipients you list here will be emitted in the channel&apos;s RSS feed.
             </Text>
           )}
         </View>
@@ -253,7 +252,7 @@ export default function ChannelSettingsScreen() {
 
           {acctLoaded && acct?.charges_enabled && !plan && (
             <View testID="mobile-plan-form">
-              <Text style={st.hint}>Create your channel's subscription plan.</Text>
+              <Text style={st.hint}>Create your channel&apos;s subscription plan.</Text>
               <View style={{ marginBottom: 8 }}>
                 <Text style={common.label}>Plan name</Text>
                 <TextInput testID="mobile-plan-name-input" style={common.input}

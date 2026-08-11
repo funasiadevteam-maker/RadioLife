@@ -33,7 +33,7 @@ export default function TriviaRoomCreateScreen() {
     try {
       const r = await api.post('/trivia/rooms', { category_id: chosen.id, is_private: false });
       router.replace(`/trivia/rooms/${r.data.room_code}`);
-    } catch (e: any) {
+    } catch {
       setBusy(false);
     }
   };

@@ -30,6 +30,7 @@ export default function ScanToPayScreen() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Permissions — only on native */
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const permHook = !IS_WEB && useCameraPermissions ? useCameraPermissions() : [null, () => {}];
   const permission = permHook[0];
   const requestPermission = permHook[1];

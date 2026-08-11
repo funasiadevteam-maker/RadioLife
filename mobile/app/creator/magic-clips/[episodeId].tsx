@@ -6,7 +6,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, SPACING, RADIUS, FONT, common } from '../../../src/constants/theme';
+import { COLORS, SPACING, FONT, common } from '../../../src/constants/theme';
 import {
   getEpisodeMagicClips, publishMagicClip, patchMagicClip, deleteMagicClip,
 } from '../../../src/api/podcastApi';

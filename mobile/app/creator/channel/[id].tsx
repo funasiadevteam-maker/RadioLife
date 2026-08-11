@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, StyleSheet, Alert,
+  RefreshControl, StyleSheet,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, SPACING, RADIUS, FONT, common } from '../../../src/constants/theme';
+import { COLORS, SPACING, FONT, common } from '../../../src/constants/theme';
 import { getChannel, getChannelEpisodes, getChannelSubscriptionStatus } from '../../../src/api/podcastApi';
 
 export default function CreatorChannelDetail() {

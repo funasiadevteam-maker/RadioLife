@@ -6,7 +6,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
-import api, { BACKEND } from '../../src/api/client';
+import api from '../../src/api/client';
 
 const PER_Q_TIMEOUT_SEC = 30;
 

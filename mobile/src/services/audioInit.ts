@@ -4,7 +4,6 @@
  * Called ONCE from the root layout after auth hydration.
  * Uses expo-audio (SDK 54+) which is already installed.
  */
-import { Platform } from 'react-native';
 
 let AudioModule: any = null;
 try {

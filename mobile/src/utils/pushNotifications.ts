@@ -19,7 +19,9 @@ export function getCachedPushToken(): string | null {
 async function loadModules() {
   if (Platform.OS === 'web') return false;
   try {
+    // eslint-disable-next-line import/no-unresolved
     Notifications = await import('expo-notifications');
+    // eslint-disable-next-line import/no-unresolved
     Device = await import('expo-device');
     return true;
   } catch {

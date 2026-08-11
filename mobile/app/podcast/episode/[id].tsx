@@ -86,9 +86,6 @@ export default function EpisodeDetailScreen() {
         setPlaying(!playing);
         return;
       }
-      const player = AudioModule.useAudioPlayer
-        ? null // hook-based — we'll use createAsync
-        : null;
       // Use Sound API
       const snd = new AudioModule.Sound();
       await snd.loadAsync({ uri: episodeAudioUrl(id) });
@@ -102,7 +99,7 @@ export default function EpisodeDetailScreen() {
       soundRef.current = snd;
       await snd.playAsync();
       setPlaying(true);
-    } catch (e: any) {
+    } catch {
       // Fallback: just mark as playing for UX; actual audio may not work in web preview
       setPlaying(!playing);
     }
@@ -330,6 +327,7 @@ function ChaptersBlock({ chapters, onSeek }: {
 
 function EpisodeVideoBlock({ media }: { media: any }) {
   const player = ExpoVideo?.useVideoPlayer
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     ? ExpoVideo.useVideoPlayer(media.video_url, (p: any) => { p.loop = false; })
     : null;
   const chapters: { title: string; start_seconds: number }[] = media.chapters || [];

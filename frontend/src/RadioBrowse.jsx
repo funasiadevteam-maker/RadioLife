@@ -181,8 +181,11 @@ export default function RadioBrowse() {
     category:  searchParams.get("category") || "",
     language:  searchParams.get("language") || "",
     country:    searchParams.get("country") || "",
+    genre:      searchParams.get("genre") || "",
     source:      searchParams.get("source") || "all",
   }), [searchParams]);
+
+  const [genreOptions, setGenreOptions] = useState([]);
 
   const [items, setItems] = useState([]);
   const [counts, setCounts] = useState({});
@@ -199,6 +202,7 @@ export default function RadioBrowse() {
       if (filters.category) params.category = filters.category;
       if (filters.language) params.language = filters.language;
       if (filters.country) params.country = filters.country;
+      if (filters.genre) params.genre = filters.genre;
       const r = await axios.get(`${API}/radio/browse`, { params });
       setMeta({ total: r.data.total, page: r.data.page, limit: r.data.limit });
       setCounts(r.data.counts_by_source || {});
@@ -211,6 +215,12 @@ export default function RadioBrowse() {
 
   useEffect(() => { fetchPage(1, false); setSearchInput(filters.q); },
                     [fetchPage, filters.q]);
+
+  useEffect(() => {
+    axios.get(`${API}/radio/genres`)
+      .then((r) => setGenreOptions(r.data.genres || []))
+      .catch(() => {});
+  }, []);
 
   const updateFilter = (key, value) => {
     const next = new URLSearchParams(searchParams);
@@ -254,6 +264,7 @@ export default function RadioBrowse() {
   const activeFilters =
     (filters.q ? 1 : 0) + (filters.category ? 1 : 0)
     + (filters.language ? 1 : 0) + (filters.country ? 1 : 0)
+    + (filters.genre ? 1 : 0)
     + (filters.source !== "all" ? 1 : 0);
   const hasMore = items.length < meta.total;
 
@@ -313,6 +324,12 @@ export default function RadioBrowse() {
                                     options={COUNTRY_OPTIONS.map((c) => ({ value: c, label: c || "All" }))}
                                     onChange={(v) => updateFilter("country", v)}
                                     testid="radio-browse-filter-country" />
+        {genreOptions.length > 0 && (
+          <FilterSelect label="Genre" value={filters.genre}
+                                    options={[{ value: "", label: "All" }, ...genreOptions.map((g) => ({ value: g, label: g }))]}
+                                    onChange={(v) => updateFilter("genre", v)}
+                                    testid="radio-browse-filter-genre" />
+        )}
         {activeFilters > 0 && (
           <button
             type="button" onClick={clearAll}

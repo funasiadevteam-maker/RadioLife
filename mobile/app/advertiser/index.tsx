@@ -6,7 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
-import api, { BACKEND } from '../../src/api/client';
+import api from '../../src/api/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
@@ -18,7 +18,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function AdvertiserHome() {
   const router = useRouter();
-  const { user } = useAuth();
   const [adv, setAdv] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

@@ -27,7 +27,7 @@ export default function CouponDetailScreen() {
       try {
         const r = await api.get(`/commerce/coupons/${id}`);
         setCoupon(r.data);
-      } catch (e: any) {
+      } catch {
         Alert.alert('Error', 'Could not load coupon');
         router.back();
       } finally { setLoading(false); }

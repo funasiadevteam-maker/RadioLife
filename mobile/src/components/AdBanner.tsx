@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { TouchableOpacity, Image, StyleSheet, Linking, View, Text } from 'react-native';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
-import { COLORS, RADIUS, SPACING, FONT } from '../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../constants/theme';
 
 /**
  * AdBanner — serves a real banner from the advertiser banner system for a given

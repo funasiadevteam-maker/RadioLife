@@ -6,7 +6,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../../src/api/client';
-import { COLORS, SPACING, FONT, RADIUS, common } from '../../../src/constants/theme';
+import { COLORS, SPACING, FONT, common } from '../../../src/constants/theme';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#888892', pending_review: COLORS.orange,

@@ -32,5 +32,8 @@
   .rl-shop-desktop-dark .shadow-md { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4) !important; }
 
   .rl-shop-desktop-dark input,
-  .rl-shop-desktop-dark textarea { color: #f4f4f5 !important; }
+  .rl-shop-desktop-dark textarea,
+  .rl-shop-desktop-dark select { background-color: transparent !important; color: #f4f4f5 !important; }
+  .rl-shop-desktop-dark input::placeholder,
+  .rl-shop-desktop-dark textarea::placeholder { color: #6b6b73 !important; }
 }

@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Package as Pkg, Coins, CreditCard, Ticket } from "lucide-react";
+import { ChevronLeft, Package as Pkg, Coins, CreditCard, Ticket, Gift } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
@@ -13,6 +13,9 @@ export default function ShopPackagesRadioLife() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [giftOpen, setGiftOpen] = useState({});
+  const [giftEmail, setGiftEmail] = useState({});
+  const [giftMsg, setGiftMsg] = useState({});
 
   const load = useCallback(async () => {
     try { const r = await axios.get(`${API}/shop/businesses/${id}/packages`); setData(r.data); }
@@ -20,10 +23,13 @@ export default function ShopPackagesRadioLife() {
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
-  const buy = async (pkg, method) => {
+  const buy = async (pkg, method, gift) => {
+    if (gift && !(gift.email || "").includes("@")) { alert("Enter a valid friend's email to gift."); return; }
     setBusy(true);
     try {
-      const r = await axios.post(`${API}/shop/packages/purchase`, { package_id: pkg.package_id, method, origin_url: window.location.origin });
+      const body = { package_id: pkg.package_id, method, origin_url: window.location.origin };
+      if (gift?.email) { body.gift_to_email = gift.email.trim(); body.message = gift.message || ""; }
+      const r = await axios.post(`${API}/shop/packages/purchase`, body);
       if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
       load(); setBusy(false);
     } catch (e) { alert(e?.response?.data?.detail?.code || "Purchase failed"); setBusy(false); }
@@ -68,6 +74,8 @@ export default function ShopPackagesRadioLife() {
         {data.items.map((p) => {
           const pointsCost = Math.round((p.price_cents / 100) * ppd);
           const canPoints = p.allow_points && data.points_balance >= pointsCost;
+          const isGift = !!giftOpen[p.package_id];
+          const gift = isGift ? { email: giftEmail[p.package_id] || "", message: giftMsg[p.package_id] || "" } : null;
           return (
             <div key={p.package_id} className="bg-white border border-slate-200 rounded-2xl p-4" data-testid={`pkg-product-${p.package_id}`}>
               <div className="flex items-center justify-between">
@@ -75,10 +83,29 @@ export default function ShopPackagesRadioLife() {
                 <div className="font-black text-orange-600">{money(p.price_cents)}</div>
               </div>
               <div className="text-sm text-slate-500 mt-0.5">{p.credits} credits{p.description ? ` · ${p.description}` : ""}</div>
+
+              <button type="button" onClick={() => setGiftOpen((s) => ({ ...s, [p.package_id]: !s[p.package_id] }))}
+                data-testid={`pkg-gift-toggle-${p.package_id}`}
+                className={`mt-3 flex items-center gap-2 text-sm font-black ${isGift ? "text-orange-600" : "text-slate-500"}`}>
+                <Gift size={15} />{isGift ? "Gifting to a friend" : "Gift this package"}
+              </button>
+              {isGift && (
+                <div className="mt-2 space-y-2" data-testid={`pkg-gift-fields-${p.package_id}`}>
+                  <input type="email" value={giftEmail[p.package_id] || ""} placeholder="Friend's email"
+                    onChange={(e) => setGiftEmail((s) => ({ ...s, [p.package_id]: e.target.value }))}
+                    data-testid={`pkg-gift-email-${p.package_id}`}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                  <input type="text" maxLength={280} value={giftMsg[p.package_id] || ""} placeholder="Optional message"
+                    onChange={(e) => setGiftMsg((s) => ({ ...s, [p.package_id]: e.target.value }))}
+                    data-testid={`pkg-gift-message-${p.package_id}`}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                </div>
+              )}
+
               <div className="flex gap-2 mt-3">
-                {p.allow_card && <button onClick={() => buy(p, "card")} disabled={busy} data-testid={`pkg-buy-card-${p.package_id}`}
-                  className="flex-1 flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-2.5 text-sm disabled:opacity-50"><CreditCard size={15} />Buy</button>}
-                {p.allow_points && <button onClick={() => buy(p, "points")} disabled={busy || !canPoints} data-testid={`pkg-buy-points-${p.package_id}`}
+                {p.allow_card && <button onClick={() => buy(p, "card", gift)} disabled={busy} data-testid={`pkg-buy-card-${p.package_id}`}
+                  className="flex-1 flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-2.5 text-sm disabled:opacity-50"><CreditCard size={15} />{isGift ? "Gift" : "Buy"}</button>}
+                {p.allow_points && <button onClick={() => buy(p, "points", gift)} disabled={busy || !canPoints} data-testid={`pkg-buy-points-${p.package_id}`}
                   className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-700 font-black rounded-full py-2.5 text-sm disabled:opacity-40"><Coins size={15} />{pointsCost} pts</button>}
               </div>
             </div>

@@ -121,7 +121,7 @@ export default function LeaderboardScreen() {
         {/* Your rank pin */}
         {!loading && myMe && !myInTop && data?.your_rank > 50 && (
           <View style={st.yourRankPin} testID="lb-your-rank-pin">
-            <Text style={st.yourRankText}>You're ranked <Text style={{ fontWeight: '800', color: COLORS.gold }}>#{data.your_rank}</Text> ({data.your_value}) — keep going!</Text>
+            <Text style={st.yourRankText}>You&apos;re ranked <Text style={{ fontWeight: '800', color: COLORS.gold }}>#{data.your_rank}</Text> ({data.your_value}) — keep going!</Text>
           </View>
         )}
 

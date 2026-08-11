@@ -109,7 +109,7 @@ export default function CreatorDashboard() {
           <View testID="mobile-creator-pending" style={[s.statusCard, { borderColor: 'rgba(245,158,11,0.3)' }]}>
             <Ionicons name="hourglass-outline" size={20} color={COLORS.orange} />
             <Text style={[s.statusText, { color: COLORS.orange }]}>
-              Your application is being reviewed. We'll email {creator.contact_email} when approved.
+              Your application is being reviewed. We&apos;ll email {creator.contact_email} when approved.
             </Text>
           </View>
         )}

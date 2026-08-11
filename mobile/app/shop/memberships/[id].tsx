@@ -67,7 +67,7 @@ export default function ShopMemberships() {
           <View style={s.mine} testID="mem-mine">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="ribbon" size={18} color={COLORS.gold} />
-              <Text style={s.mineTitle}>You're a {data.mine.plan_name} member</Text>
+              <Text style={s.mineTitle}>You&apos;re a {data.mine.plan_name} member</Text>
             </View>
             {(data.mine.benefits || []).map((b: any) => (
               <View key={b.benefit_id} style={s.benefit} testID={`mem-benefit-${b.benefit_id}`}>

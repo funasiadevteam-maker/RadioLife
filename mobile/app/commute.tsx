@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, SafeAreaView, Alert, RefreshControl, Switch, Linking,
+  ActivityIndicator, SafeAreaView, Alert, RefreshControl, Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,7 +126,7 @@ export default function CommuteScreen() {
       const loc = r.data;
       api.delete(`/commute/saved_locations/${loc.loc_id}`).catch(() => {});
       const p = { lat: loc.lat, lng: loc.lng };
-      isOrigin ? setOriginLatLng(p) : setDestLatLng(p);
+      if (isOrigin) setOriginLatLng(p); else setDestLatLng(p);
       Alert.alert('Geocoded', `${text} → ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
     } catch { Alert.alert('Error', 'Could not geocode address'); }
   };

@@ -1,12 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal, Animated, Pressable,
-  Dimensions, AccessibilityInfo,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS } from '../constants/theme';
-import { useGateStore, GateAccess } from '../stores/gateStore';
+import { useGateStore } from '../stores/gateStore';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 

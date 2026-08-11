@@ -14,11 +14,11 @@ import FunAsiaFooter from '../../src/components/FunAsiaFooter';
 import PointsPill from '../../src/components/PointsPill';
 import WaysToEarnCard from '../../src/components/WaysToEarnCard';
 import api, { BACKEND } from '../../src/api/client';
+import SafeImage from '../../src/components/SafeImage';
+import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
 const resolveImg = (u?: string | null) =>
   u ? (u.startsWith('http') ? u : `${BACKEND}${u}`) : null;
-import SafeImage from '../../src/components/SafeImage';
-import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();

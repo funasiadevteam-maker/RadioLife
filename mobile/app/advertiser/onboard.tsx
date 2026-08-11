@@ -33,7 +33,7 @@ export default function AdvertiserOnboard() {
     }
     setBusy(true);
     try {
-      const r = await api.post('/advertiser/onboard', form);
+      await api.post('/advertiser/onboard', form);
       Alert.alert('Success', 'Advertiser account created');
       await refresh();
       router.replace('/advertiser');
@@ -167,7 +167,7 @@ export default function AdvertiserOnboard() {
             <View testID="onboard-step-team">
               <View style={common.card}>
                 <Text style={s.cardText}>
-                  You're the owner. Invite teammates as managers (full edit access) or
+                  You&apos;re the owner. Invite teammates as managers (full edit access) or
                   analysts (read-only) after onboarding from Settings.
                 </Text>
               </View>
