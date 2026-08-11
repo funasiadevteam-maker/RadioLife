@@ -15,6 +15,7 @@ export default function ShopGiftCardsRadioLife() {
   const [product, setProduct] = useState(null);
   const [amount, setAmount] = useState(null);
   const [method, setMethod] = useState("card");
+  const [giftOpen, setGiftOpen] = useState(false);
   const [giftEmail, setGiftEmail] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,11 +35,13 @@ export default function ShopGiftCardsRadioLife() {
 
   const buy = async () => {
     if (!product || !amount) return;
+    if (giftOpen && !giftEmail.trim().includes("@")) { alert("Enter a valid friend's email to gift."); return; }
     setBusy(true);
     try {
       const r = await axios.post(`${API}/giftcards/purchase`, {
         product_id: product.product_id, amount_cents: amount, method,
-        gift_to_email: giftEmail.trim() || null, message: message.trim() || null,
+        gift_to_email: giftOpen ? giftEmail.trim() : null,
+        message: giftOpen ? (message.trim() || null) : null,
         origin_url: window.location.origin,
       });
       if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
@@ -94,13 +97,22 @@ export default function ShopGiftCardsRadioLife() {
                   className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm ${method === "points" ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-700"} ${!product.allow_points ? "opacity-40 pointer-events-none" : ""}`}><Coins size={16} />{pointsCost} pts</button>
               </div>
               {method === "points" && !canPoints && <div className="text-xs font-bold text-rose-600">Not enough BigPoints (you have {data.points_balance}).</div>}
-              <input value={giftEmail} onChange={(e) => setGiftEmail(e.target.value)} placeholder="Gift to email (optional)" data-testid="gc-gift-email"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              {giftEmail && <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Message (optional)" data-testid="gc-message"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />}
+
+              <button type="button" onClick={() => setGiftOpen((v) => !v)} data-testid="gc-gift-toggle"
+                className={`flex items-center gap-2 text-sm font-black ${giftOpen ? "text-orange-600" : "text-slate-500"}`}>
+                <Gift size={15} />{giftOpen ? "Gifting to a friend" : "Gift this gift card"}
+              </button>
+              {giftOpen && (
+                <div className="space-y-2" data-testid="gc-gift-fields">
+                  <input value={giftEmail} onChange={(e) => setGiftEmail(e.target.value)} type="email" placeholder="Friend's email" data-testid="gc-gift-email"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                  <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={280} placeholder="Optional message" data-testid="gc-message"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                </div>
+              )}
               <button onClick={buy} disabled={busy || (method === "points" && !canPoints)} data-testid="gc-buy"
                 className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3 disabled:opacity-50">
-                <Gift size={16} />Buy {money(amount)} gift card
+                <Gift size={16} />{giftOpen ? `Gift ${money(amount)} card` : `Buy ${money(amount)} gift card`}
               </button>
             </div>
           )}

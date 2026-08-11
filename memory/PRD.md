@@ -460,6 +460,12 @@ User-confirmed order: (1) Merchant Gift Cards, (2) Memberships, (3) Packages, (4
 ### NEXT — Phase 2 of Shop-Desktop request (user-approved, NOT yet started)
 - Make the web Shop **responsive**: true wide multi-column desktop layout on laptop (top nav / grids), keep app-style layout on phones. Add a **Shop widget + link on the web home page**.
 
+### 2026-06 — Gift Card gifting toggle + wallet reveal + home highlight card
+- **Gift Card Gifting** now uses the same friend-gifting TOGGLE pattern as packages/memberships on web (`ShopGiftCardsRadioLife.jsx`) + mobile (`app/shop/giftcards/[id].tsx`): `gc-gift-toggle` reveals email + message, CTA flips to "Gift $X card". Backend (`routes/gift_cards.py`) schedules Mailgun gift-receipt emails (buyer + recipient) via `services/gift_notify.py` (kind="giftcard") on both points + card paths.
+- **Wallet Gift Inbox reveal animation**: gifts arrive WRAPPED ("A gift from X — tap to unwrap") and unwrap to reveal details. Web `GiftInboxSection.jsx` (CSS keyframes wobble/pop), mobile `(tabs)/wallet.tsx` (Animated wobble + LayoutAnimation reveal). testIDs `gift-wrapped-{id}` → `gift-item-{id}`.
+- **Home Shop highlight card**: `components/ShopHomeWidget.jsx` enhanced into a prominent gradient hero card (Open Shop CTA + 4 featured venues) on the web home.
+- Verified: testing agent iteration_70 — ALL GREEN (backend 6 passed/1 skipped; web + mobile parity for all three; regressions from iter69 still pass).
+
 ### 2026-06 — Shop in-window + Gifting suite + Mailgun emails
 - **Shop renders IN-SHELL** (fixes "Shop opens as a new website / left bar disappears"): root cause was `hooks/useDesignVariant.js` force-flipping the variant to `radiolife` on every `/shop` route → triggered the full-screen `RadioLifeOverlay` (fixed inset-0 sibling of AppShell) hiding the classic left sidebar. Removed the path-forcing; overlay only shows when the user explicitly picks the "new look". Added `design_radiolife/ShopInShell.jsx` + `/shop`, `/shop/*`, `/sell` routes inside `<AppShell>` so Shop renders in the classic shell (sidebar + top bar + mini-player intact). Dark theme via `.rl-shop-inshell` in `shop-desktop-dark.css`.
 - **Membership Gifting** (web `ShopMembershipsRadioLife.jsx` + mobile `app/shop/memberships/[id].tsx`): gift toggle → email + message, CTA "Gift"; `POST /api/shop/memberships/subscribe` takes `gift_to_email`+`message`, assigns recipient by email (backfills user_id on recipient login so they can claim). `/memberships/mine` surfaces `received_gift`.

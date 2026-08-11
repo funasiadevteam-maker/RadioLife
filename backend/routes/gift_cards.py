@@ -10,11 +10,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user
 from services.points_service import PointsService
+from services.gift_notify import send_gift_emails
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -84,6 +85,20 @@ async def _issue_card(db, *, product: Dict[str, Any], amount_cents: int, buyer_i
     return card
 
 
+async def _schedule_gc_gift_email(db, bg: Optional[BackgroundTasks], card: Dict[str, Any]) -> None:
+    if not (bg and card.get("gifted_to_email")):
+        return
+    buyer = await db.users.find_one({"user_id": card.get("buyer_user_id")},
+                                    {"email": 1, "display_name": 1, "name": 1}) or {}
+    bg.add_task(send_gift_emails, kind="giftcard",
+                item_name=f"${int(card.get('amount_cents', 0) / 100)} gift card",
+                sponsor_name=card.get("sponsor_name"),
+                buyer_email=buyer.get("email"),
+                buyer_name=buyer.get("display_name") or buyer.get("name") or "A friend",
+                recipient_email=card.get("gifted_to_email"),
+                message=card.get("message"))
+
+
 @router.get("/catalog")
 async def catalog(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
@@ -106,7 +121,9 @@ class PurchaseBody(BaseModel):
 
 
 @router.post("/purchase")
-async def purchase(body: PurchaseBody, request: Request, user: dict = Depends(current_user)):
+async def purchase(body: PurchaseBody, request: Request,
+                   background_tasks: BackgroundTasks,
+                   user: dict = Depends(current_user)):
     db = request.app.state.db
     await _seed_products(db)
     uid = user.get("user_id")
@@ -134,6 +151,7 @@ async def purchase(body: PurchaseBody, request: Request, user: dict = Depends(cu
                                  buyer_id=uid, method="points",
                                  gift_to_email=body.gift_to_email, message=body.message,
                                  idempotency_key=idem)
+        await _schedule_gc_gift_email(db, background_tasks, card)
         return {"ok": True, "method": "points", "points_spent": points_cost, "card": card}
 
     if body.method == "card":
@@ -172,7 +190,9 @@ async def purchase(body: PurchaseBody, request: Request, user: dict = Depends(cu
 
 
 @router.get("/purchase/{session_id}/status")
-async def purchase_status(session_id: str, request: Request, user: dict = Depends(current_user)):
+async def purchase_status(session_id: str, request: Request,
+                          background_tasks: BackgroundTasks,
+                          user: dict = Depends(current_user)):
     db = request.app.state.db
     pur = await db.gift_card_purchases.find_one({"session_id": session_id})
     if not pur:
@@ -198,6 +218,7 @@ async def purchase_status(session_id: str, request: Request, user: dict = Depend
         await db.gift_card_purchases.update_one(
             {"session_id": session_id},
             {"$set": {"status": "paid", "card_id": card["card_id"], "paid_at": _now()}})
+        await _schedule_gc_gift_email(db, background_tasks, card)
         return {"status": "paid", "card": card}
     return {"status": "pending"}
 

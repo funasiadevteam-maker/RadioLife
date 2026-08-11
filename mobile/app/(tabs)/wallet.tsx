@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
-  SafeAreaView, Alert, RefreshControl,
+  SafeAreaView, Alert, RefreshControl, LayoutAnimation, Platform, UIManager, Animated,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -447,9 +447,59 @@ function ReferTab({ me }: { me: any }) {
 }
 
 /* ── Gift Inbox — gifts received (packages, memberships, gift cards) ── */
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 const GIFT_ICON: Record<string, any> = { giftcard: 'card', package: 'cube', membership: 'star' };
+
+function WrappedGift({ g, onOpen }: { g: any; onOpen: () => void }) {
+  const wob = React.useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(wob, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(wob, { toValue: -1, duration: 700, useNativeDriver: true }),
+      Animated.timing(wob, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [wob]);
+  const rotate = wob.interpolate({ inputRange: [-1, 1], outputRange: ['-8deg', '8deg'] });
+  return (
+    <TouchableOpacity style={st.giftWrapped} activeOpacity={0.8} onPress={onOpen} testID={`gift-wrapped-${g.id}`}>
+      <Animated.Text style={{ fontSize: 26, transform: [{ rotate }] }}>🎁</Animated.Text>
+      <View style={{ flex: 1, marginLeft: 10 }}>
+        <Text style={st.giftTitle}>A gift from {g.from_name}</Text>
+        <Text style={st.giftUnwrap}>✨ Tap to unwrap</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function RevealedGift({ g, router }: { g: any; router: any }) {
+  const pop = React.useRef(new Animated.Value(0.9)).current;
+  useEffect(() => {
+    Animated.spring(pop, { toValue: 1, friction: 5, tension: 140, useNativeDriver: true }).start();
+  }, [pop]);
+  return (
+    <Animated.View style={{ transform: [{ scale: pop }] }}>
+      <TouchableOpacity style={st.giftRow} activeOpacity={0.75}
+        onPress={() => router.push(g.route)} testID={`gift-item-${g.id}`}>
+        <Ionicons name={GIFT_ICON[g.kind] || 'gift'} size={20} color={COLORS.primary} />
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <Text style={st.giftTitle}>{g.title}</Text>
+          {!!g.subtitle && <Text style={st.giftSub}>{g.subtitle}</Text>}
+          <Text style={st.giftFrom}>From {g.from_name}</Text>
+          {!!g.message && <Text style={st.giftMsg}>“{g.message}”</Text>}
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 function GiftInbox({ router }: { router: any }) {
   const [items, setItems] = useState<any[]>([]);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   useEffect(() => {
     (async () => {
       try { const r = await api.get('/shop/gifts/received'); setItems(r.data?.items || []); }
@@ -457,6 +507,10 @@ function GiftInbox({ router }: { router: any }) {
     })();
   }, []);
   if (!items.length) return null;
+  const unwrap = (key: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpen((s) => ({ ...s, [key]: true }));
+  };
   return (
     <View style={st.giftInbox} testID="gift-inbox">
       <View style={st.giftInboxHead}>
@@ -464,19 +518,12 @@ function GiftInbox({ router }: { router: any }) {
         <Text style={st.giftInboxTitle}>Gifts received</Text>
         <View style={st.giftInboxBadge}><Text style={st.giftInboxBadgeText} testID="gift-inbox-count">{items.length}</Text></View>
       </View>
-      {items.map((g: any) => (
-        <TouchableOpacity key={`${g.kind}-${g.id}`} style={st.giftRow} activeOpacity={0.75}
-          onPress={() => router.push(g.route)} testID={`gift-item-${g.id}`}>
-          <Ionicons name={GIFT_ICON[g.kind] || 'gift'} size={20} color={COLORS.primary} />
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={st.giftTitle}>{g.title}</Text>
-            {!!g.subtitle && <Text style={st.giftSub}>{g.subtitle}</Text>}
-            <Text style={st.giftFrom}>From {g.from_name}</Text>
-            {!!g.message && <Text style={st.giftMsg}>“{g.message}”</Text>}
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
-        </TouchableOpacity>
-      ))}
+      {items.map((g: any) => {
+        const key = `${g.kind}-${g.id}`;
+        return open[key]
+          ? <RevealedGift key={key} g={g} router={router} />
+          : <WrappedGift key={key} g={g} onOpen={() => unwrap(key)} />;
+      })}
     </View>
   );
 }
@@ -492,6 +539,8 @@ const st = StyleSheet.create({
   giftInboxBadge: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 1 },
   giftInboxBadgeText: { color: '#fff', fontSize: FONT.xs, fontWeight: '900' },
   giftRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.sm, marginTop: 6, borderWidth: 1, borderColor: COLORS.cardBorder },
+  giftWrapped: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(242,107,42,0.14)', borderRadius: RADIUS.md, padding: SPACING.sm, marginTop: 6, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(242,107,42,0.55)' },
+  giftUnwrap: { color: '#fdba74', fontSize: FONT.xs, fontWeight: '800', marginTop: 2 },
   giftTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
   giftSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 1 },
   giftFrom: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },

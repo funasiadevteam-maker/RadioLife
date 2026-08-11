@@ -22,6 +22,7 @@ export default function ShopGiftCards() {
   const [product, setProduct] = useState<any>(null);
   const [amount, setAmount] = useState<number | null>(null);
   const [method, setMethod] = useState<'card' | 'points'>('card');
+  const [giftOpen, setGiftOpen] = useState(false);
   const [giftEmail, setGiftEmail] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -42,11 +43,13 @@ export default function ShopGiftCards() {
 
   const buy = async () => {
     if (!product || !amount) return;
+    if (giftOpen && !giftEmail.trim().includes('@')) { Alert.alert('Gift', "Enter a valid friend's email to gift."); return; }
     setBusy(true);
     try {
       const r = await api.post('/giftcards/purchase', {
         product_id: product.product_id, amount_cents: amount, method,
-        gift_to_email: giftEmail.trim() || null, message: message.trim() || null,
+        gift_to_email: giftOpen ? giftEmail.trim() : null,
+        message: giftOpen ? (message.trim() || null) : null,
         origin_url: process.env.EXPO_PUBLIC_BACKEND_URL,
       });
       if (r.data.checkout_url) {
@@ -54,7 +57,7 @@ export default function ShopGiftCards() {
         const st = await api.get(`/giftcards/purchase/${r.data.session_id}/status`);
         if (st.data.status !== 'paid') { setBusy(false); return; }
       }
-      celebrate({ title: 'Gift card purchased!', subtitle: giftEmail ? `Sent to ${giftEmail}` : 'Ready in your wallet' });
+      celebrate({ title: giftOpen ? 'Gift card sent!' : 'Gift card purchased!', subtitle: giftOpen ? `Sent to ${giftEmail}` : 'Ready in your wallet' });
       router.replace(`/shop/${id}`);
     } catch (e: any) {
       Alert.alert('Purchase failed', e?.response?.data?.detail?.code || 'Try again');
@@ -108,13 +111,21 @@ export default function ShopGiftCards() {
               </TouchableOpacity>
             </View>
             {method === 'points' && !canPoints && <Text style={s.warn}>Not enough BigPoints (you have {data.points_balance}).</Text>}
-            <TextInput value={giftEmail} onChangeText={setGiftEmail} placeholder="Gift to email (optional)" placeholderTextColor={COLORS.textMuted}
-              autoCapitalize="none" keyboardType="email-address" style={s.input} testID="gc-gift-email" />
-            {!!giftEmail && <TextInput value={message} onChangeText={setMessage} placeholder="Message (optional)" placeholderTextColor={COLORS.textMuted} style={s.input} testID="gc-message" />}
+            <TouchableOpacity style={s.giftToggle} onPress={() => setGiftOpen((v) => !v)} testID="gc-gift-toggle">
+              <Ionicons name="gift" size={15} color={giftOpen ? COLORS.primary : COLORS.textMuted} />
+              <Text style={[s.giftToggleText, { color: giftOpen ? COLORS.primary : COLORS.textMuted }]}>{giftOpen ? 'Gifting to a friend' : 'Gift this gift card'}</Text>
+            </TouchableOpacity>
+            {giftOpen && (
+              <View style={{ gap: 12 }} testID="gc-gift-fields">
+                <TextInput value={giftEmail} onChangeText={setGiftEmail} placeholder="Friend's email" placeholderTextColor={COLORS.textMuted}
+                  autoCapitalize="none" keyboardType="email-address" style={s.input} testID="gc-gift-email" />
+                <TextInput value={message} onChangeText={setMessage} maxLength={280} placeholder="Optional message" placeholderTextColor={COLORS.textMuted} style={s.input} testID="gc-message" />
+              </View>
+            )}
             <TouchableOpacity style={[common.btnPrimary, (busy || (method === 'points' && !canPoints)) && { opacity: 0.5 }]}
               disabled={busy || (method === 'points' && !canPoints)} onPress={buy} testID="gc-buy">
               <Ionicons name="gift" size={16} color="#fff" />
-              <Text style={common.btnPrimaryText}>Buy {money(amount)} gift card</Text>
+              <Text style={common.btnPrimaryText}>{giftOpen ? `Gift ${money(amount)} card` : `Buy ${money(amount)} gift card`}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -140,5 +151,7 @@ const s = StyleSheet.create({
   mText: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
   mTextOn: { color: '#fff' },
   warn: { color: COLORS.red, fontSize: FONT.xs, fontWeight: '800' },
+  giftToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  giftToggleText: { fontSize: FONT.sm, fontWeight: '900' },
   input: { backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: FONT.sm },
 });
