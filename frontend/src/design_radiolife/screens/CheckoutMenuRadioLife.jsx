@@ -8,6 +8,7 @@ import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
+const BRAND = { visa: "Visa", mastercard: "Mastercard", amex: "Amex", discover: "Discover" };
 
 export default function CheckoutMenuRadioLife() {
   const navigate = useNavigate();
@@ -17,6 +18,16 @@ export default function CheckoutMenuRadioLife() {
   const [quote, setQuote] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [payWith, setPayWith] = useState("new"); // "new" | pm_id
+
+  useEffect(() => {
+    axios.get(`${API}/shop/wallet/cards`).then((r) => {
+      setCards(r.data.cards || []);
+      const def = (r.data.cards || []).find((c) => c.is_default);
+      if (def) setPayWith(def.id);
+    }).catch(() => {});
+  }, []);
 
   const items = useMemo(
     () => cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })), [cart.items]);
@@ -52,6 +63,7 @@ export default function CheckoutMenuRadioLife() {
         business_id: cart.businessId, items,
         use_gift_card: useGift, redeem_points: redeemPoints,
         origin_url: window.location.origin,
+        payment_method_id: payWith !== "new" ? payWith : undefined,
       });
       cart.clear();
       if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
@@ -65,6 +77,7 @@ export default function CheckoutMenuRadioLife() {
   const total = quote ? quote.total_cents : cart.subtotal();
   const maxPts = quote ? quote.max_redeemable_points : 0;
   const paysByCard = total > 0;
+  const savedCard = cards.find((c) => c.id === payWith);
 
   return (
     <div className="pb-40" data-testid="rl-checkout-menu-page">
@@ -133,12 +146,41 @@ export default function CheckoutMenuRadioLife() {
             <Coins size={13} className="text-amber-500" />You'll earn {quote.points_to_award} BigPoints on this order.
           </div>
         )}
+        {/* Payment method (only when a card payment is due) */}
+        {paysByCard && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="checkout-payment-method">
+            <div className="flex items-center gap-2 mb-2">
+              <CreditCard size={18} className="text-slate-700" />
+              <div className="font-bold text-slate-900 text-sm">Payment method</div>
+              <button onClick={() => navigate("/shop/wallet/cards")} data-testid="checkout-manage-cards"
+                className="ml-auto text-xs font-bold text-orange-600">Manage</button>
+            </div>
+            <div className="space-y-2">
+              {cards.map((c) => (
+                <button key={c.id} onClick={() => setPayWith(c.id)} data-testid={`checkout-card-${c.id}`}
+                  className={`w-full flex items-center gap-3 rounded-xl p-3 text-left border ${payWith === c.id ? "border-orange-500 bg-orange-50" : "border-slate-200 bg-slate-50"}`}>
+                  <span className={`w-4 h-4 rounded-full border-2 ${payWith === c.id ? "border-orange-500 bg-orange-500" : "border-slate-300"}`} />
+                  <CreditCard size={16} className="text-slate-700" />
+                  <span className="text-sm font-bold text-slate-900">{BRAND[c.brand] || c.brand} •••• {c.last4}</span>
+                  {c.is_default && <span className="ml-auto text-[10px] font-black text-green-700">DEFAULT</span>}
+                </button>
+              ))}
+              <button onClick={() => setPayWith("new")} data-testid="checkout-card-new"
+                className={`w-full flex items-center gap-3 rounded-xl p-3 text-left border ${payWith === "new" ? "border-orange-500 bg-orange-50" : "border-slate-200 bg-slate-50"}`}>
+                <span className={`w-4 h-4 rounded-full border-2 ${payWith === "new" ? "border-orange-500 bg-orange-500" : "border-slate-300"}`} />
+                <CreditCard size={16} className="text-slate-700" />
+                <span className="text-sm font-bold text-slate-900">Pay with a new card</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {error && <div className="text-rose-600 text-sm font-semibold" data-testid="checkout-error">{error}</div>}
 
         <button onClick={pay} disabled={busy} data-testid="checkout-pay"
           className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-4 disabled:opacity-60">
           {busy ? "Processing…" : paysByCard
-            ? <><CreditCard size={18} />Pay {money(total)} by card</>
+            ? <><CreditCard size={18} />{savedCard ? `Pay ${money(total)} · •••• ${savedCard.last4}` : `Pay ${money(total)} by card`}</>
             : <><Check size={18} />Place order · {money(0)}</>}
         </button>
       </div>

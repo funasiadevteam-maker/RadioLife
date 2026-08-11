@@ -1,34 +1,21 @@
 // RadioLife Shop — multi-merchant cart, splits into one order per venue at checkout (web).
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import { ChevronLeft, ShoppingBag, Minus, Plus, Trash2, Store } from "lucide-react";
-import { API } from "@/AuthContext";
 import { useProductCart } from "../useProductCart";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 
 export default function ShopCartRadioLife() {
   const navigate = useNavigate();
-  const { groups, inc, dec, setFulfillment, setAddress, removeGroup, clear } = useProductCart();
-  const [busy, setBusy] = useState(false);
+  const { groups, inc, dec, setFulfillment, setAddress, removeGroup } = useProductCart();
   const entries = Object.entries(groups);
   const grand = entries.reduce((s, [, g]) => s + g.items.reduce((m, i) => m + i.price_cents * i.qty, 0), 0);
 
-  const checkout = async () => {
-    const payload = entries.map(([bizId, g]) => ({
-      business_id: bizId, fulfillment: g.fulfillment,
-      address: g.fulfillment === "delivery" ? (g.address || "").trim() : null,
-      items: g.items.map((i) => ({ product_id: i.product_id, variant_label: i.variant_label, qty: i.qty })),
-    }));
-    if (payload.some((p) => p.fulfillment === "delivery" && !p.address)) { alert("Add a delivery address for each delivery order"); return; }
-    setBusy(true);
-    try {
-      const r = await axios.post(`${API}/shop/cart/checkout`, { groups: payload, use_gift_card: true, origin_url: window.location.origin });
-      clear();
-      if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
-      navigate("/shop/product-orders");
-    } catch (e) { alert(e?.response?.data?.detail?.code || "Checkout failed"); setBusy(false); }
+  const goCheckout = () => {
+    const missing = entries.some(([, g]) => g.fulfillment === "delivery" && !(g.address || "").trim());
+    if (missing) { alert("Add a delivery address for each delivery order"); return; }
+    navigate("/shop/checkout/cart");
   };
 
   return (
@@ -80,11 +67,11 @@ export default function ShopCartRadioLife() {
           })}
 
           <div className="fixed bottom-16 left-0 right-0 max-w-3xl mx-auto px-4 py-3 bg-white border-t border-slate-200">
-            <button onClick={checkout} disabled={busy} data-testid="cart-checkout"
+            <button onClick={goCheckout} data-testid="cart-checkout"
               className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3 disabled:opacity-60">
-              <ShoppingBag size={16} />Checkout {entries.length > 1 ? `${entries.length} venues` : ""} · {money(grand)}
+              <ShoppingBag size={16} />Review &amp; Checkout {entries.length > 1 ? `${entries.length} venues` : ""} · {money(grand)}
             </button>
-            <p className="text-center text-xs text-slate-400 mt-1.5">Gift cards auto-apply per venue · one order per venue</p>
+            <p className="text-center text-xs text-slate-400 mt-1.5">Choose gift card &amp; points on the next step · one order per venue</p>
           </div>
         </div>
       )}

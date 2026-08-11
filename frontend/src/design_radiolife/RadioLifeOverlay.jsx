@@ -49,6 +49,7 @@ import MerchantServicesRadioLife from "./screens/MerchantServicesRadioLife";
 // Phase D — ecommerce products, product orders, loyalty.
 import ShopProductsRadioLife from "./screens/ShopProductsRadioLife";
 import ShopCartRadioLife from "./screens/ShopCartRadioLife";
+import CheckoutCartRadioLife from "./screens/CheckoutCartRadioLife";
 import ShopMyMembershipsRadioLife from "./screens/ShopMyMembershipsRadioLife";
 import MerchantTicketScanRadioLife from "./screens/MerchantTicketScanRadioLife";
 import ShopProductOrdersRadioLife from "./screens/ShopProductOrdersRadioLife";
@@ -66,6 +67,8 @@ import MerchantPackagesRadioLife from "./screens/MerchantPackagesRadioLife";
 // Phase E — events.
 import ShopEventsRadioLife from "./screens/ShopEventsRadioLife";
 import MerchantEventsRadioLife from "./screens/MerchantEventsRadioLife";
+// Phase 2 Checkout — Saved Cards wallet.
+import WalletCardsRadioLife from "./screens/WalletCardsRadioLife";
 
 const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
@@ -77,6 +80,8 @@ export function screenFor(pathname) {
   if (pathname === "/shop") return ShopRadioLife;
   if (pathname === "/sell") return SellOnRadioLife;
   if (pathname === "/shop/checkout/menu") return CheckoutMenuRadioLife;
+  if (pathname === "/shop/checkout/cart") return CheckoutCartRadioLife;
+  if (pathname === "/shop/wallet/cards") return WalletCardsRadioLife;
   if (pathname === "/shop/orders") return ShopOrdersRadioLife;
   if (pathname === "/shop/cart") return ShopCartRadioLife;
   if (pathname === "/shop/memberships") return ShopMyMembershipsRadioLife;

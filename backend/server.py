@@ -5727,6 +5727,9 @@ try:
     app.include_router(_mkt_menu_router)
     app.include_router(_mkt_orders_router)
     app.include_router(_mkt_morders_router)
+    # Phase 2 Checkout — Saved Cards (Stripe wallet).
+    from routes.saved_cards import router as _saved_cards_router
+    app.include_router(_saved_cards_router)
     # Phase C — service bookings.
     from routes.marketplace_services import router as _mkt_svc_router
     from routes.marketplace_services import consumer_router as _mkt_svc_consumer_router

@@ -10,6 +10,7 @@ import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 import { useProductCart } from '../../src/stores/useProductCart';
 import { useReward } from '../../src/components/RewardOverlay';
+import SavedCardPicker from '../../src/components/SavedCardPicker';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 
@@ -19,6 +20,7 @@ export default function ProductCart() {
   const { celebrate } = useReward();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [payCard, setPayCard] = useState<string | null>(null);
 
   const entries = Object.entries(groups);
   const grand = entries.reduce((s, [, g]) => s + g.items.reduce((m, i) => m + i.price_cents * i.qty, 0), 0);
@@ -37,6 +39,7 @@ export default function ProductCart() {
     try {
       const r = await api.post('/shop/cart/checkout', {
         groups: payload, use_gift_card: true, origin_url: process.env.EXPO_PUBLIC_BACKEND_URL,
+        payment_method_id: payCard || undefined,
       });
       if (r.data.checkout_url) {
         await WebBrowser.openBrowserAsync(r.data.checkout_url);
@@ -127,6 +130,7 @@ export default function ProductCart() {
                 </View>
               );
             })}
+            {grand > 0 && <SavedCardPicker selected={payCard} onSelect={setPayCard} />}
             {!!error && <Text style={s.error} testID="pcart-error">{error}</Text>}
           </ScrollView>
 

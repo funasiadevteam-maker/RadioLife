@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown } from "lucide-react";
+import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard } from "lucide-react";
 import { API } from "@/AuthContext";
 import { RLCard, RLChip } from "../DesignSystem";
 import { useProductCart } from "../useProductCart";
@@ -130,6 +130,11 @@ export default function ShopRadioLife() {
         <Link to="/shop/loyalty" data-testid="shop-my-loyalty"
           className="flex items-center justify-center gap-2 bg-amber-100 text-amber-950 font-black rounded-xl py-3">
           <Star size={16} className="fill-amber-500 text-amber-500" />My Loyalty</Link>
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        <Link to="/shop/wallet/cards" data-testid="shop-payment-methods"
+          className="flex items-center justify-center gap-2 bg-slate-900 text-white font-black rounded-xl py-3">
+          <CreditCard size={16} />Payment Methods</Link>
       </div>
 
       {browsing ? (

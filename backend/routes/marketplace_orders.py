@@ -168,6 +168,7 @@ class CheckoutBody(BaseModel):
     use_gift_card: bool = False
     redeem_points: int = Field(0, ge=0)
     note: Optional[str] = Field(None, max_length=300)
+    payment_method_id: Optional[str] = None  # saved card → one-tap off-session
 
 
 @router.post("/checkout")
@@ -221,6 +222,29 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
 
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
+
+    # One-tap: charge a saved card off-session. On success the order is paid
+    # immediately (no redirect); card errors fall through to hosted Checkout.
+    if body.payment_method_id:
+        from services.saved_cards_service import ensure_stripe_customer, charge_saved_card, owns_payment_method
+        cust = await ensure_stripe_customer(db, user)
+        if owns_payment_method(cust, body.payment_method_id):
+            try:
+                pi = charge_saved_card(
+                    amount_cents=total, cust_id=cust, pm_id=body.payment_method_id,
+                    metadata={"kind": "marketplace_order", "order_id": order_id,
+                              "business_id": body.business_id})
+                if pi.status == "succeeded":
+                    order["payment_intent_id"] = pi.id
+                    await db.marketplace_orders.insert_one(dict(order))
+                    await _finalize_paid(db, order, user)
+                    return {"ok": True, "order_id": order_id, "status": "accepted",
+                            "payment_status": "paid", "paid": True, "checkout_url": None,
+                            "total_cents": total, "gift_card_applied_cents": gift_applied,
+                            "points_discount_cents": points_discount, "pickup_code": pickup_code}
+            except stripe.error.CardError:
+                pass  # SCA required / declined — fall back to hosted checkout
+
     origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})

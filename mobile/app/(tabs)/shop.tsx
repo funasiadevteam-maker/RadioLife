@@ -116,6 +116,10 @@ export default function ShopHome() {
             <Ionicons name="ribbon" size={18} color={COLORS.primary} />
             <Text style={s.quickText}>Memberships</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/wallet/cards')} testID="shop-payment-methods">
+            <Ionicons name="card-outline" size={18} color={COLORS.text} />
+            <Text style={s.quickText}>Cards</Text>
+          </TouchableOpacity>
         </View>
 
         {sections.map((sec) => (

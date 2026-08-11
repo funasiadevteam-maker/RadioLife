@@ -10,6 +10,7 @@ import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 import { useCartStore } from '../../src/stores/useCartStore';
 import { useReward } from '../../src/components/RewardOverlay';
+import SavedCardPicker from '../../src/components/SavedCardPicker';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 
@@ -19,8 +20,29 @@ export default function Cart() {
   const { celebrate } = useReward();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useGift, setUseGift] = useState(true);
+  const [usePoints, setUsePoints] = useState(false);
+  const [quote, setQuote] = useState<any>(null);
+  const [payCard, setPayCard] = useState<string | null>(null);
 
   const subtotal = cart.subtotal();
+
+  const refresh = React.useCallback(async (gift: boolean, pts: boolean) => {
+    if (!cart.businessId || !cart.items.length) return;
+    try {
+      const r = await api.post('/shop/orders/quote', {
+        business_id: cart.businessId,
+        items: cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })),
+        use_gift_card: gift,
+        redeem_points: pts ? 10 ** 9 : 0, // server caps to max redeemable
+      });
+      setQuote(r.data);
+    } catch { /* keep last quote */ }
+  }, [cart.businessId, cart.items]);
+
+  React.useEffect(() => { refresh(useGift, usePoints); }, [useGift, usePoints, refresh]);
+
+  const total = quote ? quote.total_cents : subtotal;
 
   const checkout = async () => {
     if (!cart.businessId || !cart.items.length) return;
@@ -30,7 +52,9 @@ export default function Cart() {
         business_id: cart.businessId,
         items: cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })),
         origin_url: process.env.EXPO_PUBLIC_BACKEND_URL,
-        use_gift_card: true,
+        use_gift_card: useGift,
+        redeem_points: usePoints && quote ? quote.max_redeemable_points : 0,
+        payment_method_id: payCard || undefined,
       });
       const orderId = r.data.order_id;
       if (r.data.checkout_url) {
@@ -44,9 +68,8 @@ export default function Cart() {
         }
         setError('Payment not completed. Your order is saved as pending.');
       } else {
-        // Fully covered by gift card.
         cart.clear();
-        celebrate({ points: 0, title: 'Order placed with gift card! 🎉' });
+        celebrate({ points: 0, title: 'Order placed! 🎉' });
         router.replace('/shop/orders');
         return;
       }
@@ -96,23 +119,37 @@ export default function Cart() {
               </View>
             ))}
 
-            <View style={s.giftNote} testID="cart-gift-note">
-              <Ionicons name="gift" size={16} color={COLORS.green} />
-              <Text style={s.giftText}>Any RadioLife gift-card balance is applied automatically at checkout.</Text>
-            </View>
+            {quote && quote.gift_available_cents > 0 && (
+              <TouchableOpacity style={s.optRow} testID="cart-giftcard-toggle" onPress={() => setUseGift((v) => !v)}>
+                <View style={[s.check, useGift && s.checkOn]}>{useGift && <Ionicons name="checkmark" size={14} color="#fff" />}</View>
+                <Ionicons name="gift" size={16} color={COLORS.green} />
+                <Text style={s.optText}>Apply gift card · {money(quote.gift_available_cents)} available</Text>
+                <Text style={s.optDiscount}>−{money(quote.gift_applied_cents)}</Text>
+              </TouchableOpacity>
+            )}
+            {quote && quote.points_balance > 0 && (
+              <TouchableOpacity style={s.optRow} testID="cart-points-toggle"
+                onPress={() => setUsePoints((v) => !v)} disabled={quote.max_redeemable_points <= 0 && !usePoints}>
+                <View style={[s.check, usePoints && s.checkOn]}>{usePoints && <Ionicons name="checkmark" size={14} color="#fff" />}</View>
+                <Ionicons name="server" size={16} color={COLORS.primary} />
+                <Text style={s.optText}>Use BigPoints · balance {quote.points_balance}</Text>
+                <Text style={s.optDiscount}>−{money(quote.points_discount_cents)}</Text>
+              </TouchableOpacity>
+            )}
+            {total > 0 && <SavedCardPicker selected={payCard} onSelect={setPayCard} />}
             {!!error && <Text style={s.error} testID="cart-error">{error}</Text>}
           </ScrollView>
 
           <View style={s.footer}>
             <View style={s.sumRow}>
-              <Text style={s.sumLabel}>Subtotal</Text>
-              <Text style={s.sumValue} testID="cart-subtotal">{money(subtotal)}</Text>
+              <Text style={s.sumLabel}>Total to pay</Text>
+              <Text style={s.sumValue} testID="cart-total">{money(total)}</Text>
             </View>
             <TouchableOpacity style={[common.btnPrimary, busy && { opacity: 0.6 }]} disabled={busy}
               onPress={checkout} testID="cart-checkout">
               {busy ? <ActivityIndicator color="#fff" />
-                : <><Ionicons name="lock-closed" size={16} color="#fff" />
-                  <Text style={common.btnPrimaryText}>Checkout · {money(subtotal)}</Text></>}
+                : <><Ionicons name={total > 0 ? 'card' : 'checkmark-circle'} size={16} color="#fff" />
+                  <Text style={common.btnPrimaryText}>{total > 0 ? `Pay by card · ${money(total)}` : 'Place order'}</Text></>}
             </TouchableOpacity>
           </View>
         </>
@@ -133,6 +170,11 @@ const s = StyleSheet.create({
   qty: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', minWidth: 16, textAlign: 'center' },
   giftNote: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.green + '12', borderRadius: RADIUS.md, padding: 12, marginTop: 12 },
   giftText: { flex: 1, color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
+  optRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginTop: 10 },
+  check: { width: 20, height: 20, borderRadius: 6, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
+  checkOn: { backgroundColor: COLORS.green },
+  optText: { flex: 1, color: COLORS.text, fontSize: FONT.sm, fontWeight: '700' },
+  optDiscount: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
   error: { color: COLORS.red, fontSize: FONT.sm, fontWeight: '700', marginTop: 12 },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder, backgroundColor: COLORS.bg },
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

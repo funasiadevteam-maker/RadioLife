@@ -1,0 +1,56 @@
+{
+  "summary": "Iteration 72 — RadioLife Phase 1 completion: WEB products multi-venue cart checkout (/shop/checkout/cart, CheckoutCartRadioLife.jsx) + MOBILE food cart checkout (mobile/app/shop/cart.tsx) tested end-to-end alongside a food-checkout regression. Backend: 11/11 pytest cases pass on the new /api/shop/cart/quote and /api/shop/cart/checkout endpoints and the existing /api/shop/orders/{quote,checkout} regression. Verified with biz_sample_ambreens + prod_sample_biz_sample_ambreens_serum ($32.00): quote with redeem_points=500 returns total_cents=2700 as specified, points_balance=500, points_discount_cents=500, points capped by balance when over-asked, and /cart/checkout returns a real Stripe cs_test_/checkout.stripe.com URL with grand_total_cents=2700 when 500 pts applied. Confirmed points are NOT debited pre-payment (balance stable across two /quote calls bracketing a /checkout). WEB e2e (legacy variant): logged in test@ → added Argan Repair Hair Serum on /shop/products/biz_sample_ambreens → topbar-cart-count went to 1 → /shop/cart shows the venue group → 'Review & Checkout · $32.00' navigates to /shop/checkout/cart → rl-checkout-cart-page renders → checkout-points-slider-biz_sample_ambreens moved to 500 → checkout-group-total-biz_sample_ambreens and checkout-grand-total both updated $32.00 → $27.00 → cart-checkout-pay button reads 'Pay $27.00 by card' (did NOT redirect to Stripe per instruction). Gift-card toggle correctly NOT shown for Ambreens (no gift seeded for that biz). MOBILE food e2e (demo@): tapped demo-login-btn → /shop/menu/biz_sample_funpizza → menu-add-mi_biz_sample_funpizza_0 → menu-view-cart → cart-root visible → 2 /api/shop/orders/quote calls observed → cart-giftcard-toggle AND cart-points-toggle BOTH present (demo actually has a $938.02 gift card + 264 pts — more than the review-request note suggested) → cart-total live-updates: default $0.00 (gift covers), gift OFF = $17.99 → cart-checkout label toggles between 'Place order' (total=0) and 'Pay by card · $17.99'. Overall: Phase 1 complete. Only carry-over issue from iter71 is that the gift-toggle-vanishes-when-OFF pattern (same render guard `q.gift_available_cents > 0`) also exists in CheckoutCartRadioLife.jsx:101 and mobile cart.tsx:119 — not exercised on this iteration's fixtures but the code is identical; recommend the same fix as iter71 (always emit gift_available_cents in /quote).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "CheckoutCartRadioLife", "issue": "Same gift-toggle-vanishes-on-OFF pattern as iter71: render guard `quote && q.gift_available_cents > 0` will hide checkout-giftcard-toggle-{bizId} once user turns it off, because /cart/quote returns gift_available_cents=0 when use_gift_card=false. Not exercised this run (Ambreens has no gift card seeded), but the code path is identical. Reference: /app/frontend/src/design_radiolife/screens/CheckoutCartRadioLife.jsx:101 + /app/backend/routes/marketplace_products.py:518-520", "selector": "[data-testid='checkout-giftcard-toggle-{bizId}']", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "Cart (shop/cart.tsx)", "issue": "Same gift-toggle-vanish-on-OFF pattern (render guard `quote && quote.gift_available_cents > 0` at cart.tsx:119) — once user turns cart-giftcard-toggle off, backend returns gift_available_cents=0 and the toggle disappears; only reload restores it. Fix identically to the iter71 CheckoutMenu bug.", "testID": "cart-giftcard-toggle", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter72_products_cart_checkout.py",
+    "/app/test_reports/pytest/iter72_products_cart.xml"
+  ],
+  "action_items": [
+    "(Carry-over from iter71, now impacts THREE screens) Fix the gift-toggle-disappears-when-OFF UX bug uniformly. Preferred backend fix: in /app/backend/routes/marketplace_products.py::_price_group (and /app/backend/routes/marketplace_orders.py::_price_menu), unconditionally look up the gift card and always expose gift_available_cents in the response; only gift_applied_cents should reflect use_gift_card. Frontends need no change once that lands. Affected screens: CheckoutMenuRadioLife.jsx:93, CheckoutCartRadioLife.jsx:101, mobile/app/shop/cart.tsx:119.",
+    "(Cosmetic, non-blocking) React DevTools warning about `key` prop being spread — still present, carried from prior iterations."
+  ],
+  "critical_code_review_comments": [
+    "marketplace_products.py::_price_group correctly caps points across a multi-venue cart using a running `balance_remaining` (decremented by each group's redeemed_points before the next group is priced) — good multi-venue accounting.",
+    "marketplace_products.py::cart_checkout: settles free groups (total<=0) inline via _settle_free (deducts gift + decrements stock + inserts gift_card_redemption) AND calls _redeem_product_points idempotently — matches spec 'if gift+points fully cover a group it settles that group free'.",
+    "marketplace_products.py::cart_checkout: pending-payment groups are combined into a SINGLE Stripe Session with one line_item per venue at each group's post-discount total_cents — correct 'one payment for the whole cart'.",
+    "marketplace_products.py::product_order_status: on Stripe reconciliation it deducts the gift card, decrements stock and calls _redeem_product_points — good. However, if a gift card was already deducted in _settle_free for a free group and the session_id branch never triggers, this is fine; but the free-group's _settle_free ALREADY spent points via _redeem_product_points BEFORE the customer paid the other groups. That means for mixed carts (one free venue + one paying venue), points for the free venue are debited immediately even if the paid venue's Stripe payment is later cancelled. Consider deferring free-group settlement until the Stripe session for the paying groups completes, or documenting this as intentional. LOW priority (edge case).",
+    "cart_checkout uses metadata={'kind':'product_cart','cart_id':cart_id} at the session level but each individual order stores session_id=session.id — reconciliation on /product-orders/{id}/status therefore works per-order (each pending order retrieves the same session and marks itself paid). Good.",
+    "CheckoutCartRadioLife.jsx::refresh: correctly rebuilds groups with the CURRENT giftMap/redeemMap on every toggle. However the render guard on gift toggle (line 101) still uses q.gift_available_cents>0 — same UX bug as iter71.",
+    "CheckoutCartRadioLife.jsx defaults useGift={} → giftMap[bizId] !== false === true, so gift starts ON if a card exists. Combined with the vanish-on-OFF bug, a user cannot re-enable a gift card they toggled off.",
+    "mobile/app/shop/cart.tsx uses `redeem_points: pts ? 10**9 : 0` and lets server cap — simpler UX (boolean toggle vs slider) but does mean the user always redeems MAX points on the mobile screen; there is no partial redemption on mobile. Not a bug but worth flagging as a Web/Mobile parity divergence (web has a granular slider per venue).",
+    "mobile/app/shop/cart.tsx uses process.env.EXPO_PUBLIC_BACKEND_URL as origin_url — that's the API host, not a Stripe redirect host. The Stripe session's success_url will be https://mobile-games-v2.preview.emergentagent.com/payment/success..., which returns a 404 in the Expo web preview but is fine on native (WebBrowser opens the URL and Stripe returns to the app). Consider distinguishing 'payment redirect host' from 'API host' in a future iteration.",
+    "Zustand cart store (mobile/src/stores/useCartStore.ts) is NOT persisted → hard reloads clear the cart. In-app navigation preserves it (verified). Consider persisting via AsyncStorage."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter72_products_cart_checkout.py (new — 11 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (11/11 pytest cases pass)", "frontend": "100% on the requested happy paths (web cart checkout + mobile food checkout); only carry-over MEDIUM UX bug on gift-toggle-vanishes-on-OFF applies to 3 screens now"},
+  "test_credentials": "Web: test@bigfm.dubai / TestUser123! (500 pts, $10 Fun Pizza gift card). Mobile: demo@bigfm.dubai via demo-login-btn (has $938.02 Fun Pizza gift card + 264 BigPoints per current seed — more than the review-request note; screens still verified correctly).",
+  "seed_data_creation": "None. Used existing fixtures biz_sample_ambreens + prod_sample_biz_sample_ambreens_serum + biz_sample_funpizza + mi_biz_sample_funpizza_0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 1 (both web+mobile checkout surfaces) is functionally complete and green. Only outstanding UX issue is the gift-card-toggle-vanishes-when-OFF pattern shared by three screens; the fix is a single backend change (always emit gift_available_cents in both /orders/quote and /cart/quote). Full-cover cart checkout (total=0) was NOT exercised end-to-end on web (Ambreens has no gift card), and points debit on payment confirmation was verified indirectly by checking balance stability across pending checkouts (no actual Stripe completion). Mobile-cart Stripe origin_url currently points to the API host — flag for a future 'payment redirect base' cleanup.",
+  "rca of the issue": "N/A — no new bugs found this iteration. The only outstanding UX issue is the iter71 gift-toggle-vanishes-on-OFF pattern, which is now present in three screens (see action_items) and has a documented one-line backend fix."
+}

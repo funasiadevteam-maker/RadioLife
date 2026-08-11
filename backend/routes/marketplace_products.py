@@ -16,6 +16,9 @@ from pydantic import BaseModel, Field
 from auth import current_user, current_user_optional
 from services.marketplace import now, new_id, effective_points
 from services.loyalty import award_with_tier_bonus, get_status as loyalty_status
+from services.points_service import PointsService
+from routes.marketplace_orders import (
+    REDEEM_POINTS_PER_DOLLAR, _points_to_cents, _cents_to_max_points)
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -451,16 +454,21 @@ class CartGroup(BaseModel):
     items: List[ProductCheckoutItem]
     fulfillment: str = "pickup"
     address: Optional[str] = Field(None, max_length=400)
+    use_gift_card: bool = True
+    redeem_points: int = Field(0, ge=0)
 
 
 class CartCheckoutBody(BaseModel):
     groups: List[CartGroup] = Field(..., min_length=1, max_length=20)
     use_gift_card: bool = True
     origin_url: Optional[str] = None
+    payment_method_id: Optional[str] = None  # saved card → one-tap off-session
 
 
-async def _price_group(db, user, g: CartGroup, use_gift: bool = True):
-    """Validate + price one venue's basket. Returns a prepared dict or raises."""
+async def _price_group(db, user, g: CartGroup, use_gift: bool = True,
+                       redeem_points: int = 0, balance_remaining: Optional[int] = None):
+    """Validate + price one venue's basket with optional gift-card + BigPoints
+    redemption. `balance_remaining` caps points across a multi-venue cart."""
     if not g.items:
         raise HTTPException(400, {"code": "empty_group", "business_id": g.business_id})
     profile = await db.marketplace_profiles.find_one(
@@ -508,17 +516,69 @@ async def _price_group(db, user, g: CartGroup, use_gift: bool = True):
         delivery_fee = 0 if (free_over > 0 and subtotal >= free_over) else fee
 
     gross = subtotal + delivery_fee
-    gift_applied, gift_card_id = 0, None
-    if user and use_gift:
-        gc = await _pick_gift_card(db, user, g.business_id)
-        if gc:
-            gift_applied = min(int(gc.get("balance_cents", 0)), gross)
-            gift_card_id = gc.get("card_id")
-    total = gross - gift_applied
+    gift_card = await _pick_gift_card(db, user, g.business_id) if user else None
+    gift_available = int(gift_card.get("balance_cents", 0)) if gift_card else 0
+    gift_applied = min(gift_available, gross) if (use_gift and gift_card) else 0
+    gift_card_id = gift_card.get("card_id") if (gift_applied > 0) else None
+    after_gift = gross - gift_applied
+
+    cap_balance = balance_remaining if balance_remaining is not None else 10**12
+    max_redeemable = min(int(cap_balance), _cents_to_max_points(after_gift))
+    used_points = max(0, min(int(redeem_points or 0), max_redeemable))
+    points_discount = _points_to_cents(used_points)
+    total = after_gift - points_discount
     points = int(effective_points(profile).get("points", 0))
     return {"profile": profile, "line_items": line_items, "subtotal": subtotal,
-            "delivery_fee": delivery_fee, "gift_applied": gift_applied,
-            "gift_card_id": gift_card_id, "total": total, "points": points}
+            "delivery_fee": delivery_fee, "gift_available": gift_available,
+            "gift_applied": gift_applied, "gift_card_id": gift_card_id,
+            "max_redeemable_points": max_redeemable, "redeemed_points": used_points,
+            "points_discount_cents": points_discount, "total": total, "points": points}
+
+
+class CartQuoteBody(BaseModel):
+    groups: List[CartGroup] = Field(..., min_length=1, max_length=20)
+
+
+@consumer_router.post("/cart/quote")
+async def cart_quote(body: CartQuoteBody, request: Request, user: dict = Depends(current_user)):
+    """Live per-venue price breakdown for the products checkout screen."""
+    db = request.app.state.db
+    balance = await PointsService(db).get_balance(user.get("user_id"))
+    remaining = int(balance or 0)
+    groups_out = []
+    grand = 0
+    for g in body.groups:
+        pr = await _price_group(db, user, g, g.use_gift_card, g.redeem_points, remaining)
+        remaining -= pr["redeemed_points"]
+        grand += pr["total"]
+        groups_out.append({
+            "business_id": g.business_id, "business_name": pr["profile"].get("public_name"),
+            "subtotal_cents": pr["subtotal"], "delivery_fee_cents": pr["delivery_fee"],
+            "gift_available_cents": pr["gift_available"], "gift_applied_cents": pr["gift_applied"],
+            "max_redeemable_points": pr["max_redeemable_points"],
+            "redeemed_points": pr["redeemed_points"],
+            "points_discount_cents": pr["points_discount_cents"],
+            "total_cents": pr["total"], "points_to_award": pr["points"],
+            "fulfillment": g.fulfillment})
+    return {"groups": groups_out, "grand_total_cents": grand,
+            "points_balance": int(balance or 0), "redeem_points_per_dollar": REDEEM_POINTS_PER_DOLLAR}
+
+
+async def _redeem_product_points(db, user, order: Dict[str, Any]) -> None:
+    """Spend redeemed BigPoints once per product order (idempotent)."""
+    pts = int(order.get("redeemed_points", 0) or 0)
+    if pts <= 0 or order.get("points_redeemed_done"):
+        return
+    try:
+        await PointsService(db).spend(
+            user_id=user.get("user_id"), source="marketplace_redeem", amount=pts,
+            source_id=order["order_id"], idempotency_key=f"po_redeem:{order['order_id']}",
+            metadata={"order_id": order["order_id"], "business_id": order.get("business_id")})
+    except Exception:
+        pass
+    await db.product_orders.update_one(
+        {"order_id": order["order_id"]}, {"$set": {"points_redeemed_done": True}})
+    order["points_redeemed_done"] = True
 
 
 @consumer_router.post("/cart/checkout")
@@ -532,7 +592,14 @@ async def cart_checkout(body: CartCheckoutBody, request: Request,
         seen.add(g.business_id)
 
     cart_id = new_id("cart")
-    prepared = [(g, await _price_group(db, user, g, body.use_gift_card)) for g in body.groups]
+    balance = await PointsService(db).get_balance(user.get("user_id"))
+    remaining = int(balance or 0)
+    prepared = []
+    for g in body.groups:
+        use_gift = g.use_gift_card if g.use_gift_card is not None else body.use_gift_card
+        pr = await _price_group(db, user, g, use_gift, g.redeem_points, remaining)
+        remaining -= pr["redeemed_points"]
+        prepared.append((g, pr))
 
     orders, paying = [], []
     for g, pr in prepared:
@@ -542,7 +609,10 @@ async def cart_checkout(body: CartCheckoutBody, request: Request,
                  "items": pr["line_items"], "subtotal_cents": pr["subtotal"],
                  "delivery_fee_cents": pr["delivery_fee"], "fulfillment": g.fulfillment,
                  "address": g.address, "gift_card_applied_cents": pr["gift_applied"],
-                 "gift_card_id": pr["gift_card_id"], "total_cents": pr["total"],
+                 "gift_card_id": pr["gift_card_id"],
+                 "redeemed_points": pr["redeemed_points"],
+                 "points_discount_cents": pr["points_discount_cents"],
+                 "points_redeemed_done": False, "total_cents": pr["total"],
                  "points_to_award": pr["points"], "points_awarded_done": False,
                  "status": "pending_payment", "payment_status": "pending", "session_id": None,
                  "status_history": [], "created_at": now(), "updated_at": now()}
@@ -567,7 +637,30 @@ async def cart_checkout(body: CartCheckoutBody, request: Request,
                 await db.products.update_one({"product_id": li["product_id"]}, {"$inc": {"stock": -li["qty"]}})
 
     session_id, checkout_url = None, None
-    if paying:
+    grand_paying = sum(o["total_cents"] for o, _ in paying)
+
+    # One-tap: charge a saved card off-session for the whole paying cart in a
+    # single PaymentIntent. On success every paying group settles immediately;
+    # card errors fall back to a hosted Checkout Session.
+    one_tap_paid = False
+    payment_intent_id = None
+    if paying and body.payment_method_id:
+        from services.saved_cards_service import ensure_stripe_customer, charge_saved_card, owns_payment_method
+        if not stripe.api_key:
+            raise HTTPException(503, {"code": "stripe_unconfigured"})
+        cust = await ensure_stripe_customer(db, user)
+        if owns_payment_method(cust, body.payment_method_id):
+            try:
+                pi = charge_saved_card(
+                    amount_cents=grand_paying, cust_id=cust, pm_id=body.payment_method_id,
+                    metadata={"kind": "product_cart", "cart_id": cart_id})
+                if pi.status == "succeeded":
+                    one_tap_paid = True
+                    payment_intent_id = pi.id
+            except stripe.error.CardError:
+                one_tap_paid = False
+
+    if paying and not one_tap_paid:
         if not stripe.api_key:
             raise HTTPException(503, {"code": "stripe_unconfigured"})
         origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
@@ -586,14 +679,21 @@ async def cart_checkout(body: CartCheckoutBody, request: Request,
     for order, pr in orders:
         if pr["total"] <= 0:
             await _settle_free(order, pr)
+            await _redeem_product_points(db, user, order)
             order.update({"status": "paid", "payment_status": "paid",
+                          "status_history": [{"status": "paid", "at": now()}]})
+        elif one_tap_paid:
+            await _settle_free(order, pr)  # deduct gift + decrement stock
+            await _redeem_product_points(db, user, order)
+            order.update({"status": "paid", "payment_status": "paid",
+                          "payment_intent_id": payment_intent_id,
                           "status_history": [{"status": "paid", "at": now()}]})
         else:
             order["session_id"] = session_id
         await db.product_orders.insert_one(dict(order))
 
     return {"ok": True, "cart_id": cart_id, "order_ids": [o["order_id"] for o, _ in orders],
-            "checkout_url": checkout_url, "session_id": session_id,
+            "checkout_url": checkout_url, "session_id": session_id, "paid": one_tap_paid,
             "grand_total_cents": sum(o["total_cents"] for o, _ in orders)}
 
 
@@ -638,6 +738,7 @@ async def product_order_status(order_id: str, request: Request, user: dict = Dep
                         {"order_id": order_id, "payment_status": {"$ne": "paid"}},
                         {"$set": {"payment_status": "paid", "status": "paid", "updated_at": now()},
                          "$push": {"status_history": {"status": "paid", "at": now()}}})
+                    await _redeem_product_points(db, user, o)
                     o = await db.product_orders.find_one({"order_id": order_id})
         except Exception:
             pass

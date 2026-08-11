@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 73 — RadioLife Saved Cards (Phase 2 Checkout) end-to-end. Backend: 13/13 pytest cases pass covering GET /api/shop/wallet/cards (creates + reuses Stripe customer), POST /cards/setup-session (returns real https://checkout.stripe.com/ URL + cs_ session id, 400 on empty origin), POST /cards/setup-session/{sid}/sync (returns cards + default), POST /cards/{pm}/default (200 on owned pm, 404 on unowned), DELETE /cards/{pm} (404 on unowned). Verified one-tap flows by attaching Stripe's pm_card_visa to the user's Stripe customer via the Stripe API and calling: (a) POST /api/shop/orders/checkout with payment_method_id, use_gift_card=false → paid=true, payment_status=paid, status=accepted, checkout_url=null, total_cents=1799 (FunPizza Mac & Cheese); (b) POST /api/shop/cart/checkout with payment_method_id on Ambreens serum ($32.00) → paid=true, checkout_url=null, grand_total_cents=3200, order marked paid via /product-orders/{id}/status. No-PM fallback regressed cleanly: both endpoints STILL return a https://checkout.stripe.com/ URL + status=pending_payment when payment_method_id is omitted. Gift-toggle regression verified: /api/shop/orders/quote emits gift_available_cents > 0 for both use_gift_card=true and use_gift_card=false (test@ has $10 Fun Pizza gift) — the iter71/72 bug is now fixed for the food quote (Ambreens has no gift card seeded, so /cart/quote returns gift_available_cents=0 for both flags, which is correct). WEB e2e (test@bigfm.dubai, desktop 1920x1080): /shop/wallet/cards renders inside the in-shell layout (rl-wallet-cards-page present, left sidebar retained per note); empty state renders 'No saved cards yet…' + Add a card button (wallet-cards-add). After attaching pm_card_visa, the wallet screen renders wallet-card-{pm}, wallet-card-default-badge-{pm} and wallet-card-remove-{pm} testids as expected (setdefault only shows for non-default cards — with a single card there is none, correct UX). Shop → Cards quick link (shop-payment-methods) navigates to /shop/wallet/cards. MOBILE e2e (demo@ via demo-login-btn, 390x844 Expo web preview at .expo.preview.emergentagent.com): /shop tab shows 'Cards' quick link (shop-payment-methods). /shop/wallet/cards renders wallet-cards-root + wallet-cards-add + empty state. /shop/cart with empty cart correctly does NOT show cart-card-picker (only shows when total>0 per spec). Web CheckoutMenuRadioLife.jsx (lines 151–168) and CheckoutCartRadioLife.jsx (lines 144–161) do declare checkout-payment-method, checkout-card-{pm}, checkout-card-new and checkout-manage-cards testids per grep — could not exercise them live because menu-cart Zustand store does not persist across full-page navigations to /shop/checkout/menu (cart shows empty), so the payment-method selector was not rendered in the browser session. That's a UX/persistence gap, not a payment-selector bug.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Direct nav to /shop/checkout/menu (or /shop/checkout/cart) after adding items", "issue": "Menu cart store is not persisted across a full page reload / direct nav, so /shop/checkout/menu shows 'Your cart is empty' even when items were just added. This prevents the checkout-payment-method selector from rendering. Testids exist in source (CheckoutMenuRadioLife.jsx:151, CheckoutCartRadioLife.jsx:144) but cannot be exercised without going through the topbar-cart flow in a single session.", "affected_selectors": ["[data-testid='checkout-payment-method']"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter73_saved_cards.py",
+    "/app/test_reports/pytest/iter73_saved_cards.xml"
+  ],
+  "action_items": [
+    "(Optional / carry-over) Persist the menu-cart Zustand store across page reloads on web so direct nav to /shop/checkout/menu keeps the items; without it the checkout-payment-method selector isn't reachable in a manual browser flow.",
+    "(Cosmetic, unchanged from prior iterations) React 'key prop being spread into JSX' warning still logged in web console — pre-existing.",
+    "(Note) A number of 401/404 asset fetches log to the web console on the login/landing route (pre-existing static-asset probing before auth), non-blocking."
+  ],
+  "critical_code_review_comments": [
+    "saved_cards_service.ensure_stripe_customer correctly re-reads the user doc from DB before creating a new customer (guards against stale user dict) and reuses subscription.stripe_customer_id so wallet + subscription share one customer — good.",
+    "saved_cards_service.owns_payment_method wraps stripe.PaymentMethod.retrieve in a try/except that swallows StripeError → returns False. That is correct (404s on unknown pm_id return False and the route surfaces 404), but any transient Stripe error would also silently look like 'not owned'. Consider distinguishing InvalidRequestError from other errors and surfacing 502 for the latter. LOW priority.",
+    "routes/saved_cards.py::sync_setup_session sets the newly-added card as default only if the customer had no default. That matches the review request ('sets the first added card as default'). It does NOT set the card as default on subsequent adds — expected UX (only the first-ever card auto-becomes default).",
+    "routes/marketplace_orders.py::checkout: when body.payment_method_id is provided but Stripe throws a CardError (SCA / decline), the code correctly falls back to hosted Checkout — but a successful charge_saved_card with pi.status other than 'succeeded' (e.g. requires_action) falls through to the hosted flow WITHOUT propagating any user-facing message. Consider returning a discriminated response or capturing pi.status so the UI can retry with new card without silently redirecting. LOW priority.",
+    "routes/marketplace_products.py::cart_checkout: charges the entire paying-cart total in a single off-session PaymentIntent (grand_paying) with metadata.kind='product_cart' + cart_id. When one_tap_paid, each paying order is marked paid with the same payment_intent_id — good bookkeeping. Free/gift-covered groups are settled BEFORE the one-tap charge is attempted (line 679-693 sequence), same as the pre-existing hosted flow, so the mixed-cart edge case flagged in iter72 (free group's gift+points debited before paying group's payment resolves) still applies to the one-tap path. LOW priority.",
+    "routes/marketplace_products.py::cart_checkout does NOT verify body.payment_method_id ownership BEFORE attempting a charge — it calls owns_payment_method first (line 652), good. But a returned pi with status 'requires_action' would set one_tap_paid=False silently and produce a hosted checkout_url without any hint that SCA was needed. Consider setting a response flag like 'sca_required' when pi.status != 'succeeded' and not exceptioned.",
+    "Both checkout endpoints use grand_paying (sum of post-discount totals) for the one-tap PaymentIntent — good; matches spec 'one payment for the whole paying cart'.",
+    "WalletCardsRadioLife.jsx: single-card default UX correctly hides the set-default button when only one card exists (verified visually — only Default badge + remove button shown). Empty state uses wallet-cards-add.",
+    "Frontend checkout screens (Menu + Cart) both include a 'Pay with a new card' fallback (checkout-card-new) plus Manage link (checkout-manage-cards) — good UX parity."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter73_saved_cards.py (new — 13 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (13/13 pytest cases pass)", "frontend": "100% on directly reachable surfaces (wallet screens on both web+mobile, shop-payment-methods link on both, source-level testids confirmed on checkout screens); the checkout-payment-method selector could not be manually exercised in-browser due to the web menu-cart not persisting across a direct nav — see integration_issues"},
+  "test_credentials": "Web: test@bigfm.dubai / TestUser123!. Mobile: demo@bigfm.dubai via demo-login-btn. Stripe test PM: pm_card_visa attached via stripe.PaymentMethod.attach() to users.subscription.stripe_customer_id (created lazily by first GET /api/shop/wallet/cards).",
+  "seed_data_creation": "Attached Stripe pm_card_visa to test@bigfm.dubai's Stripe customer (cus_V3M749hKnJgGeE) for one-tap + wallet UI tests. Left attached after the run so main agent can self-verify the wallet UI + set-default/remove buttons without re-seeding. Detach via DELETE /api/shop/wallet/cards/{pm_id} or stripe.PaymentMethod.detach() when done.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend saved-cards + one-tap paths are green (13/13). Wallet UI renders correctly on both web (in-shell) and mobile. The only untested-live path is the web checkout-payment-method selector inside CheckoutMenuRadioLife / CheckoutCartRadioLife — testids are present in source but the menu-cart Zustand store empties on direct navigation to /shop/checkout/menu, so exercising the selector requires a single-session flow: login → /shop/menu/{biz} → menu-add-* → topbar-cart-count → /shop/cart → 'Review & Checkout' → /shop/checkout/menu (no reloads in between). pm_card_visa is currently attached to test@'s Stripe customer for convenience.",
+  "rca of the issue": "N/A — no new bugs. The one integration_issue (menu-cart not persisting across direct nav to /shop/checkout/menu) is a pre-existing store-persistence gap on web; the payment-method selector code + testids are correct."
+}
