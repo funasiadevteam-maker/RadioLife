@@ -70,3 +70,16 @@
 /* The shop screens set a fixed white app background on their outer wrapper;
    neutralise it so the legacy shell shows through. */
 .rl-shop-inshell > div { background: transparent !important; }
+
+/* CTA / action bars (Book Now, Memberships, Add to cart, etc.) are
+   `position: fixed bottom-16/20` so they float above the mobile app's bottom
+   nav. In-shell there is no bottom nav, so they'd detach to the viewport
+   bottom (below the global radio-channels footer). Pin them back into normal
+   flow so they sit right after the content. Modals use `fixed inset-0`
+   (bottom-0) and are intentionally NOT matched here. */
+.rl-shop-inshell .fixed.bottom-16,
+.rl-shop-inshell .fixed.bottom-20 {
+  position: static !important;
+  margin: 20px auto 0 !important;
+  z-index: auto !important;
+}
