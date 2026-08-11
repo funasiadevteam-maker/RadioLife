@@ -13,8 +13,6 @@ export default function ShopMenuRadioLife() {
   const id = window.location.pathname.split("/shop/menu/")[1];
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
   const cart = useShopCart();
 
   useEffect(() => {
@@ -24,24 +22,6 @@ export default function ShopMenuRadioLife() {
 
   const qtyFor = (itemId) => cart.businessId === id
     ? (cart.items.find((i) => i.item_id === itemId)?.qty || 0) : 0;
-
-  const checkout = async () => {
-    if (!cart.items.length) return;
-    setBusy(true); setError(null);
-    try {
-      const r = await axios.post(`${API}/shop/orders/checkout`, {
-        business_id: cart.businessId,
-        items: cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })),
-        origin_url: window.location.origin, use_gift_card: true,
-      });
-      cart.clear();
-      if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
-      navigate("/shop/orders");
-    } catch (e) {
-      setError(e?.response?.data?.detail?.code || "Checkout failed");
-      setBusy(false);
-    }
-  };
 
   if (loading) return <div className="px-4 pt-10 text-center text-slate-500">Loading…</div>;
   if (!data) return <div className="px-4 pt-10 text-center text-slate-500">Menu unavailable.</div>;
@@ -109,11 +89,10 @@ export default function ShopMenuRadioLife() {
       {count > 0 && (
         <div className="fixed bottom-20 left-0 right-0 px-4 max-w-md mx-auto z-10">
           <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-lg">
-            <div className="flex items-center gap-2 text-xs text-slate-500 mb-2"><Gift size={14} className="text-green-600" />Gift-card balance auto-applies at checkout.</div>
-            {error && <div className="text-rose-600 text-sm font-semibold mb-2" data-testid="menu-error">{error}</div>}
-            <button onClick={checkout} disabled={busy} data-testid="menu-checkout"
+            <div className="flex items-center gap-2 text-xs text-slate-500 mb-2"><Gift size={14} className="text-green-600" />Choose gift card, points & payment on the next step.</div>
+            <button onClick={() => navigate("/shop/checkout/menu")} data-testid="menu-checkout"
               className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3 disabled:opacity-60">
-              {busy ? "Processing…" : <><ShoppingCart size={16} />Checkout ({count}) · {money(cart.subtotal())}</>}
+              <ShoppingCart size={16} />Review &amp; Checkout ({count}) · {money(cart.subtotal())}
             </button>
           </div>
         </div>

@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 71 — Phase 1 food/menu checkout tested on web + backend. Backend /api/shop/orders/quote and /api/shop/orders/checkout verified against biz_sample_funpizza + Mac & Cheese Pizza ($17.99). 7/7 pytest cases pass. The core bug fix is confirmed: POST /checkout with use_gift_card=false now returns status='pending_payment' + a real Stripe checkout_url (cs_test_/checkout.stripe.com URL), so the user always reaches card entry — no more silent gift-card cover. /quote correctly recomputes subtotal/gift/points/total, caps redeemed_points to max_redeemable_points (min(balance, subtotal_after_gift*REDEEM_RATE)), and applies 100pts=$1 = 500 pts → 500 cents discount. Web e2e (legacy variant): login → /shop/menu/biz_sample_funpizza → add item → topbar-cart badge shows count=1 → menu-checkout → /shop/checkout/menu renders rl-checkout-menu-page with order summary, checkout-giftcard-toggle ($10 available, applies $10), checkout-points slider (balance 500), live checkout-total that updates when toggling gift ($7.99 gift ON → $17.99 gift OFF) and when moving slider ($17.99 → $12.99 with 500 pts), and checkout-pay 'Pay $X by card' redirecting to Stripe when total>0. Found ONE real UX bug: the gift-card toggle disappears after user turns gift OFF because the /quote response then returns gift_available_cents=0 and the render guard hides the toggle — user cannot re-enable gift once toggled off (see rca below).",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "CheckoutMenuRadioLife", "issue": "Gift-card toggle (checkout-giftcard-toggle) disappears once user toggles gift OFF because the render guard `quote.gift_available_cents > 0` becomes false — backend /quote returns gift_available_cents=0 when use_gift_card=false. User has no way to re-enable the gift card after turning it off; only reload restores it. Fix: either (a) the render guard should track whether a gift card exists independently of use_gift_card (e.g., a persistent `gift_card_exists` flag in the /quote response), or (b) always populate gift_available_cents in /quote regardless of use_gift_card. Reference: /app/frontend/src/design_radiolife/screens/CheckoutMenuRadioLife.jsx:93 and /app/backend/routes/marketplace_orders.py:121-122", "selector": "[data-testid=\"checkout-giftcard-toggle\"]", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter71_food_checkout.py",
+    "/app/test_reports/pytest/iter71_food_checkout.xml"
+  ],
+  "action_items": [
+    "Fix gift-card toggle disappearing after turn-off in CheckoutMenuRadioLife.jsx (see frontend_issues.web.ui_bugs). Recommend adding a `gift_card_exists` boolean (or always populating `gift_available_cents`) in /quote so the toggle stays visible regardless of the current use_gift_card selection.",
+    "(Pre-existing, non-blocking) React DevTools warning about `key` prop being spread — carried from iter68/69/70."
+  ],
+  "critical_code_review_comments": [
+    "marketplace_orders.py:_price_menu correctly gates gift-card lookup on use_gift_card=True — this is the source of the toggle-disappear UX bug; consider always resolving the card and only zeroing gift_applied_cents when off.",
+    "marketplace_orders.py: bug-fix behavior verified — when use_gift_card=False and redeem_points=0 the endpoint no longer silently covers the order with a gift card; total_cents equals subtotal_cents and a Stripe session is created.",
+    "marketplace_orders.py:_finalize_paid deducts gift card + calls _redeem_points idempotently — correct pattern (points_redeemed_done and payment_status guards).",
+    "CheckoutMenuRadioLife.jsx:15 defaults useGift=true. Combined with the UX bug above, an existing gift card user may not realize they can turn it off temporarily; consider defaulting to false OR fixing render guard.",
+    "CheckoutMenuRadioLife.jsx:refresh() uses useCallback but omits redeemPoints from deps and passes rp explicitly — correct to avoid stale refresh loops.",
+    "AppShell.jsx:ShopCartButton navigates to /shop/checkout/menu when menuCount>0, /shop/cart when only productCount>0, /shop when both empty — good priority ordering.",
+    "_points_to_cents / _cents_to_max_points helpers are correct for 100pts=$1 (verified: 500 pts → 500 cents; and 1799 cents → 1799 pts max, which is higher than the 500 balance so cap = 500).",
+    "checkout endpoint response includes total_cents, gift_card_applied_cents, points_discount_cents, pickup_code — good for client display; consider adding `points_awarded_estimate` mirroring quote.points_to_award for post-checkout confirmation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter71_food_checkout.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7 pytest cases pass)", "frontend": "~90% (all critical flows green; 1 medium UX bug: gift toggle vanishes when turned off)"},
+  "test_credentials": "Web: test@bigfm.dubai / TestUser123! (cookie). Account has $10 Fun Pizza gift card (gc_test_funpizza) and 500 BigPoints seeded.",
+  "seed_data_creation": "None. Used existing biz_sample_funpizza + mi_biz_sample_funpizza_0 fixtures.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend endpoints are all working. Only the UX bug (gift toggle vanishes on OFF) needs fixing — either (a) always populate gift_available_cents in /quote regardless of use_gift_card, or (b) frontend gates toggle visibility on a separate `gift_card_exists` field. Not tested: full-cover scenario (total=$0 → status='accepted') would require a gift card ≥ subtotal or seeding extra points; skipped to preserve test@ balance for future iterations. Points/gift are correctly debited on paid orders per code review of _finalize_paid, but was not exercised end-to-end since it would mutate persistent seed state. Mobile menu checkout is explicitly out of scope this phase (Phase 1) per the review request.",
+  "rca of the issue": "Gift-toggle-disappears bug: (1) Reproduction — on rl-checkout-menu-page, click checkout-giftcard-toggle to turn it OFF. The toggle disappears from the DOM. (2) Root cause — In /app/backend/routes/marketplace_orders.py:121, `gift_card = await _pick_gift_card(db, user, business_id) if use_gift_card else None` short-circuits card lookup when the toggle is off; then line 122 sets `gift_available_cents = 0`. In /app/frontend/src/design_radiolife/screens/CheckoutMenuRadioLife.jsx:93 the render guard `{quote && quote.gift_available_cents > 0 && (…)}` therefore hides the toggle entirely. (3) Mitigation — Preferred: unconditionally call _pick_gift_card in _price_menu and expose gift_available_cents (informational) plus gift_applied_cents (0 when use_gift_card=false). Alt: return a `gift_card_available: bool` flag independent of the selection state and change the frontend guard to that flag."
+}

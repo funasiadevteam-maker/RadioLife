@@ -37,6 +37,7 @@ import ShopBusinessRadioLife from "./screens/ShopBusinessRadioLife";
 import SellOnRadioLife from "./screens/SellOnRadioLife";
 // Phase B — Restaurant pickup, orders, merchant.
 import ShopMenuRadioLife from "./screens/ShopMenuRadioLife";
+import CheckoutMenuRadioLife from "./screens/CheckoutMenuRadioLife";
 import ShopOrdersRadioLife from "./screens/ShopOrdersRadioLife";
 import MerchantDashRadioLife from "./screens/MerchantDashRadioLife";
 import MerchantMenuRadioLife from "./screens/MerchantMenuRadioLife";
@@ -75,6 +76,7 @@ export function screenFor(pathname) {
   if (pathname === "/radio") return ListenRadioLife;
   if (pathname === "/shop") return ShopRadioLife;
   if (pathname === "/sell") return SellOnRadioLife;
+  if (pathname === "/shop/checkout/menu") return CheckoutMenuRadioLife;
   if (pathname === "/shop/orders") return ShopOrdersRadioLife;
   if (pathname === "/shop/cart") return ShopCartRadioLife;
   if (pathname === "/shop/memberships") return ShopMyMembershipsRadioLife;

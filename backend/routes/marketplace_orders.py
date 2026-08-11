@@ -16,8 +16,19 @@ from pydantic import BaseModel, Field
 
 from auth import current_user
 from services.marketplace import now, new_id, effective_points
+from services.points_service import PointsService
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
+
+REDEEM_POINTS_PER_DOLLAR = 100  # 100 BigPoints == $1 when redeeming at checkout
+
+
+def _points_to_cents(points: int) -> int:
+    return int((max(0, int(points or 0)) * 100) // REDEEM_POINTS_PER_DOLLAR)
+
+
+def _cents_to_max_points(cents: int) -> int:
+    return int(max(0, int(cents or 0)) * REDEEM_POINTS_PER_DOLLAR // 100)
 
 router = APIRouter(prefix="/api/shop/orders", tags=["marketplace-orders"])
 merchant_router = APIRouter(prefix="/api/merchant/marketplace/orders",
@@ -85,30 +96,19 @@ class CheckoutItem(BaseModel):
     qty: int = Field(1, ge=1, le=50)
 
 
-class CheckoutBody(BaseModel):
-    business_id: str
-    items: List[CheckoutItem]
-    origin_url: Optional[str] = None
-    use_gift_card: bool = True
-    note: Optional[str] = Field(None, max_length=300)
-
-
-@router.post("/checkout")
-async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(current_user)):
-    db = request.app.state.db
-    if not body.items:
-        raise HTTPException(400, {"code": "empty_cart"})
+async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
+                      use_gift_card: bool, redeem_points: int) -> Dict[str, Any]:
+    """Validate + price a single-restaurant basket with optional gift-card +
+    BigPoints redemption. Shared by /quote and /checkout."""
     profile = await db.marketplace_profiles.find_one(
-        {"business_id": body.business_id, "status": "approved", "subscription_active": True})
+        {"business_id": business_id, "status": "approved", "subscription_active": True})
     if not profile:
         raise HTTPException(404, {"code": "business_unavailable"})
-
-    # Validate items server-side (single-merchant cart).
     line_items: List[Dict[str, Any]] = []
     subtotal = 0
-    for ci in body.items:
+    for ci in items:
         it = await db.menu_items.find_one(
-            {"item_id": ci.item_id, "business_id": body.business_id, "available": True})
+            {"item_id": ci.item_id, "business_id": business_id, "available": True})
         if not it:
             raise HTTPException(400, {"code": "item_unavailable", "item_id": ci.item_id})
         price = int(it.get("price_cents", 0))
@@ -118,18 +118,74 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
     if subtotal <= 0:
         raise HTTPException(400, {"code": "zero_total"})
 
-    # Gift-card auto-apply (highest-balance active card first).
-    gift_applied = 0
-    gift_card_id = None
-    if body.use_gift_card:
-        gc = await _pick_gift_card(db, user, body.business_id)
-        if gc:
-            gift_applied = min(int(gc.get("balance_cents", 0)), subtotal)
-            gift_card_id = gc.get("card_id")
-    total = subtotal - gift_applied
+    gift_card = await _pick_gift_card(db, user, business_id)
+    gift_available = int(gift_card.get("balance_cents", 0)) if gift_card else 0
+    gift_applied = min(gift_available, subtotal) if (use_gift_card and gift_card) else 0
+    after_gift = subtotal - gift_applied
 
+    balance = await PointsService(db).get_balance(user.get("user_id"))
+    max_redeemable = min(int(balance or 0), _cents_to_max_points(after_gift))
+    used_points = max(0, min(int(redeem_points or 0), max_redeemable))
+    points_discount = _points_to_cents(used_points)
+    total = after_gift - points_discount
     eff = effective_points(profile)
-    points_to_award = int(eff.get("points", 0))
+    return {
+        "profile": profile, "line_items": line_items, "subtotal_cents": subtotal,
+        "gift_card_id": gift_card.get("card_id") if gift_card else None,
+        "gift_available_cents": gift_available, "gift_applied_cents": gift_applied,
+        "points_balance": int(balance or 0), "redeem_points_per_dollar": REDEEM_POINTS_PER_DOLLAR,
+        "max_redeemable_points": max_redeemable, "redeemed_points": used_points,
+        "points_discount_cents": points_discount, "total_cents": total,
+        "points_to_award": int(eff.get("points", 0)), "happy_hour": eff.get("happy_hour", False),
+        "points_multiplier": eff.get("multiplier", 1),
+    }
+
+
+class QuoteBody(BaseModel):
+    business_id: str
+    items: List[CheckoutItem]
+    use_gift_card: bool = False
+    redeem_points: int = Field(0, ge=0)
+
+
+@router.post("/quote")
+async def quote(body: QuoteBody, request: Request, user: dict = Depends(current_user)):
+    """Live price breakdown for the checkout screen — no order is created."""
+    if not body.items:
+        raise HTTPException(400, {"code": "empty_cart"})
+    db = request.app.state.db
+    q = await _price_menu(db, user, body.business_id, body.items,
+                          body.use_gift_card, body.redeem_points)
+    q.pop("profile", None)
+    q["public_name"] = None
+    return q
+
+
+class CheckoutBody(BaseModel):
+    business_id: str
+    items: List[CheckoutItem]
+    origin_url: Optional[str] = None
+    use_gift_card: bool = False
+    redeem_points: int = Field(0, ge=0)
+    note: Optional[str] = Field(None, max_length=300)
+
+
+@router.post("/checkout")
+async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    if not body.items:
+        raise HTTPException(400, {"code": "empty_cart"})
+    q = await _price_menu(db, user, body.business_id, body.items,
+                          body.use_gift_card, body.redeem_points)
+    profile = q["profile"]
+    line_items = q["line_items"]
+    subtotal = q["subtotal_cents"]
+    gift_applied = q["gift_applied_cents"]
+    gift_card_id = q["gift_card_id"] if gift_applied > 0 else None
+    redeemed_points = q["redeemed_points"]
+    points_discount = q["points_discount_cents"]
+    total = q["total_cents"]
+
     pickup_code = f"{random.randint(0, 9999):04d}"
     order_id = new_id("ord")
     order = {
@@ -137,9 +193,12 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         "business_name": profile.get("public_name"),
         "user_id": user.get("user_id"), "items": line_items,
         "subtotal_cents": subtotal, "gift_card_applied_cents": gift_applied,
-        "gift_card_id": gift_card_id, "total_cents": total,
-        "points_to_award": points_to_award, "points_multiplier": eff.get("multiplier", 1),
-        "happy_hour": eff.get("happy_hour", False), "points_awarded_done": False,
+        "gift_card_id": gift_card_id,
+        "redeemed_points": redeemed_points, "points_discount_cents": points_discount,
+        "points_redeemed_done": False,
+        "total_cents": total,
+        "points_to_award": q["points_to_award"], "points_multiplier": q["points_multiplier"],
+        "happy_hour": q["happy_hour"], "points_awarded_done": False,
         "note": body.note, "pickup_code": pickup_code,
         "status": "pending_payment", "payment_status": "pending",
         "session_id": None, "status_history": [],
@@ -147,16 +206,18 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
     }
 
     if total <= 0:
-        # Fully covered by gift card — no Stripe needed.
+        # Fully covered by gift card and/or points — no Stripe needed.
         if gift_card_id:
             await _deduct_gift_card(db, gift_card_id, gift_applied, user)
+        await _redeem_points(db, user, order)
         order["status"] = "accepted"
         order["payment_status"] = "paid"
         order["status_history"] = [{"status": "accepted", "at": now()}]
         await db.marketplace_orders.insert_one(dict(order))
         return {"ok": True, "order_id": order_id, "status": "accepted",
                 "checkout_url": None, "total_cents": 0,
-                "gift_card_applied_cents": gift_applied, "pickup_code": pickup_code}
+                "gift_card_applied_cents": gift_applied,
+                "points_discount_cents": points_discount, "pickup_code": pickup_code}
 
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
@@ -177,16 +238,34 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
     return {"ok": True, "order_id": order_id, "status": "pending_payment",
             "checkout_url": session.url, "session_id": session.id,
             "total_cents": total, "gift_card_applied_cents": gift_applied,
-            "pickup_code": pickup_code}
+            "points_discount_cents": points_discount, "pickup_code": pickup_code}
+
+
+async def _redeem_points(db, user, order: Dict[str, Any]) -> None:
+    """Spend redeemed BigPoints once per order (idempotent)."""
+    pts = int(order.get("redeemed_points", 0) or 0)
+    if pts <= 0 or order.get("points_redeemed_done"):
+        return
+    try:
+        await PointsService(db).spend(
+            user_id=user.get("user_id"), source="marketplace_redeem", amount=pts,
+            source_id=order["order_id"], idempotency_key=f"order_redeem:{order['order_id']}",
+            metadata={"order_id": order["order_id"], "business_id": order.get("business_id")})
+    except Exception:
+        pass
+    await db.marketplace_orders.update_one(
+        {"order_id": order["order_id"]}, {"$set": {"points_redeemed_done": True}})
+    order["points_redeemed_done"] = True
 
 
 async def _finalize_paid(db, order: Dict[str, Any], user) -> None:
-    """Called once when payment confirmed — deduct gift card, move to accepted."""
+    """Called once when payment confirmed — deduct gift card + points, move to accepted."""
     if order.get("payment_status") == "paid":
         return
     if order.get("gift_card_id") and order.get("gift_card_applied_cents", 0) > 0:
         await _deduct_gift_card(db, order["gift_card_id"],
                                 order["gift_card_applied_cents"], user)
+    await _redeem_points(db, user, order)
     await db.marketplace_orders.update_one(
         {"order_id": order["order_id"], "payment_status": {"$ne": "paid"}},
         {"$set": {"payment_status": "paid", "status": "accepted", "updated_at": now()},

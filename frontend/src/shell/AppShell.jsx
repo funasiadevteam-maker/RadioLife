@@ -13,10 +13,13 @@ import {
   Globe2,  // Phase 42-A — Live Radio nav icon
   Trophy,  // Phase 42-E1.2 — Predict & Win nav icon
   ShoppingBag,  // Super Marketplace — Shop nav icon
+  ShoppingCart,  // Shop cart button
 } from "lucide-react";
 
 import { useViewport } from "./useViewport";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
+import { useShopCart } from "@/design_radiolife/useShopCart";
+import { useProductCart } from "@/design_radiolife/useProductCart";
 import { MiniPlayer, Chip } from "./primitives";
 // Phase LEGACY.1 — mobile-only premium/ad strip (renders above mini-player).
 import MobilePremiumStrip from "./MobilePremiumStrip";
@@ -397,10 +400,36 @@ function TopBar() {
         <Bell size={18} />
       </button>
       <NotificationBell />
+      <ShopCartButton />
       <Link to="/profile" data-testid="topbar-profile"
                 className="w-9 h-9 rounded-full bg-gradient-to-br
                                 from-accent-electric to-accent-magenta" />
     </header>
+  );
+}
+
+function ShopCartButton() {
+  const navigate = useNavigate();
+  const menuItems = useShopCart((s) => s.items);
+  const productGroups = useProductCart((s) => s.groups);
+  const menuCount = menuItems.reduce((n, i) => n + i.qty, 0);
+  const productCount = Object.values(productGroups || {})
+    .reduce((n, g) => n + g.items.reduce((m, i) => m + i.qty, 0), 0);
+  const total = menuCount + productCount;
+  const go = () => navigate(menuCount > 0 ? "/shop/checkout/menu" : total > 0 ? "/shop/cart" : "/shop");
+  return (
+    <button type="button" onClick={go} data-testid="topbar-cart" aria-label="Cart"
+      className="relative w-10 h-10 grid place-items-center rounded-full
+                 text-text-secondary hover:text-white hover:bg-white/5 transition-colors duration-150">
+      <ShoppingCart size={18} />
+      {total > 0 && (
+        <span data-testid="topbar-cart-count"
+          className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full
+                     bg-accent-electric text-black text-[11px] font-black grid place-items-center">
+          {total}
+        </span>
+      )}
+    </button>
   );
 }
 
