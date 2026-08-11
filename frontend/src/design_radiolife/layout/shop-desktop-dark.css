@@ -37,3 +37,36 @@
   .rl-shop-desktop-dark input::placeholder,
   .rl-shop-desktop-dark textarea::placeholder { color: #6b6b73 !important; }
 }
+
+/* In-shell shop (rendered inside the legacy dark AppShell): apply the dark
+   remap at ALL widths so it matches the always-dark classic shell, not just
+   lg+.  Scoped to .rl-shop-inshell so the standalone RadioLife-look overlay
+   keeps its light mobile app appearance. */
+.rl-shop-inshell,
+.rl-shop-inshell .rl-root { background: transparent !important; }
+.rl-shop-inshell .bg-white { background-color: #17171b !important; }
+.rl-shop-inshell .bg-slate-50,
+.rl-shop-inshell .bg-slate-50\/60,
+.rl-shop-inshell .bg-slate-100 { background-color: #1e1e23 !important; }
+.rl-shop-inshell .bg-slate-200 { background-color: #2a2a30 !important; }
+.rl-shop-inshell .text-slate-900 { color: #f4f4f5 !important; }
+.rl-shop-inshell .text-slate-800 { color: #e4e4e7 !important; }
+.rl-shop-inshell .text-slate-700 { color: #d4d4d8 !important; }
+.rl-shop-inshell .text-slate-600 { color: #b4b4bb !important; }
+.rl-shop-inshell .text-slate-500,
+.rl-shop-inshell .text-slate-400 { color: #9a9aa2 !important; }
+.rl-shop-inshell .text-slate-300 { color: #71717a !important; }
+.rl-shop-inshell .border-slate-200,
+.rl-shop-inshell .border-slate-100 { border-color: rgba(255, 255, 255, 0.08) !important; }
+.rl-shop-inshell .bg-orange-50 { background-color: rgba(234, 88, 12, 0.16) !important; }
+.rl-shop-inshell .shadow,
+.rl-shop-inshell .shadow-sm,
+.rl-shop-inshell .shadow-md { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4) !important; }
+.rl-shop-inshell input,
+.rl-shop-inshell textarea,
+.rl-shop-inshell select { background-color: transparent !important; color: #f4f4f5 !important; }
+.rl-shop-inshell input::placeholder,
+.rl-shop-inshell textarea::placeholder { color: #6b6b73 !important; }
+/* The shop screens set a fixed white app background on their outer wrapper;
+   neutralise it so the legacy shell shows through. */
+.rl-shop-inshell > div { background: transparent !important; }

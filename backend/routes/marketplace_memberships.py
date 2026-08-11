@@ -11,11 +11,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user, current_user_optional
 from services.marketplace import now, new_id
+from services.gift_notify import send_gift_emails
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -163,13 +164,19 @@ async def business_memberships(business_id: str, request: Request,
         {"business_id": business_id, "active": True}).sort("price_cents", 1)]
     mine = None
     if user:
+        uid = user.get("user_id")
+        email = (user.get("email") or "").lower().strip()
+        ors: List[Dict[str, Any]] = [{"user_id": uid}]
+        if email:
+            ors.append({"gifted_to_email": email})
         m = await db.memberships.find_one(
-            {"business_id": business_id, "user_id": user.get("user_id"), "status": "active"})
+            {"business_id": business_id, "status": "active", "$or": ors})
         if m:
             plan = await db.membership_plans.find_one({"plan_id": m["plan_id"]})
             mine = _clean(dict(m))
             mine["benefits"] = await _benefit_status(db, m, plan or {}) if plan else []
             mine["plan_name"] = (plan or {}).get("name")
+            mine["received_gift"] = bool(m.get("is_gift") and m.get("buyer_user_id") != uid)
     return {"business_id": business_id, "public_name": biz.get("public_name"),
             "cover_url": (biz.get("cover_urls") or [None])[0], "items": plans, "mine": mine}
 
@@ -177,18 +184,33 @@ async def business_memberships(business_id: str, request: Request,
 class SubscribeBody(BaseModel):
     plan_id: str
     origin_url: Optional[str] = None
+    gift_to_email: Optional[str] = None
+    message: Optional[str] = Field(None, max_length=280)
 
 
 @consumer_router.post("/memberships/subscribe")
-async def subscribe(body: SubscribeBody, request: Request, user: dict = Depends(current_user)):
+async def subscribe(body: SubscribeBody, request: Request,
+                    background_tasks: BackgroundTasks,
+                    user: dict = Depends(current_user)):
     db = request.app.state.db
+    buyer_id = user.get("user_id")
     plan = await db.membership_plans.find_one({"plan_id": body.plan_id, "active": True})
     if not plan:
         raise HTTPException(404, {"code": "plan_not_found"})
-    existing = await db.memberships.find_one(
-        {"plan_id": body.plan_id, "user_id": user.get("user_id"), "status": "active"})
-    if existing:
-        raise HTTPException(400, {"code": "already_member"})
+
+    gto = (body.gift_to_email or "").lower().strip() or None
+    is_gift = bool(gto)
+    owner = buyer_id
+    if is_gift:
+        rec = await db.users.find_one({"email": gto}, {"user_id": 1})
+        owner = rec["user_id"] if rec else None  # unregistered → surfaces by email
+
+    # "already member" applies to the eventual owner (recipient when gifting).
+    if owner:
+        existing = await db.memberships.find_one(
+            {"plan_id": body.plan_id, "user_id": owner, "status": "active"})
+        if existing:
+            raise HTTPException(400, {"code": "already_member"})
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
     origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
@@ -205,19 +227,44 @@ async def subscribe(body: SubscribeBody, request: Request, user: dict = Depends(
         success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{origin}/payment/cancel",
         metadata={"kind": "marketplace_membership", "plan_id": body.plan_id,
-                  "business_id": plan["business_id"], "user_id": user.get("user_id")})
+                  "business_id": plan["business_id"], "user_id": owner or "",
+                  "buyer_id": buyer_id, "gift_to_email": gto or ""})
     mid = new_id("mbr")
     await db.memberships.insert_one({
         "membership_id": mid, "plan_id": body.plan_id, "business_id": plan["business_id"],
-        "user_id": user.get("user_id"), "status": "pending", "session_id": session.id,
+        "user_id": owner, "buyer_user_id": buyer_id,
+        "is_gift": is_gift, "gifted_to_email": gto,
+        "gift_message": (body.message or None) if is_gift else None,
+        "sponsor_name": plan.get("sponsor_name"), "plan_name": plan.get("name"),
+        "status": "pending", "session_id": session.id,
         "created_at": now(), "updated_at": now()})
     return {"ok": True, "checkout_url": session.url, "session_id": session.id, "membership_id": mid}
 
 
+async def _schedule_membership_gift_email(db, bg: Optional[BackgroundTasks],
+                                          m: Dict[str, Any]) -> None:
+    if not (bg and m.get("is_gift") and m.get("gifted_to_email")):
+        return
+    buyer = await db.users.find_one({"user_id": m.get("buyer_user_id")},
+                                    {"email": 1, "display_name": 1, "name": 1}) or {}
+    bg.add_task(send_gift_emails, kind="membership",
+                item_name=m.get("plan_name") or "Membership",
+                sponsor_name=m.get("sponsor_name"),
+                buyer_email=buyer.get("email"),
+                buyer_name=buyer.get("display_name") or buyer.get("name") or "A friend",
+                recipient_email=m.get("gifted_to_email"),
+                message=m.get("gift_message"))
+
+
 @consumer_router.get("/memberships/subscribe/{session_id}/status")
-async def subscribe_status(session_id: str, request: Request, user: dict = Depends(current_user)):
+async def subscribe_status(session_id: str, request: Request,
+                           background_tasks: BackgroundTasks,
+                           user: dict = Depends(current_user)):
     db = request.app.state.db
-    m = await db.memberships.find_one({"session_id": session_id, "user_id": user.get("user_id")})
+    uid = user.get("user_id")
+    m = await db.memberships.find_one(
+        {"session_id": session_id,
+         "$or": [{"user_id": uid}, {"buyer_user_id": uid}]})
     if not m:
         raise HTTPException(404, {"code": "membership_not_found"})
     if m.get("status") == "active":
@@ -233,6 +280,7 @@ async def subscribe_status(session_id: str, request: Request, user: dict = Depen
             {"membership_id": m["membership_id"]},
             {"$set": {"status": "active", "stripe_subscription_id": sess.get("subscription"),
                       "updated_at": now()}})
+        await _schedule_membership_gift_email(db, background_tasks, m)
         return {"status": "active", "active": True, "membership_id": m["membership_id"]}
     return {"status": "pending", "active": False}
 
@@ -240,9 +288,19 @@ async def subscribe_status(session_id: str, request: Request, user: dict = Depen
 @consumer_router.get("/memberships/mine")
 async def my_memberships(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
+    uid = user.get("user_id")
+    email = (user.get("email") or "").lower().strip()
+    ors: List[Dict[str, Any]] = [{"user_id": uid}]
+    if email:
+        ors.append({"gifted_to_email": email})
     out = []
     async for m in db.memberships.find(
-            {"user_id": user.get("user_id"), "status": "active"}).sort("created_at", -1):
+            {"status": "active", "$or": ors}).sort("created_at", -1):
+        # Recipient logged in after being gifted → claim ownership so they can use benefits.
+        if not m.get("user_id") and email and m.get("gifted_to_email") == email:
+            await db.memberships.update_one(
+                {"membership_id": m["membership_id"]}, {"$set": {"user_id": uid}})
+            m["user_id"] = uid
         plan = await db.membership_plans.find_one({"plan_id": m["plan_id"]})
         row = _clean(dict(m))
         row["plan_name"] = (plan or {}).get("name")
@@ -250,6 +308,8 @@ async def my_memberships(request: Request, user: dict = Depends(current_user)):
         row["price_cents"] = (plan or {}).get("price_cents")
         row["interval"] = (plan or {}).get("interval")
         row["benefits"] = await _benefit_status(db, m, plan or {}) if plan else []
+        row["received_gift"] = bool(m.get("is_gift") and m.get("buyer_user_id") != uid)
+        row["gift_message"] = m.get("gift_message")
         out.append(row)
     return {"items": out}
 

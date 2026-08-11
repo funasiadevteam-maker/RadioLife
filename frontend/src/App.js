@@ -205,6 +205,7 @@ import Commute from "@/Commute";
 import CommuteMode from "@/pages/CommuteMode";
 // Phase R.1 — RadioLife design variant overlay + stub for unmapped routes.
 import RadioLifeOverlay from "@/design_radiolife/RadioLifeOverlay";
+import ShopInShell from "@/design_radiolife/ShopInShell";
 import { useDesignVariantStore } from "@/hooks/useDesignVariant";
 import PublicBusiness from "@/PublicBusiness";
 import Coupons from "@/Coupons";
@@ -993,11 +994,11 @@ function AppRouter() {
       <Route path="/discover" element={
         <ProtectedRoute><RadioLifeStubPage title="Discover" hint="Enable RadioLife design to preview Discover." /></ProtectedRoute>} />
       <Route path="/shop" element={
-        <ProtectedRoute><RadioLifeStubPage title="Shop" hint="Enable RadioLife design to preview the Shop." /></ProtectedRoute>} />
-      <Route path="/shop/:id" element={
-        <ProtectedRoute><RadioLifeStubPage title="Business" hint="Enable RadioLife design to preview the business." /></ProtectedRoute>} />
+        <ProtectedRoute><ShopInShell /></ProtectedRoute>} />
+      <Route path="/shop/*" element={
+        <ProtectedRoute><ShopInShell /></ProtectedRoute>} />
       <Route path="/sell" element={
-        <ProtectedRoute><RadioLifeStubPage title="Sell on RadioLife" hint="Enable RadioLife design to list your business." /></ProtectedRoute>} />
+        <ProtectedRoute><ShopInShell /></ProtectedRoute>} />
       <Route path="/coupon/:coupon_id" element={
         <ProtectedRoute><RadioLifeStubPage title="Coupon" hint="Enable RadioLife design to preview Redeem." /></ProtectedRoute>} />
       </Routes>

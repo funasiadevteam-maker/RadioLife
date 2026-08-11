@@ -5757,6 +5757,9 @@ try:
     from routes.marketplace_events import consumer_router as _mkt_evt_consumer_router
     app.include_router(_mkt_evt_router)
     app.include_router(_mkt_evt_consumer_router)
+    # Gift Inbox — unified "gifts received" aggregation.
+    from routes.marketplace_gifts import router as _mkt_gifts_router
+    app.include_router(_mkt_gifts_router)
     logger.info("Marketplace Phase A routes wired: /api/admin/marketplace/* "
                 "/api/merchant/marketplace/* /api/shop/*")
 except Exception as _e:

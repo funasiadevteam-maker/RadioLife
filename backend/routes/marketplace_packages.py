@@ -10,12 +10,13 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user, current_user_optional
 from services.marketplace import now, new_id
 from services.points_service import PointsService
+from services.gift_notify import send_gift_emails
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 POINTS_PER_DOLLAR = 100
@@ -131,6 +132,19 @@ async def _activate(db, product: Dict[str, Any], user_id: str, method: str,
     return _clean(doc)
 
 
+async def _schedule_gift_email(db, bg: Optional[BackgroundTasks], pkg: Dict[str, Any]) -> None:
+    if not (bg and pkg.get("is_gift") and pkg.get("gifted_to_email")):
+        return
+    buyer = await db.users.find_one({"user_id": pkg.get("buyer_user_id")},
+                                    {"email": 1, "display_name": 1, "name": 1}) or {}
+    bg.add_task(send_gift_emails, kind="package", item_name=pkg.get("name"),
+                sponsor_name=pkg.get("sponsor_name"),
+                buyer_email=buyer.get("email"),
+                buyer_name=buyer.get("display_name") or buyer.get("name") or "A friend",
+                recipient_email=pkg.get("gifted_to_email"),
+                message=pkg.get("gift_message"))
+
+
 @consumer_router.get("/businesses/{business_id}/packages")
 async def business_packages(business_id: str, request: Request,
                             user: dict = Depends(current_user_optional)):
@@ -188,6 +202,7 @@ async def purchase_package(body: PurchaseBody, request: Request, user: dict = De
                                       metadata={"package_id": body.package_id})
         pkg = await _activate(db, product, uid, "points",
                               gift_to_email=body.gift_to_email, message=body.message)
+        await _schedule_gift_email(db, background_tasks, pkg)
         return {"ok": True, "method": "points", "points_spent": points_cost, "package": pkg}
 
     if body.method == "card":
@@ -218,7 +233,9 @@ async def purchase_package(body: PurchaseBody, request: Request, user: dict = De
 
 
 @consumer_router.get("/packages/purchase/{session_id}/status")
-async def purchase_status(session_id: str, request: Request, user: dict = Depends(current_user)):
+async def purchase_status(session_id: str, request: Request,
+                          background_tasks: BackgroundTasks,
+                          user: dict = Depends(current_user)):
     db = request.app.state.db
     pur = await db.package_purchases.find_one({"session_id": session_id})
     if not pur:
@@ -241,6 +258,7 @@ async def purchase_status(session_id: str, request: Request, user: dict = Depend
         await db.package_purchases.update_one(
             {"session_id": session_id},
             {"$set": {"status": "paid", "purchase_id": pkg["purchase_id"], "paid_at": now()}})
+        await _schedule_gift_email(db, background_tasks, pkg)
         return {"status": "paid", "package": pkg}
     return {"status": "pending"}
 
@@ -256,6 +274,11 @@ async def my_packages(request: Request, user: dict = Depends(current_user)):
     out = []
     async for x in db.packages.find(
             {"status": {"$in": ["active", "used_up"]}, "$or": ors}).sort("created_at", -1):
+        # Recipient logged in after being gifted → claim ownership so they can redeem.
+        if not x.get("user_id") and email and x.get("gifted_to_email") == email:
+            await db.packages.update_one(
+                {"purchase_id": x["purchase_id"]}, {"$set": {"user_id": uid}})
+            x["user_id"] = uid
         c = _clean(dict(x))
         c["received_gift"] = bool(x.get("is_gift") and x.get("buyer_user_id") != uid)
         out.append(c)

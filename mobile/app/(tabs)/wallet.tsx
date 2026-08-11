@@ -124,6 +124,9 @@ export default function WalletScreen() {
         {/* Sponsored banner */}
         <AdBanner zone="wallet" />
 
+        {/* Gift Inbox — gifts received */}
+        <GiftInbox router={router} />
+
         {/* Action Buttons */}
         <View style={st.actionRow}>
           <TouchableOpacity style={st.actionBtn} onPress={() => router.push('/scan-to-pay')} testID="wallet-scan-to-pay-btn">
@@ -443,10 +446,56 @@ function ReferTab({ me }: { me: any }) {
   );
 }
 
+/* ── Gift Inbox — gifts received (packages, memberships, gift cards) ── */
+const GIFT_ICON: Record<string, any> = { giftcard: 'card', package: 'cube', membership: 'star' };
+function GiftInbox({ router }: { router: any }) {
+  const [items, setItems] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      try { const r = await api.get('/shop/gifts/received'); setItems(r.data?.items || []); }
+      catch { setItems([]); }
+    })();
+  }, []);
+  if (!items.length) return null;
+  return (
+    <View style={st.giftInbox} testID="gift-inbox">
+      <View style={st.giftInboxHead}>
+        <Ionicons name="gift" size={16} color={COLORS.primary} />
+        <Text style={st.giftInboxTitle}>Gifts received</Text>
+        <View style={st.giftInboxBadge}><Text style={st.giftInboxBadgeText} testID="gift-inbox-count">{items.length}</Text></View>
+      </View>
+      {items.map((g: any) => (
+        <TouchableOpacity key={`${g.kind}-${g.id}`} style={st.giftRow} activeOpacity={0.75}
+          onPress={() => router.push(g.route)} testID={`gift-item-${g.id}`}>
+          <Ionicons name={GIFT_ICON[g.kind] || 'gift'} size={20} color={COLORS.primary} />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={st.giftTitle}>{g.title}</Text>
+            {!!g.subtitle && <Text style={st.giftSub}>{g.subtitle}</Text>}
+            <Text style={st.giftFrom}>From {g.from_name}</Text>
+            {!!g.message && <Text style={st.giftMsg}>“{g.message}”</Text>}
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   loadWrap: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: SPACING.md, paddingBottom: 100 },
+  /* Gift Inbox */
+  giftInbox: { backgroundColor: 'rgba(242,107,42,0.08)', borderWidth: 1, borderColor: 'rgba(242,107,42,0.3)', borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
+  giftInboxHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
+  giftInboxTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
+  giftInboxBadge: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 1 },
+  giftInboxBadgeText: { color: '#fff', fontSize: FONT.xs, fontWeight: '900' },
+  giftRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.sm, marginTop: 6, borderWidth: 1, borderColor: COLORS.cardBorder },
+  giftTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
+  giftSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 1 },
+  giftFrom: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
+  giftMsg: { color: COLORS.textDim, fontSize: FONT.xs, fontStyle: 'italic', marginTop: 3 },
   header: { marginBottom: SPACING.md },
   headerTitle: { fontSize: 24, fontWeight: '900', color: COLORS.text, letterSpacing: -1 },
   headerSub: { fontSize: 12, color: COLORS.textDim, marginTop: 4 },

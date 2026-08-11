@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Crown, Check, Coffee, Sparkles } from "lucide-react";
+import { ChevronLeft, Crown, Check, Coffee, Sparkles, Gift } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
@@ -15,6 +15,9 @@ export default function ShopMembershipsRadioLife() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [pick, setPick] = useState({});
+  const [giftOpen, setGiftOpen] = useState({});
+  const [giftEmail, setGiftEmail] = useState({});
+  const [giftMsg, setGiftMsg] = useState({});
 
   const load = useCallback(async () => {
     try { const r = await axios.get(`${API}/shop/businesses/${id}/memberships`); setData(r.data); }
@@ -22,10 +25,13 @@ export default function ShopMembershipsRadioLife() {
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
-  const subscribe = async (planId) => {
+  const subscribe = async (planId, gift) => {
+    if (gift && !(gift.email || "").includes("@")) { alert("Enter a valid friend's email to gift."); return; }
     setBusy(true);
     try {
-      const r = await axios.post(`${API}/shop/memberships/subscribe`, { plan_id: planId, origin_url: window.location.origin });
+      const body = { plan_id: planId, origin_url: window.location.origin };
+      if (gift?.email) { body.gift_to_email = gift.email.trim(); body.message = gift.message || ""; }
+      const r = await axios.post(`${API}/shop/memberships/subscribe`, body);
       if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
       load();
     } catch (e) { alert(e?.response?.data?.detail?.code || "Subscription failed"); setBusy(false); }
@@ -84,6 +90,8 @@ export default function ShopMembershipsRadioLife() {
 
         {data.items.map((p) => {
           const isMine = data.mine && data.mine.plan_id === p.plan_id;
+          const isGift = !!giftOpen[p.plan_id];
+          const gift = isGift ? { email: giftEmail[p.plan_id] || "", message: giftMsg[p.plan_id] || "" } : null;
           return (
             <div key={p.plan_id} className="bg-white border border-slate-200 rounded-2xl p-4" data-testid={`mem-plan-${p.plan_id}`}>
               <div className="flex items-center justify-between">
@@ -98,9 +106,29 @@ export default function ShopMembershipsRadioLife() {
                   </div>
                 ))}
               </div>
-              <button onClick={() => subscribe(p.plan_id)} disabled={busy || isMine} data-testid={`mem-subscribe-${p.plan_id}`}
+
+              <button type="button" onClick={() => setGiftOpen((s) => ({ ...s, [p.plan_id]: !s[p.plan_id] }))}
+                data-testid={`mem-gift-toggle-${p.plan_id}`}
+                className={`mt-3 flex items-center gap-2 text-sm font-black ${isGift ? "text-orange-600" : "text-slate-500"}`}>
+                <Gift size={15} />{isGift ? "Gifting to a friend" : "Gift this membership"}
+              </button>
+              {isGift && (
+                <div className="mt-2 space-y-2" data-testid={`mem-gift-fields-${p.plan_id}`}>
+                  <input type="email" value={giftEmail[p.plan_id] || ""} placeholder="Friend's email"
+                    onChange={(e) => setGiftEmail((s) => ({ ...s, [p.plan_id]: e.target.value }))}
+                    data-testid={`mem-gift-email-${p.plan_id}`}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                  <input type="text" maxLength={280} value={giftMsg[p.plan_id] || ""} placeholder="Optional message"
+                    onChange={(e) => setGiftMsg((s) => ({ ...s, [p.plan_id]: e.target.value }))}
+                    data-testid={`mem-gift-message-${p.plan_id}`}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                </div>
+              )}
+
+              <button onClick={() => subscribe(p.plan_id, gift)} disabled={busy || (isMine && !isGift)} data-testid={`mem-subscribe-${p.plan_id}`}
                 className="mt-3 w-full bg-orange-600 text-white font-black rounded-full py-3 disabled:opacity-50">
-                {isMine ? "Active member" : `Join · ${money(p.price_cents)}${periodLabel(p.interval)}`}
+                {isGift ? `Gift · ${money(p.price_cents)}${periodLabel(p.interval)}`
+                  : isMine ? "Active member" : `Join · ${money(p.price_cents)}${periodLabel(p.interval)}`}
               </button>
             </div>
           );

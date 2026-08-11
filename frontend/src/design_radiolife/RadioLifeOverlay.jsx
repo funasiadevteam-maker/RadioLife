@@ -70,7 +70,7 @@ const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
 const BARE_PATHS = [/^\/login(\b|\/)/, /^\/onboarding(\b|\/)/];
 
-function screenFor(pathname) {
+export function screenFor(pathname) {
   if (pathname === "/" || pathname === "/home") return HomeRadioLife;
   if (pathname === "/radio") return ListenRadioLife;
   if (pathname === "/shop") return ShopRadioLife;
@@ -130,10 +130,12 @@ export default function RadioLifeOverlay() {
   const { user } = useAuth();
   const { pathname } = useLocation();
 
-  // Shop / Sell are RadioLife-only surfaces — always overlay them so
-  // customers land straight in the Shop without flipping the design toggle.
+  // Shop now renders IN-SHELL (inside the legacy AppShell, keeping the left
+  // sidebar + top bar) via <ShopInShell> routes in App.js. So the overlay
+  // only takes over when the user has explicitly switched to the RadioLife
+  // "new look".  In legacy mode the shop lives inside the classic shell.
+  if (variant !== "radiolife") return null;
   const shopRoute = pathname === "/shop" || pathname.startsWith("/shop/") || pathname === "/sell";
-  if (variant !== "radiolife" && !shopRoute) return null;
   const Screen = screenFor(pathname);
   if (!Screen) return null;
 

@@ -17,6 +17,7 @@ import OGMeta from "@/components/OGMeta";
 import { getDeviceFingerprintSync } from "@/lib/deviceFingerprint";
 // Phase AD.11 — wallet banner zone.
 import BannerZoneSlot from "@/components/BannerZoneSlot";
+import GiftInboxSection from "@/components/GiftInboxSection";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 axios.defaults.withCredentials = true;
@@ -92,6 +93,9 @@ export default function Wallet() {
                           description="Listen more. Earn more. Cash in rewards on RadioLife." />
 
       <BalanceCard me={me} />
+
+      {/* Gift Inbox — gifts received (packages, memberships, gift cards). */}
+      <GiftInboxSection />
 
       {/* Phase AD.11 — wallet banner zone. */}
       <BannerZoneSlot zone="wallet" />

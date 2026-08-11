@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +22,9 @@ export default function ShopMemberships() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [pick, setPick] = useState<Record<string, string>>({});
+  const [giftOpen, setGiftOpen] = useState<Record<string, boolean>>({});
+  const [giftEmail, setGiftEmail] = useState<Record<string, string>>({});
+  const [giftMsg, setGiftMsg] = useState<Record<string, string>>({});
 
   const load = async () => {
     try { const r = await api.get(`/shop/businesses/${id}/memberships`); setData(r.data); }
@@ -29,16 +32,20 @@ export default function ShopMemberships() {
   };
   useEffect(() => { load(); }, [id]);
 
-  const subscribe = async (planId: string) => {
+  const subscribe = async (planId: string, gift?: { email: string; message: string } | null) => {
+    if (gift && !(gift.email || '').includes('@')) { Alert.alert('Gift', "Enter a valid friend's email to gift."); return; }
     setBusy(true);
     try {
-      const r = await api.post('/shop/memberships/subscribe', { plan_id: planId, origin_url: process.env.EXPO_PUBLIC_BACKEND_URL });
+      const body: any = { plan_id: planId, origin_url: process.env.EXPO_PUBLIC_BACKEND_URL };
+      if (gift?.email) { body.gift_to_email = gift.email.trim(); body.message = gift.message || ''; }
+      const r = await api.post('/shop/memberships/subscribe', body);
       if (r.data.checkout_url) {
         await WebBrowser.openBrowserAsync(r.data.checkout_url);
         const st = await api.get(`/shop/memberships/subscribe/${r.data.session_id}/status`);
         if (st.data.status !== 'active') { setBusy(false); return; }
       }
-      celebrate({ title: 'Welcome, member!', subtitle: 'Your benefits are ready' });
+      celebrate({ title: gift?.email ? 'Membership gifted!' : 'Welcome, member!',
+                  subtitle: gift?.email ? `Sent to ${gift.email}` : 'Your benefits are ready' });
       load(); setBusy(false);
     } catch (e: any) { Alert.alert('Subscription failed', e?.response?.data?.detail?.code || 'Try again'); setBusy(false); }
   };
@@ -99,6 +106,8 @@ export default function ShopMemberships() {
 
         {(data.items || []).map((p: any) => {
           const isMine = data.mine && data.mine.plan_id === p.plan_id;
+          const isGift = !!giftOpen[p.plan_id];
+          const gift = isGift ? { email: giftEmail[p.plan_id] || '', message: giftMsg[p.plan_id] || '' } : null;
           return (
             <View key={p.plan_id} style={s.card} testID={`mem-plan-${p.plan_id}`}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -114,10 +123,27 @@ export default function ShopMemberships() {
                   </View>
                 ))}
               </View>
-              <TouchableOpacity style={[common.btnPrimary, { marginTop: 12 }, (busy || isMine) && { opacity: 0.5 }]}
-                disabled={busy || isMine} onPress={() => subscribe(p.plan_id)} testID={`mem-subscribe-${p.plan_id}`}>
-                <Ionicons name="star" size={16} color="#fff" />
-                <Text style={common.btnPrimaryText}>{isMine ? 'Active member' : `Join · ${money(p.price_cents)}${periodLabel(p.interval)}`}</Text>
+
+              <TouchableOpacity style={s.giftToggle} onPress={() => setGiftOpen((st) => ({ ...st, [p.plan_id]: !st[p.plan_id] }))}
+                testID={`mem-gift-toggle-${p.plan_id}`}>
+                <Ionicons name="gift" size={15} color={isGift ? COLORS.primary : COLORS.textMuted} />
+                <Text style={[s.giftToggleText, { color: isGift ? COLORS.primary : COLORS.textMuted }]}>{isGift ? 'Gifting to a friend' : 'Gift this membership'}</Text>
+              </TouchableOpacity>
+              {isGift && (
+                <View style={{ marginTop: 8, gap: 8 }} testID={`mem-gift-fields-${p.plan_id}`}>
+                  <TextInput style={s.giftInput} placeholder="Friend's email" placeholderTextColor={COLORS.textMuted}
+                    autoCapitalize="none" keyboardType="email-address" value={giftEmail[p.plan_id] || ''}
+                    onChangeText={(v) => setGiftEmail((st) => ({ ...st, [p.plan_id]: v }))} testID={`mem-gift-email-${p.plan_id}`} />
+                  <TextInput style={s.giftInput} placeholder="Optional message" placeholderTextColor={COLORS.textMuted}
+                    maxLength={280} value={giftMsg[p.plan_id] || ''}
+                    onChangeText={(v) => setGiftMsg((st) => ({ ...st, [p.plan_id]: v }))} testID={`mem-gift-message-${p.plan_id}`} />
+                </View>
+              )}
+
+              <TouchableOpacity style={[common.btnPrimary, { marginTop: 12 }, (busy || (isMine && !isGift)) && { opacity: 0.5 }]}
+                disabled={busy || (isMine && !isGift)} onPress={() => subscribe(p.plan_id, gift)} testID={`mem-subscribe-${p.plan_id}`}>
+                <Ionicons name={isGift ? 'gift' : 'star'} size={16} color="#fff" />
+                <Text style={common.btnPrimaryText}>{isGift ? `Gift · ${money(p.price_cents)}${periodLabel(p.interval)}` : isMine ? 'Active member' : `Join · ${money(p.price_cents)}${periodLabel(p.interval)}`}</Text>
               </TouchableOpacity>
             </View>
           );
@@ -147,5 +173,8 @@ const s = StyleSheet.create({
   planPrice: { color: COLORS.primary, fontSize: FONT.md, fontWeight: '900' },
   planPer: { color: COLORS.textMuted, fontSize: FONT.xs },
   planDesc: { color: COLORS.textDim, fontSize: FONT.sm, marginTop: 4 },
+  giftToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
+  giftToggleText: { fontSize: FONT.sm, fontWeight: '900' },
+  giftInput: { backgroundColor: COLORS.inputBg, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: FONT.sm },
   entText: { color: COLORS.textDim, fontSize: FONT.sm },
 });
