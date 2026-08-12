@@ -19,7 +19,8 @@ from services.marketplace import now, new_id
 from services.gift_notify import send_gift_emails
 from services.membership_entitlements import (
     EntitlementModel, normalize_entitlements, period_key, day_time_allows,
-    entitlement_remaining, record_redemption, _FREQ_TO_LEGACY_PERIOD)
+    entitlement_remaining, record_redemption, resolve_eligible_items,
+    _FREQ_TO_LEGACY_PERIOD)
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -116,24 +117,29 @@ async def delete_plan(plan_id: str, request: Request, user: dict = Depends(curre
 
 
 # ───────────── Consumer ─────────────
-async def _benefit_status(db, membership: Dict[str, Any], plan: Dict[str, Any]) -> List[Dict[str, Any]]:
+async def _benefit_status(db, membership: Dict[str, Any], plan: Dict[str, Any],
+                          with_items: bool = False) -> List[Dict[str, Any]]:
     """Per-entitlement live status. Includes backward-compatible aliases
-    (`qty`/`period`/`options`) so pre-v2 clients keep rendering."""
+    (`qty`/`period`/`options`) so pre-v2 clients keep rendering. When
+    `with_items`, also resolves the concrete eligible items (for the wallet)."""
     out = []
     for e in plan.get("entitlements", []):
         if not e.get("active", True):
             continue
         rem = await entitlement_remaining(db, membership, e)
-        out.append({
+        row = {
             **e,
             "used": rem["used"], "remaining": rem["remaining"],
             "period_key": rem["period_key"],
-            # legacy aliases
             "qty": int(e.get("quantity", 1)),
             "period": _FREQ_TO_LEGACY_PERIOD.get(e.get("reset_frequency", "monthly"), "month"),
             "options": e.get("choice_labels", []),
             "available_now": day_time_allows(e.get("day_time")),
-        })
+        }
+        if with_items:
+            row["eligible_items"] = await resolve_eligible_items(
+                db, membership["business_id"], e)
+        out.append(row)
     return out
 
 
@@ -293,10 +299,45 @@ async def my_memberships(request: Request, user: dict = Depends(current_user)):
         row["sponsor_name"] = (plan or {}).get("sponsor_name")
         row["price_cents"] = (plan or {}).get("price_cents")
         row["interval"] = (plan or {}).get("interval")
-        row["benefits"] = await _benefit_status(db, m, plan or {}) if plan else []
+        row["benefits"] = await _benefit_status(db, m, plan or {}, with_items=True) if plan else []
         row["received_gift"] = bool(m.get("is_gift") and m.get("buyer_user_id") != uid)
         row["gift_message"] = m.get("gift_message")
+        row["business_id"] = m.get("business_id")
         out.append(row)
+    return {"items": out}
+
+
+@consumer_router.get("/businesses/{business_id}/my-entitlements")
+async def my_business_entitlements(business_id: str, request: Request,
+                                   user: dict = Depends(current_user)):
+    """The caller's usable membership entitlements AT this business — powers the
+    checkout 'apply your membership' picker."""
+    db = request.app.state.db
+    uid = user.get("user_id")
+    email = (user.get("email") or "").lower().strip()
+    ors: List[Dict[str, Any]] = [{"user_id": uid}]
+    if email:
+        ors.append({"gifted_to_email": email})
+    out = []
+    async for m in db.memberships.find(
+            {"business_id": business_id, "status": "active", "$or": ors}):
+        plan = await db.membership_plans.find_one({"plan_id": m["plan_id"]})
+        if not plan:
+            continue
+        for e in await _benefit_status(db, m, plan, with_items=True):
+            out.append({
+                "membership_id": m["membership_id"], "plan_name": plan.get("name"),
+                "entitlement_id": e.get("entitlement_id"), "label": e.get("label"),
+                "target_type": e.get("target_type"), "category": e.get("category"),
+                "target_ids": e.get("target_ids", []),
+                "remaining": e.get("remaining", 0), "available_now": e.get("available_now", True),
+                "max_upcharge_cents": e.get("max_upcharge_cents"),
+                "included_option_ids": e.get("included_option_ids", []),
+                "stackable": e.get("stackable", False),
+                "eligible_items": e.get("eligible_items", []),
+            })
+    return {"business_id": business_id, "items": out}
+
     return {"items": out}
 
 

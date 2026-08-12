@@ -1,9 +1,10 @@
-// Membership Wallet — one "My Memberships" screen across every venue, with
-// quick-claim buttons per benefit and renewal dates.
+// Membership Wallet (web) — one "My Memberships" view across venues. Shows
+// each entitlement's remaining usage, lets members order eligible items
+// straight from here (order-from-wallet), and keeps quick-claim for in-store perks.
 import React, { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Crown, Check, Calendar, Store, Sparkles } from "lucide-react";
+import { Crown, Check, Calendar, Store, Sparkles, ShoppingBag, Clock } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => (c == null ? "" : `$${(c / 100).toFixed(2)}`);
@@ -14,10 +15,11 @@ const fmtDate = (iso) => {
 };
 
 export default function ShopMyMembershipsRadioLife() {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pick, setPick] = useState({});      // benefit_id -> chosen option
-  const [busy, setBusy] = useState(null);     // benefit_id being claimed
+  const [pick, setPick] = useState({});
+  const [busy, setBusy] = useState(null);
   const [flash, setFlash] = useState(null);
 
   const load = useCallback(async () => {
@@ -26,17 +28,23 @@ export default function ShopMyMembershipsRadioLife() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const entId = (b) => b.entitlement_id || b.benefit_id;
   const claim = async (m, b) => {
-    if (b.options?.length && !pick[b.benefit_id]) { setFlash({ id: b.benefit_id, msg: "Pick an option first" }); return; }
-    setBusy(b.benefit_id); setFlash(null);
+    if (b.options?.length && !pick[entId(b)]) { setFlash({ id: entId(b), msg: "Pick an option first" }); return; }
+    setBusy(entId(b)); setFlash(null);
     try {
       await axios.post(`${API}/shop/memberships/${m.membership_id}/claim`,
-        { benefit_id: b.benefit_id, option: pick[b.benefit_id] || null });
+        { entitlement_id: entId(b), option: pick[entId(b)] || null });
       await load();
-      setFlash({ id: b.benefit_id, msg: "Claimed! 🎉" });
+      setFlash({ id: entId(b), msg: "Claimed! 🎉" });
     } catch (e) {
-      setFlash({ id: b.benefit_id, msg: e?.response?.data?.detail?.code === "limit_reached" ? "Limit reached this period" : "Could not claim" });
+      setFlash({ id: entId(b), msg: e?.response?.data?.detail?.code === "limit_reached" ? "Limit reached this period" : "Could not claim" });
     } finally { setBusy(null); }
+  };
+
+  const orderItem = (m, b, it) => {
+    const q = new URLSearchParams({ item: it.id, apply_entitlement: entId(b) }).toString();
+    navigate(`/shop/menu/${m.business_id}?${q}`);
   };
 
   return (
@@ -44,7 +52,7 @@ export default function ShopMyMembershipsRadioLife() {
       <header className="mb-4 lg:mb-6">
         <div className="text-orange-600 text-[11px] font-black tracking-widest">RADIOLIFE MEMBERSHIPS</div>
         <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-slate-900 mt-1">My Memberships</h1>
-        <p className="text-slate-500 text-sm mt-1">Claim your perks across every venue in one place.</p>
+        <p className="text-slate-500 text-sm mt-1">Order eligible items or claim your perks across every venue.</p>
       </header>
 
       {loading ? (
@@ -72,9 +80,7 @@ export default function ShopMyMembershipsRadioLife() {
                     <Crown size={16} className="text-orange-600 shrink-0" />
                     <span className="font-black text-slate-900 truncate">{m.plan_name || "Membership"}</span>
                   </div>
-                  <Link to={`/shop/${m.business_id}`} className="text-xs font-bold text-orange-600 hover:underline">
-                    {m.sponsor_name}
-                  </Link>
+                  <Link to={`/shop/${m.business_id}`} className="text-xs font-bold text-orange-600 hover:underline">{m.sponsor_name}</Link>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-sm font-black text-slate-900">{money(m.price_cents)}<span className="text-slate-400 font-bold">/{m.interval || "mo"}</span></div>
@@ -89,38 +95,57 @@ export default function ShopMyMembershipsRadioLife() {
               <div className="mt-3 space-y-2">
                 {(m.benefits || []).map((b) => {
                   const out = b.remaining <= 0;
+                  const eid = entId(b);
+                  const orderable = ["item", "product", "category"].includes(b.target_type) && (b.eligible_items || []).length > 0;
                   return (
-                    <div key={b.benefit_id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3"
-                      data-testid={`benefit-${b.benefit_id}`}>
+                    <div key={eid} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3" data-testid={`benefit-${eid}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-sm font-bold text-slate-800 truncate">{b.label}</div>
-                          <div className="text-[11px] font-bold text-slate-500">
+                          <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                             {b.remaining} of {b.qty} left this {b.period}
+                            {b.available_now === false && <span className="text-rose-500 flex items-center gap-0.5"><Clock size={10} />off-hours</span>}
                           </div>
                         </div>
-                        <button
-                          onClick={() => claim(m, b)}
-                          disabled={out || busy === b.benefit_id}
-                          data-testid={`claim-${b.benefit_id}`}
-                          className={"shrink-0 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-black transition-colors " +
-                            (out ? "bg-slate-200 text-slate-400" : "bg-orange-600 text-white hover:bg-orange-700")}>
-                          {out ? <>Used</> : busy === b.benefit_id ? <>…</> : <><Sparkles size={14} /> Claim</>}
-                        </button>
+                        {!orderable && (
+                          <button onClick={() => claim(m, b)} disabled={out || busy === eid} data-testid={`claim-${eid}`}
+                            className={"shrink-0 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-black transition-colors " +
+                              (out ? "bg-slate-200 text-slate-400" : "bg-orange-600 text-white hover:bg-orange-700")}>
+                            {out ? <>Used</> : busy === eid ? <>…</> : <><Sparkles size={14} /> Claim</>}
+                          </button>
+                        )}
                       </div>
-                      {b.options?.length > 0 && !out && (
+
+                      {orderable && !out && (
+                        <div className="mt-2">
+                          <div className="text-[11px] font-black text-slate-400 uppercase mb-1">Order with this membership</div>
+                          <div className="flex gap-2 overflow-x-auto pb-1" data-testid={`benefit-order-row-${eid}`}>
+                            {b.eligible_items.map((it) => (
+                              <button key={it.id} onClick={() => orderItem(m, b, it)} data-testid={`benefit-order-${eid}-${it.id}`}
+                                className="shrink-0 w-28 text-left bg-white border border-slate-200 rounded-xl overflow-hidden hover:border-orange-300">
+                                {it.image_url && <img src={it.image_url} alt={it.name} className="w-full h-16 object-cover bg-slate-100" />}
+                                <div className="p-2">
+                                  <div className="text-[11px] font-bold text-slate-800 line-clamp-2 leading-tight">{it.name}</div>
+                                  <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-black text-orange-600"><ShoppingBag size={10} />Order</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {b.options?.length > 0 && !orderable && !out && (
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {b.options.map((o) => (
-                            <button key={o} onClick={() => setPick((p) => ({ ...p, [b.benefit_id]: o }))}
-                              data-testid={`opt-${b.benefit_id}-${o}`}
+                            <button key={o} onClick={() => setPick((p) => ({ ...p, [eid]: o }))} data-testid={`opt-${eid}-${o}`}
                               className={"px-2.5 py-1 rounded-full text-[11px] font-bold border " +
-                                (pick[b.benefit_id] === o ? "bg-orange-600 text-white border-orange-600" : "bg-white text-slate-600 border-slate-200")}>
-                              {pick[b.benefit_id] === o && <Check size={10} className="inline mr-1" />}{o}
+                                (pick[eid] === o ? "bg-orange-600 text-white border-orange-600" : "bg-white text-slate-600 border-slate-200")}>
+                              {pick[eid] === o && <Check size={10} className="inline mr-1" />}{o}
                             </button>
                           ))}
                         </div>
                       )}
-                      {flash?.id === b.benefit_id && <div className="text-[11px] font-bold text-orange-600 mt-1.5">{flash.msg}</div>}
+                      {flash?.id === eid && <div className="text-[11px] font-bold text-orange-600 mt-1.5">{flash.msg}</div>}
                     </div>
                   );
                 })}

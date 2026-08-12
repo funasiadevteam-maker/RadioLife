@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ChevronLeft, Sparkles, Image as ImageIcon, FileText, Grid3x3, Pencil, Trash2, Camera } from "lucide-react";
 import { API } from "@/AuthContext";
+import OptionGroupsEditor from "../OptionGroupsEditor";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 
@@ -21,6 +22,7 @@ export default function MerchantMenuRadioLife() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ section: "", name: "", description: "", price: "" });
+  const [optionGroups, setOptionGroups] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [importUrl, setImportUrl] = useState("");
@@ -37,19 +39,20 @@ export default function MerchantMenuRadioLife() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const reset = () => { setForm({ section: "", name: "", description: "", price: "" }); setEditingId(null); };
+  const reset = () => { setForm({ section: "", name: "", description: "", price: "" }); setOptionGroups([]); setEditingId(null); };
   const save = async () => {
     if (!form.name.trim() || !form.price) return;
     setSaving(true);
     const body = { section: form.section.trim() || "Menu", name: form.name.trim(),
-      description: form.description.trim() || null, price_cents: Math.round((parseFloat(form.price) || 0) * 100), available: true };
+      description: form.description.trim() || null, price_cents: Math.round((parseFloat(form.price) || 0) * 100),
+      option_groups: optionGroups.filter((g) => g.name.trim() && g.options.some((o) => o.label.trim())), available: true };
     try {
       if (editingId) await axios.patch(`${API}/merchant/marketplace/menu/items/${editingId}`, body);
       else await axios.post(`${API}/merchant/marketplace/menu/items`, body);
       reset(); load();
     } catch { /* ignore */ } finally { setSaving(false); }
   };
-  const edit = (it) => { setEditingId(it.item_id); setForm({ section: it.section || "", name: it.name || "", description: it.description || "", price: ((it.price_cents || 0) / 100).toString() }); };
+  const edit = (it) => { setEditingId(it.item_id); setForm({ section: it.section || "", name: it.name || "", description: it.description || "", price: ((it.price_cents || 0) / 100).toString() }); setOptionGroups(it.option_groups || []); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const del = async (id) => { try { await axios.delete(`${API}/merchant/marketplace/menu/items/${id}`); load(); } catch { /* ignore */ } };
 
   const clickPhoto = (itemId) => { setPhotoTarget(itemId); photoRef.current?.click(); };
@@ -160,6 +163,7 @@ export default function MerchantMenuRadioLife() {
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Item name" data-testid="item-name" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
           <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description (optional)" data-testid="item-desc" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
           <input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="Price (e.g. 12.50)" data-testid="item-price" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+          <OptionGroupsEditor value={optionGroups} onChange={setOptionGroups} />
           <div className="flex gap-2 pt-1">
             {editingId && <button onClick={reset} data-testid="item-cancel" className="flex-1 border border-slate-200 rounded-full py-2.5 font-bold text-slate-600">Cancel</button>}
             <button onClick={save} disabled={saving} data-testid="item-save" className="flex-1 bg-orange-600 text-white font-black rounded-full py-2.5 disabled:opacity-60">{editingId ? "Update" : "Add Item"}</button>

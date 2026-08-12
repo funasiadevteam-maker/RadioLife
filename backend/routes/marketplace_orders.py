@@ -95,35 +95,70 @@ async def _deduct_gift_card(db, card_id: str, amount_cents: int, user) -> None:
 class CheckoutItem(BaseModel):
     item_id: str
     qty: int = Field(1, ge=1, le=50)
+    selected_option_ids: List[str] = Field(default_factory=list)
+    apply_entitlement_id: Optional[str] = None
 
 
 async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
                       use_gift_card: bool, redeem_points: int,
                       coupon_code: Optional[str] = None) -> Dict[str, Any]:
-    """Validate + price a single-restaurant basket with optional coupon +
-    gift-card + BigPoints redemption. Shared by /quote and /checkout."""
+    """Validate + price a single-restaurant basket with option upcharges, an
+    optional membership entitlement (base free + included-option waivers),
+    coupon, gift-card and BigPoints redemption. Shared by /quote and /checkout."""
+    from services.membership_entitlements import (
+        validate_selection, price_with_options, evaluate_line_entitlement)
     profile = await db.marketplace_profiles.find_one(
         {"business_id": business_id, "status": "approved", "subscription_active": True})
     if not profile:
         raise HTTPException(404, {"code": "business_unavailable"})
     line_items: List[Dict[str, Any]] = []
     subtotal = 0
+    entitlement_discount = 0
+    applied_entitlements: List[Dict[str, Any]] = []
+    has_coupon = bool(coupon_code)
     for ci in items:
         it = await db.menu_items.find_one(
             {"item_id": ci.item_id, "business_id": business_id, "available": True})
         if not it:
             raise HTTPException(400, {"code": "item_unavailable", "item_id": ci.item_id})
-        price = int(it.get("price_cents", 0))
-        subtotal += price * ci.qty
-        line_items.append({"item_id": ci.item_id, "name": it.get("name"),
-                           "price_cents": price, "qty": ci.qty})
+        base = int(it.get("price_cents", 0))
+        ogs = it.get("option_groups", []) or []
+        sel = ci.selected_option_ids or []
+        sel_err = validate_selection(ogs, sel)
+        if sel_err:
+            raise HTTPException(400, {"code": sel_err, "item_id": ci.item_id})
+        unit_price, selected_detail = price_with_options(base, ogs, sel)
+        line = {"item_id": ci.item_id, "name": it.get("name"), "price_cents": unit_price,
+                "qty": ci.qty, "selected_options": selected_detail}
+        if ci.apply_entitlement_id:
+            ev = await evaluate_line_entitlement(
+                db, user, business_id, item_id=ci.item_id, category=it.get("section"),
+                base_cents=base, option_groups=ogs, selected_option_ids=sel,
+                apply_entitlement_id=ci.apply_entitlement_id, has_coupon=has_coupon)
+            if not ev.get("applicable"):
+                detail = {"code": ev.get("error", "entitlement_not_applicable"), "item_id": ci.item_id}
+                if ev.get("max_upcharge_cents") is not None:
+                    detail["max_upcharge_cents"] = ev["max_upcharge_cents"]
+                raise HTTPException(400, detail)
+            ent, mem = ev["entitlement"], ev["membership"]
+            entitlement_discount += int(ev["discount_cents"])
+            line["entitlement_id"] = ci.apply_entitlement_id
+            line["entitlement_discount_cents"] = int(ev["discount_cents"])
+            applied_entitlements.append({
+                "entitlement_id": ci.apply_entitlement_id, "membership_id": mem["membership_id"],
+                "item_id": ci.item_id, "base_value_cents": int(ev["discount_cents"]),
+                "upcharge_cents": int(ev.get("charged_upcharge_cents", 0)),
+                "reset_frequency": ent.get("reset_frequency", "monthly"), "label": ent.get("label")})
+        subtotal += unit_price * ci.qty
+        line_items.append(line)
     if subtotal <= 0:
         raise HTTPException(400, {"code": "zero_total"})
 
+    after_entitlement = max(0, subtotal - entitlement_discount)
     coupon_discount, coupon_doc, coupon_error = await compute_coupon_discount(
         db, business_id=business_id, code=coupon_code,
-        user_id=user.get("user_id"), base_cents=subtotal)
-    after_coupon = subtotal - coupon_discount
+        user_id=user.get("user_id"), base_cents=after_entitlement)
+    after_coupon = after_entitlement - coupon_discount
 
     gift_card = await _pick_gift_card(db, user, business_id)
     gift_available = int(gift_card.get("balance_cents", 0)) if gift_card else 0
@@ -135,9 +170,11 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     used_points = max(0, min(int(redeem_points or 0), max_redeemable))
     points_discount = _points_to_cents(used_points)
     total = after_gift - points_discount
-    eff = points_for_order(profile, subtotal)
+    eff = points_for_order(profile, after_entitlement)
     return {
         "profile": profile, "line_items": line_items, "subtotal_cents": subtotal,
+        "entitlement_discount_cents": entitlement_discount,
+        "applied_entitlements": applied_entitlements,
         "gift_card_id": gift_card.get("card_id") if gift_card else None,
         "gift_available_cents": gift_available, "gift_applied_cents": gift_applied,
         "coupon_discount_cents": coupon_discount, "coupon_error": coupon_error,
@@ -207,6 +244,9 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         "user_id": user.get("user_id"), "items": line_items,
         "subtotal_cents": subtotal, "gift_card_applied_cents": gift_applied,
         "gift_card_id": gift_card_id,
+        "entitlement_discount_cents": q.get("entitlement_discount_cents", 0),
+        "applied_entitlements": q.get("applied_entitlements", []),
+        "entitlements_recorded_done": False,
         "coupon_id": q.get("coupon_id"), "coupon_code": q.get("coupon_code"),
         "coupon_discount_cents": q.get("coupon_discount_cents", 0),
         "coupon_recorded_done": False,
@@ -231,6 +271,8 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         order["payment_status"] = "paid"
         order["status_history"] = [{"status": "accepted", "at": now()}]
         await db.marketplace_orders.insert_one(dict(order))
+        from services.membership_entitlements import record_order_entitlements
+        await record_order_entitlements(db, order, "marketplace_orders")
         await notify_merchant_new_order(
             db, business_id=body.business_id, order_id=order_id, kind="food",
             total_cents=0, code=pickup_code)
@@ -350,6 +392,8 @@ async def _finalize_paid(db, order: Dict[str, Any], user) -> None:
                                 order["gift_card_applied_cents"], user)
     await _redeem_points(db, user, order)
     await _record_order_coupon(db, order)
+    from services.membership_entitlements import record_order_entitlements
+    await record_order_entitlements(db, order, "marketplace_orders")
     await db.marketplace_orders.update_one(
         {"order_id": order["order_id"], "payment_status": {"$ne": "paid"}},
         {"$set": {"payment_status": "paid", "status": "accepted", "updated_at": now()},

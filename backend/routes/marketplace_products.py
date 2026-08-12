@@ -297,6 +297,8 @@ class ProductCheckoutItem(BaseModel):
     product_id: str
     variant_label: Optional[str] = None
     qty: int = Field(1, ge=1, le=100)
+    selected_option_ids: List[str] = Field(default_factory=list)
+    apply_entitlement_id: Optional[str] = None
 
 
 class ProductCheckoutBody(BaseModel):
@@ -497,7 +499,12 @@ async def _price_group(db, user, g: CartGroup, use_gift: bool = True,
     elif not delivery_cfg.get("pickup", True):
         raise HTTPException(400, {"code": "pickup_unavailable", "business_id": g.business_id})
 
+    from services.membership_entitlements import (
+        validate_selection, price_with_options, evaluate_line_entitlement)
     line_items, subtotal = [], 0
+    entitlement_discount = 0
+    applied_entitlements = []
+    has_coupon = bool(g.coupon_code)
     for ci in g.items:
         prod = await db.products.find_one(
             {"product_id": ci.product_id, "business_id": g.business_id, "active": True})
@@ -516,9 +523,37 @@ async def _price_group(db, user, g: CartGroup, use_gift: bool = True,
             raise HTTPException(400, {"code": "variant_required", "product_id": ci.product_id})
         if avail < ci.qty:
             raise HTTPException(409, {"code": "out_of_stock", "product_id": ci.product_id})
-        subtotal += price * ci.qty
-        line_items.append({"product_id": ci.product_id, "variant_label": ci.variant_label,
-                           "name": prod.get("name"), "price_cents": price, "qty": ci.qty})
+        ogs = prod.get("option_groups", []) or []
+        sel = ci.selected_option_ids or []
+        sel_err = validate_selection(ogs, sel)
+        if sel_err:
+            raise HTTPException(400, {"code": sel_err, "product_id": ci.product_id})
+        unit_price, selected_detail = price_with_options(price, ogs, sel)
+        line = {"product_id": ci.product_id, "variant_label": ci.variant_label,
+                "name": prod.get("name"), "price_cents": unit_price, "qty": ci.qty,
+                "selected_options": selected_detail}
+        if ci.apply_entitlement_id and user:
+            ev = await evaluate_line_entitlement(
+                db, user, g.business_id, item_id=ci.product_id, category=prod.get("category"),
+                base_cents=price, option_groups=ogs, selected_option_ids=sel,
+                apply_entitlement_id=ci.apply_entitlement_id, has_coupon=has_coupon)
+            if not ev.get("applicable"):
+                detail = {"code": ev.get("error", "entitlement_not_applicable"),
+                          "product_id": ci.product_id}
+                if ev.get("max_upcharge_cents") is not None:
+                    detail["max_upcharge_cents"] = ev["max_upcharge_cents"]
+                raise HTTPException(400, detail)
+            ent, mem = ev["entitlement"], ev["membership"]
+            entitlement_discount += int(ev["discount_cents"])
+            line["entitlement_id"] = ci.apply_entitlement_id
+            line["entitlement_discount_cents"] = int(ev["discount_cents"])
+            applied_entitlements.append({
+                "entitlement_id": ci.apply_entitlement_id, "membership_id": mem["membership_id"],
+                "item_id": ci.product_id, "base_value_cents": int(ev["discount_cents"]),
+                "upcharge_cents": int(ev.get("charged_upcharge_cents", 0)),
+                "reset_frequency": ent.get("reset_frequency", "monthly"), "label": ent.get("label")})
+        subtotal += unit_price * ci.qty
+        line_items.append(line)
     if subtotal <= 0:
         raise HTTPException(400, {"code": "zero_total", "business_id": g.business_id})
 
@@ -528,10 +563,11 @@ async def _price_group(db, user, g: CartGroup, use_gift: bool = True,
         free_over = int(delivery_cfg.get("free_over_cents", 0))
         delivery_fee = 0 if (free_over > 0 and subtotal >= free_over) else fee
 
-    gross = subtotal + delivery_fee
+    after_entitlement = max(0, subtotal - entitlement_discount)
+    gross = after_entitlement + delivery_fee
     coupon_discount, coupon_doc, coupon_error = await compute_coupon_discount(
         db, business_id=g.business_id, code=g.coupon_code,
-        user_id=user.get("user_id") if user else None, base_cents=subtotal)
+        user_id=user.get("user_id") if user else None, base_cents=after_entitlement)
     after_coupon = gross - coupon_discount
     gift_card = await _pick_gift_card(db, user, g.business_id) if user else None
     gift_available = int(gift_card.get("balance_cents", 0)) if gift_card else 0
@@ -544,8 +580,10 @@ async def _price_group(db, user, g: CartGroup, use_gift: bool = True,
     used_points = max(0, min(int(redeem_points or 0), max_redeemable))
     points_discount = _points_to_cents(used_points)
     total = after_gift - points_discount
-    points = int(points_for_order(profile, subtotal).get("points", 0))
+    points = int(points_for_order(profile, after_entitlement).get("points", 0))
     return {"profile": profile, "line_items": line_items, "subtotal": subtotal,
+            "entitlement_discount": entitlement_discount,
+            "applied_entitlements": applied_entitlements,
             "delivery_fee": delivery_fee, "gift_available": gift_available,
             "gift_applied": gift_applied, "gift_card_id": gift_card_id,
             "coupon_discount": coupon_discount, "coupon_error": coupon_error,
@@ -577,6 +615,8 @@ async def cart_quote(body: CartQuoteBody, request: Request, user: dict = Depends
             "gift_available_cents": pr["gift_available"], "gift_applied_cents": pr["gift_applied"],
             "coupon_discount_cents": pr["coupon_discount"], "coupon_error": pr["coupon_error"],
             "coupon_code": pr["coupon_code"],
+            "entitlement_discount_cents": pr.get("entitlement_discount", 0),
+            "applied_entitlements": pr.get("applied_entitlements", []),
             "max_redeemable_points": pr["max_redeemable_points"],
             "redeemed_points": pr["redeemed_points"],
             "points_discount_cents": pr["points_discount_cents"],
@@ -616,6 +656,13 @@ async def _record_po_coupon(db, order: Dict[str, Any]) -> None:
     order["coupon_recorded_done"] = True
 
 
+async def _record_po_entitlements(db, order: Dict[str, Any]) -> None:
+    """Write immutable ledger rows for entitlements applied on a product order."""
+    from services.membership_entitlements import record_order_entitlements
+    await record_order_entitlements(db, order, "product_orders")
+
+
+
 @consumer_router.post("/cart/checkout")
 async def cart_checkout(body: CartCheckoutBody, request: Request,
                         user: dict = Depends(current_user)):
@@ -647,6 +694,9 @@ async def cart_checkout(body: CartCheckoutBody, request: Request,
                  "gift_card_id": pr["gift_card_id"],
                  "coupon_id": pr["coupon_id"], "coupon_code": pr["coupon_code"],
                  "coupon_discount_cents": pr["coupon_discount"], "coupon_recorded_done": False,
+                 "entitlement_discount_cents": pr.get("entitlement_discount", 0),
+                 "applied_entitlements": pr.get("applied_entitlements", []),
+                 "entitlements_recorded_done": False,
                  "redeemed_points": pr["redeemed_points"],
                  "points_discount_cents": pr["points_discount_cents"],
                  "points_redeemed_done": False, "total_cents": pr["total"],
@@ -718,12 +768,14 @@ async def cart_checkout(body: CartCheckoutBody, request: Request,
             await _settle_free(order, pr)
             await _redeem_product_points(db, user, order)
             await _record_po_coupon(db, order)
+            await _record_po_entitlements(db, order)
             order.update({"status": "paid", "payment_status": "paid",
                           "status_history": [{"status": "paid", "at": now()}]})
         elif one_tap_paid:
             await _settle_free(order, pr)  # deduct gift + decrement stock
             await _redeem_product_points(db, user, order)
             await _record_po_coupon(db, order)
+            await _record_po_entitlements(db, order)
             order.update({"status": "paid", "payment_status": "paid",
                           "payment_intent_id": payment_intent_id,
                           "status_history": [{"status": "paid", "at": now()}]})
@@ -783,6 +835,7 @@ async def product_order_status(order_id: str, request: Request, user: dict = Dep
                          "$push": {"status_history": {"status": "paid", "at": now()}}})
                     await _redeem_product_points(db, user, o)
                     await _record_po_coupon(db, o)
+                    await _record_po_entitlements(db, o)
                     await notify_merchant_new_order(
                         db, business_id=o["business_id"], order_id=order_id,
                         kind="product", total_cents=int(o.get("total_cents", 0) or 0))

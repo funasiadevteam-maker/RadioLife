@@ -284,6 +284,154 @@ async def reverse_redemption(db, ledger_id: str, *, reason: str = "reversed") ->
     return True
 
 
+# ───────────── Checkout-time entitlement engine (Phase 3) ─────────────
+def entitlement_covers_item(ent: Dict[str, Any], *, item_id: str,
+                            category: Optional[str]) -> bool:
+    if not ent.get("active", True):
+        return False
+    tt = ent.get("target_type", "any")
+    if tt == "any":
+        return True
+    if tt in ("item", "product"):
+        return item_id in (ent.get("target_ids") or [])
+    if tt == "category":
+        c = (ent.get("category") or "").strip().lower()
+        return bool(c) and c == (category or "").strip().lower()
+    return False
+
+
+async def find_active_membership(db, user: Dict[str, Any], business_id: str,
+                                 entitlement_id: str):
+    """The caller's active membership at this business whose plan holds the
+    given entitlement (honours gifted-by-email ownership)."""
+    uid = user.get("user_id")
+    email = (user.get("email") or "").lower().strip()
+    ors: List[Dict[str, Any]] = [{"user_id": uid}]
+    if email:
+        ors.append({"gifted_to_email": email})
+    async for m in db.memberships.find(
+            {"business_id": business_id, "status": "active", "$or": ors}):
+        plan = await db.membership_plans.find_one({"plan_id": m["plan_id"]})
+        ent = next((e for e in (plan or {}).get("entitlements", [])
+                    if e.get("entitlement_id") == entitlement_id), None)
+        if ent:
+            return m, ent
+    return None, None
+
+
+async def evaluate_line_entitlement(db, user: Optional[Dict[str, Any]], business_id: str, *,
+                                    item_id: str, category: Optional[str], base_cents: int,
+                                    option_groups: List[Dict[str, Any]],
+                                    selected_option_ids: List[str],
+                                    apply_entitlement_id: Optional[str],
+                                    has_coupon: bool = False) -> Dict[str, Any]:
+    """Validate + price one line's entitlement application. The entitlement
+    waives the item's BASE price plus the deltas of any `included_option_ids`;
+    the customer still pays for other selected upgrades (e.g. +$4 Large).
+    Applies to ONE unit of the line."""
+    if not apply_entitlement_id or not user:
+        return {"applicable": False, "discount_cents": 0}
+    m, ent = await find_active_membership(db, user, business_id, apply_entitlement_id)
+    if not ent:
+        return {"applicable": False, "discount_cents": 0, "error": "entitlement_not_found"}
+    if not entitlement_covers_item(ent, item_id=item_id, category=category):
+        return {"applicable": False, "discount_cents": 0, "error": "entitlement_not_eligible"}
+    if not day_time_allows(ent.get("day_time")):
+        return {"applicable": False, "discount_cents": 0, "error": "outside_time_window"}
+    if has_coupon and not ent.get("stackable", False):
+        return {"applicable": False, "discount_cents": 0, "error": "entitlement_not_stackable"}
+    rem = await entitlement_remaining(db, m, ent)
+    if rem["remaining"] <= 0:
+        return {"applicable": False, "discount_cents": 0, "error": "entitlement_exhausted"}
+    included = set(ent.get("included_option_ids") or [])
+    selected = set(selected_option_ids or [])
+    waived = int(base_cents)
+    charged_upcharge = 0
+    for g in option_groups or []:
+        for o in g.get("options", []):
+            if o.get("option_id") in selected:
+                d = int(o.get("price_delta_cents", 0))
+                if o.get("option_id") in included:
+                    waived += d
+                else:
+                    charged_upcharge += d
+    cap = ent.get("max_upcharge_cents")
+    if cap is not None and charged_upcharge > int(cap):
+        return {"applicable": False, "discount_cents": 0,
+                "error": "upcharge_exceeds_cap", "max_upcharge_cents": int(cap)}
+    return {"applicable": True, "discount_cents": max(0, waived),
+            "entitlement": ent, "membership": m,
+            "charged_upcharge_cents": charged_upcharge}
+
+
+async def record_order_entitlements(db, order: Dict[str, Any],
+                                    collection: str = "marketplace_orders") -> None:
+    """Write immutable ledger rows for entitlements applied on an order
+    (idempotent per order+entitlement+item)."""
+    if order.get("entitlements_recorded_done") or not order.get("applied_entitlements"):
+        return
+    for ae in order.get("applied_entitlements", []):
+        exists = await db.membership_redemption_ledger.find_one(
+            {"order_id": order["order_id"], "entitlement_id": ae["entitlement_id"],
+             "target_ref": ae.get("item_id")})
+        if exists:
+            continue
+        m = await db.memberships.find_one({"membership_id": ae["membership_id"]})
+        if not m:
+            continue
+        ent = {"entitlement_id": ae["entitlement_id"],
+               "reset_frequency": ae.get("reset_frequency", "monthly"),
+               "label": ae.get("label")}
+        await record_redemption(
+            db, m, ent, order_id=order["order_id"], qty=1,
+            base_value_cents=int(ae.get("base_value_cents", 0)),
+            upcharge_cents=int(ae.get("upcharge_cents", 0)),
+            target_ref=ae.get("item_id"), source="order")
+    await getattr(db, collection).update_one(
+        {"order_id": order["order_id"]}, {"$set": {"entitlements_recorded_done": True}})
+
+
+async def resolve_eligible_items(db, business_id: str, ent: Dict[str, Any],
+                                 limit: int = 12) -> List[Dict[str, Any]]:
+    """Concrete menu items / products an entitlement redeems against — powers
+    the checkout 'apply' picker + the wallet order-from-wallet flow."""
+    tt = ent.get("target_type", "any")
+    out: List[Dict[str, Any]] = []
+
+    def _menu(it):
+        return {"kind": "menu", "id": it["item_id"], "name": it.get("name"),
+                "price_cents": int(it.get("price_cents", 0)),
+                "image_url": it.get("image_url"),
+                "option_groups": it.get("option_groups", [])}
+
+    def _prod(p):
+        return {"kind": "product", "id": p["product_id"], "name": p.get("name"),
+                "price_cents": int(p.get("price_cents", 0)),
+                "image_url": p.get("image_url"),
+                "option_groups": p.get("option_groups", [])}
+
+    if tt in ("item", "product"):
+        ids = ent.get("target_ids") or []
+        async for it in db.menu_items.find({"business_id": business_id, "item_id": {"$in": ids}, "available": True}):
+            out.append(_menu(it))
+        async for p in db.products.find({"business_id": business_id, "product_id": {"$in": ids}, "active": True}):
+            out.append(_prod(p))
+    elif tt == "category":
+        cat = (ent.get("category") or "").strip()
+        async for it in db.menu_items.find({"business_id": business_id, "section": cat, "available": True}).limit(limit):
+            out.append(_menu(it))
+        async for p in db.products.find({"business_id": business_id, "category": cat, "active": True}).limit(limit):
+            out.append(_prod(p))
+    else:  # any
+        async for it in db.menu_items.find({"business_id": business_id, "available": True}).limit(limit):
+            out.append(_menu(it))
+        if not out:
+            async for p in db.products.find({"business_id": business_id, "active": True}).limit(limit):
+                out.append(_prod(p))
+    return out[:limit]
+
+
+
 # ───────────────────── Indexes + migration ─────────────────────
 async def ensure_membership_indexes(db) -> None:
     await db.membership_plans.create_index("plan_id", unique=True)
@@ -354,5 +502,7 @@ __all__ = [
     "DayTimeRule", "EntitlementModel", "normalize_entitlements",
     "period_key", "day_time_allows", "entitlement_remaining",
     "record_redemption", "reverse_redemption",
+    "entitlement_covers_item", "find_active_membership", "evaluate_line_entitlement",
+    "record_order_entitlements", "resolve_eligible_items",
     "ensure_membership_indexes", "migrate_memberships_v2",
 ]

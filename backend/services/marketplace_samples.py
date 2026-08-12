@@ -71,21 +71,30 @@ async def _upsert_profile(db, b: Dict[str, Any], market: str) -> None:
 
 
 async def _upsert_menu(db, biz_id: str, items: List[Dict[str, Any]]) -> None:
+    from services.membership_entitlements import OptionGroupModel, normalize_option_groups
     for i, it in enumerate(items):
         item_id = f"mi_{biz_id}_{i}"
+        ogs = normalize_option_groups([OptionGroupModel(**g) for g in it.get("option_groups", [])])
         await db.menu_items.update_one(
             {"item_id": item_id},
             {"$set": {"business_id": biz_id, "section": it["section"], "name": it["name"],
                       "description": it["description"], "price_cents": it["price_cents"],
                       "image_url": it.get("image_url"), "bigpoints": None,
+                      "option_groups": ogs,
                       "available": True, "sort": i, "updated_at": now()},
              "$setOnInsert": {"item_id": item_id, "created_at": now()}}, upsert=True)
 
 
 async def _upsert_membership(db, biz_id: str, sponsor: str, key: str, plan: Dict[str, Any]) -> None:
     plan_id = f"mplan_sample_{biz_id}_{key}"
-    from services.membership_entitlements import _legacy_entitlement_to_v2
-    ents = [_legacy_entitlement_to_v2(e) for e in plan.get("entitlements", [])]
+    from services.membership_entitlements import (
+        _legacy_entitlement_to_v2, EntitlementModel, normalize_entitlements)
+    ents = []
+    for e in plan.get("entitlements", []):
+        if "target_type" in e:  # already a v2 entitlement spec
+            ents.append(normalize_entitlements([EntitlementModel(**e)])[0])
+        else:
+            ents.append(_legacy_entitlement_to_v2(e))
     await db.membership_plans.update_one(
         {"plan_id": plan_id},
         {"$set": {"business_id": biz_id, "sponsor_name": sponsor, "name": plan["name"],
@@ -130,21 +139,37 @@ async def seed_sample_storefronts(db, market: str = "Dubai") -> Dict[str, Any]:
         "city": "Frisco, TX", "address": "15900 State Hwy 121, Suite 100",
     }
     await _upsert_profile(db, fpk, market)
+    PIZZA_OPTS = [
+        {"group_id": "grp_pizza_size", "name": "Size", "type": "size", "required": True,
+         "min_select": 1, "max_select": 1, "options": [
+             {"option_id": "opt_size_medium", "label": "Medium", "price_delta_cents": 0, "is_default": True},
+             {"option_id": "opt_size_large", "label": "Large", "price_delta_cents": 400}]},
+        {"group_id": "grp_pizza_top", "name": "Extra Toppings", "type": "multi", "required": False,
+         "min_select": 0, "max_select": 3, "options": [
+             {"option_id": "opt_top_cheese", "label": "Extra Cheese", "price_delta_cents": 200},
+             {"option_id": "opt_top_mush", "label": "Mushrooms", "price_delta_cents": 150},
+             {"option_id": "opt_top_jala", "label": "Jalapeños", "price_delta_cents": 100}]},
+    ]
     await _upsert_menu(db, fpk["id"], [
-        {"section": "Pizzas", "name": "Mac & Cheese Pizza", "description": "Creamy mac & cheese on a golden crust.", "price_cents": 1799, "image_url": PIZZA_A},
-        {"section": "Pizzas", "name": "Tandoori Chicken Pizza", "description": "Spiced tandoori chicken, onions & cilantro.", "price_cents": 1899, "image_url": PIZZA_B},
-        {"section": "Pizzas", "name": "Fun Chicken Pizza", "description": "House-favourite chicken, peppers & onions.", "price_cents": 1799, "image_url": PIZZA_C},
-        {"section": "Pizzas", "name": "Achari Paneer Pizza", "description": "Tangy achari paneer, olives & jalapeños.", "price_cents": 1699, "image_url": PIZZA_A},
+        {"section": "Pizzas", "name": "Mac & Cheese Pizza", "description": "Creamy mac & cheese on a golden crust.", "price_cents": 1799, "image_url": PIZZA_A, "option_groups": PIZZA_OPTS},
+        {"section": "Pizzas", "name": "Tandoori Chicken Pizza", "description": "Spiced tandoori chicken, onions & cilantro.", "price_cents": 1899, "image_url": PIZZA_B, "option_groups": PIZZA_OPTS},
+        {"section": "Pizzas", "name": "Fun Chicken Pizza", "description": "House-favourite chicken, peppers & onions.", "price_cents": 1799, "image_url": PIZZA_C, "option_groups": PIZZA_OPTS},
+        {"section": "Pizzas", "name": "Achari Paneer Pizza", "description": "Tangy achari paneer, olives & jalapeños.", "price_cents": 1699, "image_url": PIZZA_A, "option_groups": PIZZA_OPTS},
         {"section": "Sides", "name": "Chilli Cheese Bread", "description": "Warm cheese bread with a spicy kick.", "price_cents": 899, "image_url": GARLIC_BREAD},
         {"section": "Dessert", "name": "Cheesecake", "description": "Rich, creamy New York-style cheesecake.", "price_cents": 799, "image_url": CHEESECAKE},
         {"section": "Coffee", "name": "Fresh Brewed Coffee", "description": "Hot, locally roasted drip coffee.", "price_cents": 349, "image_url": COFFEE_IMG},
         {"section": "Coffee", "name": "Iced Latte", "description": "Double-shot espresso over ice with milk.", "price_cents": 449, "image_url": COFFEE_IMG},
     ])
     await _upsert_membership(db, fpk["id"], fpk["public_name"], "pizza", {
-        "name": "Weekly Pizza Club", "interval": "month", "price_cents": 6000,
-        "description": "One pizza every week — pick any signature pie. Best value for pizza lovers.",
-        "entitlements": [{"benefit_id": "bnf_weekly_pizza", "label": "1 Pizza / week", "qty": 1, "period": "week",
-                          "options": ["Mac & Cheese Pizza", "Tandoori Chicken Pizza", "Fun Chicken Pizza", "Achari Paneer Pizza"]}],
+        "name": "Pizza Club", "interval": "month", "price_cents": 6000,
+        "description": "One free Medium pizza every day — upgrade to Large for $4, add toppings anytime.",
+        "entitlements": [{
+            "entitlement_id": "ent_free_pizza", "label": "Free Pizza (Medium)",
+            "target_type": "category", "category": "Pizzas",
+            "included_option_ids": ["opt_size_medium"],
+            "quantity": 1, "reset_frequency": "daily",
+            "rollover": False, "rollover_cap": 0, "stackable": False,
+            "max_upcharge_cents": 1000, "active": True}],
     })
     await _upsert_membership(db, fpk["id"], fpk["public_name"], "coffee", {
         "name": "Coffee Club", "interval": "month", "price_cents": 999,
@@ -292,6 +317,7 @@ async def seed_demo_user_fixtures(db) -> Dict[str, Any]:
         for key, plan_id, biz in (
             ("ambreens", "mplan_sample_biz_sample_ambreens_glam", "biz_sample_ambreens"),
             ("coffee", "mplan_sample_biz_sample_funpizza_coffee", "biz_sample_funpizza"),
+            ("pizza", "mplan_sample_biz_sample_funpizza_pizza", "biz_sample_funpizza"),
         ):
             mid = f"mbr_{tag.lower()}_{key}"
             await db.memberships.update_one(

@@ -17,7 +17,15 @@ const COUPON_ERR: Record<string, string> = {
   invalid_coupon: "Not valid for this shop.", expired: "This coupon has expired.",
   not_started: "Not active yet.", min_spend_not_met: "Minimum spend not met.",
   usage_exceeded: "Usage limit reached.", already_used: "You've already used this.",
+  entitlement_exhausted: "Membership perk used up for now.", outside_time_window: "Perk unavailable at this time.",
+  entitlement_not_eligible: "Membership doesn't cover an item.", entitlement_not_stackable: "Can't combine membership with a coupon.",
+  upcharge_exceeds_cap: "Upgrades exceed what the membership covers.",
 };
+const cartItemsPayload = (items: any[]) => items.map((i) => ({
+  item_id: i.item_id, qty: i.qty,
+  selected_option_ids: i.selected_option_ids || [],
+  apply_entitlement_id: i.apply_entitlement_id || undefined,
+}));
 
 export default function Cart() {
   const router = useRouter();
@@ -39,7 +47,7 @@ export default function Cart() {
     try {
       const r = await api.post('/shop/orders/quote', {
         business_id: cart.businessId,
-        items: cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })),
+        items: cartItemsPayload(cart.items),
         use_gift_card: gift,
         redeem_points: pts ? 10 ** 9 : 0, // server caps to max redeemable
         coupon_code: cpn || undefined,
@@ -63,7 +71,7 @@ export default function Cart() {
     try {
       const r = await api.post('/shop/orders/checkout', {
         business_id: cart.businessId,
-        items: cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })),
+        items: cartItemsPayload(cart.items),
         origin_url: process.env.EXPO_PUBLIC_BACKEND_URL,
         use_gift_card: useGift,
         redeem_points: usePoints && quote ? quote.max_redeemable_points : 0,
@@ -116,22 +124,32 @@ export default function Cart() {
           <ScrollView contentContainerStyle={{ padding: SPACING.md, paddingBottom: 200 }} testID="cart-root">
             <Text style={s.biz}>{cart.businessName}</Text>
             {cart.items.map((i) => (
-              <View key={i.item_id} style={s.row} testID={`cart-item-${i.item_id}`}>
+              <View key={i.line_id} style={s.row} testID={`cart-item-${i.item_id}`}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={s.name}>{i.name}</Text>
+                  {!!i.option_summary && <Text style={s.opts}>{i.option_summary}</Text>}
+                  {!!i.entitlement_label && <Text style={s.entLine}>♛ {i.entitlement_label}</Text>}
                   <Text style={s.price}>{money(i.price_cents)}</Text>
                 </View>
                 <View style={s.stepper}>
-                  <TouchableOpacity onPress={() => cart.dec(i.item_id)} testID={`cart-dec-${i.item_id}`} style={s.stepBtn}>
+                  <TouchableOpacity onPress={() => cart.dec(i.line_id)} testID={`cart-dec-${i.item_id}`} style={s.stepBtn}>
                     <Ionicons name="remove" size={18} color={COLORS.primary} />
                   </TouchableOpacity>
                   <Text style={s.qty}>{i.qty}</Text>
-                  <TouchableOpacity onPress={() => cart.inc(i.item_id)} testID={`cart-inc-${i.item_id}`} style={s.stepBtn}>
+                  <TouchableOpacity onPress={() => cart.inc(i.line_id)} testID={`cart-inc-${i.item_id}`} style={s.stepBtn}>
                     <Ionicons name="add" size={18} color={COLORS.primary} />
                   </TouchableOpacity>
                 </View>
               </View>
             ))}
+
+            {quote && quote.entitlement_discount_cents > 0 && (
+              <View style={s.entDiscRow} testID="cart-entitlement-discount">
+                <Ionicons name="ribbon" size={15} color={COLORS.primary} />
+                <Text style={s.entDiscText}>Membership</Text>
+                <Text style={s.entDiscVal}>−{money(quote.entitlement_discount_cents)}</Text>
+              </View>
+            )}
 
             {quote && quote.gift_available_cents > 0 && (
               <TouchableOpacity style={s.optRow} testID="cart-giftcard-toggle" onPress={() => setUseGift((v) => !v)}>
@@ -166,7 +184,7 @@ export default function Cart() {
               <Text style={s.couponErr} testID="cart-coupon-error">{COUPON_ERR[quote.coupon_error] || 'Coupon not valid'}</Text>
             )}
             {total > 0 && <SavedCardPicker selected={payCard} onSelect={setPayCard} />}
-            {!!error && <Text style={s.error} testID="cart-error">{error}</Text>}
+            {!!error && <Text style={s.error} testID="cart-error">{COUPON_ERR[error] || error}</Text>}
           </ScrollView>
 
           <View style={s.footer}>
@@ -193,7 +211,12 @@ const s = StyleSheet.create({
   biz: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', marginBottom: SPACING.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginBottom: 8 },
   name: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  opts: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
+  entLine: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '900', marginTop: 2 },
   price: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900', marginTop: 4 },
+  entDiscRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, padding: 12, marginTop: 10 },
+  entDiscText: { flex: 1, color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
+  entDiscVal: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 4 },
   stepBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.card, alignItems: 'center', justifyContent: 'center' },
   qty: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', minWidth: 16, textAlign: 'center' },

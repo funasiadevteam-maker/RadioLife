@@ -1,19 +1,39 @@
 import { create } from 'zustand';
 
-/* ── Single-merchant Shop cart (Marketplace Phase B) ──
-   MVP: one restaurant per order. Adding an item from a different business
-   replaces the cart (UI warns before switching). */
+/* ── Single-merchant Shop cart (Marketplace Phase B + entitlement engine) ──
+   One restaurant per order. Each line can carry option selections + an applied
+   membership entitlement, so the same item with different options is its own line. */
 
-export type CartItem = { item_id: string; name: string; price_cents: number; qty: number };
+export type CartItem = {
+  line_id: string;
+  item_id: string;
+  name: string;
+  price_cents: number; // unit price incl. selected options
+  qty: number;
+  selected_option_ids: string[];
+  option_summary?: string | null;
+  apply_entitlement_id?: string | null;
+  entitlement_label?: string | null;
+};
+
+const lineKey = (itemId: string, optionIds: string[], entId?: string | null) =>
+  `${itemId}::${[...(optionIds || [])].sort().join(',')}::${entId || ''}`;
+
+type LineInput = {
+  item_id: string; name: string; price_cents: number; qty?: number;
+  selected_option_ids?: string[]; option_summary?: string | null;
+  apply_entitlement_id?: string | null; entitlement_label?: string | null;
+};
 
 type CartState = {
   businessId: string | null;
   businessName: string | null;
   items: CartItem[];
+  addLine: (bizId: string, bizName: string, line: LineInput) => void;
   add: (bizId: string, bizName: string, item: { item_id: string; name: string; price_cents: number }) => void;
-  inc: (itemId: string) => void;
-  dec: (itemId: string) => void;
-  remove: (itemId: string) => void;
+  inc: (lineId: string) => void;
+  dec: (lineId: string) => void;
+  remove: (lineId: string) => void;
   clear: () => void;
   replaceWith: (bizId: string, bizName: string, items: { item_id: string; name: string; price_cents: number; qty?: number }[]) => void;
   count: () => number;
@@ -26,40 +46,40 @@ export const useCartStore = create<CartState>((set, get) => ({
   businessName: null,
   items: [],
   conflicts: (bizId) => !!get().businessId && get().businessId !== bizId && get().items.length > 0,
-  add: (bizId, bizName, item) => set((st) => {
-    let items = st.items;
-    let businessId = st.businessId;
-    let businessName = st.businessName;
-    if (businessId !== bizId) {
-      items = [];
-      businessId = bizId;
-      businessName = bizName;
-    }
-    const existing = items.find((i) => i.item_id === item.item_id);
-    if (existing) {
-      items = items.map((i) => i.item_id === item.item_id ? { ...i, qty: i.qty + 1 } : i);
-    } else {
-      items = [...items, { ...item, qty: 1 }];
-    }
+  addLine: (bizId, bizName, line) => set((st) => {
+    let { items, businessId, businessName } = st;
+    if (businessId !== bizId) { items = []; businessId = bizId; businessName = bizName; }
+    const lid = lineKey(line.item_id, line.selected_option_ids || [], line.apply_entitlement_id);
+    const ex = items.find((i) => i.line_id === lid);
+    items = ex
+      ? items.map((i) => (i.line_id === lid ? { ...i, qty: i.qty + (line.qty || 1) } : i))
+      : [...items, {
+          line_id: lid, item_id: line.item_id, name: line.name, price_cents: line.price_cents,
+          qty: line.qty || 1, selected_option_ids: line.selected_option_ids || [],
+          option_summary: line.option_summary || null,
+          apply_entitlement_id: line.apply_entitlement_id || null,
+          entitlement_label: line.entitlement_label || null,
+        }];
     return { items, businessId, businessName };
   }),
-  inc: (itemId) => set((st) => ({
-    items: st.items.map((i) => i.item_id === itemId ? { ...i, qty: i.qty + 1 } : i),
-  })),
-  dec: (itemId) => set((st) => {
-    const items = st.items
-      .map((i) => i.item_id === itemId ? { ...i, qty: i.qty - 1 } : i)
-      .filter((i) => i.qty > 0);
+  add: (bizId, bizName, item) => get().addLine(bizId, bizName, { ...item, selected_option_ids: [] }),
+  inc: (lineId) => set((st) => ({ items: st.items.map((i) => (i.line_id === lineId ? { ...i, qty: i.qty + 1 } : i)) })),
+  dec: (lineId) => set((st) => {
+    const items = st.items.map((i) => (i.line_id === lineId ? { ...i, qty: i.qty - 1 } : i)).filter((i) => i.qty > 0);
     return items.length ? { items } : { items: [], businessId: null, businessName: null };
   }),
-  remove: (itemId) => set((st) => {
-    const items = st.items.filter((i) => i.item_id !== itemId);
+  remove: (lineId) => set((st) => {
+    const items = st.items.filter((i) => i.line_id !== lineId);
     return items.length ? { items } : { items: [], businessId: null, businessName: null };
   }),
   clear: () => set({ items: [], businessId: null, businessName: null }),
   replaceWith: (bizId, bizName, items) => set({
     businessId: bizId, businessName: bizName,
-    items: (items || []).map((i) => ({ item_id: i.item_id, name: i.name, price_cents: i.price_cents, qty: i.qty || 1 })),
+    items: (items || []).map((i) => ({
+      line_id: lineKey(i.item_id, [], null), item_id: i.item_id, name: i.name,
+      price_cents: i.price_cents, qty: i.qty || 1, selected_option_ids: [],
+      option_summary: null, apply_entitlement_id: null, entitlement_label: null,
+    })),
   }),
   count: () => get().items.reduce((n, i) => n + i.qty, 0),
   subtotal: () => get().items.reduce((n, i) => n + i.price_cents * i.qty, 0),

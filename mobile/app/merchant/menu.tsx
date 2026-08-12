@@ -12,6 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 import { uriToBase64 } from '../../src/utils/fileToBase64';
+import OptionGroupsEditor from '../../src/components/OptionGroupsEditor';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 const absUrl = (u?: string | null) => (!u ? null : u.startsWith('http') ? u : `${process.env.EXPO_PUBLIC_BACKEND_URL}${u}`);
@@ -21,6 +22,7 @@ export default function MenuBuilder() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ section: '', name: '', description: '', price: '' });
+  const [optionGroups, setOptionGroups] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [importUrl, setImportUrl] = useState('');
@@ -36,7 +38,7 @@ export default function MenuBuilder() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const reset = () => { setForm({ section: '', name: '', description: '', price: '' }); setEditingId(null); };
+  const reset = () => { setForm({ section: '', name: '', description: '', price: '' }); setOptionGroups([]); setEditingId(null); };
 
   const save = async () => {
     if (!form.name.trim() || !form.price) return;
@@ -44,7 +46,9 @@ export default function MenuBuilder() {
     const body = {
       section: form.section.trim() || 'Menu', name: form.name.trim(),
       description: form.description.trim() || null,
-      price_cents: Math.round((parseFloat(form.price) || 0) * 100), available: true,
+      price_cents: Math.round((parseFloat(form.price) || 0) * 100),
+      option_groups: optionGroups.filter((g) => g.name.trim() && g.options.some((o: any) => o.label.trim())),
+      available: true,
     };
     try {
       if (editingId) await api.patch(`/merchant/marketplace/menu/items/${editingId}`, body);
@@ -58,6 +62,7 @@ export default function MenuBuilder() {
     setEditingId(it.item_id);
     setForm({ section: it.section || '', name: it.name || '', description: it.description || '',
       price: ((it.price_cents || 0) / 100).toString() });
+    setOptionGroups(it.option_groups || []);
   };
 
   const del = async (id: string) => {
@@ -213,6 +218,7 @@ export default function MenuBuilder() {
               placeholder="Description (optional)" placeholderTextColor={COLORS.textMuted} testID="item-desc" />
             <TextInput style={s.input} value={form.price} onChangeText={(v) => setForm({ ...form, price: v })}
               keyboardType="decimal-pad" placeholder="Price (e.g. 12.50)" placeholderTextColor={COLORS.textMuted} testID="item-price" />
+            <OptionGroupsEditor value={optionGroups} onChange={setOptionGroups} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
               {editingId && (
                 <TouchableOpacity style={[common.btnGhost, { flex: 1 }]} onPress={reset} testID="item-cancel">

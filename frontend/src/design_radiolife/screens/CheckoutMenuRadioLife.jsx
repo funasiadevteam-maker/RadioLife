@@ -3,20 +3,26 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag, Tag } from "lucide-react";
+import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag, Tag, Crown } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const BRAND = { visa: "Visa", mastercard: "Mastercard", amex: "Amex", discover: "Discover" };
-const COUPON_ERR = {
+const ERR = {
   invalid_coupon: "That code isn't valid for this shop.",
   expired: "This coupon has expired.",
   not_started: "This coupon isn't active yet.",
   min_spend_not_met: "Your order doesn't meet this coupon's minimum spend.",
   usage_exceeded: "This coupon has reached its usage limit.",
   already_used: "You've already used this coupon.",
+  entitlement_exhausted: "You've used this membership perk for now — it'll reset soon.",
+  outside_time_window: "This membership perk isn't available at this time.",
+  entitlement_not_eligible: "This membership doesn't cover one of your items.",
+  entitlement_not_stackable: "This membership can't be combined with a coupon.",
+  upcharge_exceeds_cap: "Your upgrades exceed what the membership covers.",
 };
+const COUPON_ERR = ERR;
 
 export default function CheckoutMenuRadioLife() {
   const navigate = useNavigate();
@@ -40,7 +46,11 @@ export default function CheckoutMenuRadioLife() {
   }, []);
 
   const items = useMemo(
-    () => cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })), [cart.items]);
+    () => cart.items.map((i) => ({
+      item_id: i.item_id, qty: i.qty,
+      selected_option_ids: i.selected_option_ids || [],
+      apply_entitlement_id: i.apply_entitlement_id || undefined,
+    })), [cart.items]);
 
   const refresh = useCallback(async (rp, cpn = coupon) => {
     if (!cart.businessId || !items.length) return;
@@ -110,14 +120,24 @@ export default function CheckoutMenuRadioLife() {
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <div className="font-black text-slate-900 mb-2">{cart.businessName}</div>
           {cart.items.map((i) => (
-            <div key={i.item_id} className="flex justify-between text-sm text-slate-600 py-0.5">
-              <span>{i.qty}× {i.name}</span><span className="font-bold text-slate-900">{money(i.price_cents * i.qty)}</span>
+            <div key={i.line_id} className="py-0.5">
+              <div className="flex justify-between text-sm text-slate-600">
+                <span>{i.qty}× {i.name}</span><span className="font-bold text-slate-900">{money(i.price_cents * i.qty)}</span>
+              </div>
+              {i.option_summary && <div className="text-[11px] text-slate-400 ml-4">{i.option_summary}</div>}
+              {i.entitlement_label && <div className="text-[11px] font-bold text-orange-600 ml-4 flex items-center gap-1"><Crown size={10} />{i.entitlement_label}</div>}
             </div>
           ))}
           <div className="border-t border-slate-100 mt-2 pt-2 flex justify-between text-sm">
             <span className="text-slate-500">Subtotal</span>
             <span className="font-black text-slate-900">{money(quote ? quote.subtotal_cents : cart.subtotal())}</span>
           </div>
+          {quote && quote.entitlement_discount_cents > 0 && (
+            <div className="flex justify-between text-sm mt-1" data-testid="checkout-entitlement-discount">
+              <span className="text-orange-600 font-bold flex items-center gap-1"><Crown size={12} />Membership</span>
+              <span className="font-black text-orange-600">−{money(quote.entitlement_discount_cents)}</span>
+            </div>
+          )}
         </div>
 
         {/* Gift card */}
@@ -216,7 +236,7 @@ export default function CheckoutMenuRadioLife() {
           </div>
         )}
 
-        {error && <div className="text-rose-600 text-sm font-semibold" data-testid="checkout-error">{error}</div>}
+        {error && <div className="text-rose-600 text-sm font-semibold" data-testid="checkout-error">{ERR[error] || error}</div>}
 
         <button onClick={pay} disabled={busy} data-testid="checkout-pay"
           className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-4 disabled:opacity-60">

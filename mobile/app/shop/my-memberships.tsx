@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
@@ -31,16 +32,21 @@ export default function MyMemberships() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const entId = (b: any) => b.entitlement_id || b.benefit_id;
   const claim = async (m: any, b: any) => {
-    if (b.options?.length && !pick[b.benefit_id]) { setFlash({ id: b.benefit_id, msg: 'Pick an option first' }); return; }
-    setBusy(b.benefit_id); setFlash(null);
+    const eid = entId(b);
+    if (b.options?.length && !pick[eid]) { setFlash({ id: eid, msg: 'Pick an option first' }); return; }
+    setBusy(eid); setFlash(null);
     try {
-      await api.post(`/shop/memberships/${m.membership_id}/claim`, { benefit_id: b.benefit_id, option: pick[b.benefit_id] || null });
+      await api.post(`/shop/memberships/${m.membership_id}/claim`, { entitlement_id: eid, option: pick[eid] || null });
       await load();
-      setFlash({ id: b.benefit_id, msg: 'Claimed! 🎉' });
+      setFlash({ id: eid, msg: 'Claimed! 🎉' });
     } catch (e: any) {
-      setFlash({ id: b.benefit_id, msg: e?.response?.data?.detail?.code === 'limit_reached' ? 'Limit reached this period' : 'Could not claim' });
+      setFlash({ id: eid, msg: e?.response?.data?.detail?.code === 'limit_reached' ? 'Limit reached this period' : 'Could not claim' });
     } finally { setBusy(null); }
+  };
+  const orderItem = (m: any, b: any, it: any) => {
+    router.push(`/shop/menu/${m.business_id}?item=${it.id}&apply_entitlement=${entId(b)}` as any);
   };
 
   if (loading) return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -81,33 +87,53 @@ export default function MyMemberships() {
 
             {(m.benefits || []).map((b: any) => {
               const out = b.remaining <= 0;
+              const eid = entId(b);
+              const orderable = ['item', 'product', 'category'].includes(b.target_type) && (b.eligible_items || []).length > 0;
               return (
-                <View key={b.benefit_id} style={s.benefit} testID={`mymem-benefit-${b.benefit_id}`}>
+                <View key={eid} style={s.benefit} testID={`mymem-benefit-${eid}`}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={s.bLabel} numberOfLines={1}>{b.label}</Text>
-                      <Text style={s.bMeta}>{b.remaining} of {b.qty} left this {b.period}</Text>
+                      <Text style={s.bMeta}>{b.remaining} of {b.qty} left this {b.period}{b.available_now === false ? ' · off-hours' : ''}</Text>
                     </View>
-                    <TouchableOpacity
-                      style={[s.claimBtn, out && s.claimBtnOut]}
-                      disabled={out || busy === b.benefit_id}
-                      onPress={() => claim(m, b)}
-                      testID={`mymem-claim-${b.benefit_id}`}>
-                      {busy === b.benefit_id ? <ActivityIndicator color="#fff" size="small" />
-                        : <Text style={[s.claimText, out && { color: COLORS.textMuted }]}>{out ? 'Used' : 'Claim'}</Text>}
-                    </TouchableOpacity>
+                    {!orderable && (
+                      <TouchableOpacity
+                        style={[s.claimBtn, out && s.claimBtnOut]}
+                        disabled={out || busy === eid}
+                        onPress={() => claim(m, b)}
+                        testID={`mymem-claim-${eid}`}>
+                        {busy === eid ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={[s.claimText, out && { color: COLORS.textMuted }]}>{out ? 'Used' : 'Claim'}</Text>}
+                      </TouchableOpacity>
+                    )}
                   </View>
-                  {b.options?.length > 0 && !out && (
+
+                  {orderable && !out && (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={s.orderHint}>ORDER WITH THIS MEMBERSHIP</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} testID={`mymem-order-row-${eid}`}>
+                        {b.eligible_items.map((it: any) => (
+                          <TouchableOpacity key={it.id} style={s.orderCard} onPress={() => orderItem(m, b, it)} testID={`mymem-order-${eid}-${it.id}`}>
+                            {!!it.image_url && <Image source={{ uri: it.image_url }} style={s.orderImg} contentFit="cover" />}
+                            <Text style={s.orderName} numberOfLines={2}>{it.name}</Text>
+                            <View style={s.orderCta}><Ionicons name="bag-add" size={11} color={COLORS.primary} /><Text style={s.orderCtaText}>Order</Text></View>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {b.options?.length > 0 && !orderable && !out && (
                     <View style={s.optRow}>
                       {b.options.map((o: string) => (
-                        <TouchableOpacity key={o} onPress={() => setPick((p) => ({ ...p, [b.benefit_id]: o }))}
-                          style={[s.opt, pick[b.benefit_id] === o && s.optOn]} testID={`mymem-opt-${b.benefit_id}-${o}`}>
-                          <Text style={[s.optText, pick[b.benefit_id] === o && { color: '#fff' }]}>{o}</Text>
+                        <TouchableOpacity key={o} onPress={() => setPick((p) => ({ ...p, [eid]: o }))}
+                          style={[s.opt, pick[eid] === o && s.optOn]} testID={`mymem-opt-${eid}-${o}`}>
+                          <Text style={[s.optText, pick[eid] === o && { color: '#fff' }]}>{o}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                   )}
-                  {flash?.id === b.benefit_id && <Text style={s.flash}>{flash.msg}</Text>}
+                  {flash?.id === eid && <Text style={s.flash}>{flash.msg}</Text>}
                 </View>
               );
             })}
@@ -136,6 +162,12 @@ const s = StyleSheet.create({
   claimBtnOut: { backgroundColor: COLORS.surfaceBorder },
   claimText: { color: '#fff', fontWeight: '900', fontSize: FONT.sm },
   optRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  orderHint: { color: COLORS.textMuted, fontSize: 10, fontWeight: '900', marginBottom: 6 },
+  orderCard: { width: 108, marginRight: 8, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, overflow: 'hidden', padding: 0 },
+  orderImg: { width: '100%', height: 64, backgroundColor: COLORS.inputBg },
+  orderName: { color: COLORS.text, fontSize: 11, fontWeight: '800', paddingHorizontal: 8, paddingTop: 6, lineHeight: 14 },
+  orderCta: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 6 },
+  orderCtaText: { color: COLORS.primary, fontSize: 10, fontWeight: '900' },
   opt: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
   optOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   optText: { color: COLORS.textDim, fontSize: 11, fontWeight: '800' },

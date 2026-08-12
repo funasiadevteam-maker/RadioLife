@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ChevronLeft, Pencil, Trash2, Image as ImageIcon, Sparkles, Camera, ArrowRight, CheckCircle2 } from "lucide-react";
 import { API } from "@/AuthContext";
+import OptionGroupsEditor from "../OptionGroupsEditor";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const NEXT = { paid: { label: "Mark Packed", status: "packed" }, packed: { label: "Mark Shipped", status: "shipped" }, shipped: { label: "Mark Delivered", status: "delivered" } };
@@ -28,6 +29,7 @@ export default function MerchantProductsRadioLife() {
   const [delivery, setDelivery] = useState({ pickup: true, delivery: false, fee_cents: 0, free_over_cents: 0 });
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: "", description: "", category: "", price: "", stock: "", variants: "", points: "" });
+  const [optionGroups, setOptionGroups] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(null);
@@ -46,21 +48,22 @@ export default function MerchantProductsRadioLife() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const reset = () => { setForm({ name: "", description: "", category: "", price: "", stock: "", variants: "", points: "" }); setEditingId(null); };
+  const reset = () => { setForm({ name: "", description: "", category: "", price: "", stock: "", variants: "", points: "" }); setOptionGroups([]); setEditingId(null); };
   const save = async () => {
     if (!form.name.trim() || !form.price) return;
     setSaving(true);
     const variants = parseVariants(form.variants);
     const body = { name: form.name.trim(), description: form.description.trim() || null, category: form.category.trim() || "Products",
       price_cents: Math.round((parseFloat(form.price) || 0) * 100), stock: variants.length ? 0 : (parseInt(form.stock, 10) || 0),
-      variants, bigpoints: form.points ? parseInt(form.points, 10) : null, active: true };
+      variants, option_groups: optionGroups.filter((g) => g.name.trim() && g.options.some((o) => o.label.trim())),
+      bigpoints: form.points ? parseInt(form.points, 10) : null, active: true };
     try {
       if (editingId) await axios.patch(`${API}/merchant/marketplace/products/items/${editingId}`, body);
       else await axios.post(`${API}/merchant/marketplace/products/items`, body);
       reset(); load();
     } catch { /* ignore */ } finally { setSaving(false); }
   };
-  const edit = (p) => { setEditingId(p.product_id); setForm({ name: p.name || "", description: p.description || "", category: p.category || "", price: ((p.price_cents || 0) / 100).toString(), stock: String(p.stock || 0), variants: variantsStr(p.variants), points: p.bigpoints != null ? String(p.bigpoints) : "" }); };
+  const edit = (p) => { setEditingId(p.product_id); setForm({ name: p.name || "", description: p.description || "", category: p.category || "", price: ((p.price_cents || 0) / 100).toString(), stock: String(p.stock || 0), variants: variantsStr(p.variants), points: p.bigpoints != null ? String(p.bigpoints) : "" }); setOptionGroups(p.option_groups || []); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const del = async (id) => { try { await axios.delete(`${API}/merchant/marketplace/products/items/${id}`); load(); } catch { /* ignore */ } };
   const saveDelivery = async (patch) => { const nd = { ...delivery, ...patch }; setDelivery(nd); try { await axios.patch(`${API}/merchant/marketplace/products/delivery`, nd); } catch { /* ignore */ } };
 
@@ -120,6 +123,7 @@ export default function MerchantProductsRadioLife() {
           <Input value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} placeholder="Stock (if no variants)" data-testid="mprod-stock" />
           <Input value={form.variants} onChange={(e) => setForm({ ...form, variants: e.target.value })} placeholder="Variants e.g. S:5, M:3, L:2" data-testid="mprod-variants" />
           <Input value={form.points} onChange={(e) => setForm({ ...form, points: e.target.value })} placeholder="BigPoints (optional)" data-testid="mprod-points" />
+          <OptionGroupsEditor value={optionGroups} onChange={setOptionGroups} />
           <div className="flex gap-2 pt-1">
             {editingId && <button onClick={reset} data-testid="mprod-cancel" className="flex-1 border border-slate-200 rounded-full py-2.5 font-bold text-slate-600">Cancel</button>}
             <button onClick={save} disabled={saving} data-testid="mprod-save" className="flex-1 bg-orange-600 text-white font-black rounded-full py-2.5 disabled:opacity-60">{editingId ? "Update" : "Add Product"}</button>

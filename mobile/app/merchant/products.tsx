@@ -10,6 +10,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
+import OptionGroupsEditor from '../../src/components/OptionGroupsEditor';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 const absUrl = (u?: string | null) => (!u ? null : u.startsWith('http') ? u : `${process.env.EXPO_PUBLIC_BACKEND_URL}${u}`);
@@ -29,6 +30,7 @@ export default function MerchantProducts() {
   const [delivery, setDelivery] = useState<any>({ pickup: true, delivery: false, fee_cents: 0, free_over_cents: 0 });
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: '', description: '', category: '', price: '', stock: '', variants: '', points: '' });
+  const [optionGroups, setOptionGroups] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState<string | null>(null);
@@ -45,21 +47,22 @@ export default function MerchantProducts() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const reset = () => { setForm({ name: '', description: '', category: '', price: '', stock: '', variants: '', points: '' }); setEditingId(null); };
+  const reset = () => { setForm({ name: '', description: '', category: '', price: '', stock: '', variants: '', points: '' }); setOptionGroups([]); setEditingId(null); };
   const save = async () => {
     if (!form.name.trim() || !form.price) return;
     setSaving(true);
     const variants = parseVariants(form.variants);
     const body = { name: form.name.trim(), description: form.description.trim() || null, category: form.category.trim() || 'Products',
       price_cents: Math.round((parseFloat(form.price) || 0) * 100), stock: variants.length ? 0 : (parseInt(form.stock, 10) || 0),
-      variants, bigpoints: form.points ? parseInt(form.points, 10) : null, active: true };
+      variants, option_groups: optionGroups.filter((g) => g.name.trim() && g.options.some((o: any) => o.label.trim())),
+      bigpoints: form.points ? parseInt(form.points, 10) : null, active: true };
     try {
       if (editingId) await api.patch(`/merchant/marketplace/products/items/${editingId}`, body);
       else await api.post('/merchant/marketplace/products/items', body);
       reset(); load();
     } catch { /* ignore */ } finally { setSaving(false); }
   };
-  const edit = (p: any) => { setEditingId(p.product_id); setForm({ name: p.name || '', description: p.description || '', category: p.category || '', price: ((p.price_cents || 0) / 100).toString(), stock: String(p.stock || 0), variants: variantsStr(p.variants), points: p.bigpoints != null ? String(p.bigpoints) : '' }); };
+  const edit = (p: any) => { setEditingId(p.product_id); setForm({ name: p.name || '', description: p.description || '', category: p.category || '', price: ((p.price_cents || 0) / 100).toString(), stock: String(p.stock || 0), variants: variantsStr(p.variants), points: p.bigpoints != null ? String(p.bigpoints) : '' }); setOptionGroups(p.option_groups || []); };
   const del = async (id: string) => { try { await api.delete(`/merchant/marketplace/products/items/${id}`); load(); } catch { /* ignore */ } };
   const saveDelivery = async (patch: any) => { const nd = { ...delivery, ...patch }; setDelivery(nd); try { await api.patch('/merchant/marketplace/products/delivery', nd); } catch { /* ignore */ } };
   const uploadPhoto = async (pid: string) => {
@@ -104,6 +107,7 @@ export default function MerchantProducts() {
             <TextInput style={s.input} value={form.stock} onChangeText={(v) => setForm({ ...form, stock: v })} keyboardType="number-pad" placeholder="Stock (if no variants)" placeholderTextColor={COLORS.textMuted} testID="mprod-stock" />
             <TextInput style={s.input} value={form.variants} onChangeText={(v) => setForm({ ...form, variants: v })} placeholder="Variants e.g. S:5, M:3, L:2" placeholderTextColor={COLORS.textMuted} testID="mprod-variants" />
             <TextInput style={s.input} value={form.points} onChangeText={(v) => setForm({ ...form, points: v })} keyboardType="number-pad" placeholder="BigPoints (optional)" placeholderTextColor={COLORS.textMuted} testID="mprod-points" />
+            <OptionGroupsEditor value={optionGroups} onChange={setOptionGroups} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
               {editingId && <TouchableOpacity style={[common.btnGhost, { flex: 1 }]} onPress={reset} testID="mprod-cancel"><Text style={common.btnGhostText}>Cancel</Text></TouchableOpacity>}
               <TouchableOpacity style={[common.btnPrimary, { flex: 1 }]} onPress={save} disabled={saving} testID="mprod-save">{saving ? <ActivityIndicator color="#fff" /> : <Text style={common.btnPrimaryText}>{editingId ? 'Update' : 'Add Product'}</Text>}</TouchableOpacity>
