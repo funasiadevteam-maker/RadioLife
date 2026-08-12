@@ -1512,6 +1512,10 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_services_indexes(db)
         from routes.marketplace_products import ensure_products_indexes
         await ensure_products_indexes(db)
+        from services.marketplace_coupons import ensure_coupon_indexes
+        await ensure_coupon_indexes(db)
+        from services.scan_pay_service import ensure_scanpay_indexes
+        await ensure_scanpay_indexes(db)
         logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn} {dsm}")
         from services.radio_policy import apply_dubai_station_policy, backfill_station_genres
         drp = await apply_dubai_station_policy(db)
@@ -5730,6 +5734,16 @@ try:
     # Phase 2 Checkout — Saved Cards (Stripe wallet).
     from routes.saved_cards import router as _saved_cards_router
     app.include_router(_saved_cards_router)
+    # Coupons at Checkout — merchant self-serve discount codes.
+    from routes.marketplace_coupons import router as _mkt_coupon_router
+    from routes.marketplace_coupons import consumer_router as _mkt_coupon_consumer_router
+    app.include_router(_mkt_coupon_router)
+    app.include_router(_mkt_coupon_consumer_router)
+    # QR Scan-to-Pay — customer presents QR, shop scans to charge.
+    from routes.scan_pay import router as _scanpay_router
+    from routes.scan_pay import admin_router as _scanpay_admin_router
+    app.include_router(_scanpay_router)
+    app.include_router(_scanpay_admin_router)
     # Phase C — service bookings.
     from routes.marketplace_services import router as _mkt_svc_router
     from routes.marketplace_services import consumer_router as _mkt_svc_consumer_router

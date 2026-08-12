@@ -1,5 +1,26 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## SUPER MARKETPLACE — Coupons + Order Alerts + QR Scan-to-Pay SHIPPED (2026-06 fork) — iteration_74 green (22/22 backend)
+Three features, both surfaces (web /app/frontend + mobile /app/mobile), shared backend. Stripe LIVE test mode.
+
+### 1) Coupons at Checkout (merchant self-serve — NO CPA impact)
+- `services/marketplace_coupons.py` + `routes/marketplace_coupons.py`. Merchant CRUD `/api/merchant/marketplace/coupons` (percent|amount, min_spend, max_discount, usage_limit, per_user_limit, active, window). Consumer `POST /api/shop/coupons/validate`.
+- `coupon_code` added to menu quote/checkout (`marketplace_orders._price_menu`) and per-venue cart quote/checkout (`marketplace_products._price_group` via `CartGroup.coupon_code`). Discount order: **coupon → gift card → BigPoints → card**. Redemption recorded once per order (`marketplace_coupon_redemptions`, `used_count++`, per-user limit enforced). Self-funded; does NOT touch `ad4_coupon_service` — advertiser splits untouched.
+- Web: coupon box on both checkout screens (`checkout-coupon-*`), merchant screen `MerchantCouponsRadioLife` at `/shop/merchant/coupons`. Mobile: `cart.tsx` + `product-cart.tsx` (validate-preview), `merchant/coupons.tsx`. Entry: `merchant-open-coupons` on both dashboards.
+
+### 2) Order Alerts + Product Order Management
+- `notify_merchant_new_order()` enqueues a `merchant_new_order` notification to the shop owner on every paid order (food free/one-tap/hosted + product cart/hosted). New endpoint `GET /api/merchant/marketplace/orders/new-count` → {food,products,total}.
+- Merchant dashboards (both surfaces) now: new-order alert badge (`merchant-new-order-alert`, polls every 20s) + Product Orders section (`merchant-product-order-*`) advancing paid→packed→shipped→delivered (`merchant-product-advance-*`) via existing `PATCH /api/merchant/marketplace/products/orders/{id}/status`. Food-order management unchanged.
+
+### 3) QR Scan-to-Pay (customer presents QR → shop scans → charge)
+- `services/scan_pay_service.py` + `routes/scan_pay.py`. Customer `POST /api/shop/scanpay/token` (method card|points, exact amount, single-use, 5-min TTL) → QR; `GET /token/{t}/status` (poll); `POST /token/{t}/cancel`. Merchant (owner-gated) `POST /resolve` + `POST /charge` (card = off-session PaymentIntent reusing saved-cards helper; points = PointsService.spend at 100 pts/$). Atomic claim prevents double-charge.
+- Anti-fraud: `POST /api/shop/scanpay/report-bypass` logs `scanpay_fraud_logs`; every resolve/charge audited in `scanpay_charges`; admin `GET /api/admin/scanpay/fraud-logs` + `/charges`.
+- Web: customer `ScanPayRadioLife` `/shop/scan-pay` (QR via react-qr-code), merchant `MerchantScanRadioLife` `/shop/merchant/scan` (manual code entry). Mobile: `shop/scan-pay.tsx` (QR via react-native-qrcode-svg), `merchant/scan.tsx` (expo-camera QR scan w/ permission flow + Open-Settings fallback + manual entry). Entry: `shop-scan-pay` (Shop home) + `merchant-open-scan` (dashboards).
+- **Dependency fix**: `expo-camera` was mis-pinned to 57.0.3 (SDK-incompatible, crashed the bundle) → reinstalled `expo-camera@17.0.10`. Added iOS `NSCameraUsageDescription` + Android `CAMERA` permission in app.json. Camera scanning needs a native build/Expo Go — cannot be validated in web preview; manual-entry path works everywhere.
+- Fixed a visual regression: mobile merchant dashboard action tiles now wrap into a 3-col grid (was overlapping at 390px).
+- Follow-ups (non-blocking): app-wide RN-Web `shadow*`/`pointerEvents` deprecation warnings (native unaffected).
+
+
 ## SUPER MARKETPLACE — Phase 2 Checkout: SAVED CARDS SHIPPED (2026-06 fork) — iteration_73 green (13/13 backend)
 One-tap checkout with saved credit cards, built on BOTH surfaces against the shared backend. Stripe LIVE test mode.
 - **Backend** `services/saved_cards_service.py` (shared helpers: `ensure_stripe_customer` reuses `users.subscription.stripe_customer_id`; `list_cards`; `charge_saved_card` off-session PaymentIntent; `owns_payment_method`) + `routes/saved_cards.py` (`/api/shop/wallet`): `GET /cards`, `POST /cards/setup-session` (hosted Stripe Checkout `mode=setup` → works on web redirect + Expo WebBrowser, no Stripe.js/native modules), `POST /cards/setup-session/{sid}/sync` (first card → default), `POST /cards/{pm}/default`, `DELETE /cards/{pm}`.

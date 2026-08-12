@@ -122,6 +122,11 @@ export default function ShopHome() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity style={s.scanPayBtn} onPress={() => router.push('/shop/scan-pay')} testID="shop-scan-pay">
+          <Ionicons name="qr-code" size={18} color="#fff" />
+          <Text style={s.scanPayText}>Scan to Pay in-store</Text>
+        </TouchableOpacity>
+
         {sections.map((sec) => (
           <View key={sec.key} style={{ marginTop: SPACING.lg }} testID={`shop-section-${sec.key}`}>
             <Text style={s.sectionTitle}>{sec.title}</Text>
@@ -186,6 +191,8 @@ const s = StyleSheet.create({
   quickRow: { flexDirection: 'row', gap: 10, paddingHorizontal: SPACING.md, marginTop: SPACING.sm },
   quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, paddingVertical: 12 },
   quickText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.sm },
+  scanPayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 14, marginHorizontal: SPACING.md, marginTop: SPACING.sm },
+  scanPayText: { color: '#fff', fontWeight: '900', fontSize: FONT.md },
   sectionTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900', paddingHorizontal: SPACING.md, marginBottom: 10 },
   card: { width: 220, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, overflow: 'hidden' },
   coverWrap: { position: 'relative' },

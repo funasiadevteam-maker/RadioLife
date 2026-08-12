@@ -15,7 +15,8 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "NSCameraUsageDescription": "Scan customer QR codes to take payment."
       }
     },
     "android": {
@@ -27,7 +28,8 @@
       "permissions": [
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "CAMERA"
       ],
       "package": "com.emergent.streambridge.v9050x"
     },

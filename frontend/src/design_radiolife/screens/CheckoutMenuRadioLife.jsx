@@ -3,12 +3,20 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag } from "lucide-react";
+import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag, Tag } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const BRAND = { visa: "Visa", mastercard: "Mastercard", amex: "Amex", discover: "Discover" };
+const COUPON_ERR = {
+  invalid_coupon: "That code isn't valid for this shop.",
+  expired: "This coupon has expired.",
+  not_started: "This coupon isn't active yet.",
+  min_spend_not_met: "Your order doesn't meet this coupon's minimum spend.",
+  usage_exceeded: "This coupon has reached its usage limit.",
+  already_used: "You've already used this coupon.",
+};
 
 export default function CheckoutMenuRadioLife() {
   const navigate = useNavigate();
@@ -20,6 +28,8 @@ export default function CheckoutMenuRadioLife() {
   const [error, setError] = useState(null);
   const [cards, setCards] = useState([]);
   const [payWith, setPayWith] = useState("new"); // "new" | pm_id
+  const [coupon, setCoupon] = useState("");
+  const [couponInput, setCouponInput] = useState("");
 
   useEffect(() => {
     axios.get(`${API}/shop/wallet/cards`).then((r) => {
@@ -32,16 +42,23 @@ export default function CheckoutMenuRadioLife() {
   const items = useMemo(
     () => cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })), [cart.items]);
 
-  const refresh = useCallback(async (rp) => {
+  const refresh = useCallback(async (rp, cpn = coupon) => {
     if (!cart.businessId || !items.length) return;
     try {
       const r = await axios.post(`${API}/shop/orders/quote`, {
         business_id: cart.businessId, items, use_gift_card: useGift, redeem_points: rp,
+        coupon_code: cpn || undefined,
       });
       setQuote(r.data);
       if (r.data.redeemed_points !== rp) setRedeemPoints(r.data.redeemed_points);
     } catch (e) { setError(e?.response?.data?.detail?.code || "Could not price order"); }
-  }, [cart.businessId, items, useGift]);
+  }, [cart.businessId, items, useGift, coupon]);
+
+  const applyCoupon = () => {
+    const c = couponInput.trim().toUpperCase();
+    setCoupon(c);
+    refresh(redeemPoints, c);
+  };
 
   useEffect(() => { refresh(redeemPoints); /* eslint-disable-next-line */ }, [useGift]);
   useEffect(() => { refresh(0); /* eslint-disable-next-line */ }, []);
@@ -62,6 +79,7 @@ export default function CheckoutMenuRadioLife() {
       const r = await axios.post(`${API}/shop/orders/checkout`, {
         business_id: cart.businessId, items,
         use_gift_card: useGift, redeem_points: redeemPoints,
+        coupon_code: coupon || undefined,
         origin_url: window.location.origin,
         payment_method_id: payWith !== "new" ? payWith : undefined,
       });
@@ -134,6 +152,29 @@ export default function CheckoutMenuRadioLife() {
             </div>
           </div>
         )}
+
+        {/* Coupon code */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="checkout-coupon">
+          <div className="flex items-center gap-2 mb-2">
+            <Tag size={18} className="text-orange-600" />
+            <div className="font-bold text-slate-900 text-sm">Have a coupon?</div>
+          </div>
+          <div className="flex gap-2">
+            <input value={couponInput} onChange={(e) => setCouponInput(e.target.value)}
+              placeholder="Enter code" data-testid="checkout-coupon-input"
+              className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold uppercase" />
+            <button onClick={applyCoupon} data-testid="checkout-coupon-apply"
+              className="bg-slate-900 text-white font-black rounded-xl px-4 text-sm">Apply</button>
+          </div>
+          {quote && quote.coupon_discount_cents > 0 && (
+            <div className="mt-2 text-sm font-bold text-green-700 flex items-center gap-1" data-testid="checkout-coupon-applied">
+              <Check size={14} />Coupon {quote.coupon_code} applied · −{money(quote.coupon_discount_cents)}
+            </div>
+          )}
+          {quote && quote.coupon_error && coupon && (
+            <div className="mt-2 text-sm font-semibold text-rose-600" data-testid="checkout-coupon-error">{COUPON_ERR[quote.coupon_error] || "Coupon not valid"}</div>
+          )}
+        </div>
 
         {/* Total */}
         <div className="bg-slate-900 rounded-2xl p-4 flex items-center justify-between">

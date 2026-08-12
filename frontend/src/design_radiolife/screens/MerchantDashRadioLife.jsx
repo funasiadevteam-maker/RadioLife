@@ -2,40 +2,57 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, ArrowRight, Lock, Zap, CheckCircle2, Utensils, CreditCard, Package, Gift, Crown, CalendarDays } from "lucide-react";
+import { ChevronLeft, ArrowRight, Lock, Zap, CheckCircle2, Utensils, CreditCard, Package, Gift, Crown, CalendarDays, Tag, Bell, QrCode } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const NEXT = { accepted: "preparing", preparing: "ready", ready: "picked_up" };
 const NEXT_LABEL = { accepted: "Start Preparing", preparing: "Mark Ready", ready: "Mark Picked Up" };
+const PNEXT = { paid: "packed", packed: "shipped", shipped: "delivered" };
+const PNEXT_LABEL = { paid: "Mark Packed", packed: "Mark Shipped", shipped: "Mark Delivered" };
 
 export default function MerchantDashRadioLife() {
   const navigate = useNavigate();
   const [dash, setDash] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [productOrders, setProductOrders] = useState([]);
+  const [newCount, setNewCount] = useState({ food: 0, products: 0, total: 0 });
   const [hh, setHh] = useState({ enabled: false, start_hour: 17, end_hour: 19, multiplier: 2 });
   const [loading, setLoading] = useState(true);
   const [noProfile, setNoProfile] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [d, o, h] = await Promise.all([
+      const [d, o, h, po, nc] = await Promise.all([
         axios.get(`${API}/merchant/marketplace/dashboard`),
         axios.get(`${API}/merchant/marketplace/orders`),
         axios.get(`${API}/merchant/marketplace/happy-hour`),
+        axios.get(`${API}/merchant/marketplace/products/orders`),
+        axios.get(`${API}/merchant/marketplace/orders/new-count`),
       ]);
       setDash(d.data); setOrders(o.data.items || []);
+      setProductOrders(po.data.items || []); setNewCount(nc.data || { total: 0 });
       if (h.data.happy_hour) setHh(h.data.happy_hour);
     } catch (e) {
       if (e?.response?.status === 404) setNoProfile(true);
     } finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 20000); // poll for new orders
+    return () => clearInterval(t);
+  }, [load]);
 
   const advance = async (order) => {
     const next = NEXT[order.status];
     if (!next) return;
     try { await axios.patch(`${API}/merchant/marketplace/orders/${order.order_id}/status`, { status: next }); load(); }
+    catch { /* ignore */ }
+  };
+  const advanceProduct = async (order) => {
+    const next = PNEXT[order.status];
+    if (!next) return;
+    try { await axios.patch(`${API}/merchant/marketplace/products/orders/${order.order_id}/status`, { status: next }); load(); }
     catch { /* ignore */ }
   };
   const saveHh = async (patch) => {
@@ -72,6 +89,14 @@ export default function MerchantDashRadioLife() {
         )}
         <h2 className="text-xl font-black text-slate-900">{dash.public_name}</h2>
 
+        {newCount.total > 0 && (
+          <div className="flex items-center gap-2 bg-green-600 text-white font-black rounded-xl p-4 animate-pulse" data-testid="merchant-new-order-alert">
+            <Bell size={18} />
+            {newCount.total} new order{newCount.total > 1 ? "s" : ""} to action
+            {newCount.food > 0 && newCount.products > 0 ? ` · ${newCount.food} food, ${newCount.products} product` : ""}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           {[["Open Orders", dash.open_orders, "open-orders"], ["Revenue", money(dash.revenue_cents)],
             ["Points Spent", dash.bigpoints_spent], ["Menu Items", dash.menu_item_count]].map(([lbl, val, tid], i) => (
@@ -97,6 +122,10 @@ export default function MerchantDashRadioLife() {
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Package size={15} />Packages</button>
           <button onClick={() => navigate("/shop/merchant/events")} data-testid="merchant-open-events"
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><CalendarDays size={15} />Events</button>
+          <button onClick={() => navigate("/shop/merchant/coupons")} data-testid="merchant-open-coupons"
+            className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Tag size={15} />Coupons</button>
+          <button onClick={() => navigate("/shop/merchant/scan")} data-testid="merchant-open-scan"
+            className="flex items-center justify-center gap-1.5 bg-green-600 text-white font-black rounded-xl py-3 text-sm"><QrCode size={15} />Scan to Charge</button>
           <button onClick={() => navigate("/shop/merchant/subscribe")} data-testid="merchant-open-sub"
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><CreditCard size={15} />{dash.subscription_active ? "Plan" : "Subscribe"}</button>
         </div>
@@ -145,6 +174,28 @@ export default function MerchantDashRadioLife() {
             )}
             {o.status === "picked_up" && (
               <div className="flex items-center gap-1.5 mt-3 text-green-600 text-xs font-bold"><CheckCircle2 size={16} />Completed · {o.points_to_award} BigPoints awarded</div>
+            )}
+          </div>
+        ))}
+
+        {/* Product Orders */}
+        <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5"><Package size={16} className="text-orange-600" />Product Orders</h3>
+        {!productOrders.length && <p className="text-slate-500 text-sm" data-testid="merchant-product-orders-empty">No product orders yet.</p>}
+        {productOrders.map((o) => (
+          <div key={o.order_id} className="bg-white border border-slate-200 rounded-xl p-4" data-testid={`merchant-product-order-${o.order_id}`}>
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-black text-slate-900">{o.fulfillment === "delivery" ? "🚚 Delivery" : "🏬 Pickup"}</div>
+              <div className="text-xs font-black uppercase text-orange-600">{o.status}</div>
+            </div>
+            {(o.items || []).map((it, i) => <div key={i} className="text-sm text-slate-600 font-semibold">{it.qty}× {it.name}{it.variant_label ? ` (${it.variant_label})` : ""}</div>)}
+            {o.fulfillment === "delivery" && o.address && <div className="text-xs text-slate-400 mt-1">📍 {o.address}</div>}
+            <div className="text-sm font-bold text-slate-900 mt-1">{money(o.total_cents)} · rewards {o.points_to_award} BigPoints</div>
+            {PNEXT[o.status] && (
+              <button onClick={() => advanceProduct(o)} data-testid={`merchant-product-advance-${o.order_id}`}
+                className="mt-3 w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-lg py-2.5">{PNEXT_LABEL[o.status]}<ArrowRight size={15} /></button>
+            )}
+            {o.status === "delivered" && (
+              <div className="flex items-center gap-1.5 mt-3 text-green-600 text-xs font-bold"><CheckCircle2 size={16} />Delivered · {o.points_to_award} BigPoints awarded</div>
             )}
           </div>
         ))}

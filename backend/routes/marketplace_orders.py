@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from auth import current_user
 from services.marketplace import now, new_id, effective_points
 from services.points_service import PointsService
+from services.marketplace_coupons import compute_coupon_discount, record_coupon_redemption
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -97,9 +98,10 @@ class CheckoutItem(BaseModel):
 
 
 async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
-                      use_gift_card: bool, redeem_points: int) -> Dict[str, Any]:
-    """Validate + price a single-restaurant basket with optional gift-card +
-    BigPoints redemption. Shared by /quote and /checkout."""
+                      use_gift_card: bool, redeem_points: int,
+                      coupon_code: Optional[str] = None) -> Dict[str, Any]:
+    """Validate + price a single-restaurant basket with optional coupon +
+    gift-card + BigPoints redemption. Shared by /quote and /checkout."""
     profile = await db.marketplace_profiles.find_one(
         {"business_id": business_id, "status": "approved", "subscription_active": True})
     if not profile:
@@ -118,10 +120,15 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     if subtotal <= 0:
         raise HTTPException(400, {"code": "zero_total"})
 
+    coupon_discount, coupon_doc, coupon_error = await compute_coupon_discount(
+        db, business_id=business_id, code=coupon_code,
+        user_id=user.get("user_id"), base_cents=subtotal)
+    after_coupon = subtotal - coupon_discount
+
     gift_card = await _pick_gift_card(db, user, business_id)
     gift_available = int(gift_card.get("balance_cents", 0)) if gift_card else 0
-    gift_applied = min(gift_available, subtotal) if (use_gift_card and gift_card) else 0
-    after_gift = subtotal - gift_applied
+    gift_applied = min(gift_available, after_coupon) if (use_gift_card and gift_card) else 0
+    after_gift = after_coupon - gift_applied
 
     balance = await PointsService(db).get_balance(user.get("user_id"))
     max_redeemable = min(int(balance or 0), _cents_to_max_points(after_gift))
@@ -133,6 +140,9 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         "profile": profile, "line_items": line_items, "subtotal_cents": subtotal,
         "gift_card_id": gift_card.get("card_id") if gift_card else None,
         "gift_available_cents": gift_available, "gift_applied_cents": gift_applied,
+        "coupon_discount_cents": coupon_discount, "coupon_error": coupon_error,
+        "coupon_code": (coupon_doc or {}).get("code") if coupon_discount > 0 else None,
+        "coupon_id": (coupon_doc or {}).get("coupon_id") if coupon_discount > 0 else None,
         "points_balance": int(balance or 0), "redeem_points_per_dollar": REDEEM_POINTS_PER_DOLLAR,
         "max_redeemable_points": max_redeemable, "redeemed_points": used_points,
         "points_discount_cents": points_discount, "total_cents": total,
@@ -146,6 +156,7 @@ class QuoteBody(BaseModel):
     items: List[CheckoutItem]
     use_gift_card: bool = False
     redeem_points: int = Field(0, ge=0)
+    coupon_code: Optional[str] = None
 
 
 @router.post("/quote")
@@ -155,7 +166,7 @@ async def quote(body: QuoteBody, request: Request, user: dict = Depends(current_
         raise HTTPException(400, {"code": "empty_cart"})
     db = request.app.state.db
     q = await _price_menu(db, user, body.business_id, body.items,
-                          body.use_gift_card, body.redeem_points)
+                          body.use_gift_card, body.redeem_points, body.coupon_code)
     q.pop("profile", None)
     q["public_name"] = None
     return q
@@ -169,6 +180,7 @@ class CheckoutBody(BaseModel):
     redeem_points: int = Field(0, ge=0)
     note: Optional[str] = Field(None, max_length=300)
     payment_method_id: Optional[str] = None  # saved card → one-tap off-session
+    coupon_code: Optional[str] = None
 
 
 @router.post("/checkout")
@@ -177,7 +189,7 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
     if not body.items:
         raise HTTPException(400, {"code": "empty_cart"})
     q = await _price_menu(db, user, body.business_id, body.items,
-                          body.use_gift_card, body.redeem_points)
+                          body.use_gift_card, body.redeem_points, body.coupon_code)
     profile = q["profile"]
     line_items = q["line_items"]
     subtotal = q["subtotal_cents"]
@@ -195,6 +207,9 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         "user_id": user.get("user_id"), "items": line_items,
         "subtotal_cents": subtotal, "gift_card_applied_cents": gift_applied,
         "gift_card_id": gift_card_id,
+        "coupon_id": q.get("coupon_id"), "coupon_code": q.get("coupon_code"),
+        "coupon_discount_cents": q.get("coupon_discount_cents", 0),
+        "coupon_recorded_done": False,
         "redeemed_points": redeemed_points, "points_discount_cents": points_discount,
         "points_redeemed_done": False,
         "total_cents": total,
@@ -207,17 +222,22 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
     }
 
     if total <= 0:
-        # Fully covered by gift card and/or points — no Stripe needed.
+        # Fully covered by coupon/gift card/points — no Stripe needed.
         if gift_card_id:
             await _deduct_gift_card(db, gift_card_id, gift_applied, user)
         await _redeem_points(db, user, order)
+        await _record_order_coupon(db, order)
         order["status"] = "accepted"
         order["payment_status"] = "paid"
         order["status_history"] = [{"status": "accepted", "at": now()}]
         await db.marketplace_orders.insert_one(dict(order))
+        await notify_merchant_new_order(
+            db, business_id=body.business_id, order_id=order_id, kind="food",
+            total_cents=0, code=pickup_code)
         return {"ok": True, "order_id": order_id, "status": "accepted",
                 "checkout_url": None, "total_cents": 0,
                 "gift_card_applied_cents": gift_applied,
+                "coupon_discount_cents": q.get("coupon_discount_cents", 0),
                 "points_discount_cents": points_discount, "pickup_code": pickup_code}
 
     if not stripe.api_key:
@@ -282,18 +302,62 @@ async def _redeem_points(db, user, order: Dict[str, Any]) -> None:
     order["points_redeemed_done"] = True
 
 
+async def notify_merchant_new_order(db, *, business_id: str, order_id: str,
+                                    kind: str, total_cents: int = 0,
+                                    code: Optional[str] = None) -> None:
+    """Alert the shop owner in-app when a new paid order arrives (idempotent)."""
+    try:
+        prof = await db.marketplace_profiles.find_one(
+            {"business_id": business_id}, {"owner_user_id": 1, "public_name": 1})
+        owner = (prof or {}).get("owner_user_id")
+        if not owner:
+            return
+        from routes.notifications import _enqueue
+        name = (prof or {}).get("public_name") or "Your shop"
+        label = "pickup order" if kind == "food" else "product order"
+        code_txt = f" #{code}" if code else ""
+        await _enqueue(
+            db, owner_user_id=owner, station_id="marketplace",
+            station_slug="marketplace", type_="merchant_new_order",
+            payload={"title": "New order! 🛎️",
+                     "body": f"{name} · new {label}{code_txt} · ${total_cents / 100:.2f}",
+                     "order_id": order_id, "kind": kind},
+            dedupe_key=f"merchant_new_order_{order_id}")
+    except Exception:
+        pass
+
+
+async def _record_order_coupon(db, order: Dict[str, Any]) -> None:
+    """Record the coupon redemption once per order (idempotent)."""
+    if not order.get("coupon_id") or order.get("coupon_recorded_done"):
+        return
+    coupon = await db.marketplace_coupons.find_one({"coupon_id": order["coupon_id"]})
+    await record_coupon_redemption(
+        db, coupon=coupon, user_id=order.get("user_id"),
+        order_id=order["order_id"], discount_cents=int(order.get("coupon_discount_cents", 0) or 0))
+    await db.marketplace_orders.update_one(
+        {"order_id": order["order_id"]}, {"$set": {"coupon_recorded_done": True}})
+    order["coupon_recorded_done"] = True
+
+
 async def _finalize_paid(db, order: Dict[str, Any], user) -> None:
-    """Called once when payment confirmed — deduct gift card + points, move to accepted."""
+    """Called once when payment confirmed — deduct gift card + points, record
+    the coupon, move to accepted."""
     if order.get("payment_status") == "paid":
         return
     if order.get("gift_card_id") and order.get("gift_card_applied_cents", 0) > 0:
         await _deduct_gift_card(db, order["gift_card_id"],
                                 order["gift_card_applied_cents"], user)
     await _redeem_points(db, user, order)
+    await _record_order_coupon(db, order)
     await db.marketplace_orders.update_one(
         {"order_id": order["order_id"], "payment_status": {"$ne": "paid"}},
         {"$set": {"payment_status": "paid", "status": "accepted", "updated_at": now()},
          "$push": {"status_history": {"status": "accepted", "at": now()}}})
+    await notify_merchant_new_order(
+        db, business_id=order.get("business_id"), order_id=order["order_id"],
+        kind="food", total_cents=int(order.get("total_cents", 0) or 0),
+        code=order.get("pickup_code"))
 
 
 @router.post("/{order_id}/reorder")
@@ -381,6 +445,19 @@ async def merchant_orders(request: Request, status: Optional[str] = None,
         q["payment_status"] = "paid"  # merchants only see paid orders by default
     items = [_clean(o) async for o in db.marketplace_orders.find(q).sort("created_at", -1).limit(80)]
     return {"items": items}
+
+
+@merchant_router.get("/new-count")
+async def merchant_new_order_count(request: Request, user: dict = Depends(current_user)):
+    """Count of orders awaiting the merchant's first action (food: accepted,
+    products: paid) — powers the dashboard new-order alert badge."""
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    food = await db.marketplace_orders.count_documents(
+        {"business_id": p["business_id"], "payment_status": "paid", "status": "accepted"})
+    products = await db.product_orders.count_documents(
+        {"business_id": p["business_id"], "status": "paid"})
+    return {"food": food, "products": products, "total": food + products}
 
 
 class StatusBody(BaseModel):

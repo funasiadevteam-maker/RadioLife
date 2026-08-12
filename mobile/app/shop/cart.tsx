@@ -1,7 +1,7 @@
 // Cart & Pickup Checkout — gift-card auto-apply + Stripe (Marketplace Phase B).
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,11 @@ import { useReward } from '../../src/components/RewardOverlay';
 import SavedCardPicker from '../../src/components/SavedCardPicker';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+const COUPON_ERR: Record<string, string> = {
+  invalid_coupon: "Not valid for this shop.", expired: "This coupon has expired.",
+  not_started: "Not active yet.", min_spend_not_met: "Minimum spend not met.",
+  usage_exceeded: "Usage limit reached.", already_used: "You've already used this.",
+};
 
 export default function Cart() {
   const router = useRouter();
@@ -24,10 +29,12 @@ export default function Cart() {
   const [usePoints, setUsePoints] = useState(false);
   const [quote, setQuote] = useState<any>(null);
   const [payCard, setPayCard] = useState<string | null>(null);
+  const [coupon, setCoupon] = useState('');
+  const [couponInput, setCouponInput] = useState('');
 
   const subtotal = cart.subtotal();
 
-  const refresh = React.useCallback(async (gift: boolean, pts: boolean) => {
+  const refresh = React.useCallback(async (gift: boolean, pts: boolean, cpn: string = coupon) => {
     if (!cart.businessId || !cart.items.length) return;
     try {
       const r = await api.post('/shop/orders/quote', {
@@ -35,12 +42,18 @@ export default function Cart() {
         items: cart.items.map((i) => ({ item_id: i.item_id, qty: i.qty })),
         use_gift_card: gift,
         redeem_points: pts ? 10 ** 9 : 0, // server caps to max redeemable
+        coupon_code: cpn || undefined,
       });
       setQuote(r.data);
     } catch { /* keep last quote */ }
-  }, [cart.businessId, cart.items]);
+  }, [cart.businessId, cart.items, coupon]);
 
   React.useEffect(() => { refresh(useGift, usePoints); }, [useGift, usePoints, refresh]);
+
+  const applyCoupon = () => {
+    const c = couponInput.trim().toUpperCase();
+    setCoupon(c); refresh(useGift, usePoints, c);
+  };
 
   const total = quote ? quote.total_cents : subtotal;
 
@@ -54,6 +67,7 @@ export default function Cart() {
         origin_url: process.env.EXPO_PUBLIC_BACKEND_URL,
         use_gift_card: useGift,
         redeem_points: usePoints && quote ? quote.max_redeemable_points : 0,
+        coupon_code: coupon || undefined,
         payment_method_id: payCard || undefined,
       });
       const orderId = r.data.order_id;
@@ -136,6 +150,21 @@ export default function Cart() {
                 <Text style={s.optDiscount}>−{money(quote.points_discount_cents)}</Text>
               </TouchableOpacity>
             )}
+            <View style={s.couponRow} testID="cart-coupon">
+              <TextInput style={s.couponInput} value={couponInput} onChangeText={setCouponInput}
+                autoCapitalize="characters" placeholder="Coupon code" placeholderTextColor={COLORS.textMuted}
+                testID="cart-coupon-input" />
+              <TouchableOpacity style={s.couponBtn} onPress={applyCoupon} testID="cart-coupon-apply">
+                <Ionicons name="pricetag" size={14} color="#fff" />
+                <Text style={s.couponBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+            {quote && quote.coupon_discount_cents > 0 && (
+              <Text style={s.couponOk} testID="cart-coupon-applied">{quote.coupon_code} applied · −{money(quote.coupon_discount_cents)}</Text>
+            )}
+            {quote && quote.coupon_error && !!coupon && (
+              <Text style={s.couponErr} testID="cart-coupon-error">{COUPON_ERR[quote.coupon_error] || 'Coupon not valid'}</Text>
+            )}
             {total > 0 && <SavedCardPicker selected={payCard} onSelect={setPayCard} />}
             {!!error && <Text style={s.error} testID="cart-error">{error}</Text>}
           </ScrollView>
@@ -176,6 +205,12 @@ const s = StyleSheet.create({
   optText: { flex: 1, color: COLORS.text, fontSize: FONT.sm, fontWeight: '700' },
   optDiscount: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
   error: { color: COLORS.red, fontSize: FONT.sm, fontWeight: '700', marginTop: 12 },
+  couponRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  couponInput: { flex: 1, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  couponBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.text, borderRadius: RADIUS.md, paddingHorizontal: 14, justifyContent: 'center' },
+  couponBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
+  couponOk: { color: COLORS.green, fontSize: FONT.xs, fontWeight: '900', marginTop: 6 },
+  couponErr: { color: COLORS.red, fontSize: FONT.xs, fontWeight: '800', marginTop: 6 },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder, backgroundColor: COLORS.bg },
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sumLabel: { color: COLORS.textDim, fontSize: FONT.md, fontWeight: '700' },

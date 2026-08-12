@@ -3,12 +3,20 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Coins, Gift, CreditCard, Check, Store, ShoppingBag } from "lucide-react";
+import { ChevronLeft, Coins, Gift, CreditCard, Check, Store, ShoppingBag, Tag } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useProductCart } from "../useProductCart";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const BRAND = { visa: "Visa", mastercard: "Mastercard", amex: "Amex", discover: "Discover" };
+const COUPON_ERR = {
+  invalid_coupon: "Not valid for this shop.",
+  expired: "This coupon has expired.",
+  not_started: "Not active yet.",
+  min_spend_not_met: "Minimum spend not met.",
+  usage_exceeded: "Usage limit reached.",
+  already_used: "You've already used this.",
+};
 
 export default function CheckoutCartRadioLife() {
   const navigate = useNavigate();
@@ -21,6 +29,8 @@ export default function CheckoutCartRadioLife() {
   const [error, setError] = useState(null);
   const [cards, setCards] = useState([]);
   const [payWith, setPayWith] = useState("new");
+  const [coupons, setCoupons] = useState({});
+  const [couponInputs, setCouponInputs] = useState({});
 
   useEffect(() => {
     axios.get(`${API}/shop/wallet/cards`).then((r) => {
@@ -30,24 +40,31 @@ export default function CheckoutCartRadioLife() {
     }).catch(() => {});
   }, []);
 
-  const buildGroups = useCallback((giftMap, redeemMap) => entries.map(([bizId, g]) => ({
+  const buildGroups = useCallback((giftMap, redeemMap, couponMap) => entries.map(([bizId, g]) => ({
     business_id: bizId, fulfillment: g.fulfillment,
     address: g.fulfillment === "delivery" ? (g.address || "").trim() : null,
     items: g.items.map((i) => ({ product_id: i.product_id, variant_label: i.variant_label, qty: i.qty })),
     use_gift_card: giftMap[bizId] !== false,
     redeem_points: redeemMap[bizId] || 0,
+    coupon_code: (couponMap || {})[bizId] || undefined,
   })), [entries]);
 
-  const refresh = useCallback(async (giftMap, redeemMap) => {
+  const refresh = useCallback(async (giftMap, redeemMap, couponMap = coupons) => {
     if (!entries.length) return;
     try {
-      const r = await axios.post(`${API}/shop/cart/quote`, { groups: buildGroups(giftMap, redeemMap) });
+      const r = await axios.post(`${API}/shop/cart/quote`, { groups: buildGroups(giftMap, redeemMap, couponMap) });
       setQuote(r.data);
       const fixed = {};
       r.data.groups.forEach((g) => { if ((redeemMap[g.business_id] || 0) !== g.redeemed_points) fixed[g.business_id] = g.redeemed_points; });
       if (Object.keys(fixed).length) setRedeem((s) => ({ ...s, ...fixed }));
     } catch (e) { setError(e?.response?.data?.detail?.code || "Could not price cart"); }
-  }, [entries, buildGroups]);
+  }, [entries, buildGroups, coupons]);
+
+  const applyCoupon = (bizId) => {
+    const c = (couponInputs[bizId] || "").trim().toUpperCase();
+    const next = { ...coupons, [bizId]: c };
+    setCoupons(next); refresh(useGift, redeem, next);
+  };
 
   useEffect(() => { refresh(useGift, redeem); /* eslint-disable-next-line */ }, []);
 
@@ -74,7 +91,7 @@ export default function CheckoutCartRadioLife() {
     setBusy(true); setError(null);
     try {
       const r = await axios.post(`${API}/shop/cart/checkout`, {
-        groups: buildGroups(useGift, redeem), origin_url: window.location.origin,
+        groups: buildGroups(useGift, redeem, coupons), origin_url: window.location.origin,
         payment_method_id: payWith !== "new" ? payWith : undefined,
       });
       clear();
@@ -126,6 +143,22 @@ export default function CheckoutCartRadioLife() {
                     onChange={(e) => setPts(bizId, Number(e.target.value))} className="w-full accent-orange-600" />
                 </div>
               )}
+              <div className="mt-3" data-testid={`checkout-coupon-${bizId}`}>
+                <div className="flex gap-2">
+                  <input value={couponInputs[bizId] || ""} onChange={(e) => setCouponInputs((s) => ({ ...s, [bizId]: e.target.value }))}
+                    placeholder="Coupon code" data-testid={`checkout-coupon-input-${bizId}`}
+                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold uppercase" />
+                  <button onClick={() => applyCoupon(bizId)} data-testid={`checkout-coupon-apply-${bizId}`}
+                    className="bg-slate-900 text-white font-black rounded-lg px-3 text-sm flex items-center gap-1"><Tag size={13} />Apply</button>
+                </div>
+                {q && q.coupon_discount_cents > 0 && (
+                  <div className="mt-1.5 text-xs font-bold text-green-700 flex items-center gap-1" data-testid={`checkout-coupon-applied-${bizId}`}>
+                    <Check size={12} />{q.coupon_code} · −{money(q.coupon_discount_cents)}</div>
+                )}
+                {q && q.coupon_error && coupons[bizId] && (
+                  <div className="mt-1.5 text-xs font-semibold text-rose-600" data-testid={`checkout-coupon-error-${bizId}`}>{COUPON_ERR[q.coupon_error] || "Coupon not valid"}</div>
+                )}
+              </div>
               <div className="border-t border-slate-100 mt-2 pt-2 flex justify-between text-sm">
                 <span className="text-slate-500">Venue total</span>
                 <span className="font-black text-slate-900" data-testid={`checkout-group-total-${bizId}`}>{q ? money(q.total_cents) : "…"}</span>

@@ -69,6 +69,11 @@ import ShopEventsRadioLife from "./screens/ShopEventsRadioLife";
 import MerchantEventsRadioLife from "./screens/MerchantEventsRadioLife";
 // Phase 2 Checkout — Saved Cards wallet.
 import WalletCardsRadioLife from "./screens/WalletCardsRadioLife";
+// Coupons at Checkout — merchant self-serve codes.
+import MerchantCouponsRadioLife from "./screens/MerchantCouponsRadioLife";
+// QR Scan-to-Pay.
+import ScanPayRadioLife from "./screens/ScanPayRadioLife";
+import MerchantScanRadioLife from "./screens/MerchantScanRadioLife";
 
 const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
@@ -96,6 +101,9 @@ export function screenFor(pathname) {
   if (pathname === "/shop/merchant/memberships") return MerchantMembershipsRadioLife;
   if (pathname === "/shop/merchant/packages") return MerchantPackagesRadioLife;
   if (pathname === "/shop/merchant/events") return MerchantEventsRadioLife;
+  if (pathname === "/shop/merchant/coupons") return MerchantCouponsRadioLife;
+  if (pathname === "/shop/scan-pay") return ScanPayRadioLife;
+  if (pathname === "/shop/merchant/scan") return MerchantScanRadioLife;
   if (pathname === "/shop/merchant/tickets") return MerchantTicketScanRadioLife;
   if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;

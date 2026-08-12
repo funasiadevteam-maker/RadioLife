@@ -13,11 +13,16 @@ const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 const NEXT: Record<string, string> = { accepted: 'preparing', preparing: 'ready', ready: 'picked_up' };
 const NEXT_LABEL: Record<string, string> = {
   accepted: 'Start Preparing', preparing: 'Mark Ready', ready: 'Mark Picked Up' };
+const PNEXT: Record<string, string> = { paid: 'packed', packed: 'shipped', shipped: 'delivered' };
+const PNEXT_LABEL: Record<string, string> = {
+  paid: 'Mark Packed', packed: 'Mark Shipped', shipped: 'Mark Delivered' };
 
 export default function MerchantDashboard() {
   const router = useRouter();
   const [dash, setDash] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
+  const [productOrders, setProductOrders] = useState<any[]>([]);
+  const [newCount, setNewCount] = useState<any>({ food: 0, products: 0, total: 0 });
   const [hh, setHh] = useState<any>({ enabled: false, start_hour: 17, end_hour: 19, multiplier: 2 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -25,24 +30,41 @@ export default function MerchantDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [d, o, h] = await Promise.all([
+      const [d, o, h, po, nc] = await Promise.all([
         api.get('/merchant/marketplace/dashboard'),
         api.get('/merchant/marketplace/orders'),
         api.get('/merchant/marketplace/happy-hour'),
+        api.get('/merchant/marketplace/products/orders'),
+        api.get('/merchant/marketplace/orders/new-count'),
       ]);
       setDash(d.data);
       setOrders(o.data.items || []);
+      setProductOrders(po.data.items || []);
+      setNewCount(nc.data || { total: 0 });
       if (h.data.happy_hour) setHh(h.data.happy_hour);
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 20000);
+    return () => clearInterval(t);
+  }, [load]);
 
   const advance = async (order: any) => {
     const next = NEXT[order.status];
     if (!next) return;
     try {
       await api.patch(`/merchant/marketplace/orders/${order.order_id}/status`, { status: next });
+      load();
+    } catch { /* ignore */ }
+  };
+
+  const advanceProduct = async (order: any) => {
+    const next = PNEXT[order.status];
+    if (!next) return;
+    try {
+      await api.patch(`/merchant/marketplace/products/orders/${order.order_id}/status`, { status: next });
       load();
     } catch { /* ignore */ }
   };
@@ -95,6 +117,13 @@ export default function MerchantDashboard() {
 
             <Text style={s.biz}>{dash.public_name}</Text>
 
+            {newCount.total > 0 && (
+              <View style={s.alert} testID="merchant-new-order-alert">
+                <Ionicons name="notifications" size={18} color="#fff" />
+                <Text style={s.alertText}>{newCount.total} new order{newCount.total > 1 ? 's' : ''} to action</Text>
+              </View>
+            )}
+
             <View style={s.statGrid}>
               <View style={s.stat}><Text style={s.statNum} testID="stat-open-orders">{dash.open_orders}</Text><Text style={s.statLbl}>Open Orders</Text></View>
               <View style={s.stat}><Text style={s.statNum}>{money(dash.revenue_cents)}</Text><Text style={s.statLbl}>Revenue</Text></View>
@@ -130,6 +159,14 @@ export default function MerchantDashboard() {
               <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/events')} testID="merchant-open-events">
                 <Ionicons name="calendar" size={16} color={COLORS.primary} />
                 <Text style={s.linkText}>Events</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/coupons')} testID="merchant-open-coupons">
+                <Ionicons name="pricetag" size={16} color={COLORS.primary} />
+                <Text style={s.linkText}>Coupons</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.linkBtn, { backgroundColor: COLORS.green }]} onPress={() => router.push('/merchant/scan')} testID="merchant-open-scan">
+                <Ionicons name="qr-code" size={16} color="#fff" />
+                <Text style={[s.linkText, { color: '#fff' }]}>Scan to Charge</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/subscribe')} testID="merchant-open-sub">
                 <Ionicons name="card" size={16} color={COLORS.primary} />
@@ -198,6 +235,33 @@ export default function MerchantDashboard() {
                 )}
               </View>
             ))}
+
+            {/* Product orders */}
+            <Text style={s.section}>Product Orders</Text>
+            {!productOrders.length && <Text style={s.empty} testID="merchant-product-orders-empty">No product orders yet.</Text>}
+            {productOrders.map((o) => (
+              <View key={o.order_id} style={s.orderCard} testID={`merchant-product-order-${o.order_id}`}>
+                <View style={s.orderHead}>
+                  <Text style={s.orderCode}>{o.fulfillment === 'delivery' ? '🚚 Delivery' : '🏬 Pickup'}</Text>
+                  <Text style={s.orderStatus}>{o.status}</Text>
+                </View>
+                {(o.items || []).map((it: any, i: number) => (
+                  <Text key={i} style={s.orderItem}>{it.qty}× {it.name}{it.variant_label ? ` (${it.variant_label})` : ''}</Text>
+                ))}
+                {o.fulfillment === 'delivery' && !!o.address && <Text style={s.addrText}>📍 {o.address}</Text>}
+                <Text style={s.orderTotal}>{money(o.total_cents)} · rewards {o.points_to_award} BigPoints</Text>
+                {PNEXT[o.status] && (
+                  <TouchableOpacity style={s.advBtn} onPress={() => advanceProduct(o)} testID={`merchant-product-advance-${o.order_id}`}>
+                    <Text style={s.advText}>{PNEXT_LABEL[o.status]}</Text>
+                    <Ionicons name="arrow-forward" size={15} color="#fff" />
+                  </TouchableOpacity>
+                )}
+                {o.status === 'delivered' && (
+                  <View style={s.doneRow}><Ionicons name="checkmark-circle" size={16} color={COLORS.green} />
+                    <Text style={s.doneText}>Delivered · {o.points_to_award} BigPoints awarded</Text></View>
+                )}
+              </View>
+            ))}
           </>
         )}
       </ScrollView>
@@ -213,12 +277,15 @@ const s = StyleSheet.create({
   subBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, padding: 14, marginBottom: SPACING.md },
   subBannerText: { color: '#fff', fontWeight: '900', fontSize: FONT.sm, flex: 1 },
   biz: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900', marginBottom: SPACING.md },
+  alert: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.green, borderRadius: RADIUS.md, padding: 14, marginBottom: SPACING.md },
+  alertText: { color: '#fff', fontWeight: '900', fontSize: FONT.sm, flex: 1 },
+  addrText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 3 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: SPACING.md },
   stat: { flexGrow: 1, flexBasis: '46%', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 14 },
   statNum: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900' },
   statLbl: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
-  rowBtns: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
-  linkBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, paddingVertical: 12 },
+  rowBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: SPACING.md },
+  linkBtn: { flexGrow: 1, flexBasis: '30%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, paddingVertical: 12 },
   linkText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.sm },
   card: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
   hhHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },

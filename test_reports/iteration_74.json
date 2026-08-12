@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 74 — RadioLife Super Marketplace end-to-end (COUPONS + ORDER ALERTS + QR SCAN-TO-PAY) on web + mobile against the shared backend. Backend: 22/22 pytest cases pass (/app/backend/tests/test_iter74_super_marketplace.py). Verified: (a) COUPONS — merchant CRUD works, duplicate code returns 409, percent>100 returns 400, GET /coupons lists the created one, /api/shop/coupons/validate returns discount_cents=630 for a 15%-off code on a 4200c subtotal, 'invalid_coupon' for unknown code, 'min_spend_not_met' for subtotal below floor; /api/shop/orders/quote with items[] payload correctly emits coupon_discount_cents=630, coupon_code, and total_cents=3570 (i.e. 4200-630) with no coupon_error, and surfaces coupon_error='invalid_coupon' for a bad code; PATCH updates value 15→20 and DELETE removes the coupon (subsequent validate returns invalid_coupon). (b) ORDER ALERTS — GET /api/merchant/marketplace/orders/new-count returns {food:int,products:int,total=food+products}; GET /api/merchant/marketplace/products/orders lists paid orders; PATCH .../orders/{id}/status advances paid→packed→shipped→delivered (verified against a live paid order). (c) SCAN-PAY — method=card without payment_method_id is rejected (400/422); method=points with tiny amount creates an active token, GET /token/{t}/status returns 'active', POST /token/{t}/cancel flips to 'canceled'; POST /report-bypass records a fraud entry; admin GET /api/admin/scanpay/fraud-logs + /charges return the audit lists (blocked for non-admin — 401/403); resolve on unknown token returns 200 with {ok:false,error:'invalid_token'} (that is the app's explicit contract). WEB (test@bigfm.dubai, 1920x1080): rl-merchant-coupons-page + coupon-create-btn render, coupon create submitted and code visible in DOM. Merchant dash route is /shop/merchant (NOT /shop/merchant/dash) — rl-merchant-dash-page, merchant-open-coupons, merchant-open-scan, Scan-to-Charge CTA all present; merchant-new-order-alert is absent for test@ because that user's biz currently has new-count=0 (correct UX). /shop/scan-pay (rl-scanpay-page): Generate QR flow produced scanpay-qr + scanpay-token 'SP20636E789A' + waiting-for-shop indicator + Cancel; scanpay-report-btn present. /shop/merchant/scan renders merchant-scan-input + merchant-scan-resolve. MOBILE (demo@ via demo-login-btn, 390x844 Expo web preview): /shop/scan-pay (scanpay-root) generates QR — scanpay-qr-code + scanpay-token 'SP046DCE0234' rendered, scanpay-report-btn visible. /merchant/coupons: merchant-coupons-root + coupon-create-btn render. /merchant/dashboard: merchant-new-order-alert renders ('1 new order to action') + 4 merchant-product-order-* rows visible + Mark Delivered advance CTA. /merchant/scan: merchant-scan-root + merchant-scan-input + merchant-scan-resolve all render, and the Scan-QR-with-camera button is visible (camera path per spec cannot be validated in web preview — manual entry path verified). /shop tab shows the shop-scan-pay quick link. Mobile merchant dashboard shows a visual OVERLAP of the action tiles (Menu / Services / Products / Gift Cards / Memberships / Packages / Events / Coupons / Scan to Charge / Plan) on the 390-wide viewport — the icons are visibly stacked on top of each other (see /tmp/mob_dash.png). Non-blocking deprecation warnings in the Expo web console: 'shadow*' style props deprecated (use boxShadow) and 'props.pointerEvents is deprecated' (use style.pointerEvents) — RN-Web migration warnings, worth flagging.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "MerchantDashboard action tiles", "issue": "On 390-wide viewport the row of dashboard action tiles (Menu/Services/Products/Gift Cards/Memberships/Packages/Events/Coupons/Scan-to-Charge/Plan) is visibly overlapping — icons stacked on top of each other instead of wrapping into a grid. See /app/mobile/app/merchant/dashboard.tsx layout.", "testID": "n/a (parent container)", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/merchant/dashboard", "issues": ["Action-tile row overlaps at 390px width — should wrap to a 2-column grid or scroll horizontally."]}
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props (RN-Web)", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Search /app/mobile for shadowColor/shadowOffset/shadowOpacity/shadowRadius and migrate to boxShadow. Non-blocking today but flagged by RN-Web."},
+        {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Search /app/mobile for pointerEvents=\"...\" props and move them into the style prop."}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "Merchant new-order alert", "platform": "web", "issue": "merchant-new-order-alert did NOT render on web for test@bigfm.dubai because that user's business currently has new-count=0. On mobile, demo@bigfm.dubai owns biz_8484f6f985d5 which has queued paid product orders, so the alert (\"1 new order to action\") is visible. This is data-driven, not a code parity gap — but flagging so main agent knows the web alert can only be visually verified with a business that has non-zero new-count."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter74_super_marketplace.py",
+    "/app/test_reports/pytest/iter74_super_marketplace.xml"
+  ],
+  "action_items": [
+    "Fix mobile /merchant/dashboard action-tile row layout at 390px (currently overlaps — icons stacked). Wrap into a 2-column grid.",
+    "Address RN-Web deprecation warnings on mobile: migrate shadow* style props → boxShadow, and move pointerEvents from prop → style.pointerEvents."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/services/marketplace_coupons.py: compute_coupon_discount is read-only and idempotent per (order,coupon) via unique index on marketplace_coupon_redemptions([order_id, coupon_id]) — used_count $inc only fires when the redemption insert succeeds. Good.",
+    "/app/backend/routes/marketplace_coupons.py::update_coupon guards the unique (business_id, code) index by explicitly looking up a duplicate before update — good, prevents a duplicate-key exception leaking through.",
+    "/app/backend/routes/scan_pay.py::resolve returns 200 with {ok:false,error:...} on invalid token (per svc contract), whereas the create-token path raises HTTPException(400) on ValueError. The mixed contract (some errors are 200-with-error, some are 400) is intentional but worth documenting in the OpenAPI so clients handle both shapes uniformly.",
+    "The consumer /api/shop/scanpay/token endpoint accepts method='card' without validating payment_method_id at the route layer — validation happens in scan_pay_service.create_token which raises ValueError → 400. Would be cleaner to reject at Pydantic level (validator on TokenBody requiring payment_method_id when method=='card').",
+    "/api/shop/coupons/validate returns 200 with {ok:false,error:...} on invalid codes instead of 4xx — that's actually the right UX choice for a live-preview validator (frontend can render inline errors without try/except). Documented in code, good.",
+    "Web ScanPayRadioLife: token flow (Generate QR → scanpay-qr + scanpay-token + Waiting indicator + Cancel) works end-to-end and matches mobile parity. Report-bypass button and merchant-scan Look-up flow both render on web."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter74_super_marketplace.py (new — 22 tests, all pass)"],
+  "success_rate": {"backend": "100% (22/22 pytest cases pass)", "frontend": "100% on all testids that were live-exercisable (coupons page, dashboard, scan-pay QR generate, merchant-scan input+resolve — on BOTH web and mobile). Camera scan (mobile) intentionally not exercised per spec."},
+  "test_credentials": "Web: test@bigfm.dubai / TestUser123!. Admin: admin@bigfm.dubai / AdminPass123!. Mobile: demo-login-btn (demo@bigfm.dubai owns biz_8484f6f985d5).",
+  "seed_data_creation": "Created & deleted one test coupon on demo@'s biz_8484f6f985d5 (TEST74P*<hex>). Filed one test scan-pay bypass fraud log (business_name='TEST_iter74 bypass', amount 1000c) — visible in /api/admin/scanpay/fraud-logs. Advanced one paid product-order status one step during test_3_advance_product_order_status; if this needs to be reset, restart backend or PATCH it back to 'paid' manually.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All three feature areas (coupons/order-alerts/scan-pay) pass backend + UI on both web and mobile. Only known cosmetic gap is mobile /merchant/dashboard action-tile overlap at 390px. Web merchant-new-order-alert can be visually validated by logging in as demo@ (owns biz_8484f6f985d5 with paid orders) via bearer token — test@'s business has new-count=0 so the alert is absent, which is correct behavior. Merchant dashboard route on web is /shop/merchant (NOT /shop/merchant/dash).",
+  "rca of the issue": "N/A — no functional bugs. Mobile dashboard tile overlap is a layout/CSS issue in /app/mobile/app/merchant/dashboard.tsx — the tile row is not wrapping at 390px and the tiles are absolutely-positioned or share a single row without a flexWrap:'wrap' style."
+}

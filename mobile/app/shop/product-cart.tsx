@@ -13,6 +13,11 @@ import { useReward } from '../../src/components/RewardOverlay';
 import SavedCardPicker from '../../src/components/SavedCardPicker';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+const COUPON_ERR: Record<string, string> = {
+  invalid_coupon: "Not valid for this shop.", expired: "This coupon has expired.",
+  not_started: "Not active yet.", min_spend_not_met: "Minimum spend not met.",
+  usage_exceeded: "Usage limit reached.", already_used: "You've already used this.",
+};
 
 export default function ProductCart() {
   const router = useRouter();
@@ -21,9 +26,23 @@ export default function ProductCart() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payCard, setPayCard] = useState<string | null>(null);
+  const [couponInputs, setCouponInputs] = useState<Record<string, string>>({});
+  const [coupons, setCoupons] = useState<Record<string, string>>({});
+  const [couponPreview, setCouponPreview] = useState<Record<string, { discount: number; error?: string }>>({});
 
   const entries = Object.entries(groups);
   const grand = entries.reduce((s, [, g]) => s + g.items.reduce((m, i) => m + i.price_cents * i.qty, 0), 0);
+
+  const applyCoupon = async (bizId: string) => {
+    const code = (couponInputs[bizId] || '').trim().toUpperCase();
+    const sub = (groups[bizId]?.items || []).reduce((m, i) => m + i.price_cents * i.qty, 0);
+    setCoupons((s) => ({ ...s, [bizId]: code }));
+    if (!code) { setCouponPreview((s) => ({ ...s, [bizId]: { discount: 0 } })); return; }
+    try {
+      const r = await api.post('/shop/coupons/validate', { business_id: bizId, code, subtotal_cents: sub });
+      setCouponPreview((s) => ({ ...s, [bizId]: r.data.ok ? { discount: r.data.discount_cents } : { discount: 0, error: r.data.error } }));
+    } catch { setCouponPreview((s) => ({ ...s, [bizId]: { discount: 0, error: 'invalid_coupon' } })); }
+  };
 
   const checkout = async () => {
     const payload = entries.map(([bizId, g]) => ({
@@ -31,6 +50,7 @@ export default function ProductCart() {
       fulfillment: g.fulfillment,
       address: g.fulfillment === 'delivery' ? (g.address || '').trim() : null,
       items: g.items.map((i) => ({ product_id: i.product_id, variant_label: i.variant_label, qty: i.qty })),
+      coupon_code: coupons[bizId] || undefined,
     }));
     if (payload.some((p) => p.fulfillment === 'delivery' && !p.address)) {
       setError('Add a delivery address for each delivery order.'); return;
@@ -126,6 +146,22 @@ export default function ProductCart() {
                     <TextInput style={s.addr} value={g.address} onChangeText={(t) => setAddress(bizId, t)}
                       placeholder="Delivery address" placeholderTextColor={COLORS.textMuted} testID={`pcart-address-${bizId}`} />
                   )}
+                  <View style={s.couponRow} testID={`pcart-coupon-${bizId}`}>
+                    <TextInput style={s.couponInput} value={couponInputs[bizId] || ''}
+                      onChangeText={(t) => setCouponInputs((st) => ({ ...st, [bizId]: t }))}
+                      autoCapitalize="characters" placeholder="Coupon code" placeholderTextColor={COLORS.textMuted}
+                      testID={`pcart-coupon-input-${bizId}`} />
+                    <TouchableOpacity style={s.couponBtn} onPress={() => applyCoupon(bizId)} testID={`pcart-coupon-apply-${bizId}`}>
+                      <Ionicons name="pricetag" size={13} color="#fff" />
+                      <Text style={s.couponBtnText}>Apply</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {couponPreview[bizId]?.discount > 0 && (
+                    <Text style={s.couponOk} testID={`pcart-coupon-applied-${bizId}`}>{coupons[bizId]} · −{money(couponPreview[bizId].discount)}</Text>
+                  )}
+                  {couponPreview[bizId]?.error && (
+                    <Text style={s.couponErr} testID={`pcart-coupon-error-${bizId}`}>{COUPON_ERR[couponPreview[bizId].error as string] || 'Coupon not valid'}</Text>
+                  )}
                   <Text style={s.sub}>Subtotal {money(sub)}</Text>
                 </View>
               );
@@ -166,6 +202,12 @@ const s = StyleSheet.create({
   fulText: { color: COLORS.text, fontWeight: '800', fontSize: FONT.sm },
   addr: { backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: FONT.sm, marginTop: 8 },
   sub: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '900', textAlign: 'right', marginTop: 8 },
+  couponRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  couponInput: { flex: 1, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 9, color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  couponBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.text, borderRadius: RADIUS.md, paddingHorizontal: 14, justifyContent: 'center' },
+  couponBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
+  couponOk: { color: COLORS.green, fontSize: FONT.xs, fontWeight: '900', marginTop: 6, textAlign: 'right' },
+  couponErr: { color: COLORS.red, fontSize: FONT.xs, fontWeight: '800', marginTop: 6, textAlign: 'right' },
   error: { color: COLORS.red, fontSize: FONT.sm, fontWeight: '700', marginTop: 4 },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder, backgroundColor: COLORS.bg },
   note: { textAlign: 'center', color: COLORS.textMuted, fontSize: FONT.xs, marginTop: 8 },
