@@ -20,7 +20,7 @@ from services.gift_notify import send_gift_emails
 from services.membership_entitlements import (
     EntitlementModel, normalize_entitlements, period_key, day_time_allows,
     entitlement_remaining, record_redemption, resolve_eligible_items,
-    _FREQ_TO_LEGACY_PERIOD)
+    membership_savings, _FREQ_TO_LEGACY_PERIOD)
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -305,6 +305,13 @@ async def my_memberships(request: Request, user: dict = Depends(current_user)):
         row["business_id"] = m.get("business_id")
         out.append(row)
     return {"items": out}
+
+
+@consumer_router.get("/memberships/savings")
+async def my_membership_savings(request: Request, user: dict = Depends(current_user)):
+    """Savings Tracker — how much this member has saved (this month + lifetime)."""
+    db = request.app.state.db
+    return await membership_savings(db, user)
 
 
 @consumer_router.get("/businesses/{business_id}/my-entitlements")

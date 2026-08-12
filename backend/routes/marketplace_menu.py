@@ -38,6 +38,7 @@ class MenuItemBody(BaseModel):
     bigpoints: Optional[int] = Field(None, ge=0, le=100000)
     available: bool = True
     option_groups: List[OptionGroupModel] = Field(default_factory=list)
+    direct_price_cents: Optional[int] = Field(None, ge=0, le=1_000_000)
 
 
 def _menu_doc(body: MenuItemBody) -> Dict[str, Any]:

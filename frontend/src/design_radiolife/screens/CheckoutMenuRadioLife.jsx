@@ -138,6 +138,18 @@ export default function CheckoutMenuRadioLife() {
               <span className="font-black text-orange-600">−{money(quote.entitlement_discount_cents)}</span>
             </div>
           )}
+          {quote && quote.join_nudge && (
+            <button onClick={() => navigate(`/shop/${cart.businessId}`)}
+              data-testid="checkout-join-nudge"
+              className="mt-3 w-full text-left rounded-xl border border-orange-200 bg-orange-50 p-3 flex items-center gap-3 hover:bg-orange-100 transition-colors">
+              <Crown size={18} className="text-orange-600 shrink-0" />
+              <div className="flex-1">
+                <div className="text-sm font-black text-slate-900">Join {quote.join_nudge.plan_name} & save {money(quote.join_nudge.potential_savings_cents)}</div>
+                <div className="text-xs font-bold text-slate-500">Your {quote.join_nudge.item_name} could be free · {money(quote.join_nudge.price_cents)}/{quote.join_nudge.interval}</div>
+              </div>
+              <span className="text-xs font-black text-orange-600">Join →</span>
+            </button>
+          )}
         </div>
 
         {/* Gift card */}

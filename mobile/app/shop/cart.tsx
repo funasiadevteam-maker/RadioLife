@@ -151,6 +151,18 @@ export default function Cart() {
               </View>
             )}
 
+            {quote && quote.join_nudge && (
+              <TouchableOpacity style={s.nudge} testID="cart-join-nudge"
+                onPress={() => router.push(`/shop/memberships/${cart.businessId}` as any)}>
+                <Ionicons name="ribbon" size={18} color={COLORS.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.nudgeTitle}>Join {quote.join_nudge.plan_name} &amp; save {money(quote.join_nudge.potential_savings_cents)}</Text>
+                  <Text style={s.nudgeSub}>Your {quote.join_nudge.item_name} could be free · {money(quote.join_nudge.price_cents)}/{quote.join_nudge.interval}</Text>
+                </View>
+                <Text style={s.nudgeCta}>Join →</Text>
+              </TouchableOpacity>
+            )}
+
             {quote && quote.gift_available_cents > 0 && (
               <TouchableOpacity style={s.optRow} testID="cart-giftcard-toggle" onPress={() => setUseGift((v) => !v)}>
                 <View style={[s.check, useGift && s.checkOn]}>{useGift && <Ionicons name="checkmark" size={14} color="#fff" />}</View>
@@ -217,6 +229,10 @@ const s = StyleSheet.create({
   entDiscRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, padding: 12, marginTop: 10 },
   entDiscText: { flex: 1, color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
   entDiscVal: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
+  nudge: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.primary + '12', borderWidth: 1, borderColor: COLORS.primary + '44', borderRadius: RADIUS.md, padding: 12, marginTop: 10 },
+  nudgeTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
+  nudgeSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
+  nudgeCta: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '900' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 4 },
   stepBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.card, alignItems: 'center', justifyContent: 'center' },
   qty: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', minWidth: 16, textAlign: 'center' },

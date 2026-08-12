@@ -51,6 +51,7 @@ export default function ShopHome() {
   }, []);
 
   const ACCOUNT_LINKS: [string, string, string, string][] = [
+    ['/shop/concierge', 'sparkles', 'Order by Chat', 'shop-concierge-link'],
     ['/shop/orders', 'receipt-outline', 'My Orders', 'shop-my-orders'],
     ['/shop/product-orders', 'cube-outline', 'Product Orders', 'shop-my-product-orders'],
     ['/shop/bookings', 'calendar-outline', 'My Bookings', 'shop-my-bookings'],
@@ -128,6 +129,15 @@ export default function ShopHome() {
             <Ionicons name="arrow-forward-circle" size={30} color="#fff" />
           </TouchableOpacity>
         )}
+
+        <TouchableOpacity style={s.conciergeCard} onPress={() => router.push('/shop/concierge')} testID="shop-concierge-banner" activeOpacity={0.9}>
+          <Ionicons name="sparkles" size={22} color="#fff" />
+          <View style={{ flex: 1 }}>
+            <Text style={s.sellTitle}>Order by chat ✨</Text>
+            <Text style={s.sellSub}>Tell our AI concierge what you want — it applies your memberships automatically.</Text>
+          </View>
+          <Ionicons name="arrow-forward-circle" size={30} color="#fff" />
+        </TouchableOpacity>
 
         {specials.length > 0 && (
           <View style={{ marginTop: SPACING.lg }} testID="shop-specials-row">
@@ -246,6 +256,7 @@ const s = StyleSheet.create({
   filterText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
   sellCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: 16 },
   dashCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1f2430', borderRadius: RADIUS.lg, padding: 16 },
+  conciergeCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: 16 },
   sellTitle: { color: '#fff', fontSize: FONT.md, fontWeight: '900' },
   sellSub: { color: '#fff', opacity: 0.9, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
   overlayFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' },

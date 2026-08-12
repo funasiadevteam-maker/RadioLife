@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Crown, Check, Calendar, Store, Sparkles, ShoppingBag, Clock } from "lucide-react";
+import { Crown, Check, Calendar, Store, Sparkles, ShoppingBag, Clock, PiggyBank } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => (c == null ? "" : `$${(c / 100).toFixed(2)}`);
@@ -18,6 +18,7 @@ export default function ShopMyMembershipsRadioLife() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [savings, setSavings] = useState(null);
   const [pick, setPick] = useState({});
   const [busy, setBusy] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -25,6 +26,7 @@ export default function ShopMyMembershipsRadioLife() {
   const load = useCallback(async () => {
     try { const r = await axios.get(`${API}/shop/memberships/mine`); setItems(r.data.items || []); }
     catch { /* ignore */ } finally { setLoading(false); }
+    axios.get(`${API}/shop/memberships/savings`).then((r) => setSavings(r.data)).catch(() => setSavings(null));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -54,6 +56,17 @@ export default function ShopMyMembershipsRadioLife() {
         <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-slate-900 mt-1">My Memberships</h1>
         <p className="text-slate-500 text-sm mt-1">Order eligible items or claim your perks across every venue.</p>
       </header>
+
+      {savings && savings.lifetime_savings_cents > 0 && (
+        <div className="mb-5 rounded-2xl bg-gradient-to-br from-orange-600 to-amber-500 text-white p-4 flex items-center gap-4" data-testid="savings-tracker">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0"><PiggyBank size={26} /></div>
+          <div className="flex-1">
+            <div className="text-[11px] font-black tracking-widest opacity-90">MEMBERSHIP SAVINGS</div>
+            <div className="text-2xl font-black leading-tight" data-testid="savings-month">{money(savings.month_savings_cents)} <span className="text-sm font-bold opacity-80">this month</span></div>
+            <div className="text-xs font-bold opacity-90 mt-0.5">{money(savings.lifetime_savings_cents)} saved all-time · {savings.lifetime_count} perks used</div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">{[0, 1].map((i) => <div key={i} className="h-40 rounded-2xl bg-slate-100 animate-pulse" />)}</div>

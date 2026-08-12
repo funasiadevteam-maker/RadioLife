@@ -70,6 +70,7 @@ class ProductBody(BaseModel):
     bigpoints: Optional[int] = Field(None, ge=0, le=100000)
     image_url: Optional[str] = None
     active: bool = True
+    direct_price_cents: Optional[int] = Field(None, ge=0, le=10_000_000)
 
 
 def _product_doc(body: ProductBody) -> Dict[str, Any]:

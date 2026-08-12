@@ -106,7 +106,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     optional membership entitlement (base free + included-option waivers),
     coupon, gift-card and BigPoints redemption. Shared by /quote and /checkout."""
     from services.membership_entitlements import (
-        validate_selection, price_with_options, evaluate_line_entitlement)
+        validate_selection, price_with_options, evaluate_line_entitlement, find_join_nudge)
     profile = await db.marketplace_profiles.find_one(
         {"business_id": business_id, "status": "approved", "subscription_active": True})
     if not profile:
@@ -115,6 +115,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     subtotal = 0
     entitlement_discount = 0
     applied_entitlements: List[Dict[str, Any]] = []
+    nudge_items: List[Dict[str, Any]] = []
     has_coupon = bool(coupon_code)
     for ci in items:
         it = await db.menu_items.find_one(
@@ -122,6 +123,8 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         if not it:
             raise HTTPException(400, {"code": "item_unavailable", "item_id": ci.item_id})
         base = int(it.get("price_cents", 0))
+        nudge_items.append({"item_id": ci.item_id, "category": it.get("section"),
+                            "base_cents": base, "name": it.get("name")})
         ogs = it.get("option_groups", []) or []
         sel = ci.selected_option_ids or []
         sel_err = validate_selection(ogs, sel)
@@ -171,10 +174,14 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     points_discount = _points_to_cents(used_points)
     total = after_gift - points_discount
     eff = points_for_order(profile, after_entitlement)
+    join_nudge = None
+    if entitlement_discount <= 0:
+        join_nudge = await find_join_nudge(db, user, business_id, nudge_items)
     return {
         "profile": profile, "line_items": line_items, "subtotal_cents": subtotal,
         "entitlement_discount_cents": entitlement_discount,
         "applied_entitlements": applied_entitlements,
+        "join_nudge": join_nudge,
         "gift_card_id": gift_card.get("card_id") if gift_card else None,
         "gift_available_cents": gift_available, "gift_applied_cents": gift_applied,
         "coupon_discount_cents": coupon_discount, "coupon_error": coupon_error,

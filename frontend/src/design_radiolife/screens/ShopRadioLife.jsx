@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar } from "lucide-react";
+import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar, Sparkles } from "lucide-react";
 import { API } from "@/AuthContext";
 import { RLCard, RLChip } from "../DesignSystem";
 import { useProductCart } from "../useProductCart";
@@ -110,6 +110,7 @@ export default function ShopRadioLife() {
                 </Link>
               )}
               {[
+                ["/shop/concierge", Sparkles, "Order by Chat", "shop-concierge-link"],
                 ["/shop/orders", Receipt, "My Orders", "shop-my-orders"],
                 ["/shop/product-orders", Store, "Product Orders", "shop-my-product-orders"],
                 ["/shop/bookings", Calendar, "My Bookings", "shop-my-bookings"],
@@ -162,6 +163,16 @@ export default function ShopRadioLife() {
           <ArrowRight size={22} />
         </Link>
       )}
+
+      <Link to="/shop/concierge" data-testid="shop-concierge-banner"
+        className="flex items-center gap-3 bg-gradient-to-br from-orange-600 to-amber-500 text-white rounded-2xl p-4 hover:opacity-95 transition-opacity">
+        <Sparkles size={22} />
+        <div className="flex-1">
+          <div className="font-black">Order by chat ✨</div>
+          <div className="text-xs opacity-90">Tell our AI concierge what you want — it applies your memberships automatically.</div>
+        </div>
+        <ArrowRight size={22} />
+      </Link>
 
       {browsing ? (
         <>

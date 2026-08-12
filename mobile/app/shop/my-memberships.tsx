@@ -20,6 +20,7 @@ const fmtDate = (iso?: string) => {
 export default function MyMemberships() {
   const router = useRouter();
   const [items, setItems] = useState<any[]>([]);
+  const [savings, setSavings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pick, setPick] = useState<Record<string, string>>({});
@@ -29,6 +30,7 @@ export default function MyMemberships() {
   const load = useCallback(async () => {
     try { const r = await api.get('/shop/memberships/mine'); setItems(r.data.items || []); }
     catch { /* ignore */ } finally { setLoading(false); setRefreshing(false); }
+    api.get('/shop/memberships/savings').then((r) => setSavings(r.data)).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -59,6 +61,15 @@ export default function MyMemberships() {
       </View>
       <ScrollView contentContainerStyle={{ padding: SPACING.md, paddingBottom: 100 }} testID="mymem-root"
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={COLORS.primary} onRefresh={() => { setRefreshing(true); load(); }} />}>
+        {savings && savings.lifetime_savings_cents > 0 && (
+          <View style={s.savings} testID="savings-tracker">
+            <Ionicons name="trending-up" size={26} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.savingsMonth} testID="savings-month">{money(savings.month_savings_cents)}<Text style={s.savingsMonthSub}> this month</Text></Text>
+              <Text style={s.savingsSub}>{money(savings.lifetime_savings_cents)} saved all-time · {savings.lifetime_count} perks used</Text>
+            </View>
+          </View>
+        )}
         {!items.length ? (
           <View style={{ alignItems: 'center', paddingVertical: 60 }} testID="mymem-empty">
             <Ionicons name="ribbon-outline" size={44} color={COLORS.textMuted} />
@@ -147,6 +158,10 @@ export default function MyMemberships() {
 
 const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
+  savings: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
+  savingsMonth: { color: '#fff', fontSize: 22, fontWeight: '900' },
+  savingsMonthSub: { fontSize: FONT.sm, fontWeight: '800', opacity: 0.85 },
+  savingsSub: { color: '#fff', fontSize: 11, fontWeight: '700', opacity: 0.9, marginTop: 2 },
   title: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900' },
   card: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },

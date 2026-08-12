@@ -431,6 +431,80 @@ async def resolve_eligible_items(db, business_id: str, ent: Dict[str, Any],
     return out[:limit]
 
 
+async def find_join_nudge(db, user: Optional[Dict[str, Any]], business_id: str,
+                          cart_items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """If the shopper is NOT a member of a plan whose entitlement would make a
+    cart item free, surface the best join-to-save nudge (highest potential
+    saving). `cart_items` = [{item_id, category, base_cents, name}]."""
+    owned: set = set()
+    if user:
+        uid = user.get("user_id")
+        email = (user.get("email") or "").lower().strip()
+        ors: List[Dict[str, Any]] = [{"user_id": uid}]
+        if email:
+            ors.append({"gifted_to_email": email})
+        async for m in db.memberships.find(
+                {"business_id": business_id, "status": "active", "$or": ors}):
+            owned.add(m.get("plan_id"))
+    best = None
+    async for plan in db.membership_plans.find({"business_id": business_id, "active": True}):
+        if plan.get("plan_id") in owned:
+            continue
+        for e in plan.get("entitlements", []):
+            if not e.get("active", True):
+                continue
+            for ci in cart_items:
+                if entitlement_covers_item(e, item_id=ci["item_id"], category=ci.get("category")):
+                    savings = int(ci.get("base_cents", 0))
+                    if not best or savings > best["potential_savings_cents"]:
+                        best = {"plan_id": plan["plan_id"], "plan_name": plan.get("name"),
+                                "price_cents": int(plan.get("price_cents", 0)),
+                                "interval": plan.get("interval", "month"),
+                                "perk": e.get("label"), "item_name": ci.get("name"),
+                                "potential_savings_cents": savings}
+    return best
+
+
+async def membership_savings(db, user: Dict[str, Any]) -> Dict[str, Any]:
+    """Aggregate a member's realised savings from the immutable ledger:
+    net_savings_cents this calendar month + lifetime, with a per-membership
+    breakdown. Excludes reversed rows."""
+    uid = user.get("user_id")
+    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_iso = month_start
+    month_total = month_count = life_total = life_count = 0
+    per: Dict[str, Dict[str, Any]] = {}
+    async for row in db.membership_redemption_ledger.find(
+            {"user_id": uid, "status": "consumed"}):
+        sv = int(row.get("net_savings_cents", 0) or 0)
+        life_total += sv
+        life_count += 1
+        mid = row.get("membership_id")
+        entry = per.setdefault(mid, {"membership_id": mid, "savings_cents": 0, "count": 0})
+        entry["savings_cents"] += sv
+        entry["count"] += 1
+        created = row.get("created_at")
+        if isinstance(created, datetime):
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if created >= month_iso:
+                month_total += sv
+                month_count += 1
+        elif isinstance(created, str) and created >= month_iso.isoformat():
+            month_total += sv
+            month_count += 1
+    for mid, entry in per.items():
+        m = await db.memberships.find_one({"membership_id": mid})
+        plan = await db.membership_plans.find_one({"plan_id": (m or {}).get("plan_id")})
+        entry["plan_name"] = (plan or {}).get("name")
+        entry["sponsor_name"] = (m or {}).get("sponsor_name") or (plan or {}).get("sponsor_name")
+    breakdown = sorted([e for e in per.values() if e["savings_cents"] > 0],
+                       key=lambda x: -x["savings_cents"])
+    return {"month_savings_cents": month_total, "month_count": month_count,
+            "lifetime_savings_cents": life_total, "lifetime_count": life_count,
+            "by_membership": breakdown}
+
+
 
 # ───────────────────── Indexes + migration ─────────────────────
 async def ensure_membership_indexes(db) -> None:
@@ -504,5 +578,6 @@ __all__ = [
     "record_redemption", "reverse_redemption",
     "entitlement_covers_item", "find_active_membership", "evaluate_line_entitlement",
     "record_order_entitlements", "resolve_eligible_items",
+    "find_join_nudge", "membership_savings",
     "ensure_membership_indexes", "migrate_memberships_v2",
 ]

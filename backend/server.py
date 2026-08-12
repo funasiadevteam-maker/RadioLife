@@ -5774,6 +5774,12 @@ try:
     from routes.marketplace_memberships import consumer_router as _mkt_mbr_consumer_router
     app.include_router(_mkt_mbr_router)
     app.include_router(_mkt_mbr_consumer_router)
+    # Phase F seed — AI ordering concierge.
+    from routes.marketplace_concierge import router as _mkt_concierge_router
+    app.include_router(_mkt_concierge_router)
+    # Price Parity Monitor (admin).
+    from routes.marketplace_price_parity import router as _mkt_parity_router
+    app.include_router(_mkt_parity_router)
     # Phase E — packages (prepaid bundles).
     from routes.marketplace_packages import router as _mkt_pkg_router
     from routes.marketplace_packages import consumer_router as _mkt_pkg_consumer_router
