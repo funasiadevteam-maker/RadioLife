@@ -31,7 +31,7 @@
         "WAKE_LOCK",
         "CAMERA"
       ],
-      "package": "com.emergent.streambridge.v9050x"
+      "package": "com.bigfm.app"
     },
     "web": {
       "bundler": "metro",
