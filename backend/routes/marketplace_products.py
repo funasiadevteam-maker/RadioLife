@@ -17,6 +17,7 @@ from auth import current_user, current_user_optional
 from services.marketplace import now, new_id, effective_points, points_for_order
 from services.loyalty import award_with_tier_bonus, get_status as loyalty_status
 from services.points_service import PointsService
+from services.membership_entitlements import OptionGroupModel, normalize_option_groups
 from routes.marketplace_orders import (
     REDEEM_POINTS_PER_DOLLAR, _points_to_cents, _cents_to_max_points,
     notify_merchant_new_order)
@@ -65,9 +66,16 @@ class ProductBody(BaseModel):
     price_cents: int = Field(..., ge=0, le=10_000_000)
     stock: int = Field(0, ge=0, le=1_000_000)  # used when no variants
     variants: List[Variant] = []
+    option_groups: List[OptionGroupModel] = Field(default_factory=list)
     bigpoints: Optional[int] = Field(None, ge=0, le=100000)
     image_url: Optional[str] = None
     active: bool = True
+
+
+def _product_doc(body: ProductBody) -> Dict[str, Any]:
+    d = body.model_dump()
+    d["option_groups"] = normalize_option_groups(body.option_groups)
+    return d
 
 
 @router.get("")
@@ -86,7 +94,7 @@ async def create_product(body: ProductBody, request: Request, user: dict = Depen
     n = await db.products.count_documents({"business_id": p["business_id"]})
     pid = new_id("prod")
     doc = {"product_id": pid, "business_id": p["business_id"], "sort": n,
-           **body.model_dump(), "created_at": now(), "updated_at": now()}
+           **_product_doc(body), "created_at": now(), "updated_at": now()}
     await db.products.insert_one(dict(doc))
     return {"ok": True, "product": _clean(doc)}
 
@@ -98,7 +106,7 @@ async def update_product(product_id: str, body: ProductBody, request: Request,
     p = await _my_business(db, user)
     res = await db.products.update_one(
         {"product_id": product_id, "business_id": p["business_id"]},
-        {"$set": {**body.model_dump(), "updated_at": now()}})
+        {"$set": {**_product_doc(body), "updated_at": now()}})
     if res.matched_count == 0:
         raise HTTPException(404, {"code": "product_not_found"})
     x = await db.products.find_one({"product_id": product_id})
@@ -274,7 +282,9 @@ async def business_products(business_id: str, request: Request,
         items.append({"product_id": x["product_id"], "name": x.get("name"),
                       "description": x.get("description"), "category": x.get("category"),
                       "price_cents": x.get("price_cents", 0), "stock": x.get("stock", 0),
-                      "variants": x.get("variants", []), "bigpoints": x.get("bigpoints"),
+                      "variants": x.get("variants", []),
+                      "option_groups": x.get("option_groups", []),
+                      "bigpoints": x.get("bigpoints"),
                       "image_url": x.get("image_url")})
     return {"business_id": business_id, "public_name": p.get("public_name"),
             "cover_url": (p.get("cover_urls") or [None])[0],

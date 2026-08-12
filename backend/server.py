@@ -1518,6 +1518,9 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_scanpay_indexes(db)
         from routes.marketplace_specials import ensure_specials_indexes
         await ensure_specials_indexes(db)
+        from services.membership_entitlements import migrate_memberships_v2
+        mbr_mig = await migrate_memberships_v2(db)
+        logger.info(f"Membership entitlements v2 migration: {mbr_mig}")
         logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn} {dsm}")
         from services.radio_policy import apply_dubai_station_policy, backfill_station_genres
         drp = await apply_dubai_station_policy(db)

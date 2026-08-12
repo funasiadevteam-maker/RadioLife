@@ -17,14 +17,15 @@ from pydantic import BaseModel, Field
 from auth import current_user, current_user_optional
 from services.marketplace import now, new_id
 from services.gift_notify import send_gift_emails
+from services.membership_entitlements import (
+    EntitlementModel, normalize_entitlements, period_key, day_time_allows,
+    entitlement_remaining, record_redemption, _FREQ_TO_LEGACY_PERIOD)
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
 router = APIRouter(prefix="/api/merchant/marketplace/memberships",
                    tags=["marketplace-memberships"])
 consumer_router = APIRouter(prefix="/api/shop", tags=["marketplace-memberships-consumer"])
-
-PERIODS = ("day", "week", "month")
 
 
 def _clean(d: Dict[str, Any]) -> Dict[str, Any]:
@@ -43,40 +44,13 @@ async def _my_business(db, user) -> Dict[str, Any]:
     return p
 
 
-def _period_key(period: str, dt: Optional[datetime] = None) -> str:
-    dt = dt or datetime.now(timezone.utc)
-    if period == "day":
-        return dt.strftime("%Y-%m-%d")
-    if period == "week":
-        return dt.strftime("%G-W%V")
-    return dt.strftime("%Y-%m")
-
-
-class Entitlement(BaseModel):
-    benefit_id: Optional[str] = None
-    label: str = Field(..., min_length=1, max_length=80)
-    qty: int = Field(1, ge=1, le=100)
-    period: str = Field("day")
-    options: List[str] = Field(default_factory=list)
-
-
 class PlanBody(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     description: Optional[str] = Field(None, max_length=280)
     price_cents: int = Field(..., ge=100, le=1_000_000)
     interval: str = Field("month")
-    entitlements: List[Entitlement] = Field(default_factory=list)
+    entitlements: List[EntitlementModel] = Field(default_factory=list)
     active: bool = True
-
-
-def _normalize_entitlements(ents: List[Entitlement]) -> List[Dict[str, Any]]:
-    out = []
-    for e in ents:
-        period = e.period if e.period in PERIODS else "day"
-        out.append({"benefit_id": e.benefit_id or new_id("bnf"), "label": e.label.strip(),
-                    "qty": e.qty, "period": period,
-                    "options": [o.strip() for o in e.options if o.strip()]})
-    return out
 
 
 # ───────────── Merchant CRUD ─────────────
@@ -102,7 +76,8 @@ async def create_plan(body: PlanBody, request: Request, user: dict = Depends(cur
     doc = {"plan_id": pid, "business_id": p["business_id"], "sponsor_name": p.get("public_name"),
            "name": body.name.strip(), "description": (body.description or "").strip() or None,
            "price_cents": body.price_cents, "interval": body.interval,
-           "entitlements": _normalize_entitlements(body.entitlements),
+           "entitlements": normalize_entitlements(body.entitlements),
+           "schema_version": 2,
            "active": body.active, "created_at": now(), "updated_at": now()}
     await db.membership_plans.insert_one(dict(doc))
     return {"ok": True, "plan": _clean(doc)}
@@ -119,7 +94,8 @@ async def update_plan(plan_id: str, body: PlanBody, request: Request,
         {"plan_id": plan_id, "business_id": p["business_id"]},
         {"$set": {"name": body.name.strip(), "description": (body.description or "").strip() or None,
                   "price_cents": body.price_cents, "interval": body.interval,
-                  "entitlements": _normalize_entitlements(body.entitlements),
+                  "entitlements": normalize_entitlements(body.entitlements),
+                  "schema_version": 2,
                   "active": body.active, "sponsor_name": p.get("public_name"),
                   "updated_at": now()}})
     if res.matched_count == 0:
@@ -141,13 +117,23 @@ async def delete_plan(plan_id: str, request: Request, user: dict = Depends(curre
 
 # ───────────── Consumer ─────────────
 async def _benefit_status(db, membership: Dict[str, Any], plan: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Per-entitlement live status. Includes backward-compatible aliases
+    (`qty`/`period`/`options`) so pre-v2 clients keep rendering."""
     out = []
     for e in plan.get("entitlements", []):
-        pk = _period_key(e["period"])
-        used = await db.membership_claims.count_documents(
-            {"membership_id": membership["membership_id"], "benefit_id": e["benefit_id"], "period_key": pk})
-        out.append({**e, "used": used, "remaining": max(0, e["qty"] - used),
-                    "period_key": pk})
+        if not e.get("active", True):
+            continue
+        rem = await entitlement_remaining(db, membership, e)
+        out.append({
+            **e,
+            "used": rem["used"], "remaining": rem["remaining"],
+            "period_key": rem["period_key"],
+            # legacy aliases
+            "qty": int(e.get("quantity", 1)),
+            "period": _FREQ_TO_LEGACY_PERIOD.get(e.get("reset_frequency", "monthly"), "month"),
+            "options": e.get("choice_labels", []),
+            "available_now": day_time_allows(e.get("day_time")),
+        })
     return out
 
 
@@ -315,7 +301,8 @@ async def my_memberships(request: Request, user: dict = Depends(current_user)):
 
 
 class ClaimBody(BaseModel):
-    benefit_id: str
+    entitlement_id: Optional[str] = None
+    benefit_id: Optional[str] = None  # legacy alias
     option: Optional[str] = None
 
 
@@ -328,24 +315,31 @@ async def claim_benefit(membership_id: str, body: ClaimBody, request: Request,
     if not m:
         raise HTTPException(404, {"code": "membership_not_found"})
     plan = await db.membership_plans.find_one({"plan_id": m["plan_id"]})
-    ent = next((e for e in (plan or {}).get("entitlements", []) if e["benefit_id"] == body.benefit_id), None)
+    ent_id = body.entitlement_id or body.benefit_id
+    ent = next((e for e in (plan or {}).get("entitlements", [])
+                if e.get("entitlement_id") == ent_id), None)
     if not ent:
         raise HTTPException(404, {"code": "benefit_not_found"})
-    if ent.get("options") and body.option not in ent["options"]:
-        raise HTTPException(400, {"code": "option_required", "options": ent["options"]})
-    pk = _period_key(ent["period"])
-    used = await db.membership_claims.count_documents(
-        {"membership_id": membership_id, "benefit_id": body.benefit_id, "period_key": pk})
-    if used >= ent["qty"]:
-        raise HTTPException(400, {"code": "limit_reached", "period": ent["period"],
-                                  "qty": ent["qty"]})
-    await db.membership_claims.insert_one({
-        "claim_id": new_id("clm"), "membership_id": membership_id,
-        "user_id": user.get("user_id"), "business_id": m["business_id"],
-        "benefit_id": body.benefit_id, "label": ent["label"], "option": body.option,
-        "period_key": pk, "claimed_at": now()})
-    return {"ok": True, "benefit_id": body.benefit_id, "label": ent["label"],
-            "option": body.option, "remaining": max(0, ent["qty"] - used - 1)}
+    if not ent.get("active", True):
+        raise HTTPException(400, {"code": "benefit_inactive"})
+    choices = ent.get("choice_labels", [])
+    if choices and body.option not in choices:
+        raise HTTPException(400, {"code": "option_required", "options": choices})
+    if not day_time_allows(ent.get("day_time")):
+        raise HTTPException(400, {"code": "outside_time_window",
+                                  "day_time": ent.get("day_time")})
+    rem = await entitlement_remaining(db, m, ent)
+    if rem["remaining"] <= 0:
+        raise HTTPException(400, {"code": "limit_reached",
+                                  "reset_frequency": ent.get("reset_frequency"),
+                                  "quantity": int(ent.get("quantity", 1))})
+    await record_redemption(
+        db, m, ent, order_id=None, qty=1,
+        selected_options=([{"label": body.option}] if body.option else []),
+        source="claim")
+    return {"ok": True, "entitlement_id": ent_id, "benefit_id": ent_id,
+            "label": ent.get("label"), "option": body.option,
+            "remaining": max(0, rem["remaining"] - 1)}
 
 
 @consumer_router.post("/memberships/{membership_id}/cancel")

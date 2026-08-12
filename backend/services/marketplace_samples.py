@@ -84,11 +84,13 @@ async def _upsert_menu(db, biz_id: str, items: List[Dict[str, Any]]) -> None:
 
 async def _upsert_membership(db, biz_id: str, sponsor: str, key: str, plan: Dict[str, Any]) -> None:
     plan_id = f"mplan_sample_{biz_id}_{key}"
+    from services.membership_entitlements import _legacy_entitlement_to_v2
+    ents = [_legacy_entitlement_to_v2(e) for e in plan.get("entitlements", [])]
     await db.membership_plans.update_one(
         {"plan_id": plan_id},
         {"$set": {"business_id": biz_id, "sponsor_name": sponsor, "name": plan["name"],
                   "description": plan["description"], "price_cents": plan["price_cents"],
-                  "interval": plan["interval"], "entitlements": plan["entitlements"],
+                  "interval": plan["interval"], "entitlements": ents, "schema_version": 2,
                   "active": True, "updated_at": now()},
          "$setOnInsert": {"plan_id": plan_id, "created_at": now()}}, upsert=True)
 

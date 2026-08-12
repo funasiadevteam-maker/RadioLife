@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from auth import current_user
 from services.marketplace import now, new_id
+from services.membership_entitlements import OptionGroupModel, normalize_option_groups
 
 router = APIRouter(prefix="/api/merchant/marketplace/menu", tags=["marketplace-menu"])
 
@@ -36,6 +37,13 @@ class MenuItemBody(BaseModel):
     image_url: Optional[str] = None
     bigpoints: Optional[int] = Field(None, ge=0, le=100000)
     available: bool = True
+    option_groups: List[OptionGroupModel] = Field(default_factory=list)
+
+
+def _menu_doc(body: MenuItemBody) -> Dict[str, Any]:
+    d = body.model_dump()
+    d["option_groups"] = normalize_option_groups(body.option_groups)
+    return d
 
 
 @router.get("")
@@ -54,7 +62,7 @@ async def create_item(body: MenuItemBody, request: Request, user: dict = Depends
     n = await db.menu_items.count_documents({"business_id": p["business_id"]})
     item_id = new_id("mi")
     doc = {"item_id": item_id, "business_id": p["business_id"], "sort": n,
-           **body.model_dump(), "created_at": now(), "updated_at": now()}
+           **_menu_doc(body), "created_at": now(), "updated_at": now()}
     await db.menu_items.insert_one(dict(doc))
     return {"ok": True, "item": _clean(doc)}
 
@@ -66,7 +74,7 @@ async def update_item(item_id: str, body: MenuItemBody, request: Request,
     p = await _my_business(db, user)
     res = await db.menu_items.update_one(
         {"item_id": item_id, "business_id": p["business_id"]},
-        {"$set": {**body.model_dump(), "updated_at": now()}})
+        {"$set": {**_menu_doc(body), "updated_at": now()}})
     if res.matched_count == 0:
         raise HTTPException(404, {"code": "item_not_found"})
     it = await db.menu_items.find_one({"item_id": item_id})
@@ -102,7 +110,7 @@ async def bulk_items(body: BulkBody, request: Request, user: dict = Depends(curr
     docs = []
     for i, it in enumerate(body.items):
         docs.append({"item_id": new_id("mi"), "business_id": p["business_id"],
-                     "sort": base + i, **it.model_dump(),
+                     "sort": base + i, **_menu_doc(it),
                      "created_at": now(), "updated_at": now()})
     if docs:
         await db.menu_items.insert_many([dict(d) for d in docs])

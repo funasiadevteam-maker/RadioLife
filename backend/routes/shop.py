@@ -179,6 +179,7 @@ async def business_menu(business_id: str, request: Request,
             "item_id": it["item_id"], "name": it.get("name"),
             "description": it.get("description"), "price_cents": it.get("price_cents", 0),
             "image_url": it.get("image_url"), "bigpoints": it.get("bigpoints"),
+            "option_groups": it.get("option_groups", []),
         })
     return {
         "business_id": business_id,

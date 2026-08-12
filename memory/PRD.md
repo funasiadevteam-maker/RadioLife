@@ -1,5 +1,21 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## MEMBERSHIP ENTITLEMENTS, MENU VARIANTS & ORDER RULES — Phase 1 (Data & Schema Foundation, backend) SHIPPED (2026-06 fork) — iteration_76 green (24/24 backend)
+Overhaul of memberships from simple discount coupons into a true entitlement engine. User approved a 4-phase plan (both web+mobile in lockstep for UI phases) + FULL replacement of the old model via a boot migration. Phase 1 is backend-only.
+- **NEW `services/membership_entitlements.py`** — the engine core:
+  - Option-group models (`OptionGroupModel`/`OptionChoiceModel`, types size|single|multi; each option has `price_delta_cents` upcharge, is_default, available, stock) + `normalize_option_groups` (assigns `grp_`/`opt_` ids; size/single force max_select=1) + `price_with_options()` + `validate_selection()` (for Phase 3).
+  - v2 entitlement model (`EntitlementModel`): label, target_type (item|product|category|any), target_ids[], category, included_option_ids[], quantity, reset_frequency (daily|weekly|monthly|billing_cycle|total), rollover + rollover_cap, day_time{days[],start_hour,end_hour}, stackable, max_upcharge_cents, active + `normalize_entitlements`.
+  - Period math: `period_key(reset_frequency, membership)`, `day_time_allows(rule)`.
+  - IMMUTABLE ledger `membership_redemption_ledger` (never mutated; reversals appended): `entitlement_remaining()` (ledger-backed used/remaining per current period), `record_redemption()`, `reverse_redemption()`, `ensure_membership_indexes()`.
+  - `migrate_memberships_v2()` — idempotent boot migration: legacy plans (`schema_version!=2`, old {benefit_id,qty,period,options}) → v2 entitlements (legacy `benefit_id` kept as `entitlement_id`; period→reset_frequency; old option labels kept as `choice_labels`); legacy `membership_claims` → ledger rows (`led_legacy_*`, source=legacy_claim). Wired into server.py lifespan; logged `plans_migrated:4 claims_migrated:5` then 0/0.
+- **`marketplace_menu.py` + `marketplace_products.py`**: `MenuItemBody`/`ProductBody` gain `option_groups` (additive; normalized on create/patch/bulk). Products keep legacy `variants` too.
+- **`marketplace_memberships.py`**: `PlanBody.entitlements` uses `EntitlementModel`; plans stored `schema_version=2`. `_benefit_status` reads ledger-backed remaining + emits legacy aliases (`qty`,`period`,`options`) + `available_now` so pre-v2 clients keep working. `claim_benefit` accepts BOTH `entitlement_id` and legacy `benefit_id`, enforces day/time window (400 outside_time_window) + per-period limit (400 limit_reached), and appends to the immutable ledger.
+- **Consumer reads** `GET /api/shop/businesses/{id}/menu` (shop.py) + `/products` now expose `option_groups`.
+- **`marketplace_samples.py`** `_upsert_membership` now writes v2 entitlements + schema_version=2 (was re-writing old schema each boot, which broke the v2 read after the first migration — fixed).
+- **DEFERRED to Phase 3** (by design, NOT bugs): CheckoutItem does not yet accept `selected_option_ids`; option upcharges + entitlement application at checkout are Phase 3. Phase 3 hardening TODOs from iter76 review: (1) option-group-aware claim validation (currently validates against legacy `choice_labels`, no-ops for new v2 plans); (2) concurrency lock / atomic guard on claim remaining-check+insert; (3) replace ledger `async for`+sum with `$group $sum`; (4) stop leaking `choice_labels` in `_benefit_status`; (5) demo daily perks use qty=99.
+- **NEXT phases (approved):** Phase 2 — Merchant Membership Builder UI + menu/product variant+modifier editors (web + mobile lockstep). Phase 3 — Pricing & Entitlement engine wired into checkout. Phase 4 — Customer Wallet & direct-order-from-wallet UI (both surfaces).
+
+
 ## SUPER MARKETPLACE — Specials + Points-per-Dollar + Loyalty-on-Scan + Order Sound SHIPPED (2026-06 fork) — iteration_75 green (19/19 backend)
 Four features, both surfaces (web /app/frontend + mobile /app/mobile), shared backend.
 
