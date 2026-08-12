@@ -1516,6 +1516,8 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_coupon_indexes(db)
         from services.scan_pay_service import ensure_scanpay_indexes
         await ensure_scanpay_indexes(db)
+        from routes.marketplace_specials import ensure_specials_indexes
+        await ensure_specials_indexes(db)
         logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn} {dsm}")
         from services.radio_policy import apply_dubai_station_policy, backfill_station_genres
         drp = await apply_dubai_station_policy(db)
@@ -5744,6 +5746,11 @@ try:
     from routes.scan_pay import admin_router as _scanpay_admin_router
     app.include_router(_scanpay_router)
     app.include_router(_scanpay_admin_router)
+    # Promoted Specials — merchant "Today's Specials".
+    from routes.marketplace_specials import router as _specials_router
+    from routes.marketplace_specials import consumer_router as _specials_consumer_router
+    app.include_router(_specials_router)
+    app.include_router(_specials_consumer_router)
     # Phase C — service bookings.
     from routes.marketplace_services import router as _mkt_svc_router
     from routes.marketplace_services import consumer_router as _mkt_svc_consumer_router

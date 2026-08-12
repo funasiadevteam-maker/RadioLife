@@ -60,6 +60,7 @@ export default function ShopRadioLife() {
 
   const browsing = category !== "all" || q.trim();
   const sections = useMemo(() => (home?.sections || []).filter((s) => s.items?.length), [home]);
+  const specials = home?.specials || [];
 
   if (loading) return <div className="px-4 pt-10 text-center text-slate-500">Loading Shop…</div>;
 
@@ -153,14 +154,45 @@ export default function ShopRadioLife() {
           {items.length === 0 && <div className="text-center text-slate-400 py-8">No businesses found.</div>}
         </>
       ) : (
-        sections.map((sec) => (
-          <section key={sec.key} data-testid={`shop-section-${sec.key}`}>
-            <h2 className="text-lg font-black text-slate-900 mb-2">{sec.title}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {sec.items.slice(0, 6).map((b) => <BizCard key={b.business_id + sec.key} b={b} />)}
-            </div>
-          </section>
-        ))
+        <>
+          {specials.length > 0 && (
+            <section data-testid="shop-specials-row">
+              <h2 className="text-lg font-black text-slate-900 mb-2 flex items-center gap-1.5">🔥 Today's Specials</h2>
+              <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+                {specials.map((sp) => (
+                  <Link key={sp.special_id} to={`/shop/${sp.business_id}`} data-testid={`shop-special-${sp.special_id}`}
+                    className="shrink-0 w-44 rounded-2xl overflow-hidden bg-white border border-orange-200 hover:shadow-lg transition-shadow">
+                    <div className="relative h-24 bg-slate-100">
+                      {sp.image_url && <img src={sp.image_url} alt={sp.name} className="w-full h-full object-cover" />}
+                      <span className="absolute top-2 left-2 text-[10px] font-black text-white bg-orange-600 px-2 py-0.5 rounded-full">SPECIAL</span>
+                    </div>
+                    <div className="p-3">
+                      <div className="font-black text-slate-900 text-sm truncate">{sp.name}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{sp.business_name}</div>
+                      {sp.blurb && <div className="text-[11px] text-orange-600 font-bold truncate mt-0.5">{sp.blurb}</div>}
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        {sp.sale_price_cents != null ? (
+                          <>
+                            <span className="font-black text-slate-900 text-sm">${(sp.sale_price_cents / 100).toFixed(2)}</span>
+                            <span className="text-[11px] text-slate-400 line-through">${(sp.price_cents / 100).toFixed(2)}</span>
+                          </>
+                        ) : <span className="font-black text-slate-900 text-sm">${(sp.price_cents / 100).toFixed(2)}</span>}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+          {sections.map((sec) => (
+            <section key={sec.key} data-testid={`shop-section-${sec.key}`}>
+              <h2 className="text-lg font-black text-slate-900 mb-2">{sec.title}</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {sec.items.slice(0, 6).map((b) => <BizCard key={b.business_id + sec.key} b={b} />)}
+              </div>
+            </section>
+          ))}
+        </>
       )}
     </div>
   );

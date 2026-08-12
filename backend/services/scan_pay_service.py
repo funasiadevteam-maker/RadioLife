@@ -183,7 +183,27 @@ async def charge(db, merchant_user, business: Dict[str, Any], token: str) -> Dic
         "business_id": business["business_id"], "merchant_user_id": merchant_user["user_id"],
         "customer_user_id": tok["user_id"], "amount_cents": amount,
         "method": tok["method"], "reference": ref, "created_at": now()})
-    return {"ok": True, "charge_id": charge_id, "amount_cents": amount, "method": tok["method"]}
+
+    # Loyalty On Scan — award BigPoints for card payments (paying with points
+    # doesn't earn points back). Uses the merchant's BigPoints settings.
+    points_awarded = 0
+    if tok["method"] == "card":
+        try:
+            from services.marketplace import points_for_order
+            from services.loyalty import award_with_tier_bonus
+            base = int(points_for_order(business, amount).get("points", 0))
+            if base > 0:
+                res = await award_with_tier_bonus(
+                    db, user_id=tok["user_id"], source="scanpay",
+                    source_id=charge_id, base_points=base,
+                    idempotency_key=f"scanpay_award_{token}",
+                    metadata={"business_id": business["business_id"], "amount_cents": amount})
+                points_awarded = int(res.get("base", 0)) + int(res.get("bonus", 0))
+        except Exception:
+            points_awarded = 0
+
+    return {"ok": True, "charge_id": charge_id, "amount_cents": amount,
+            "method": tok["method"], "points_awarded": points_awarded}
 
 
 # ───────────── Anti-fraud ─────────────

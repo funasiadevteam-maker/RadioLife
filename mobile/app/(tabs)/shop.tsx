@@ -24,6 +24,7 @@ export default function ShopHome() {
   const [cats, setCats] = useState<Cat[]>([]);
   const [filters, setFilters] = useState<string[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  const [specials, setSpecials] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,6 +35,7 @@ export default function ShopHome() {
       setHeadline(r.data.headline);
       setCats(r.data.categories || []);
       setFilters(r.data.filters || []);
+      setSpecials(r.data.specials || []);
       setSections((r.data.sections || []).filter((s: Section) => s.items.length));
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
@@ -127,6 +129,37 @@ export default function ShopHome() {
           <Text style={s.scanPayText}>Scan to Pay in-store</Text>
         </TouchableOpacity>
 
+        {specials.length > 0 && (
+          <View style={{ marginTop: SPACING.lg }} testID="shop-specials-row">
+            <Text style={s.sectionTitle}>🔥 Today's Specials</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 12 }}>
+              {specials.map((sp) => (
+                <TouchableOpacity key={sp.special_id} style={s.specialCard} testID={`shop-special-${sp.special_id}`}
+                  onPress={() => router.push(`/shop/${sp.business_id}`)} activeOpacity={0.85}>
+                  <View style={s.specialCover}>
+                    <Image source={{ uri: sp.image_url }} style={s.cover} contentFit="cover" transition={200} />
+                    <View style={s.specialTag}><Text style={s.specialTagText}>SPECIAL</Text></View>
+                  </View>
+                  <View style={{ padding: 10 }}>
+                    <Text style={s.bizName} numberOfLines={1}>{sp.name}</Text>
+                    <Text style={s.bizCat} numberOfLines={1}>{sp.business_name}</Text>
+                    {!!sp.blurb && <Text style={s.specialBlurb} numberOfLines={1}>{sp.blurb}</Text>}
+                    <View style={s.specialPriceRow}>
+                      {sp.sale_price_cents != null ? (
+                        <>
+                          <Text style={s.specialSale}>${(sp.sale_price_cents / 100).toFixed(2)}</Text>
+                          <Text style={s.specialWas}>${(sp.price_cents / 100).toFixed(2)}</Text>
+                        </>
+                      ) : <Text style={s.specialSale}>${(sp.price_cents / 100).toFixed(2)}</Text>}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {sections.map((sec) => (
           <View key={sec.key} style={{ marginTop: SPACING.lg }} testID={`shop-section-${sec.key}`}>
             <Text style={s.sectionTitle}>{sec.title}</Text>
@@ -193,6 +226,14 @@ const s = StyleSheet.create({
   quickText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.sm },
   scanPayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 14, marginHorizontal: SPACING.md, marginTop: SPACING.sm },
   scanPayText: { color: '#fff', fontWeight: '900', fontSize: FONT.md },
+  specialCard: { width: 176, backgroundColor: COLORS.card, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary + '44', overflow: 'hidden' },
+  specialCover: { height: 96, backgroundColor: COLORS.inputBg },
+  specialTag: { position: 'absolute', top: 8, left: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
+  specialTagText: { color: '#fff', fontSize: 10, fontWeight: '900' },
+  specialBlurb: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', marginTop: 2 },
+  specialPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
+  specialSale: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
+  specialWas: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700', textDecorationLine: 'line-through' },
   sectionTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900', paddingHorizontal: SPACING.md, marginBottom: 10 },
   card: { width: 220, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, overflow: 'hidden' },
   coverWrap: { position: 'relative' },

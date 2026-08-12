@@ -1,11 +1,13 @@
 // Merchant Dashboard — orders, BigPoints, happy hour (Marketplace Phase B).
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
   ActivityIndicator, RefreshControl, Switch, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useAudioPlayer } from 'expo-audio';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
@@ -19,37 +21,63 @@ const PNEXT_LABEL: Record<string, string> = {
 
 export default function MerchantDashboard() {
   const router = useRouter();
+  const player = useAudioPlayer(require('../../assets/sounds/ping.wav'));
   const [dash, setDash] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [productOrders, setProductOrders] = useState<any[]>([]);
   const [newCount, setNewCount] = useState<any>({ food: 0, products: 0, total: 0 });
   const [hh, setHh] = useState<any>({ enabled: false, start_hour: 17, end_hour: 19, multiplier: 2 });
+  const [pts, setPts] = useState<any>({ mode: 'default', default_points: 50, points_per_dollar: 2 });
+  const [ppdInput, setPpdInput] = useState('');
+  const [flatInput, setFlatInput] = useState('');
+  const [soundOn, setSoundOn] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savingHh, setSavingHh] = useState(false);
+  const prevNew = useRef<number | null>(null);
+  const soundOnRef = useRef(true);
+  useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
 
   const load = useCallback(async () => {
     try {
-      const [d, o, h, po, nc] = await Promise.all([
+      const [d, o, h, po, nc, bp] = await Promise.all([
         api.get('/merchant/marketplace/dashboard'),
         api.get('/merchant/marketplace/orders'),
         api.get('/merchant/marketplace/happy-hour'),
         api.get('/merchant/marketplace/products/orders'),
         api.get('/merchant/marketplace/orders/new-count'),
+        api.get('/merchant/marketplace/bigpoints/settings').catch(() => ({ data: {} })),
       ]);
       setDash(d.data);
       setOrders(o.data.items || []);
       setProductOrders(po.data.items || []);
-      setNewCount(nc.data || { total: 0 });
+      const nextNew = nc.data || { total: 0 };
+      if (prevNew.current !== null && nextNew.total > prevNew.current && soundOnRef.current) {
+        try { player.seekTo(0); player.play(); } catch { /* ignore */ }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+      prevNew.current = nextNew.total;
+      setNewCount(nextNew);
       if (h.data.happy_hour) setHh(h.data.happy_hour);
+      if (bp.data.bigpoints) {
+        const b = bp.data.bigpoints;
+        setPts({ mode: b.mode || 'default', default_points: b.default_points ?? 50, points_per_dollar: b.points_per_dollar ?? 2 });
+        setPpdInput(String(b.points_per_dollar ?? 2));
+        setFlatInput(String(b.default_points ?? 50));
+      }
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [player]);
   useEffect(() => {
     load();
-    const t = setInterval(load, 20000);
+    const t = setInterval(load, 15000);
     return () => clearInterval(t);
   }, [load]);
+
+  const savePts = async (patch: any) => {
+    const next = { ...pts, ...patch }; setPts(next);
+    try { await api.patch('/merchant/marketplace/bigpoints/settings', next); } catch { /* ignore */ }
+  };
 
   const advance = async (order: any) => {
     const next = NEXT[order.status];
@@ -121,6 +149,9 @@ export default function MerchantDashboard() {
               <View style={s.alert} testID="merchant-new-order-alert">
                 <Ionicons name="notifications" size={18} color="#fff" />
                 <Text style={s.alertText}>{newCount.total} new order{newCount.total > 1 ? 's' : ''} to action</Text>
+                <TouchableOpacity onPress={() => setSoundOn((v) => !v)} testID="merchant-sound-toggle" style={s.soundToggle}>
+                  <Ionicons name={soundOn ? 'volume-high' : 'volume-mute'} size={16} color="#fff" />
+                </TouchableOpacity>
               </View>
             )}
 
@@ -163,6 +194,10 @@ export default function MerchantDashboard() {
               <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/coupons')} testID="merchant-open-coupons">
                 <Ionicons name="pricetag" size={16} color={COLORS.primary} />
                 <Text style={s.linkText}>Coupons</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/specials')} testID="merchant-open-specials">
+                <Ionicons name="flame" size={16} color={COLORS.primary} />
+                <Text style={s.linkText}>Specials</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.linkBtn, { backgroundColor: COLORS.green }]} onPress={() => router.push('/merchant/scan')} testID="merchant-open-scan">
                 <Ionicons name="qr-code" size={16} color="#fff" />
@@ -207,6 +242,33 @@ export default function MerchantDashboard() {
                       testID="hh-mult" />
                   </View>
                 </View>
+              )}
+            </View>
+
+            {/* BigPoints Earning */}
+            <View style={s.card} testID="merchant-points-settings">
+              <Text style={s.cardTitle}>BigPoints Earning</Text>
+              <Text style={s.cardHint}>Reward big spenders and rank higher by earning points per dollar.</Text>
+              <View style={s.ptsRow}>
+                <TouchableOpacity style={[s.ptsBtn, pts.mode === 'default' && s.ptsBtnOn]} onPress={() => savePts({ mode: 'default' })} testID="points-mode-flat">
+                  <Text style={[s.ptsBtnText, pts.mode === 'default' && { color: COLORS.primary }]}>Flat per order</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.ptsBtn, pts.mode === 'per_order_value' && s.ptsBtnOn]} onPress={() => savePts({ mode: 'per_order_value' })} testID="points-mode-perdollar">
+                  <Text style={[s.ptsBtnText, pts.mode === 'per_order_value' && { color: COLORS.primary }]}>Per dollar</Text>
+                </TouchableOpacity>
+              </View>
+              {pts.mode === 'per_order_value' ? (
+                <>
+                  <Text style={s.hhLbl}>POINTS PER $1 SPENT</Text>
+                  <TextInput style={s.hhInput} keyboardType="decimal-pad" value={ppdInput} onChangeText={setPpdInput}
+                    onEndEditing={(e) => savePts({ points_per_dollar: Math.max(0, parseFloat(e.nativeEvent.text || '0') || 0) })} testID="points-ppd-input" />
+                </>
+              ) : (
+                <>
+                  <Text style={s.hhLbl}>FLAT POINTS PER ORDER</Text>
+                  <TextInput style={s.hhInput} keyboardType="number-pad" value={flatInput} onChangeText={setFlatInput}
+                    onEndEditing={(e) => savePts({ default_points: Math.max(0, parseInt(e.nativeEvent.text || '0', 10) || 0) })} testID="points-flat-input" />
+                </>
               )}
             </View>
 
@@ -279,6 +341,11 @@ const s = StyleSheet.create({
   biz: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900', marginBottom: SPACING.md },
   alert: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.green, borderRadius: RADIUS.md, padding: 14, marginBottom: SPACING.md },
   alertText: { color: '#fff', fontWeight: '900', fontSize: FONT.sm, flex: 1 },
+  soundToggle: { padding: 4 },
+  ptsRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 8 },
+  ptsBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.inputBg },
+  ptsBtnOn: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '12' },
+  ptsBtnText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '900' },
   addrText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 3 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: SPACING.md },
   stat: { flexGrow: 1, flexBasis: '46%', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 14 },

@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Request
 
 from auth import current_user_optional
-from services.marketplace import resolve_point_cost_cents
+from services.marketplace import resolve_point_cost_cents, ranking_score
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
 
@@ -62,9 +62,8 @@ async def businesses(request: Request, category: Optional[str] = None,
         items.sort(key=lambda x: x.get("default_bigpoints", 0), reverse=True)
     elif sort == "rating":
         items.sort(key=lambda x: (x.get("rating") or 0), reverse=True)
-    else:  # featured — sponsored/featured first
-        items.sort(key=lambda x: (x.get("sponsored", False), x.get("featured", False),
-                                  x.get("default_bigpoints", 0)), reverse=True)
+    else:  # featured — sponsored/featured/points-per-dollar boost first
+        items.sort(key=ranking_score, reverse=True)
     return {"items": items, "total": len(items)}
 
 
@@ -130,11 +129,14 @@ async def shop_home(request: Request, market: Optional[str] = None,
             out.sort(key=sortfn, reverse=True)
         return out
 
-    recommended = await _list(base_market, lambda x: x.get("default_bigpoints", 0), 10)
+    recommended = await _list(base_market, ranking_score, 10)
     most_points = await _list(base, lambda x: x.get("default_bigpoints", 0), 10)
     food = await _list({**base, "category": "restaurant"}, None, 10)
     services = await _list({**base, "sells": "services"}, None, 10)
     featured = await _list({**base, "featured": True}, None, 10)
+
+    from routes.marketplace_specials import get_active_specials
+    specials = await get_active_specials(db, mk, 12)
 
     return {
         "headline": "SHOP LOCAL. EARN BIGPOINTS.",
@@ -142,6 +144,7 @@ async def shop_home(request: Request, market: Optional[str] = None,
         "categories": cats,
         "filters": ["Nearby", "Open Now", "Top Rated", "Most BigPoints",
                     "Special Offers", "Available Today", "Book Now", "Pickup Today"],
+        "specials": specials,
         "sections": [
             {"key": "recommended", "title": "Recommended for You", "items": recommended},
             {"key": "earn_more", "title": "Earn More BigPoints", "items": most_points},

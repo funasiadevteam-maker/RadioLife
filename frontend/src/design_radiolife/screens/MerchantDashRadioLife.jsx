@@ -1,8 +1,8 @@
 // RadioLife Merchant Dashboard — orders, BigPoints, happy hour (web).
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, ArrowRight, Lock, Zap, CheckCircle2, Utensils, CreditCard, Package, Gift, Crown, CalendarDays, Tag, Bell, QrCode } from "lucide-react";
+import { ChevronLeft, ArrowRight, Lock, Zap, CheckCircle2, Utensils, CreditCard, Package, Gift, Crown, CalendarDays, Tag, Bell, QrCode, Flame, Coins } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
@@ -11,6 +11,26 @@ const NEXT_LABEL = { accepted: "Start Preparing", preparing: "Mark Ready", ready
 const PNEXT = { paid: "packed", packed: "shipped", shipped: "delivered" };
 const PNEXT_LABEL = { paid: "Mark Packed", packed: "Mark Shipped", shipped: "Mark Delivered" };
 
+// Audible "new order" ping via Web Audio — no asset needed.
+function playPing() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const beep = (freq, start, dur) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = freq;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.001, ctx.currentTime + start);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + start + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      o.start(ctx.currentTime + start); o.stop(ctx.currentTime + start + dur);
+    };
+    beep(880, 0, 0.18); beep(1174, 0.16, 0.22);
+    setTimeout(() => ctx.close(), 800);
+  } catch { /* ignore */ }
+}
+
 export default function MerchantDashRadioLife() {
   const navigate = useNavigate();
   const [dash, setDash] = useState(null);
@@ -18,30 +38,49 @@ export default function MerchantDashRadioLife() {
   const [productOrders, setProductOrders] = useState([]);
   const [newCount, setNewCount] = useState({ food: 0, products: 0, total: 0 });
   const [hh, setHh] = useState({ enabled: false, start_hour: 17, end_hour: 19, multiplier: 2 });
+  const [pts, setPts] = useState({ mode: "default", default_points: 50, points_per_dollar: 2 });
+  const [soundOn, setSoundOn] = useState(true);
   const [loading, setLoading] = useState(true);
   const [noProfile, setNoProfile] = useState(false);
+  const prevNew = useRef(null);
 
   const load = useCallback(async () => {
     try {
-      const [d, o, h, po, nc] = await Promise.all([
+      const [d, o, h, po, nc, bp] = await Promise.all([
         axios.get(`${API}/merchant/marketplace/dashboard`),
         axios.get(`${API}/merchant/marketplace/orders`),
         axios.get(`${API}/merchant/marketplace/happy-hour`),
         axios.get(`${API}/merchant/marketplace/products/orders`),
         axios.get(`${API}/merchant/marketplace/orders/new-count`),
+        axios.get(`${API}/merchant/marketplace/bigpoints/settings`).catch(() => ({ data: {} })),
       ]);
       setDash(d.data); setOrders(o.data.items || []);
-      setProductOrders(po.data.items || []); setNewCount(nc.data || { total: 0 });
+      setProductOrders(po.data.items || []);
+      const nextNew = nc.data || { total: 0 };
+      // Audible ping when the new-order count goes up.
+      if (prevNew.current !== null && nextNew.total > prevNew.current && soundOn) playPing();
+      prevNew.current = nextNew.total;
+      setNewCount(nextNew);
       if (h.data.happy_hour) setHh(h.data.happy_hour);
+      if (bp.data.bigpoints) setPts({
+        mode: bp.data.bigpoints.mode || "default",
+        default_points: bp.data.bigpoints.default_points ?? 50,
+        points_per_dollar: bp.data.bigpoints.points_per_dollar ?? 2,
+      });
     } catch (e) {
       if (e?.response?.status === 404) setNoProfile(true);
     } finally { setLoading(false); }
-  }, []);
+  }, [soundOn]);
   useEffect(() => {
     load();
-    const t = setInterval(load, 20000); // poll for new orders
+    const t = setInterval(load, 15000); // poll for new orders
     return () => clearInterval(t);
   }, [load]);
+
+  const savePts = async (patch) => {
+    const next = { ...pts, ...patch }; setPts(next);
+    try { await axios.patch(`${API}/merchant/marketplace/bigpoints/settings`, next); } catch { /* ignore */ }
+  };
 
   const advance = async (order) => {
     const next = NEXT[order.status];
@@ -94,6 +133,8 @@ export default function MerchantDashRadioLife() {
             <Bell size={18} />
             {newCount.total} new order{newCount.total > 1 ? "s" : ""} to action
             {newCount.food > 0 && newCount.products > 0 ? ` · ${newCount.food} food, ${newCount.products} product` : ""}
+            <button onClick={() => setSoundOn((v) => !v)} data-testid="merchant-sound-toggle"
+              className="ml-auto text-xs bg-white/20 rounded-full px-2 py-1">{soundOn ? "🔔 On" : "🔕 Off"}</button>
           </div>
         )}
 
@@ -124,6 +165,8 @@ export default function MerchantDashRadioLife() {
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><CalendarDays size={15} />Events</button>
           <button onClick={() => navigate("/shop/merchant/coupons")} data-testid="merchant-open-coupons"
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Tag size={15} />Coupons</button>
+          <button onClick={() => navigate("/shop/merchant/specials")} data-testid="merchant-open-specials"
+            className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Flame size={15} />Specials</button>
           <button onClick={() => navigate("/shop/merchant/scan")} data-testid="merchant-open-scan"
             className="flex items-center justify-center gap-1.5 bg-green-600 text-white font-black rounded-xl py-3 text-sm"><QrCode size={15} />Scan to Charge</button>
           <button onClick={() => navigate("/shop/merchant/subscribe")} data-testid="merchant-open-sub"
@@ -154,6 +197,31 @@ export default function MerchantDashRadioLife() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* BigPoints earning — flat or points-per-dollar */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="merchant-points-settings">
+          <div className="font-black text-slate-900 flex items-center gap-1"><Coins size={15} className="text-orange-600" />BigPoints Earning</div>
+          <div className="text-xs text-slate-500 mt-0.5">Reward big spenders and rank higher by earning points per dollar.</div>
+          <div className="flex gap-2 mt-3">
+            <button onClick={() => savePts({ mode: "default" })} data-testid="points-mode-flat"
+              className={`flex-1 rounded-xl py-2.5 text-sm font-black border ${pts.mode === "default" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-500"}`}>Flat per order</button>
+            <button onClick={() => savePts({ mode: "per_order_value" })} data-testid="points-mode-perdollar"
+              className={`flex-1 rounded-xl py-2.5 text-sm font-black border ${pts.mode === "per_order_value" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-500"}`}>Per dollar</button>
+          </div>
+          {pts.mode === "per_order_value" ? (
+            <label className="block text-xs font-bold text-slate-500 mt-3">Points per $1 spent
+              <input type="number" defaultValue={pts.points_per_dollar} data-testid="points-ppd-input"
+                onBlur={(e) => savePts({ points_per_dollar: Math.max(0, parseFloat(e.target.value) || 0) })}
+                className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 font-black text-slate-900" />
+            </label>
+          ) : (
+            <label className="block text-xs font-bold text-slate-500 mt-3">Flat points per order
+              <input type="number" defaultValue={pts.default_points} data-testid="points-flat-input"
+                onBlur={(e) => savePts({ default_points: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 font-black text-slate-900" />
+            </label>
           )}
         </div>
 

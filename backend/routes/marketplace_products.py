@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user, current_user_optional
-from services.marketplace import now, new_id, effective_points
+from services.marketplace import now, new_id, effective_points, points_for_order
 from services.loyalty import award_with_tier_bonus, get_status as loyalty_status
 from services.points_service import PointsService
 from routes.marketplace_orders import (
@@ -380,7 +380,7 @@ async def product_checkout(body: ProductCheckoutBody, request: Request,
             gift_card_id = gc.get("card_id")
     total = gross - gift_applied
 
-    eff = effective_points(profile)
+    eff = points_for_order(profile, subtotal)
     points = int(eff.get("points", 0))
     order_id = new_id("po")
     order = {
@@ -534,7 +534,7 @@ async def _price_group(db, user, g: CartGroup, use_gift: bool = True,
     used_points = max(0, min(int(redeem_points or 0), max_redeemable))
     points_discount = _points_to_cents(used_points)
     total = after_gift - points_discount
-    points = int(effective_points(profile).get("points", 0))
+    points = int(points_for_order(profile, subtotal).get("points", 0))
     return {"profile": profile, "line_items": line_items, "subtotal": subtotal,
             "delivery_fee": delivery_fee, "gift_available": gift_available,
             "gift_applied": gift_applied, "gift_card_id": gift_card_id,

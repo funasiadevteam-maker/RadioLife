@@ -207,6 +207,40 @@ def effective_points(profile: Dict[str, Any]) -> Dict[str, Any]:
     return {"points": base, "happy_hour": False, "multiplier": 1}
 
 
+def points_for_order(profile: Dict[str, Any], subtotal_cents: int) -> Dict[str, Any]:
+    """Points to award for an order, honouring the merchant's BigPoints mode.
+    `per_order_value`/`per_dollar` scales with spend (rewards big spenders);
+    otherwise a flat `default_points`. Happy-hour multiplier applies to both."""
+    bp = profile.get("bigpoints", {}) or {}
+    mode = bp.get("mode", "default")
+    hh = profile.get("happy_hour") or {}
+    mult = float(hh.get("multiplier", 2)) if happy_hour_active(hh) else 1.0
+    if mode in ("per_order_value", "per_dollar"):
+        ppd = float(bp.get("points_per_dollar", 0) or 0)
+        base = round((max(0, int(subtotal_cents or 0)) / 100.0) * ppd)
+    else:
+        base = int(bp.get("default_points", 0))
+    return {"points": int(round(base * mult)), "happy_hour": mult > 1.0,
+            "multiplier": mult, "mode": mode}
+
+
+def ranking_score(profile_or_card: Dict[str, Any]) -> float:
+    """Higher = ranked earlier. Sponsored + featured + a points-per-dollar
+    boost (merchants who reward more surface higher) + base points."""
+    bp = profile_or_card.get("bigpoints", {}) or {}
+    ppd = float(profile_or_card.get("points_per_dollar")
+                or bp.get("points_per_dollar") or 0)
+    base = int(profile_or_card.get("default_bigpoints")
+               or bp.get("default_points") or 0)
+    score = 0.0
+    if profile_or_card.get("sponsored"):
+        score += 10000
+    if profile_or_card.get("featured"):
+        score += 5000
+    score += ppd * 100 + base
+    return score
+
+
 DEMO_BUSINESSES = [
     {"id": "biz_demo_grill", "public_name": "The Grill House", "category": "restaurant",
      "subcategory": "Steakhouse", "description": "Flame-grilled steaks, burgers and mezze — pickup ready in 20 min.",

@@ -1,5 +1,28 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## SUPER MARKETPLACE — Specials + Points-per-Dollar + Loyalty-on-Scan + Order Sound SHIPPED (2026-06 fork) — iteration_75 green (19/19 backend)
+Four features, both surfaces (web /app/frontend + mobile /app/mobile), shared backend.
+
+### 1) Promoted Specials ("Today's Specials")
+- `routes/marketplace_specials.py` (collection `marketplace_specials`). Merchant `GET/PUT/DELETE /api/merchant/marketplace/specials` (feature a product|menu item, blurb + optional sale_price_cents + active, unique per business+kind+item). Consumer `GET /api/shop/specials` (enriched w/ business+item+image); `GET /api/shop/home` now returns a top-level `specials` array.
+- Web: "Today's Specials" row on `ShopRadioLife` home (`shop-specials-row`), merchant manager `MerchantSpecialsRadioLife` at `/shop/merchant/specials`. Mobile: specials row on shop tab, `merchant/specials.tsx`. Entry: `merchant-open-specials` on both dashboards.
+
+### 2) Points Per Dollar (reward big spenders + rank boost)
+- `services/marketplace.py`: new `points_for_order(profile, subtotal_cents)` — honours BigPoints `mode` ('default' flat vs 'per_order_value' = round(subtotal_$ × ppd)), happy-hour multiplier applies to both. Wired into menu `_price_menu` + product `_price_group`/`product_checkout` `points_to_award` (award auto-follows). Settings via existing `PATCH /api/merchant/marketplace/bigpoints/settings`.
+- `services/marketplace.ranking_score()` — sponsored + featured + ppd-boost + base points; used in `shop.py` `/shop/businesses?sort=featured` + home "recommended" row.
+- Web + mobile: "BigPoints Earning" card on merchant dashboards (`merchant-points-settings`, flat/per-dollar toggle + input).
+
+### 3) Loyalty On Scan
+- `scan_pay_service.charge` now awards BigPoints on a successful CARD scan-pay (via `points_for_order` + `award_with_tier_bonus`, idempotent `scanpay_award_{token}`); paying by points earns none. Returns `points_awarded`.
+
+### 4) Order Sound Alert
+- Merchant dashboards poll every 15s; when `new-count` rises, play an audible ping — web via Web-Audio oscillator (`playPing`), mobile via `expo-audio` (bundled `assets/sounds/ping.wav`) + `expo-haptics`. Mutable via `merchant-sound-toggle`. Live new-order feed already present.
+
+### Deps/notes
+- Added `assets/sounds/ping.wav` (generated). No new native perms (camera already added iter74).
+- Non-blocking (carried): RN-Web `shadow*`/`pointerEvents` deprecation warnings (native unaffected); per-dollar mode has no min-ppd floor (product decision, not a bug).
+
+
 ## SUPER MARKETPLACE — Coupons + Order Alerts + QR Scan-to-Pay SHIPPED (2026-06 fork) — iteration_74 green (22/22 backend)
 Three features, both surfaces (web /app/frontend + mobile /app/mobile), shared backend. Stripe LIVE test mode.
 

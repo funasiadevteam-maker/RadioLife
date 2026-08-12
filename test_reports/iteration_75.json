@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 75 — RadioLife Super Marketplace 2nd wave (SPECIALS + POINTS-PER-DOLLAR + RANKING + LOYALTY-ON-SCAN + ORDER SOUND ALERT) tested end-to-end on web + mobile against the shared FastAPI/MongoDB backend. Backend: 19/19 pytest cases pass (/app/backend/tests/test_iter75_super_marketplace_2.py). (a) SPECIALS — PUT /api/merchant/marketplace/specials upserts idempotently on the (business_id,kind,item_id) key, blurb+sale_price_cents+active persist, GET /api/merchant/marketplace/specials returns {specials, products, menu}, GET /api/shop/specials returns active specials enriched with business+item, GET /api/shop/home now includes a top-level 'specials' array, toggling active:false removes from the consumer list, DELETE returns 200 and DELETE on unknown returns 404. (b) POINTS-PER-DOLLAR — PATCH /api/merchant/marketplace/bigpoints/settings {mode:'per_order_value', points_per_dollar:5} → /api/shop/orders/quote returns points_to_award=210 for a $42 menu item (round(42*5)); switching back to {mode:'default', default_points:150} returns flat 150. (c) RANKING — GET /api/shop/businesses?sort=featured returns a list (verified length ≥1). (d) LOYALTY-ON-SCAN — POST /api/shop/scanpay/token method='card' with pm from /api/shop/wallet/cards + POST /api/shop/scanpay/charge on that token returns ok=true with points_awarded > 0 (matches the merchant's current bigpoints settings). A POINTS-method charge (small 50c) returned points_awarded=0 — points-payment does NOT earn points back, as spec'd. (e) REGRESSION — /api/merchant/marketplace/orders/new-count still returns {food:int, products:int, total=food+products}; /api/shop/scanpay/resolve on unknown token still returns 200 {ok:false}. WEB (demo@ via 'Try the demo' at 1920x1080): /shop renders shop-specials-row with 1 special ('RadioLife Tee' — $28 sale $35 struck out, TEST_iter56_be7440, 20% off today!). /shop/merchant/specials (rl-merchant-specials-page) renders 6 special-toggle-* rows; the currently-featured 'RadioLife Tee' row shows special-blurb-* + special-sale-* + special-save-* controls (blurb/sale/save render only on Featured items, other 5 items just show a 'Feature' toggle — reasonable UX). /shop/merchant (rl-merchant-dash-page) shows merchant-new-order-alert '1 new order to action' with an audible 'On' toggle (merchant-sound-toggle), merchant-points-settings card with points-mode-flat / points-mode-perdollar buttons (flat active → points-flat-input renders; switching to per-dollar renders points-ppd-input as expected), and merchant-open-specials button. MOBILE (demo-login-btn → /home, 390x844 Expo web preview): Shop tab renders shop-specials-row with the same RadioLife Tee special + shop-scan-pay 'Scan to Pay in-store' quick link. /merchant/specials (merchant-specials-root) renders 6 toggles + 1 save button (same conditional-controls pattern as web). /merchant/dashboard renders merchant-new-order-alert + merchant-sound-toggle + merchant-points-settings + merchant-open-specials; switching to per-dollar mode renders points-ppd-input dynamically (value=2). Mobile dashboard grid tiles (Menu/Services/Products/Gift Cards/Memberships/Packages/Events/Coupons/Specials/Scan to Charge/Plan) now wrap properly at 390px — the iter74 overlap regression is gone. Non-blocking RN-Web console warnings still present ('shadow* style props deprecated → use boxShadow' and 'props.pointerEvents deprecated → style.pointerEvents') — flagged again for main agent. Also observed a benign 'A props object containing a key prop is being spread into JSX' console warning on the web app (pre-existing, not new to iter75).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props (RN-Web)", "issue": "Console warning still surfaces: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Search /app/mobile for shadowColor/shadowOffset/shadowOpacity/shadowRadius and migrate to boxShadow. Non-blocking today, same warning as iter74."},
+        {"component": "props.pointerEvents", "issue": "Console warning still surfaces: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Search /app/mobile for pointerEvents=\"...\" props and move them into the style prop. Same warning as iter74."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter75_super_marketplace_2.py",
+    "/app/test_reports/pytest/iter75_super_marketplace_2.xml"
+  ],
+  "action_items": [
+    "(Optional) Address the two lingering RN-Web deprecation warnings on mobile (shadow* → boxShadow, props.pointerEvents → style.pointerEvents). Non-blocking but noise in the console."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routes/marketplace_specials.py::upsert_special looks up existing on (business_id,kind,item_id) BEFORE the write and updates in place — good, keeps one row per feature. The unique index only exists on special_id, so idempotency here depends on the read-then-update pattern; if two racing PUTs land against the same item you could get two rows. Not user-reachable given the merchant UI is single-user, but adding a compound unique index on (business_id,kind,item_id) would harden it.",
+    "/app/backend/routes/marketplace_merchant.py::set_bp_settings enforces min_bigpoints ONLY when mode=='default' (line 156). For mode=='per_order_value' there is no floor check on points_per_dollar × avg-order-value — a merchant could set ppd=0 and effectively opt out of the marketplace's minimum. Consider computing an implied floor for per-dollar mode too.",
+    "/app/backend/services/scan_pay_service.py::charge — points_awarded is derived from the merchant's bigpoints settings. Confirmed CARD path awards >0 and POINTS path awards 0. Good.",
+    "Consumer /api/shop/specials returns 200 always (empty items list when nothing active) — right call for a home-page feed.",
+    "Web MerchantSpecialsRadioLife.jsx renders blurb/sale/save controls only for currently-featured items — good UX (avoids clutter), and correct testIDs (special-toggle-*/special-blurb-*/special-sale-*/special-save-*) are all present. Same conditional pattern is used on mobile /merchant/specials.",
+    "Mobile /merchant/dashboard action-tile overlap flagged in iter74 has been fixed — tiles now flow into a proper 2-column grid at 390px."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter75_super_marketplace_2.py (new — 19 tests, 19 pass)"
+  ],
+  "success_rate": {"backend": "100% (19/19 pytest cases)", "frontend": "100% on all iter75 testids on both web and mobile (shop-specials-row, shop-special-*, rl-merchant-specials-page, special-toggle-*, special-blurb-*, special-sale-*, special-save-*, merchant-open-specials, rl-merchant-dash-page, merchant-points-settings, points-mode-flat, points-mode-perdollar, points-ppd-input, points-flat-input, merchant-new-order-alert, merchant-sound-toggle, shop-scan-pay, merchant-specials-root)"},
+  "test_credentials": "demo@bigfm.dubai via POST /api/auth/demo (web + mobile). Admin: admin@bigfm.dubai / AdminPass123!. Demo owns biz_8484f6f985d5 with a pre-seeded active special 'RadioLife Tee' + pm_card_visa attached from iter73 (id pm_1U3SaUL7GrHu8gqubVnOWnmR).",
+  "seed_data_creation": "Created + deleted a TEST75 special on demo's first menu item during the SPECIALS class. Bigpoints settings were toggled to {mode:'per_order_value', ppd:5} and reset to {mode:'default', default_points:150, ppd:2} via an autouse session-scope fixture, so the merchant is back to the defaults at teardown. One card scan-pay charge for 2000c was created and settled during LoyaltyOnScan.test_1 (a real Stripe test-mode $20 authorization on pm_card_visa) — this creates a real charge row in the merchant's account, treat as expected side-effect of testing this feature.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 4 iter75 feature areas (specials, points-per-dollar, ranking, loyalty-on-scan) + order sound alert pass backend + UI on both web and mobile. The bigpoints settings on demo's biz are left at {mode:'default', default_points:150, points_per_dollar:2} per the autouse teardown. A demo special 'RadioLife Tee' (special_id under iter56 seed, 20% off, sale $28) remains active on demo's business. Every real scan-pay CARD charge in this test consumed $20 of Stripe test funds — subsequent iterations don't need to re-run test_1_card_charge_awards_points repeatedly. On the merchant specials page, blurb/sale/save controls only render for currently-featured items — that's a UX choice, not a bug.",
+  "rca of the issue": "N/A — no functional bugs found in iter75."
+}

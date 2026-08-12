@@ -74,6 +74,8 @@ import MerchantCouponsRadioLife from "./screens/MerchantCouponsRadioLife";
 // QR Scan-to-Pay.
 import ScanPayRadioLife from "./screens/ScanPayRadioLife";
 import MerchantScanRadioLife from "./screens/MerchantScanRadioLife";
+// Promoted Specials.
+import MerchantSpecialsRadioLife from "./screens/MerchantSpecialsRadioLife";
 
 const NO_NAV_PATHS = [/^\/pay(\b|\/)/, /^\/radio\/station\//,
                               /^\/business\//, /^\/coupon\//];
@@ -104,6 +106,7 @@ export function screenFor(pathname) {
   if (pathname === "/shop/merchant/coupons") return MerchantCouponsRadioLife;
   if (pathname === "/shop/scan-pay") return ScanPayRadioLife;
   if (pathname === "/shop/merchant/scan") return MerchantScanRadioLife;
+  if (pathname === "/shop/merchant/specials") return MerchantSpecialsRadioLife;
   if (pathname === "/shop/merchant/tickets") return MerchantTicketScanRadioLife;
   if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;

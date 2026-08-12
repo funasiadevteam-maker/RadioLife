@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user
-from services.marketplace import now, new_id, effective_points
+from services.marketplace import now, new_id, effective_points, points_for_order
 from services.points_service import PointsService
 from services.marketplace_coupons import compute_coupon_discount, record_coupon_redemption
 
@@ -135,7 +135,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     used_points = max(0, min(int(redeem_points or 0), max_redeemable))
     points_discount = _points_to_cents(used_points)
     total = after_gift - points_discount
-    eff = effective_points(profile)
+    eff = points_for_order(profile, subtotal)
     return {
         "profile": profile, "line_items": line_items, "subtotal_cents": subtotal,
         "gift_card_id": gift_card.get("card_id") if gift_card else None,
