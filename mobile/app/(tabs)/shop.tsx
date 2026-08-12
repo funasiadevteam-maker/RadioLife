@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
-  ActivityIndicator, RefreshControl, TextInput,
+  ActivityIndicator, RefreshControl, TextInput, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +28,8 @@ export default function ShopHome() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isMerchant, setIsMerchant] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -41,6 +43,23 @@ export default function ShopHome() {
     finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Role-gate merchant tools — only business owners see the dashboard.
+    api.get('/merchant/marketplace/profile')
+      .then((r) => setIsMerchant(!!r.data?.profile))
+      .catch(() => setIsMerchant(false));
+  }, []);
+
+  const ACCOUNT_LINKS: [string, string, string, string][] = [
+    ['/shop/orders', 'receipt-outline', 'My Orders', 'shop-my-orders'],
+    ['/shop/product-orders', 'cube-outline', 'Product Orders', 'shop-my-product-orders'],
+    ['/shop/bookings', 'calendar-outline', 'My Bookings', 'shop-my-bookings'],
+    ['/shop/my-memberships', 'ribbon', 'My Memberships', 'shop-my-memberships'],
+    ['/shop/loyalty', 'star-outline', 'My Loyalty', 'shop-my-loyalty'],
+    ['/shop/wallet/cards', 'card-outline', 'Payment Methods', 'shop-payment-methods'],
+    ['/shop/scan-pay', 'qr-code-outline', 'Scan to Pay', 'shop-scan-pay'],
+  ];
+  const openLink = (to: string) => { setMenuOpen(false); router.push(to as any); };
 
   const goSearch = () => router.push({ pathname: '/shop/browse', params: { q: query } });
 
@@ -53,7 +72,12 @@ export default function ShopHome() {
           onRefresh={() => { setRefreshing(true); load(); }} />}>
 
         <View style={s.hero}>
-          <Text style={s.eyebrow}>RADIOLIFE SHOP</Text>
+          <View style={s.heroTop}>
+            <Text style={s.eyebrow}>RADIOLIFE SHOP</Text>
+            <TouchableOpacity style={s.accountBtn} onPress={() => setMenuOpen(true)} testID="shop-account-button">
+              <Ionicons name="person-circle-outline" size={26} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
           <Text style={s.headline}>{headline}</Text>
           <View style={s.searchBar}>
             <Ionicons name="search" size={18} color={COLORS.textMuted} />
@@ -86,52 +110,28 @@ export default function ShopHome() {
           ))}
         </ScrollView>
 
-        <TouchableOpacity style={s.sellCard} onPress={() => router.push('/sell')} testID="shop-sell-cta">
-          <View style={{ flex: 1 }}>
-            <Text style={s.sellTitle}>Sell on RadioLife</Text>
-            <Text style={s.sellSub}>List your business & reward local customers with BigPoints.</Text>
-          </View>
-          <Ionicons name="arrow-forward-circle" size={30} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={s.quickRow}>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/orders')} testID="shop-my-orders">
-            <Ionicons name="receipt-outline" size={18} color={COLORS.primary} />
-            <Text style={s.quickText}>Orders</Text>
+        {isMerchant ? (
+          <TouchableOpacity style={s.dashCard} onPress={() => router.push('/merchant/dashboard')} testID="shop-merchant-banner">
+            <Ionicons name="grid-outline" size={24} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.sellTitle}>Merchant Dashboard</Text>
+              <Text style={s.sellSub}>Manage your menu, products, orders, memberships & more.</Text>
+            </View>
+            <Ionicons name="arrow-forward-circle" size={30} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/bookings')} testID="shop-my-bookings">
-            <Ionicons name="calendar-outline" size={18} color={COLORS.primary} />
-            <Text style={s.quickText}>Bookings</Text>
+        ) : (
+          <TouchableOpacity style={s.sellCard} onPress={() => router.push('/sell')} testID="shop-sell-cta">
+            <View style={{ flex: 1 }}>
+              <Text style={s.sellTitle}>Sell on RadioLife</Text>
+              <Text style={s.sellSub}>List your business & reward local customers with BigPoints.</Text>
+            </View>
+            <Ionicons name="arrow-forward-circle" size={30} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/merchant/dashboard')} testID="shop-merchant-dash">
-            <Ionicons name="storefront-outline" size={18} color={COLORS.primary} />
-            <Text style={s.quickText}>Merchant</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={s.quickRow}>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/loyalty')} testID="shop-my-loyalty">
-            <Ionicons name="ribbon-outline" size={18} color={COLORS.gold} />
-            <Text style={s.quickText}>My Loyalty</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/my-memberships')} testID="shop-my-memberships">
-            <Ionicons name="ribbon" size={18} color={COLORS.primary} />
-            <Text style={s.quickText}>Memberships</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/shop/wallet/cards')} testID="shop-payment-methods">
-            <Ionicons name="card-outline" size={18} color={COLORS.text} />
-            <Text style={s.quickText}>Cards</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={s.scanPayBtn} onPress={() => router.push('/shop/scan-pay')} testID="shop-scan-pay">
-          <Ionicons name="qr-code" size={18} color="#fff" />
-          <Text style={s.scanPayText}>Scan to Pay in-store</Text>
-        </TouchableOpacity>
+        )}
 
         {specials.length > 0 && (
           <View style={{ marginTop: SPACING.lg }} testID="shop-specials-row">
-            <Text style={s.sectionTitle}>🔥 Today's Specials</Text>
+            <Text style={s.sectionTitle}>{"🔥 Today's Specials"}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 12 }}>
               {specials.map((sp) => (
@@ -173,6 +173,30 @@ export default function ShopHome() {
           </View>
         ))}
       </ScrollView>
+
+      {menuOpen && (
+        <View style={s.overlayFill} testID="shop-account-overlay">
+          <Pressable style={s.overlayBackdrop} onPress={() => setMenuOpen(false)} />
+          <View style={s.sheet} testID="shop-account-menu">
+            <View style={s.sheetHandle} />
+            <Text style={s.sheetTitle}>My Account</Text>
+            {isMerchant && (
+              <TouchableOpacity style={s.dashRow} onPress={() => openLink('/merchant/dashboard')} testID="shop-merchant-dash">
+                <Ionicons name="grid-outline" size={18} color="#fff" />
+                <Text style={s.dashRowText}>Merchant Dashboard</Text>
+                <Ionicons name="chevron-forward" size={18} color="#fff" />
+              </TouchableOpacity>
+            )}
+            {ACCOUNT_LINKS.map(([to, icon, label, tid]) => (
+              <TouchableOpacity key={to} style={s.linkRow} onPress={() => openLink(to)} testID={tid}>
+                <Ionicons name={icon as any} size={18} color={COLORS.primary} />
+                <Text style={s.linkRowText}>{label}</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -207,6 +231,8 @@ export function BizCard({ b, onPress, wide }: { b: Biz; onPress: () => void; wid
 
 const s = StyleSheet.create({
   hero: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, paddingBottom: SPACING.sm },
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  accountBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: COLORS.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
   headline: { color: COLORS.text, fontSize: 26, fontWeight: '900', marginTop: 4, marginBottom: 14, lineHeight: 30 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 12 },
@@ -219,13 +245,18 @@ const s = StyleSheet.create({
   filterChip: { flexShrink: 0, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.surfaceBorder },
   filterText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
   sellCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: 16 },
+  dashCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1f2430', borderRadius: RADIUS.lg, padding: 16 },
   sellTitle: { color: '#fff', fontSize: FONT.md, fontWeight: '900' },
   sellSub: { color: '#fff', opacity: 0.9, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
-  quickRow: { flexDirection: 'row', gap: 10, paddingHorizontal: SPACING.md, marginTop: SPACING.sm },
-  quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, paddingVertical: 12 },
-  quickText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.sm },
-  scanPayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 14, marginHorizontal: SPACING.md, marginTop: SPACING.sm },
-  scanPayText: { color: '#fff', fontWeight: '900', fontSize: FONT.md },
+  overlayFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' },
+  overlayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: SPACING.md, paddingTop: 10, paddingBottom: 34 },
+  sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.surfaceBorder, marginBottom: 12 },
+  sheetTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900', marginBottom: 10 },
+  dashRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8 },
+  dashRowText: { flex: 1, color: '#fff', fontSize: FONT.md, fontWeight: '900' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
+  linkRowText: { flex: 1, color: COLORS.text, fontSize: FONT.md, fontWeight: '700' },
   specialCard: { width: 176, backgroundColor: COLORS.card, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary + '44', overflow: 'hidden' },
   specialCover: { height: 96, backgroundColor: COLORS.inputBg },
   specialTag: { position: 'absolute', top: 8, left: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },

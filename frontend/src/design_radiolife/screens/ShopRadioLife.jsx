@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode } from "lucide-react";
+import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar } from "lucide-react";
 import { API } from "@/AuthContext";
 import { RLCard, RLChip } from "../DesignSystem";
 import { useProductCart } from "../useProductCart";
@@ -38,6 +38,8 @@ export default function ShopRadioLife() {
   const [sort, setSort] = useState("featured");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isMerchant, setIsMerchant] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const cartCount = useProductCart((st) => Object.values(st.groups).reduce((n, g) => n + g.items.reduce((m, i) => m + i.qty, 0), 0));
 
   useEffect(() => {
@@ -49,6 +51,10 @@ export default function ShopRadioLife() {
       setCats([{ key: "all", name: "All" }, ...(c.data.items || [])]);
       setLoading(false);
     });
+    // Role-gate merchant tools — only owners of a business see the dashboard.
+    axios.get(`${API}/merchant/marketplace/profile`)
+      .then((r) => setIsMerchant(!!r.data?.profile))
+      .catch(() => setIsMerchant(false));
   }, []);
 
   useEffect(() => {
@@ -66,33 +72,61 @@ export default function ShopRadioLife() {
 
   return (
     <div className="px-4 pt-6 pb-8 space-y-4" data-testid="rl-shop-page">
-      <header className="flex items-start justify-between gap-3">
+      <header className="flex items-start justify-between gap-3 relative">
         <div>
           <div className="text-orange-600 text-[11px] font-black tracking-widest">RADIOLIFE SHOP</div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight mt-1">
             {home?.headline || "SHOP LOCAL. EARN BIGPOINTS."}</h1>
         </div>
-        <Link to="/shop/cart" data-testid="shop-cart-button"
-          className="relative shrink-0 w-11 h-11 rounded-full bg-white border border-slate-200 flex items-center justify-center hover:shadow-md transition-shadow">
-          <ShoppingCart size={20} className="text-slate-700" />
-          {cartCount > 0 && (
-            <span data-testid="shop-cart-badge"
-              className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-orange-600 text-white text-[11px] font-black flex items-center justify-center">
-              {cartCount}</span>
-          )}
-        </Link>
-      </header>
+        <div className="flex items-center gap-2 shrink-0">
+          <button type="button" onClick={() => setMenuOpen((o) => !o)} data-testid="shop-account-button"
+            className="w-11 h-11 rounded-full bg-white border border-slate-200 flex items-center justify-center hover:shadow-md transition-shadow">
+            <User size={20} className="text-slate-700" />
+          </button>
+          <Link to="/shop/cart" data-testid="shop-cart-button"
+            className="relative w-11 h-11 rounded-full bg-white border border-slate-200 flex items-center justify-center hover:shadow-md transition-shadow">
+            <ShoppingCart size={20} className="text-slate-700" />
+            {cartCount > 0 && (
+              <span data-testid="shop-cart-badge"
+                className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-orange-600 text-white text-[11px] font-black flex items-center justify-center">
+                {cartCount}</span>
+            )}
+          </Link>
+        </div>
 
-      <div className="flex gap-2 -mt-1">
-        <Link to="/shop/memberships" data-testid="shop-my-memberships-link"
-          className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3.5 py-1.5 text-xs font-black text-slate-700 hover:border-orange-300">
-          <Crown size={13} className="text-orange-600" /> My Memberships
-        </Link>
-        <Link to="/shop/orders" data-testid="shop-my-orders-link"
-          className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3.5 py-1.5 text-xs font-black text-slate-700 hover:border-orange-300">
-          <Store size={13} className="text-orange-600" /> My Orders
-        </Link>
-      </div>
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-[90]" onClick={() => setMenuOpen(false)} />
+            <div data-testid="shop-account-menu"
+              className="fixed top-20 right-4 z-[100] w-60 bg-white rounded-2xl border border-slate-200 shadow-xl p-2">
+              <div className="flex items-center justify-between px-2 py-1.5">
+                <span className="text-xs font-black text-slate-400 tracking-wide">MY ACCOUNT</span>
+                <button onClick={() => setMenuOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={15} /></button>
+              </div>
+              {isMerchant && (
+                <Link to="/shop/merchant" data-testid="shop-merchant-dash" onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mb-1 bg-orange-600 text-white font-black text-sm hover:bg-orange-700">
+                  <LayoutDashboard size={16} /> Merchant Dashboard
+                </Link>
+              )}
+              {[
+                ["/shop/orders", Receipt, "My Orders", "shop-my-orders"],
+                ["/shop/product-orders", Store, "Product Orders", "shop-my-product-orders"],
+                ["/shop/bookings", Calendar, "My Bookings", "shop-my-bookings"],
+                ["/shop/memberships", Crown, "My Memberships", "shop-my-memberships-link"],
+                ["/shop/loyalty", Star, "My Loyalty", "shop-my-loyalty"],
+                ["/shop/wallet/cards", CreditCard, "Payment Methods", "shop-payment-methods"],
+                ["/shop/scan-pay", QrCode, "Scan to Pay", "shop-scan-pay"],
+              ].map(([to, Icon, label, tid]) => (
+                <Link key={to} to={to} data-testid={tid} onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-orange-50">
+                  <Icon size={16} className="text-orange-600" /> {label}
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+      </header>
 
       <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-3">
         <Search size={18} className="text-slate-400" />
@@ -107,39 +141,27 @@ export default function ShopRadioLife() {
         ))}
       </div>
 
-      <Link to="/sell" data-testid="shop-sell-cta"
-        className="flex items-center gap-3 bg-orange-600 text-white rounded-2xl p-4 hover:bg-orange-700 transition-colors">
-        <Store size={22} />
-        <div className="flex-1">
-          <div className="font-black">Sell on RadioLife</div>
-          <div className="text-xs opacity-90">List your business & reward local customers with BigPoints.</div>
-        </div>
-        <ArrowRight size={22} />
-      </Link>
-
-      <div className="grid grid-cols-3 gap-3">
-        <Link to="/shop/orders" data-testid="shop-my-orders"
-          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Orders</Link>
-        <Link to="/shop/bookings" data-testid="shop-my-bookings"
-          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Bookings</Link>
-        <Link to="/shop/merchant" data-testid="shop-merchant-dash"
-          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Merchant</Link>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Link to="/shop/product-orders" data-testid="shop-my-product-orders"
-          className="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 font-black rounded-xl py-3">Product Orders</Link>
-        <Link to="/shop/loyalty" data-testid="shop-my-loyalty"
-          className="flex items-center justify-center gap-2 bg-amber-100 text-amber-950 font-black rounded-xl py-3">
-          <Star size={16} className="fill-amber-500 text-amber-500" />My Loyalty</Link>
-      </div>
-      <div className="grid grid-cols-1 gap-3">
-        <Link to="/shop/scan-pay" data-testid="shop-scan-pay"
-          className="flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-xl py-3">
-          <QrCode size={16} />Scan to Pay</Link>
-        <Link to="/shop/wallet/cards" data-testid="shop-payment-methods"
-          className="flex items-center justify-center gap-2 bg-slate-900 text-white font-black rounded-xl py-3">
-          <CreditCard size={16} />Payment Methods</Link>
-      </div>
+      {isMerchant ? (
+        <Link to="/shop/merchant" data-testid="shop-merchant-banner"
+          className="flex items-center gap-3 bg-slate-900 text-white rounded-2xl p-4 hover:bg-slate-800 transition-colors">
+          <LayoutDashboard size={22} />
+          <div className="flex-1">
+            <div className="font-black">Merchant Dashboard</div>
+            <div className="text-xs opacity-80">Manage your menu, products, orders, memberships & more.</div>
+          </div>
+          <ArrowRight size={22} />
+        </Link>
+      ) : (
+        <Link to="/sell" data-testid="shop-sell-cta"
+          className="flex items-center gap-3 bg-orange-600 text-white rounded-2xl p-4 hover:bg-orange-700 transition-colors">
+          <Store size={22} />
+          <div className="flex-1">
+            <div className="font-black">Sell on RadioLife</div>
+            <div className="text-xs opacity-90">List your business & reward local customers with BigPoints.</div>
+          </div>
+          <ArrowRight size={22} />
+        </Link>
+      )}
 
       {browsing ? (
         <>
@@ -157,7 +179,7 @@ export default function ShopRadioLife() {
         <>
           {specials.length > 0 && (
             <section data-testid="shop-specials-row">
-              <h2 className="text-lg font-black text-slate-900 mb-2 flex items-center gap-1.5">🔥 Today's Specials</h2>
+              <h2 className="text-lg font-black text-slate-900 mb-2 flex items-center gap-1.5">🔥 Today&apos;s Specials</h2>
               <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
                 {specials.map((sp) => (
                   <Link key={sp.special_id} to={`/shop/${sp.business_id}`} data-testid={`shop-special-${sp.special_id}`}

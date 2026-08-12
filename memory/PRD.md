@@ -1,5 +1,13 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## SHOP UX DECLUTTER + ROLE-GATING (P0, user-flagged) SHIPPED (2026-06 fork) — self-verified both surfaces
+The Shop home was dumping every merchant + consumer action as big tiles to EVERY user. Restructured to a clean, shopping-first storefront on both web + mobile.
+- **Web `ShopRadioLife.jsx`**: removed the tile grid (Orders/Bookings/Merchant/Product Orders/My Loyalty/Scan/Payment Methods) and the memberships/orders chip row. Header now has a **person Account button** (`shop-account-button`) → a fixed dropdown (`shop-account-menu`, `z-[100]` to escape the shell's transformed scroll-container stacking context) with My Orders, Product Orders, My Bookings, My Memberships, My Loyalty, Payment Methods, Scan to Pay. Merchant tools are **role-gated** via `GET /api/merchant/marketplace/profile` (`{profile:null}` for non-owners): owners get a single **Merchant Dashboard** banner (`shop-merchant-banner`) + a highlighted menu item (→ existing `MerchantDashRadioLife` hub); non-owners get only the subtle "Sell on RadioLife" CTA. Cart icon unchanged.
+- **Mobile `(tabs)/shop.tsx`**: removed the two quick-action rows + the scan button. Hero gets a **person Account icon** → an absolute-overlay **bottom sheet** (`shop-account-menu`; switched off RN `Modal` because Expo-web's Modal didn't composite the backdrop — the absolute overlay renders identically on web + native) with the same consumer links, plus a role-gated Merchant Dashboard row/banner. Same `/merchant/marketplace/profile` gating.
+- Buying stays simple/Amazon-like: business/product card → detail → add to cart / buy → cart → checkout (unchanged).
+- Verified via screenshots: web merchant view (Merchant Dashboard banner + menu), mobile logged-out view (Sell CTA, no merchant banner) + clean account sheet. NOT run through the testing agent yet (contained navigation/declutter change).
+
+
 ## MEMBERSHIP ENTITLEMENTS, MENU VARIANTS & ORDER RULES — Phase 1 (Data & Schema Foundation, backend) SHIPPED (2026-06 fork) — iteration_76 green (24/24 backend)
 Overhaul of memberships from simple discount coupons into a true entitlement engine. User approved a 4-phase plan (both web+mobile in lockstep for UI phases) + FULL replacement of the old model via a boot migration. Phase 1 is backend-only.
 - **NEW `services/membership_entitlements.py`** — the engine core:
