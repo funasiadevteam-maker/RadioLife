@@ -1,5 +1,14 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## RADIO "DISCOVER MORE" — 4 enhancements (2026-06 fork) — self-verified (web)
+Extended the interactive Discover widget in `frontend/src/RadioHome.jsx` (`BrowseTeaser`). All params already supported by `/api/radio/browse`; no backend change.
+- **Country filter:** new chip row from the discover `countries` facet (slug=ISO code); labels show a flag emoji (derived from the 2-letter code) + friendly name (`COUNTRY_NAMES` map, fallback to code). Filters via browse `country=`. testids `radio-browse-country-chips`, `radio-browse-country-{code}`, `radio-browse-country-all`.
+- **In-section search:** debounced (350ms) text input (`radio-browse-search` + `radio-browse-search-clear`) → browse `q=`. Re-fetches thumbnails as you type.
+- **Live / hot badges:** every thumbnail gets a pulsing red LIVE badge (`radio-browse-live-{id}`); the top-3 most-played (results are sorted flagship→votes→clicks) get a 🔥 HOT badge (`radio-browse-hot-{id}`), hidden while searching. NOTE: no real-time listener counts are tracked, so we surface honest LIVE + popularity-ranked HOT rather than fabricated "listeners now" numbers.
+- **Remembered filters:** language/genre/country persist to `localStorage["radiolife.discover.filters"]` and restore on mount (search is intentionally not persisted). Verified across a reload (India + Bollywood stayed active).
+- Self-verified via screenshots (country flags, search→BBC results, 24 LIVE + 3 HOT badges, persistence on reload). Lint clean. Web-only; renders on legacy-variant `/radio`. Not run through the testing agent (single section, self-tested).
+
+
 ## RADIO "DISCOVER MORE" — interactive filterable browse + CRITICAL router fix (2026-06 fork) — self-verified (web)
 User reported the web `/radio` "Discover more" section showed only a heading + "Browse all" button (empty grid) and asked for: list stations, auto-show top-played, filter by language + genre, scrollable thumbnails.
 - **ROOT-CAUSE / CRITICAL BUGFIX:** `backend/routes/radio_unified.py` had a stray fragment at line 625 (`dio?ch={slug}&autoplay=1",` + `}`) → `SyntaxError: unterminated string literal` → the ENTIRE `/api/radio/*` router (discover, browse, genres, station, play) AND the `promoted_stations` router failed to import (logged "router not loaded" every boot). That's why the Discover grid was empty (discover 404 → catch → []). Removed the stray lines. Also fixed a latent `NameError`: `browse()` used `genre` at 3 places but never declared it as a query param → added `genre: Optional[str] = Query(None)` (also enables genre filtering). After fix: discover/browse/genres/play/station/promoted-stations all 200; browse total 4,970 imported stations.

@@ -9,7 +9,7 @@ import axios from "axios";
 import {
   Radio, Sparkles, Gift, MapPin, Play, ChevronRight, Loader2,
   Gamepad2, Ticket, Coins, Zap, Award, PartyPopper, HandCoins,
-  ScrollText, Trophy, ArrowRight,
+  ScrollText, Trophy, ArrowRight, Search, X,
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
@@ -439,9 +439,31 @@ function GamesSection({ light }) {
 
 
 // ═══════════════════════════════════════════════════════════════════
-// Browse teaser — auto top-played stations + language/genre filters +
-// horizontally-scrollable thumbnails + CTA to the full directory.
+// Browse teaser — auto top-played stations + language/genre/country
+// filters + search + hot/live badges + remembered filters.
 // ═══════════════════════════════════════════════════════════════════
+const DISCOVER_FILTERS_KEY = "radiolife.discover.filters";
+
+const COUNTRY_NAMES = {
+  US: "USA", GB: "UK", DE: "Germany", FR: "France", IN: "India", IT: "Italy",
+  ES: "Spain", RU: "Russia", MX: "Mexico", TR: "Turkey", CH: "Switzerland",
+  GR: "Greece", NL: "Netherlands", RO: "Romania", PL: "Poland", AE: "UAE",
+  CA: "Canada", AU: "Australia", BR: "Brazil", PK: "Pakistan", SA: "Saudi Arabia",
+  EG: "Egypt", JP: "Japan", CN: "China", KR: "Korea", PT: "Portugal",
+  SE: "Sweden", NO: "Norway", DK: "Denmark", BE: "Belgium", AT: "Austria",
+  IE: "Ireland", UA: "Ukraine", ID: "Indonesia", PH: "Philippines", TH: "Thailand",
+  ZA: "South Africa", NG: "Nigeria", AR: "Argentina", CO: "Colombia",
+};
+
+function countryName(cc) { return COUNTRY_NAMES[cc] || cc; }
+
+function flagEmoji(cc) {
+  if (!cc || !/^[A-Za-z]{2}$/.test(cc)) return "";
+  const base = 0x1F1E6;
+  const up = cc.toUpperCase();
+  return String.fromCodePoint(base + up.charCodeAt(0) - 65, base + up.charCodeAt(1) - 65);
+}
+
 function FilterChip({ light, active, onClick, children, testid }) {
   return (
     <button type="button" onClick={onClick} data-testid={testid}
@@ -459,10 +481,18 @@ function FilterChip({ light, active, onClick, children, testid }) {
 function BrowseTeaser({ light }) {
   const navigate = useNavigate();
   const setImportedStation = usePlayerStore((s) => s.setImportedStation);
+  const saved = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem(DISCOVER_FILTERS_KEY) || "{}"); }
+    catch (_) { return {}; }
+  }, []);
   const [langs, setLangs] = useState([]);
   const [genres, setGenres] = useState([]);
-  const [lang, setLang] = useState("");
-  const [genre, setGenre] = useState("");
+  const [countries, setCountries] = useState([]);
+  const [lang, setLang] = useState(saved.lang || "");
+  const [genre, setGenre] = useState(saved.genre || "");
+  const [country, setCountry] = useState(saved.country || "");
+  const [qInput, setQInput] = useState("");
+  const [q, setQ] = useState("");
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -472,7 +502,7 @@ function BrowseTeaser({ light }) {
   const muted = light ? "text-slate-500" : "text-slate-400";
   const nameCls = light ? "text-slate-900" : "text-white";
 
-  // Filter facets (language + genre) — loaded once from discover.
+  // Filter facets (language + genre + country) — loaded once from discover.
   useEffect(() => {
     (async () => {
       try {
@@ -481,11 +511,24 @@ function BrowseTeaser({ light }) {
         for (const r of (data?.rails || [])) rails[r.id] = r;
         setLangs((rails.languages?.facet_chips || []).slice(0, 12));
         setGenres((rails.genres?.facet_chips || []).slice(0, 12));
+        setCountries((rails.countries?.facet_chips || []).slice(0, 20));
       } catch (_) { /* filters optional */ }
     })();
   }, []);
 
-  // Top-played stations, re-fetched whenever a filter changes.
+  // Debounce the search box.
+  useEffect(() => {
+    const t = setTimeout(() => setQ(qInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [qInput]);
+
+  // Remember the listener's language/genre/country choice.
+  useEffect(() => {
+    try { localStorage.setItem(DISCOVER_FILTERS_KEY, JSON.stringify({ lang, genre, country })); }
+    catch (_) { /* private mode */ }
+  }, [lang, genre, country]);
+
+  // Top-played stations, re-fetched whenever a filter or search changes.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -494,13 +537,15 @@ function BrowseTeaser({ light }) {
         const params = new URLSearchParams({ source: "imported", limit: "24" });
         if (lang) params.set("language", lang);
         if (genre) params.set("category", genre);
+        if (country) params.set("country", country);
+        if (q) params.set("q", q);
         const { data } = await axios.get(`${API}/radio/browse?${params}`);
         if (!cancelled) setItems(data.items || []);
       } catch (_) { if (!cancelled) setItems([]); }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [lang, genre]);
+  }, [lang, genre, country, q]);
 
   const play = async (s) => {
     if (s.source === "bigfm_ai") {
@@ -542,6 +587,26 @@ function BrowseTeaser({ light }) {
         </Link>
       </div>
 
+      {/* Search */}
+      <div className="mb-3">
+        <div className={`relative flex items-center rounded-full ${light ? "bg-slate-100" : "bg-slate-800/70"}`}>
+          <Search className={`w-4 h-4 ml-3.5 shrink-0 ${muted}`} />
+          <input
+            data-testid="radio-browse-search"
+            value={qInput}
+            onChange={(e) => setQInput(e.target.value)}
+            placeholder="Search stations by name…"
+            className={`flex-1 bg-transparent px-2.5 py-2.5 text-sm outline-none ${
+              light ? "text-slate-900 placeholder-slate-400" : "text-white placeholder-slate-500"}`} />
+          {qInput && (
+            <button type="button" onClick={() => setQInput("")}
+              data-testid="radio-browse-search-clear" className="mr-2 p-1 rounded-full hover:bg-black/10">
+              <X className={`w-4 h-4 ${muted}`} />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Language filter */}
       {langs.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-1"
@@ -557,13 +622,26 @@ function BrowseTeaser({ light }) {
 
       {/* Genre filter */}
       {genres.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-4"
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-1"
                     data-testid="radio-browse-genre-chips">
           <span className={`shrink-0 text-[11px] font-black uppercase tracking-wider ${muted}`}>Genre</span>
           <FilterChip light={light} active={!genre} onClick={() => setGenre("")} testid="radio-browse-genre-all">All</FilterChip>
           {genres.map((g) => (
             <FilterChip light={light} key={g.slug} active={genre === g.slug} onClick={() => setGenre(g.slug)}
                         testid={`radio-browse-genre-${g.slug}`}>{g.label}</FilterChip>
+          ))}
+        </div>
+      )}
+
+      {/* Country filter */}
+      {countries.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-4"
+                    data-testid="radio-browse-country-chips">
+          <span className={`shrink-0 text-[11px] font-black uppercase tracking-wider ${muted}`}>Country</span>
+          <FilterChip light={light} active={!country} onClick={() => setCountry("")} testid="radio-browse-country-all">All</FilterChip>
+          {countries.map((c) => (
+            <FilterChip light={light} key={c.slug} active={country === c.slug} onClick={() => setCountry(c.slug)}
+                        testid={`radio-browse-country-${c.slug}`}>{`${flagEmoji(c.slug)} ${countryName(c.slug)}`}</FilterChip>
           ))}
         </div>
       )}
@@ -577,7 +655,7 @@ function BrowseTeaser({ light }) {
       ) : (
         <div className={`flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
                     data-testid="radio-browse-teaser-scroll">
-          {(items || []).map((s) => (
+          {(items || []).map((s, idx) => (
             <button
               key={s.id}
               onClick={() => play(s)}
@@ -588,6 +666,16 @@ function BrowseTeaser({ light }) {
                                           fallbackKind="station"
                                           fallbackText={s.name}
                                           className="w-full h-full object-cover" />
+                <span className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow"
+                      data-testid={`radio-browse-live-${s.id}`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE
+                </span>
+                {idx < 3 && !q && (
+                  <span className="absolute top-1.5 right-1.5 bg-amber-400 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow"
+                        data-testid={`radio-browse-hot-${s.id}`}>
+                    🔥 HOT
+                  </span>
+                )}
                 <span className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 group-hover:opacity-100 transition">
                   <Play className="w-8 h-8 text-white fill-white" />
                 </span>
