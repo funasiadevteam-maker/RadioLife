@@ -274,7 +274,7 @@ async def discover(request: Request,
 
 # ─────────────────────── /browse ───────────────────────
 async def _browse_imported_fast(db, request, q, cat_slug, language, country,
-                                page: int, limit: int, user, genre=None):
+                                page: int, limit: int, user, genre=None, sort="popular"):
     """DB-paginated imported-only browse. Flagships first, then votes/clicks."""
     station_ids = None
     if cat_slug:
@@ -305,8 +305,13 @@ async def _browse_imported_fast(db, request, q, cat_slug, language, country,
     total = await db.imported_radio_stations.count_documents(base)
     skip = (page - 1) * limit
     cards: List[Dict[str, Any]] = []
-    cur = db.imported_radio_stations.find(base).sort(
-        [("is_flagship", -1), ("votes", -1), ("click_count", -1)]).skip(skip).limit(limit)
+    sort_map = {
+        "popular": [("is_flagship", -1), ("votes", -1), ("click_count", -1)],
+        "az": [("name", 1)],
+        "newest": [("imported_at", -1), ("is_flagship", -1)],
+    }
+    sort_spec = sort_map.get((sort or "popular").lower(), sort_map["popular"])
+    cur = db.imported_radio_stations.find(base).sort(sort_spec).skip(skip).limit(limit)
     async for s in cur:
         cards.append(_imported_to_card(s))
     return {
@@ -346,6 +351,7 @@ async def browse(
     country: Optional[str] = Query(None),
     genre: Optional[str] = Query(None),
     source: str = Query("all"),
+    sort: str = Query("popular"),
     page: int = Query(1, ge=1),
     limit: int = Query(24, ge=1, le=100),
     user: Optional[dict] = Depends(current_user_optional),
@@ -367,7 +373,7 @@ async def browse(
     # and paginates correctly past page ~66.
     if sources == {"imported"}:
         return await _browse_imported_fast(
-            db, request, q, cat_slug, language, country, page, limit, user, genre)
+            db, request, q, cat_slug, language, country, page, limit, user, genre, sort)
 
     # AI tier.
     if "bigfm_ai" in sources:

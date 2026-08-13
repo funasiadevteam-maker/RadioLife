@@ -2,10 +2,11 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Check, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, Check, CheckCircle2, Crown } from "lucide-react";
+import { toast } from "sonner";
 import { API } from "@/AuthContext";
 
-const money = (c) => `$${(c / 100).toFixed(0)}`;
+const priceLabel = (c) => (c === 0 ? "Free" : `$${(c / 100).toFixed(2)}`);
 
 export default function MerchantSubscribeRadioLife() {
   const navigate = useNavigate();
@@ -31,7 +32,9 @@ export default function MerchantSubscribeRadioLife() {
     try {
       const r = await axios.post(`${API}/merchant/marketplace/subscription/checkout`, { plan_id: planId, origin_url: window.location.origin });
       if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
-    } catch { setBusyId(null); }
+      if (r.data.activated) { toast.success("Your shop is live!"); await load(); }
+    } catch (e) { toast.error(e?.response?.data?.detail?.code || "Something went wrong"); }
+    finally { setBusyId(null); }
   };
 
   if (loading) return <div className="px-4 pt-10 text-center text-slate-500">Loading…</div>;
@@ -47,7 +50,7 @@ export default function MerchantSubscribeRadioLife() {
         {active && (
           <div className="flex items-center gap-2 bg-green-50 border border-green-300 rounded-xl p-3" data-testid="subscribe-active">
             <CheckCircle2 size={20} className="text-green-600" />
-            <span className="text-sm font-bold text-slate-800">Your {current?.plan_id || ""} plan is active — you're live on the Shop.</span>
+            <span className="text-sm font-bold text-slate-800">Your {current?.plan_id || ""} plan is active — you&apos;re live on the Shop.</span>
           </div>
         )}
         <p className="text-sm text-slate-500">List your business, reward customers with BigPoints, and accept pickup orders. Cancel anytime.</p>
@@ -56,11 +59,12 @@ export default function MerchantSubscribeRadioLife() {
           const isCurrent = active && current?.plan_id === p.plan_id;
           return (
             <div key={p.plan_id} className={`bg-white rounded-2xl p-5 ${p.plan_id === "pro" ? "border-2 border-orange-600" : "border border-slate-200"}`} data-testid={`plan-${p.plan_id}`}>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className="text-xl font-black text-slate-900">{p.name}</div>
                 {p.plan_id === "pro" && <span className="bg-orange-600 text-white text-[9px] font-black tracking-wider px-2 py-0.5 rounded-full">POPULAR</span>}
+                {p.can_offer_memberships && <span className="flex items-center gap-1 bg-amber-100 text-amber-800 text-[9px] font-black tracking-wider px-2 py-0.5 rounded-full"><Crown size={10} />MEMBERSHIPS</span>}
               </div>
-              <div className="text-3xl font-black text-slate-900 mt-1">{money(p.price_cents)}<span className="text-base font-bold text-slate-400">/{p.interval}</span></div>
+              <div className="text-3xl font-black text-slate-900 mt-1">{priceLabel(p.price_cents)}{p.price_cents > 0 && <span className="text-base font-bold text-slate-400">/{p.interval}</span>}</div>
               <div className="mt-3 space-y-1.5">
                 {(p.features || []).map((f, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-slate-600 font-semibold"><Check size={15} className="text-green-600" />{f}</div>
@@ -68,7 +72,7 @@ export default function MerchantSubscribeRadioLife() {
               </div>
               <button onClick={() => subscribe(p.plan_id)} disabled={!!busyId || isCurrent} data-testid={`subscribe-${p.plan_id}`}
                 className="mt-4 w-full bg-orange-600 text-white font-black rounded-full py-3 disabled:opacity-50">
-                {busyId === p.plan_id ? "Redirecting…" : isCurrent ? "Current Plan" : `Subscribe · ${money(p.price_cents)}/mo`}
+                {busyId === p.plan_id ? "Working…" : isCurrent ? "Current Plan" : p.price_cents === 0 ? "Start free" : `Choose ${p.name} · ${priceLabel(p.price_cents)}/mo`}
               </button>
             </div>
           );

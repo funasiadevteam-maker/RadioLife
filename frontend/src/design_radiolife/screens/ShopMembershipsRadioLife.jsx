@@ -38,10 +38,11 @@ export default function ShopMembershipsRadioLife() {
   };
 
   const claim = async (benefit) => {
-    const option = benefit.options?.length ? pick[benefit.benefit_id] : null;
+    const eid = benefit.entitlement_id || benefit.benefit_id;
+    const option = benefit.options?.length ? pick[eid] : null;
     if (benefit.options?.length && !option) { alert("Choose an option first"); return; }
     try {
-      await axios.post(`${API}/shop/memberships/${data.mine.membership_id}/claim`, { benefit_id: benefit.benefit_id, option });
+      await axios.post(`${API}/shop/memberships/${data.mine.membership_id}/claim`, { entitlement_id: eid, option });
       load();
     } catch (e) { alert(e?.response?.data?.detail?.code || "Claim failed"); }
   };
@@ -59,10 +60,12 @@ export default function ShopMembershipsRadioLife() {
       <div className="px-4 space-y-4">
         {data.mine && (
           <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 p-4" data-testid="mem-mine">
-            <div className="flex items-center gap-2 font-black text-amber-950"><Crown size={18} className="text-amber-500" />You're a {data.mine.plan_name} member</div>
+            <div className="flex items-center gap-2 font-black text-amber-950"><Crown size={18} className="text-amber-500" />You&apos;re a {data.mine.plan_name} member</div>
             <div className="mt-3 space-y-2">
-              {(data.mine.benefits || []).map((b) => (
-                <div key={b.benefit_id} className="bg-white rounded-xl p-3" data-testid={`mem-benefit-${b.benefit_id}`}>
+              {(data.mine.benefits || []).map((b) => {
+                const eid = b.entitlement_id || b.benefit_id;
+                return (
+                <div key={eid} className="bg-white rounded-xl p-3" data-testid={`mem-benefit-${eid}`}>
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5"><Coffee size={14} className="text-orange-600" />{b.label}</span>
                     <span className="text-xs font-black text-slate-500">{b.remaining}/{b.qty} left {periodLabel(b.period)}</span>
@@ -70,18 +73,19 @@ export default function ShopMembershipsRadioLife() {
                   {b.options?.length > 0 && (
                     <div className="flex gap-1.5 flex-wrap mt-2">
                       {b.options.map((o) => (
-                        <button key={o} onClick={() => setPick((m) => ({ ...m, [b.benefit_id]: o }))}
-                          data-testid={`mem-option-${b.benefit_id}-${o}`}
-                          className={`px-3 h-8 rounded-full text-xs font-black ${pick[b.benefit_id] === o ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-700"}`}>{o}</button>
+                        <button key={o} onClick={() => setPick((m) => ({ ...m, [eid]: o }))}
+                          data-testid={`mem-option-${eid}-${o}`}
+                          className={`px-3 h-8 rounded-full text-xs font-black ${pick[eid] === o ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-700"}`}>{o}</button>
                       ))}
                     </div>
                   )}
-                  <button onClick={() => claim(b)} disabled={b.remaining <= 0} data-testid={`mem-claim-${b.benefit_id}`}
+                  <button onClick={() => claim(b)} disabled={b.remaining <= 0} data-testid={`mem-claim-${eid}`}
                     className="mt-2 w-full bg-orange-600 text-white font-black rounded-full py-2 text-sm disabled:opacity-40">
                     {b.remaining <= 0 ? "Claimed for this period" : "Claim now"}
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -101,7 +105,7 @@ export default function ShopMembershipsRadioLife() {
               {p.description && <div className="text-sm text-slate-500 mt-1">{p.description}</div>}
               <div className="mt-2 space-y-1">
                 {(p.entitlements || []).map((e) => (
-                  <div key={e.benefit_id} className="flex items-center gap-2 text-sm text-slate-600">
+                  <div key={e.entitlement_id || e.benefit_id} className="flex items-center gap-2 text-sm text-slate-600">
                     <Check size={14} className="text-green-600" />{e.qty}× {e.label}{e.options?.length ? ` (choose: ${e.options.join("/")})` : ""} {periodLabel(e.period)}
                   </div>
                 ))}

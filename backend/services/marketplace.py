@@ -167,21 +167,29 @@ async def seed_marketplace_foundation(db) -> Dict[str, Any]:
             "effective_date": now(), "active": True,
             "created_at": now(), "updated_at": now()})
 
-    # 4) Merchant subscription plans (Starter / Pro) — admin-editable.
+    # 4) Merchant subscription plans (Starter free / Growth / Pro) — Pro unlocks memberships.
     for p in DEFAULT_PLANS:
         await db.subscription_plans.update_one(
             {"plan_id": p["plan_id"]},
-            {"$setOnInsert": {**p, "active": True, "created_at": now(), "updated_at": now()}},
+            {"$set": {**p, "active": True, "updated_at": now()},
+             "$setOnInsert": {"created_at": now()}},
             upsert=True)
     return summary
 
 
 DEFAULT_PLANS = [
-    {"plan_id": "starter", "name": "Starter", "price_cents": 2900, "interval": "month",
-     "features": ["List your business", "BigPoints rewards", "Up to 50 menu items"]},
-    {"plan_id": "pro", "name": "Pro", "price_cents": 9900, "interval": "month",
-     "features": ["Everything in Starter", "Featured placement eligibility",
-                  "Unlimited menu items", "Happy Hour boosts"]},
+    {"plan_id": "starter", "name": "Starter", "price_cents": 0, "interval": "month",
+     "can_offer_memberships": False,
+     "features": ["List your shop in the marketplace", "Sell products & services",
+                  "BigPoints rewards", "Accept orders"]},
+    {"plan_id": "growth", "name": "Growth", "price_cents": 2999, "interval": "month",
+     "can_offer_memberships": False,
+     "features": ["Everything in Starter", "Promoted marketplace placement",
+                  "Specials & coupons", "Priority support"]},
+    {"plan_id": "pro", "name": "Pro", "price_cents": 9999, "interval": "month",
+     "can_offer_memberships": True,
+     "features": ["Everything in Growth", "Create & sell memberships",
+                  "Membership entitlement engine", "AI concierge ordering"]},
 ]
 
 

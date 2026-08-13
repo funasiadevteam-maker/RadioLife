@@ -49,7 +49,7 @@ export default function SellOnRadioLife() {
         sells, bigpoints: { mode: "default", default_points: pts, points_per_dollar: parseFloat(f.points_per_dollar) || 2 },
         funding_mode: "auto_deduct", commission_agreed: commissionAgreed, price_parity_certified: parity,
       });
-      if (r.data.ok) { toast.success("Submitted for approval!"); navigate("/shop"); }
+      if (r.data.ok) { toast.success("Business created! Choose your shop plan."); navigate("/shop/merchant/subscribe"); }
     } catch (e) {
       toast.error(e?.response?.data?.detail?.code || "Submission failed");
     } finally { setBusy(false); }

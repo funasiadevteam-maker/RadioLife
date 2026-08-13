@@ -1,5 +1,23 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## MEMBERSHIP CLAIM BUGFIX + SHOP PLANS Phase 1 (2026-06 fork) — testing agent PASS (web + mobile), iteration_78
+### Bugfix — membership "Claim now" → benefit_not_found (BOTH surfaces)
+Root cause: the venue membership-detail screens sent `benefit_id`, but the API (`_benefit_status`) returns `entitlement_id`, so the claim posted `undefined` → backend matched nothing → `benefit_not_found`. Fixed the field on web (`ShopMembershipsRadioLife.jsx`) and mobile (`mobile/app/shop/memberships/[id].tsx`) to use `entitlement_id` (fallback `benefit_id`), and hardened the backend claim (`marketplace_memberships.py`) to match `entitlement_id` OR legacy `benefit_id`. Verified: Unlimited Coffee claim decrements on both web & mobile, no error. (Affected preview + production — user must redeploy for prod.)
+
+### Shop Subscription Plans — Phase 1 (extends the EXISTING `subscription_plans`/`merchant_subscriptions` system; did NOT build a parallel one)
+- Tiers reseeded in `services/marketplace.py` `DEFAULT_PLANS` (idempotent `$set` upsert): **Starter Free (can_offer_memberships=false)**, **Growth $29.99/mo (false)**, **Pro $99.99/mo (true)**. `/api/merchant/marketplace/subscription/plans` now returns `can_offer_memberships`.
+- Free tier activates instantly (no Stripe); paid tiers use the existing Stripe Checkout subscription flow. Both activation paths set `subscription_active=true` + `status=approved` (instant activation, per user decision — no admin approval).
+- **Membership creation gated**: `POST /api/merchant/marketplace/memberships/items` returns 403 `{code:membership_plan_required, required_tier:pro}` unless the merchant's active plan is Pro OR they already sell memberships (grandfathered, `active:true` plans only). Helper `_can_offer_memberships` in `marketplace_memberships.py`.
+- Web UI: `MerchantSubscribeRadioLife` shows the 3 tiers (Pro has POPULAR + ⭐MEMBERSHIPS badges; free shows "Start free"); `SellOnRadioLife` now routes a new business to `/shop/merchant/subscribe` after onboarding (self-serve open-a-shop); `MerchantMembershipsRadioLife` shows an "Upgrade to Pro" gate + disabled Create when the shop can't offer memberships.
+- Commission: the platform's global commission default is ALREADY 15% (`services/marketplace.py`), category-based with per-merchant overrides via the existing commission engine — matches the user's requirement.
+
+### Phase 2 / remaining (NOT yet built)
+- Wire the 15% commission as a Stripe Connect `application_fee` on each consumer **membership subscription** payment (currently the commission engine exists but membership subscribe doesn't apply an application_fee).
+- Plan **upgrade/downgrade** UX + cancel the prior Stripe subscription on downgrade (free-tier checkout currently doesn't cancel an existing paid sub).
+- Mobile parity for the shop-plan chooser (currently web-only).
+- PAUSED: Discover "recently played / favorites / sort" — only the backend `sort` param (popular/az/newest) on `/api/radio/browse` is done; the RadioHome UI for recents/favorites/sort toggle is not built.
+
+
 ## RADIO "DISCOVER MORE" — 4 enhancements (2026-06 fork) — self-verified (web)
 Extended the interactive Discover widget in `frontend/src/RadioHome.jsx` (`BrowseTeaser`). All params already supported by `/api/radio/browse`; no backend change.
 - **Country filter:** new chip row from the discover `countries` facet (slug=ISO code); labels show a flag emoji (derived from the 2-letter code) + friendly name (`COUNTRY_NAMES` map, fallback to code). Filters via browse `country=`. testids `radio-browse-country-chips`, `radio-browse-country-{code}`, `radio-browse-country-all`.

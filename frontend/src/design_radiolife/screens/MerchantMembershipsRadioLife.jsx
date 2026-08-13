@@ -21,6 +21,7 @@ export default function MerchantMembershipsRadioLife() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [canOffer, setCanOffer] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", price: "", interval: "month" });
@@ -32,6 +33,20 @@ export default function MerchantMembershipsRadioLife() {
     catch { /* ignore */ } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [sub, pl] = await Promise.all([
+          axios.get(`${API}/merchant/marketplace/subscription`),
+          axios.get(`${API}/merchant/marketplace/subscription/plans`),
+        ]);
+        const planId = sub.data?.subscription?.plan_id;
+        const plan = (pl.data?.items || []).find((x) => x.plan_id === planId);
+        setCanOffer(!!(sub.data?.active && plan?.can_offer_memberships));
+      } catch { /* default allow */ }
+    })();
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -83,7 +98,8 @@ export default function MerchantMembershipsRadioLife() {
       if (editingId) await axios.patch(`${API}/merchant/marketplace/memberships/items/${editingId}`, body);
       else await axios.post(`${API}/merchant/marketplace/memberships/items`, body);
       reset(); load();
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (e) { if (e?.response?.status === 403) setCanOffer(false); }
+    finally { setSaving(false); }
   };
 
   const edit = (p) => {
@@ -103,6 +119,7 @@ export default function MerchantMembershipsRadioLife() {
 
   if (loading) return <div className="px-4 pt-10 text-center text-slate-500">Loading…</div>;
   const inp = "w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm";
+  const effectiveCanOffer = canOffer || items.length > 0;
 
   return (
     <div className="pb-24" data-testid="rl-merchant-memberships-page">
@@ -112,6 +129,13 @@ export default function MerchantMembershipsRadioLife() {
       </div>
 
       <div className="px-4 space-y-4">
+        {!effectiveCanOffer && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4" data-testid="mmem-upgrade-gate">
+            <div className="font-black text-slate-900 flex items-center gap-1.5"><Crown size={16} className="text-amber-600" />Memberships are a Pro feature</div>
+            <p className="text-sm text-slate-600 mt-1">Upgrade to the Pro shop plan to create &amp; sell memberships with the entitlement engine.</p>
+            <button onClick={() => navigate("/shop/merchant/subscribe")} data-testid="mmem-upgrade-btn" className="mt-2 bg-orange-600 text-white font-black rounded-full px-4 py-2 text-sm">Upgrade to Pro</button>
+          </div>
+        )}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2" data-testid="mmem-form">
           <div className="font-black text-slate-900">{editingId ? "Edit membership" : "New membership"}</div>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Name e.g. Pizza Club" data-testid="mmem-name" className={inp} />
@@ -220,7 +244,7 @@ export default function MerchantMembershipsRadioLife() {
 
           <div className="flex gap-2 pt-1">
             {editingId && <button onClick={reset} data-testid="mmem-cancel" className="flex-1 border border-slate-200 rounded-full py-2.5 font-bold text-slate-600">Cancel</button>}
-            <button onClick={save} disabled={saving} data-testid="mmem-save" className="flex-1 bg-orange-600 text-white font-black rounded-full py-2.5 disabled:opacity-60">{editingId ? "Update" : "Create"}</button>
+            <button onClick={save} disabled={saving || (!effectiveCanOffer && !editingId)} data-testid="mmem-save" className="flex-1 bg-orange-600 text-white font-black rounded-full py-2.5 disabled:opacity-60">{editingId ? "Update" : "Create"}</button>
           </div>
         </div>
 

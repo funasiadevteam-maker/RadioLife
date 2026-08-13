@@ -45,6 +45,19 @@ async def _my_business(db, user) -> Dict[str, Any]:
     return p
 
 
+async def _can_offer_memberships(db, profile: Dict[str, Any]) -> bool:
+    """Membership creation requires an active shop plan that unlocks memberships
+    (the Pro tier). Shops already selling memberships are grandfathered in."""
+    bid = profile.get("business_id")
+    if await db.membership_plans.count_documents({"business_id": bid, "active": True}) > 0:
+        return True
+    sub = await db.merchant_subscriptions.find_one({"business_id": bid, "status": "active"})
+    if not sub:
+        return False
+    plan = await db.subscription_plans.find_one({"plan_id": sub.get("plan_id")})
+    return bool(plan and plan.get("can_offer_memberships"))
+
+
 class PlanBody(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     description: Optional[str] = Field(None, max_length=280)
@@ -71,6 +84,8 @@ async def list_plans(request: Request, user: dict = Depends(current_user)):
 async def create_plan(body: PlanBody, request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
     p = await _my_business(db, user)
+    if not await _can_offer_memberships(db, p):
+        raise HTTPException(403, {"code": "membership_plan_required", "required_tier": "pro"})
     if body.interval not in ("month", "week"):
         raise HTTPException(400, {"code": "bad_interval"})
     pid = new_id("mplan")
@@ -365,7 +380,7 @@ async def claim_benefit(membership_id: str, body: ClaimBody, request: Request,
     plan = await db.membership_plans.find_one({"plan_id": m["plan_id"]})
     ent_id = body.entitlement_id or body.benefit_id
     ent = next((e for e in (plan or {}).get("entitlements", [])
-                if e.get("entitlement_id") == ent_id), None)
+                if e.get("entitlement_id") == ent_id or e.get("benefit_id") == ent_id), None)
     if not ent:
         raise HTTPException(404, {"code": "benefit_not_found"})
     if not ent.get("active", True):

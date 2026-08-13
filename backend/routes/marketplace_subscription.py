@@ -43,6 +43,7 @@ async def plans(request: Request, user: dict = Depends(current_user)):
     async for p in db.subscription_plans.find({"active": True}).sort("price_cents", 1):
         out.append({"plan_id": p["plan_id"], "name": p["name"],
                     "price_cents": p["price_cents"], "interval": p.get("interval", "month"),
+                    "can_offer_memberships": bool(p.get("can_offer_memberships")),
                     "features": p.get("features", [])})
     return {"items": out}
 
@@ -71,6 +72,17 @@ async def subscription_checkout(body: SubCheckoutBody, request: Request,
     plan = await db.subscription_plans.find_one({"plan_id": body.plan_id, "active": True})
     if not plan:
         raise HTTPException(400, {"code": "bad_plan"})
+    # Free tier — activate instantly, no billing / Stripe redirect.
+    if int(plan.get("price_cents", 0)) <= 0:
+        await db.merchant_subscriptions.update_one(
+            {"business_id": p["business_id"]},
+            {"$set": {"business_id": p["business_id"], "plan_id": body.plan_id,
+                      "status": "active", "session_id": None, "updated_at": now()},
+             "$setOnInsert": {"created_at": now()}}, upsert=True)
+        await db.marketplace_profiles.update_one(
+            {"business_id": p["business_id"]},
+            {"$set": {"subscription_active": True, "status": "approved", "updated_at": now()}})
+        return {"ok": True, "activated": True, "checkout_url": None}
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
     origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
@@ -121,7 +133,7 @@ async def subscription_status(session_id: str, request: Request,
                       "updated_at": now()}})
         await db.marketplace_profiles.update_one(
             {"business_id": p["business_id"]},
-            {"$set": {"subscription_active": True, "updated_at": now()}})
+            {"$set": {"subscription_active": True, "status": "approved", "updated_at": now()}})
         return {"status": "active", "active": True}
     return {"status": "pending", "active": False}
 

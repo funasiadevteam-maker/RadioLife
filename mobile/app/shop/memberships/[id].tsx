@@ -51,10 +51,11 @@ export default function ShopMemberships() {
   };
 
   const claim = async (b: any) => {
-    const option = b.options?.length ? pick[b.benefit_id] : null;
+    const eid = b.entitlement_id || b.benefit_id;
+    const option = b.options?.length ? pick[eid] : null;
     if (b.options?.length && !option) { Alert.alert('Choose an option first'); return; }
     try {
-      await api.post(`/shop/memberships/${data.mine.membership_id}/claim`, { benefit_id: b.benefit_id, option });
+      await api.post(`/shop/memberships/${data.mine.membership_id}/claim`, { entitlement_id: eid, option });
       celebrate({ title: 'Claimed!', subtitle: b.label + (option ? ` · ${option}` : '') });
       load();
     } catch (e: any) { Alert.alert('Claim failed', e?.response?.data?.detail?.code || 'Try again'); }
@@ -76,8 +77,10 @@ export default function ShopMemberships() {
               <Ionicons name="ribbon" size={18} color={COLORS.gold} />
               <Text style={s.mineTitle}>You&apos;re a {data.mine.plan_name} member</Text>
             </View>
-            {(data.mine.benefits || []).map((b: any) => (
-              <View key={b.benefit_id} style={s.benefit} testID={`mem-benefit-${b.benefit_id}`}>
+            {(data.mine.benefits || []).map((b: any) => {
+              const eid = b.entitlement_id || b.benefit_id;
+              return (
+              <View key={eid} style={s.benefit} testID={`mem-benefit-${eid}`}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={s.benefitLabel}>{b.label}</Text>
                   <Text style={s.benefitMeta}>{b.remaining}/{b.qty} left {periodLabel(b.period)}</Text>
@@ -85,20 +88,21 @@ export default function ShopMemberships() {
                 {b.options?.length > 0 && (
                   <View style={s.chips}>
                     {b.options.map((o: string) => (
-                      <TouchableOpacity key={o} testID={`mem-option-${b.benefit_id}-${o}`}
-                        style={[s.chip, pick[b.benefit_id] === o && s.chipOn]}
-                        onPress={() => setPick((m) => ({ ...m, [b.benefit_id]: o }))}>
-                        <Text style={[s.chipText, pick[b.benefit_id] === o && s.chipTextOn]}>{o}</Text>
+                      <TouchableOpacity key={o} testID={`mem-option-${eid}-${o}`}
+                        style={[s.chip, pick[eid] === o && s.chipOn]}
+                        onPress={() => setPick((m) => ({ ...m, [eid]: o }))}>
+                        <Text style={[s.chipText, pick[eid] === o && s.chipTextOn]}>{o}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
                 <TouchableOpacity style={[s.claimBtn, b.remaining <= 0 && { opacity: 0.4 }]} disabled={b.remaining <= 0}
-                  onPress={() => claim(b)} testID={`mem-claim-${b.benefit_id}`}>
+                  onPress={() => claim(b)} testID={`mem-claim-${eid}`}>
                   <Text style={s.claimText}>{b.remaining <= 0 ? 'Claimed for this period' : 'Claim now'}</Text>
                 </TouchableOpacity>
               </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -117,7 +121,7 @@ export default function ShopMemberships() {
               {!!p.description && <Text style={s.planDesc}>{p.description}</Text>}
               <View style={{ marginTop: 8, gap: 4 }}>
                 {(p.entitlements || []).map((e: any) => (
-                  <View key={e.benefit_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View key={e.entitlement_id || e.benefit_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Ionicons name="checkmark-circle" size={14} color={COLORS.green} />
                     <Text style={s.entText}>{e.qty}× {e.label}{e.options?.length ? ` (choose)` : ''} {periodLabel(e.period)}</Text>
                   </View>
