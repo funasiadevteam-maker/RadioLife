@@ -16,6 +16,7 @@ import { useDesignVariant } from "@/hooks/useDesignVariant";
 import { useGeoStore } from "@/store/useGeoStore";
 import BannerZoneSlot from "@/components/BannerZoneSlot";
 import SafeImage from "@/components/SafeImage";
+import { toPlayableStreamUrl } from "@/utils/streamUrl";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
@@ -34,7 +35,6 @@ export default function RadioHome() {
   const market = useGeoStore((s) => s.market);
 
   const [flagships, setFlagships] = useState(null);
-  const [browsePreview, setBrowsePreview] = useState(null);
   const railRef = useRef(null);
 
   useEffect(() => {
@@ -48,25 +48,6 @@ export default function RadioHome() {
       } catch (_) { setFlagships([]); }
     })();
   }, [market]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        // Compact browse teaser — 8 stations from the discover rails.
-        const { data } = await axios.get(`${API}/radio/discover`);
-        const rails = data?.rails || [];
-        const flat = [];
-        for (const r of rails) {
-          for (const s of (r.stations || r.items || [])) {
-            if (flat.length >= 8) break;
-            if (s.source === "imported" || s.source === "bigfm_ai") flat.push(s);
-          }
-          if (flat.length >= 8) break;
-        }
-        setBrowsePreview(flat.slice(0, 8));
-      } catch (_) { setBrowsePreview([]); }
-    })();
-  }, []);
 
   const primaryFlagship = useMemo(
     () => (flagships || []).find(
@@ -134,7 +115,7 @@ export default function RadioHome() {
 
       <GamesSection light={light} />
 
-      <BrowseTeaser light={light} items={browsePreview} />
+      <BrowseTeaser light={light} />
 
       <BottomStrip light={light} />
     </div>
@@ -458,19 +439,93 @@ function GamesSection({ light }) {
 
 
 // ═══════════════════════════════════════════════════════════════════
-// Browse teaser — 8 sample cards + CTA
+// Browse teaser — auto top-played stations + language/genre filters +
+// horizontally-scrollable thumbnails + CTA to the full directory.
 // ═══════════════════════════════════════════════════════════════════
-function BrowseTeaser({ light, items }) {
+function FilterChip({ light, active, onClick, children, testid }) {
+  return (
+    <button type="button" onClick={onClick} data-testid={testid}
+      className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap transition ${
+        active
+          ? (light ? "bg-purple-600 text-white shadow shadow-purple-500/30"
+                   : "bg-amber-500 text-slate-900 shadow shadow-amber-500/30")
+          : (light ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                   : "bg-slate-800 text-slate-300 hover:bg-slate-700")}`}>
+      {children}
+    </button>
+  );
+}
+
+function BrowseTeaser({ light }) {
+  const navigate = useNavigate();
   const setImportedStation = usePlayerStore((s) => s.setImportedStation);
+  const [langs, setLangs] = useState([]);
+  const [genres, setGenres] = useState([]);
+  const [lang, setLang] = useState("");
+  const [genre, setGenre] = useState("");
+  const [items, setItems] = useState(null);
+  const [loading, setLoading] = useState(true);
+
   const cardCls = light
     ? "bg-white border border-slate-200 hover:border-purple-400"
     : "bg-slate-900/60 border border-slate-800 hover:border-amber-500/50";
   const muted = light ? "text-slate-500" : "text-slate-400";
   const nameCls = light ? "text-slate-900" : "text-white";
 
+  // Filter facets (language + genre) — loaded once from discover.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await axios.get(`${API}/radio/discover`);
+        const rails = {};
+        for (const r of (data?.rails || [])) rails[r.id] = r;
+        setLangs((rails.languages?.facet_chips || []).slice(0, 12));
+        setGenres((rails.genres?.facet_chips || []).slice(0, 12));
+      } catch (_) { /* filters optional */ }
+    })();
+  }, []);
+
+  // Top-played stations, re-fetched whenever a filter changes.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ source: "imported", limit: "24" });
+        if (lang) params.set("language", lang);
+        if (genre) params.set("category", genre);
+        const { data } = await axios.get(`${API}/radio/browse?${params}`);
+        if (!cancelled) setItems(data.items || []);
+      } catch (_) { if (!cancelled) setItems([]); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [lang, genre]);
+
+  const play = async (s) => {
+    if (s.source === "bigfm_ai") {
+      navigate(`/radio?ch=${encodeURIComponent(s.id)}&autoplay=1`);
+      return;
+    }
+    try {
+      const r = await axios.post(`${API}/radio/play/${s.id}`, {}, { withCredentials: true });
+      if (r.data?.stream_url) {
+        setImportedStation({
+          id: s.id, name: r.data.name,
+          stream_url: toPlayableStreamUrl(r.data.stream_url),
+          favicon: r.data.favicon || s.favicon,
+          country: r.data.country, language: r.data.language,
+          source: "imported",
+        });
+      }
+      navigate(`/radio/station/${s.id}`);
+    } catch (_e) { navigate(`/radio/station/${s.id}`); }
+  };
+
   return (
     <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8"
                         data-testid="radio-browse-teaser">
+
       <div className="flex items-end justify-between gap-3 mb-4">
         <div>
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
@@ -480,37 +535,65 @@ function BrowseTeaser({ light, items }) {
             One app · 50,000+ radio stations · every language, every mood
           </p>
         </div>
+        <Link to="/radio/browse" data-testid="radio-browse-teaser-cta-top"
+          className={`hidden sm:inline-flex items-center gap-1.5 text-sm font-black whitespace-nowrap ${
+            light ? "text-purple-600 hover:text-purple-500" : "text-amber-400 hover:text-amber-300"}`}>
+          See all <ArrowRight className="w-4 h-4" />
+        </Link>
       </div>
 
-      {items === null ? (
-        <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-amber-500" /></div>
+      {/* Language filter */}
+      {langs.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-1"
+                    data-testid="radio-browse-lang-chips">
+          <span className={`shrink-0 text-[11px] font-black uppercase tracking-wider ${muted}`}>Language</span>
+          <FilterChip light={light} active={!lang} onClick={() => setLang("")} testid="radio-browse-lang-all">All</FilterChip>
+          {langs.map((l) => (
+            <FilterChip light={light} key={l.slug} active={lang === l.slug} onClick={() => setLang(l.slug)}
+                        testid={`radio-browse-lang-${l.slug}`}>{l.label}</FilterChip>
+          ))}
+        </div>
+      )}
+
+      {/* Genre filter */}
+      {genres.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-4"
+                    data-testid="radio-browse-genre-chips">
+          <span className={`shrink-0 text-[11px] font-black uppercase tracking-wider ${muted}`}>Genre</span>
+          <FilterChip light={light} active={!genre} onClick={() => setGenre("")} testid="radio-browse-genre-all">All</FilterChip>
+          {genres.map((g) => (
+            <FilterChip light={light} key={g.slug} active={genre === g.slug} onClick={() => setGenre(g.slug)}
+                        testid={`radio-browse-genre-${g.slug}`}>{g.label}</FilterChip>
+          ))}
+        </div>
+      )}
+
+      {loading && items === null ? (
+        <div className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-amber-500" /></div>
+      ) : (items || []).length === 0 ? (
+        <div className={`py-10 text-center text-sm ${muted}`} data-testid="radio-browse-teaser-empty">
+          No stations match these filters. Try clearing a filter.
+        </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"
-                    data-testid="radio-browse-teaser-grid">
-          {(items || []).slice(0, 8).map((s) => (
+        <div className={`flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
+                    data-testid="radio-browse-teaser-scroll">
+          {(items || []).map((s) => (
             <button
               key={s.id}
-              onClick={() => {
-                if (s.source === "imported") {
-                  setImportedStation({
-                    id: s.id, station_id: s.id, name: s.name,
-                    url_resolved: s.url_resolved,
-                    url: s.url_resolved || s.url,
-                    favicon: s.favicon, logo_url: s.favicon,
-                    country: s.country, tags_json: s.tags_json,
-                  });
-                }
-              }}
+              onClick={() => play(s)}
               data-testid={`radio-browse-teaser-card-${s.id}`}
-              className={`${cardCls} rounded-2xl p-3 text-left transition group`}>
-              <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-800/40">
+              className={`${cardCls} shrink-0 w-36 sm:w-40 snap-start rounded-2xl p-3 text-left transition group`}>
+              <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-800/40 relative">
                 <SafeImage src={s.favicon} alt={s.name}
                                           fallbackKind="station"
                                           fallbackText={s.name}
                                           className="w-full h-full object-cover" />
+                <span className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 group-hover:opacity-100 transition">
+                  <Play className="w-8 h-8 text-white fill-white" />
+                </span>
               </div>
               <div className={`mt-2 text-sm font-bold truncate ${nameCls}`}>{s.name}</div>
-              <div className={`text-[10px] truncate ${muted}`}>
+              <div className={`text-[10px] truncate capitalize ${muted}`}>
                 {s.country || s.language || "Live"}
               </div>
             </button>

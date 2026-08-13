@@ -344,6 +344,7 @@ async def browse(
     category: Optional[str] = Query(None),
     language: Optional[str] = Query(None),
     country: Optional[str] = Query(None),
+    genre: Optional[str] = Query(None),
     source: str = Query("all"),
     page: int = Query(1, ge=1),
     limit: int = Query(24, ge=1, le=100),
@@ -621,6 +622,4 @@ async def play(station_id: str, request: Request,
         "channel_slug": slug,
         "name": ch.get("name"),
         "spa_url": f"/radio?ch={slug}&autoplay=1",
-    }
-dio?ch={slug}&autoplay=1",
     }
