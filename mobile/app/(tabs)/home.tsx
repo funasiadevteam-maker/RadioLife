@@ -15,6 +15,7 @@ import PointsPill from '../../src/components/PointsPill';
 import WaysToEarnCard from '../../src/components/WaysToEarnCard';
 import api, { BACKEND } from '../../src/api/client';
 import SafeImage from '../../src/components/SafeImage';
+import DiscoverBrowse from '../../src/components/DiscoverBrowse';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
 const resolveImg = (u?: string | null) =>
@@ -246,6 +247,9 @@ export default function HomeScreen() {
         )}
 
         <AdBanner zone="station_detail" style={{ marginHorizontal: SPACING.md, marginTop: SPACING.lg }} />
+
+        {/* Discover more — interactive station browse (parity w/ web) */}
+        <DiscoverBrowse prefix="home-browse" />
 
         {/* All Stations CTA — the full 40k+ imported library */}
         <TouchableOpacity style={s.allStationsCta} testID="home-all-stations-cta"

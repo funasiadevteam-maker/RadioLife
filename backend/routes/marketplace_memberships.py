@@ -243,6 +243,7 @@ async def subscribe(body: SubscribeBody, request: Request,
         "is_gift": is_gift, "gifted_to_email": gto,
         "gift_message": (body.message or None) if is_gift else None,
         "sponsor_name": plan.get("sponsor_name"), "plan_name": plan.get("name"),
+        "price_cents": int(plan["price_cents"]),
         "status": "pending", "session_id": session.id,
         "created_at": now(), "updated_at": now()})
     return {"ok": True, "checkout_url": session.url, "session_id": session.id, "membership_id": mid}
@@ -288,6 +289,11 @@ async def subscribe_status(session_id: str, request: Request,
             {"$set": {"status": "active", "stripe_subscription_id": sess.get("subscription"),
                       "updated_at": now()}})
         await _schedule_membership_gift_email(db, background_tasks, m)
+        try:
+            from services.merchant_earnings import record_membership_earning
+            await record_membership_earning(db, {**m, "status": "active"})
+        except Exception:
+            pass
         return {"status": "active", "active": True, "membership_id": m["membership_id"]}
     return {"status": "pending", "active": False}
 

@@ -203,6 +203,10 @@ export default function MerchantDashboard() {
                 <Ionicons name="qr-code" size={16} color="#fff" />
                 <Text style={[s.linkText, { color: '#fff' }]}>Scan to Charge</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[s.linkBtn, { backgroundColor: COLORS.green + '14' }]} onPress={() => router.push('/merchant/earnings')} testID="merchant-open-earnings">
+                <Ionicons name="trending-up" size={16} color={COLORS.green} />
+                <Text style={[s.linkText, { color: COLORS.green }]}>Earnings</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={[s.linkBtn]} onPress={() => router.push('/merchant/subscribe')} testID="merchant-open-sub">
                 <Ionicons name="card" size={16} color={COLORS.primary} />
                 <Text style={s.linkText}>{dash.subscription_active ? 'Plan' : 'Subscribe'}</Text>

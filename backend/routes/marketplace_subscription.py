@@ -36,6 +36,19 @@ def _clean(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _cancel_stripe_sub(sub_id: Optional[str]) -> None:
+    """Cancel a Stripe subscription immediately (best-effort, SDK-version tolerant)."""
+    if not sub_id or not stripe.api_key:
+        return
+    try:
+        stripe.Subscription.delete(sub_id)
+    except Exception:
+        try:
+            stripe.Subscription.cancel(sub_id)
+        except Exception:
+            pass
+
+
 @router.get("/subscription/plans")
 async def plans(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
@@ -72,12 +85,16 @@ async def subscription_checkout(body: SubCheckoutBody, request: Request,
     plan = await db.subscription_plans.find_one({"plan_id": body.plan_id, "active": True})
     if not plan:
         raise HTTPException(400, {"code": "bad_plan"})
-    # Free tier — activate instantly, no billing / Stripe redirect.
+    # Free tier — cancel any existing paid billing, then activate instantly.
     if int(plan.get("price_cents", 0)) <= 0:
+        existing = await db.merchant_subscriptions.find_one({"business_id": p["business_id"]})
+        _cancel_stripe_sub((existing or {}).get("stripe_subscription_id"))
         await db.merchant_subscriptions.update_one(
             {"business_id": p["business_id"]},
             {"$set": {"business_id": p["business_id"], "plan_id": body.plan_id,
-                      "status": "active", "session_id": None, "updated_at": now()},
+                      "status": "active", "session_id": None,
+                      "stripe_subscription_id": None, "prev_stripe_subscription_id": None,
+                      "updated_at": now()},
              "$setOnInsert": {"created_at": now()}}, upsert=True)
         await db.marketplace_profiles.update_one(
             {"business_id": p["business_id"]},
@@ -88,6 +105,8 @@ async def subscription_checkout(body: SubCheckoutBody, request: Request,
     origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
+    existing = await db.merchant_subscriptions.find_one({"business_id": p["business_id"]})
+    prev_sub = (existing or {}).get("stripe_subscription_id")
     session = stripe.checkout.Session.create(
         mode="subscription",
         line_items=[{"price_data": {
@@ -103,7 +122,8 @@ async def subscription_checkout(body: SubCheckoutBody, request: Request,
     await db.merchant_subscriptions.update_one(
         {"business_id": p["business_id"]},
         {"$set": {"business_id": p["business_id"], "plan_id": body.plan_id,
-                  "status": "pending", "session_id": session.id, "updated_at": now()},
+                  "status": "pending", "session_id": session.id,
+                  "prev_stripe_subscription_id": prev_sub, "updated_at": now()},
          "$setOnInsert": {"created_at": now()}}, upsert=True)
     return {"ok": True, "checkout_url": session.url, "session_id": session.id}
 
@@ -126,16 +146,36 @@ async def subscription_status(session_id: str, request: Request,
     except Exception:
         return {"status": sub.get("status", "pending"), "active": False}
     if sess.get("payment_status") == "paid" or sess.get("status") == "complete":
+        prev = sub.get("prev_stripe_subscription_id")
+        new_sub_id = sess.get("subscription")
         await db.merchant_subscriptions.update_one(
             {"business_id": p["business_id"]},
-            {"$set": {"status": "active",
-                      "stripe_subscription_id": sess.get("subscription"),
-                      "updated_at": now()}})
+            {"$set": {"status": "active", "stripe_subscription_id": new_sub_id,
+                      "updated_at": now()},
+             "$unset": {"prev_stripe_subscription_id": ""}})
         await db.marketplace_profiles.update_one(
             {"business_id": p["business_id"]},
             {"$set": {"subscription_active": True, "status": "approved", "updated_at": now()}})
+        if prev and prev != new_sub_id:
+            _cancel_stripe_sub(prev)
         return {"status": "active", "active": True}
     return {"status": "pending", "active": False}
+
+
+@router.get("/earnings")
+async def merchant_earnings(request: Request, user: dict = Depends(current_user)):
+    """Merchant Earnings dashboard — memberships sold, gross, platform fee, net."""
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    from services.merchant_earnings import record_membership_earning, earnings_summary
+    # Lazy backfill: ensure a ledger row for each already-active membership.
+    async for m in db.memberships.find({"business_id": p["business_id"], "status": "active"}):
+        try:
+            await record_membership_earning(db, m)
+        except Exception:
+            pass
+    summary = await earnings_summary(db, p["business_id"])
+    return {"business_id": p["business_id"], "public_name": p.get("public_name"), **summary}
 
 
 # ───────────── Happy Hour (2X BigPoints boost) ─────────────

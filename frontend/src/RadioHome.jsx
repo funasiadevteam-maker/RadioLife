@@ -9,7 +9,7 @@ import axios from "axios";
 import {
   Radio, Sparkles, Gift, MapPin, Play, ChevronRight, Loader2,
   Gamepad2, Ticket, Coins, Zap, Award, PartyPopper, HandCoins,
-  ScrollText, Trophy, ArrowRight, Search, X,
+  ScrollText, Trophy, ArrowRight, Search, X, Heart,
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
@@ -443,6 +443,16 @@ function GamesSection({ light }) {
 // filters + search + hot/live badges + remembered filters.
 // ═══════════════════════════════════════════════════════════════════
 const DISCOVER_FILTERS_KEY = "radiolife.discover.filters";
+const RECENTS_KEY = "radiolife.discover.recents";
+const FAVS_KEY = "radiolife.discover.favorites";
+
+function readList(key) {
+  try { const v = JSON.parse(localStorage.getItem(key) || "[]"); return Array.isArray(v) ? v : []; }
+  catch (_) { return []; }
+}
+function writeList(key, v) {
+  try { localStorage.setItem(key, JSON.stringify(v)); } catch (_) { /* private mode */ }
+}
 
 const COUNTRY_NAMES = {
   US: "USA", GB: "UK", DE: "Germany", FR: "France", IN: "India", IT: "Italy",
@@ -478,6 +488,39 @@ function FilterChip({ light, active, onClick, children, testid }) {
   );
 }
 
+function StationCard({ s, showHot, light, isFav, onPlay, onToggleFav }) {
+  const cardCls = light
+    ? "bg-white border border-slate-200 hover:border-purple-400"
+    : "bg-slate-900/60 border border-slate-800 hover:border-amber-500/50";
+  const muted = light ? "text-slate-500" : "text-slate-400";
+  const nameCls = light ? "text-slate-900" : "text-white";
+  return (
+    <div onClick={() => onPlay(s)} role="button" tabIndex={0}
+      data-testid={`radio-browse-teaser-card-${s.id}`}
+      className={`${cardCls} shrink-0 w-36 sm:w-40 snap-start rounded-2xl p-3 text-left transition group cursor-pointer`}>
+      <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-800/40 relative">
+        <SafeImage src={s.favicon} alt={s.name} fallbackKind="station" fallbackText={s.name} className="w-full h-full object-cover" />
+        <span className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow" data-testid={`radio-browse-live-${s.id}`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE
+        </span>
+        {showHot && (
+          <span className="absolute top-1.5 right-1.5 bg-amber-400 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow" data-testid={`radio-browse-hot-${s.id}`}>🔥 HOT</span>
+        )}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 group-hover:opacity-100 transition">
+          <Play className="w-8 h-8 text-white fill-white" />
+        </span>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onToggleFav(s); }}
+          data-testid={`radio-browse-fav-${s.id}`} aria-label="Toggle favourite"
+          className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-black/55 flex items-center justify-center hover:bg-black/75 transition">
+          <Heart className={`w-3.5 h-3.5 ${isFav ? "text-red-500 fill-red-500" : "text-white"}`} />
+        </button>
+      </div>
+      <div className={`mt-2 text-sm font-bold truncate ${nameCls}`}>{s.name}</div>
+      <div className={`text-[10px] truncate capitalize ${muted}`}>{s.country || s.language || "Live"}</div>
+    </div>
+  );
+}
+
 function BrowseTeaser({ light }) {
   const navigate = useNavigate();
   const setImportedStation = usePlayerStore((s) => s.setImportedStation);
@@ -491,16 +534,20 @@ function BrowseTeaser({ light }) {
   const [lang, setLang] = useState(saved.lang || "");
   const [genre, setGenre] = useState(saved.genre || "");
   const [country, setCountry] = useState(saved.country || "");
+  const [sort, setSort] = useState(saved.sort || "popular");
   const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [recent, setRecent] = useState(() => readList(RECENTS_KEY));
+  const [favs, setFavs] = useState(() => readList(FAVS_KEY));
+  const favIds = useMemo(() => new Set(favs.map((f) => f.id)), [favs]);
 
-  const cardCls = light
-    ? "bg-white border border-slate-200 hover:border-purple-400"
-    : "bg-slate-900/60 border border-slate-800 hover:border-amber-500/50";
   const muted = light ? "text-slate-500" : "text-slate-400";
-  const nameCls = light ? "text-slate-900" : "text-white";
+
+  const cardOf = (s) => ({ id: s.id, name: s.name, favicon: s.favicon, country: s.country, language: s.language, source: s.source || "imported" });
+  const remember = (s) => setRecent((prev) => { const next = [cardOf(s), ...prev.filter((r) => r.id !== s.id)].slice(0, 12); writeList(RECENTS_KEY, next); return next; });
+  const toggleFav = (s) => setFavs((prev) => { const ex = prev.some((f) => f.id === s.id); const next = ex ? prev.filter((f) => f.id !== s.id) : [cardOf(s), ...prev].slice(0, 30); writeList(FAVS_KEY, next); return next; });
 
   // Filter facets (language + genre + country) — loaded once from discover.
   useEffect(() => {
@@ -522,19 +569,19 @@ function BrowseTeaser({ light }) {
     return () => clearTimeout(t);
   }, [qInput]);
 
-  // Remember the listener's language/genre/country choice.
+  // Remember the listener's language/genre/country/sort choice.
   useEffect(() => {
-    try { localStorage.setItem(DISCOVER_FILTERS_KEY, JSON.stringify({ lang, genre, country })); }
+    try { localStorage.setItem(DISCOVER_FILTERS_KEY, JSON.stringify({ lang, genre, country, sort })); }
     catch (_) { /* private mode */ }
-  }, [lang, genre, country]);
+  }, [lang, genre, country, sort]);
 
-  // Top-played stations, re-fetched whenever a filter or search changes.
+  // Top-played stations, re-fetched whenever a filter, search or sort changes.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({ source: "imported", limit: "24" });
+        const params = new URLSearchParams({ source: "imported", limit: "24", sort });
         if (lang) params.set("language", lang);
         if (genre) params.set("category", genre);
         if (country) params.set("country", country);
@@ -545,9 +592,10 @@ function BrowseTeaser({ light }) {
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [lang, genre, country, q]);
+  }, [lang, genre, country, q, sort]);
 
   const play = async (s) => {
+    remember(s);
     if (s.source === "bigfm_ai") {
       navigate(`/radio?ch=${encodeURIComponent(s.id)}&autoplay=1`);
       return;
@@ -586,6 +634,30 @@ function BrowseTeaser({ light }) {
           See all <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
+
+      {/* Recently played */}
+      {recent.length > 0 && (
+        <div className="mb-4" data-testid="radio-browse-recent">
+          <div className={`text-[11px] font-black uppercase tracking-wider mb-2 ${muted}`}>Recently played</div>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x">
+            {recent.map((s) => (
+              <StationCard key={s.id} s={s} light={light} isFav={favIds.has(s.id)} onPlay={play} onToggleFav={toggleFav} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Favourites */}
+      {favs.length > 0 && (
+        <div className="mb-4" data-testid="radio-browse-favorites">
+          <div className={`text-[11px] font-black uppercase tracking-wider mb-2 ${muted}`}>Your favourites ❤</div>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x">
+            {favs.map((s) => (
+              <StationCard key={s.id} s={s} light={light} isFav onPlay={play} onToggleFav={toggleFav} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-3">
@@ -646,6 +718,15 @@ function BrowseTeaser({ light }) {
         </div>
       )}
 
+      {/* Sort */}
+      <div className="flex items-center gap-2 mb-3" data-testid="radio-browse-sort">
+        <span className={`shrink-0 text-[11px] font-black uppercase tracking-wider ${muted}`}>Sort</span>
+        {[["popular", "Popular"], ["az", "A–Z"], ["newest", "Newest"]].map(([val, label]) => (
+          <FilterChip light={light} key={val} active={sort === val} onClick={() => setSort(val)}
+                      testid={`radio-browse-sort-${val}`}>{label}</FilterChip>
+        ))}
+      </div>
+
       {loading && items === null ? (
         <div className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-amber-500" /></div>
       ) : (items || []).length === 0 ? (
@@ -656,35 +737,8 @@ function BrowseTeaser({ light }) {
         <div className={`flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
                     data-testid="radio-browse-teaser-scroll">
           {(items || []).map((s, idx) => (
-            <button
-              key={s.id}
-              onClick={() => play(s)}
-              data-testid={`radio-browse-teaser-card-${s.id}`}
-              className={`${cardCls} shrink-0 w-36 sm:w-40 snap-start rounded-2xl p-3 text-left transition group`}>
-              <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-800/40 relative">
-                <SafeImage src={s.favicon} alt={s.name}
-                                          fallbackKind="station"
-                                          fallbackText={s.name}
-                                          className="w-full h-full object-cover" />
-                <span className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow"
-                      data-testid={`radio-browse-live-${s.id}`}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE
-                </span>
-                {idx < 3 && !q && (
-                  <span className="absolute top-1.5 right-1.5 bg-amber-400 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow"
-                        data-testid={`radio-browse-hot-${s.id}`}>
-                    🔥 HOT
-                  </span>
-                )}
-                <span className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 group-hover:opacity-100 transition">
-                  <Play className="w-8 h-8 text-white fill-white" />
-                </span>
-              </div>
-              <div className={`mt-2 text-sm font-bold truncate ${nameCls}`}>{s.name}</div>
-              <div className={`text-[10px] truncate capitalize ${muted}`}>
-                {s.country || s.language || "Live"}
-              </div>
-            </button>
+            <StationCard key={s.id} s={s} showHot={idx < 3 && !q}
+                         light={light} isFav={favIds.has(s.id)} onPlay={play} onToggleFav={toggleFav} />
           ))}
         </div>
       )}

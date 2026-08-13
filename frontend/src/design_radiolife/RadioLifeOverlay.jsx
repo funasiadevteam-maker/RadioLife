@@ -61,6 +61,7 @@ import MerchantGiftCardsRadioLife from "./screens/MerchantGiftCardsRadioLife";
 // Phase E — memberships.
 import ShopMembershipsRadioLife from "./screens/ShopMembershipsRadioLife";
 import MerchantMembershipsRadioLife from "./screens/MerchantMembershipsRadioLife";
+import MerchantEarningsRadioLife from "./screens/MerchantEarningsRadioLife";
 // Phase E — packages.
 import ShopPackagesRadioLife from "./screens/ShopPackagesRadioLife";
 import MerchantPackagesRadioLife from "./screens/MerchantPackagesRadioLife";
@@ -103,6 +104,7 @@ export function screenFor(pathname) {
   if (pathname === "/shop/merchant/products") return MerchantProductsRadioLife;
   if (pathname === "/shop/merchant/giftcards") return MerchantGiftCardsRadioLife;
   if (pathname === "/shop/merchant/memberships") return MerchantMembershipsRadioLife;
+  if (pathname === "/shop/merchant/earnings") return MerchantEarningsRadioLife;
   if (pathname === "/shop/merchant/packages") return MerchantPackagesRadioLife;
   if (pathname === "/shop/merchant/events") return MerchantEventsRadioLife;
   if (pathname === "/shop/merchant/coupons") return MerchantCouponsRadioLife;

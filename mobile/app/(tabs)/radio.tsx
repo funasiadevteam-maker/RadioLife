@@ -13,6 +13,7 @@ import { useGateStore } from '../../src/stores/gateStore';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { updateNowPlaying, nativePlay, nativePause, subscribeRemoteEvents } from '../../src/services/nativePlayerBridge';
 import { registerPlayer, clearPlayer } from '../../src/services/audioController';
+import DiscoverBrowse from '../../src/components/DiscoverBrowse';
 
 let createAudioPlayer: any;
 try {
@@ -541,6 +542,9 @@ export default function RadioScreen() {
             )}
           </View>
         )}
+
+        {/* Discover more — interactive station browse (parity w/ web) */}
+        <DiscoverBrowse prefix="radio-browse" />
       </ScrollView>
     </SafeAreaView>
   );

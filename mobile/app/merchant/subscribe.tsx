@@ -1,4 +1,4 @@
-// Merchant Subscription — Starter $29 / Pro $99 (Marketplace Phase B).
+// Merchant Plans — Starter (Free) / Growth $29.99 / Pro $99.99. Pro unlocks memberships.
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator,
@@ -10,7 +10,7 @@ import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 import { useReward } from '../../src/components/RewardOverlay';
 
-const money = (c: number) => `$${(c / 100).toFixed(0)}`;
+const priceLabel = (c: number) => (c === 0 ? 'Free' : `$${(c / 100).toFixed(2)}`);
 
 export default function Subscribe() {
   const router = useRouter();
@@ -77,8 +77,14 @@ export default function Subscribe() {
               <View style={s.planHead}>
                 <Text style={s.planName}>{p.name}</Text>
                 {p.plan_id === 'pro' && <View style={s.badge}><Text style={s.badgeText}>POPULAR</Text></View>}
+                {p.can_offer_memberships && (
+                  <View style={s.memBadge}>
+                    <Ionicons name="ribbon" size={10} color="#92400E" />
+                    <Text style={s.memBadgeText}>MEMBERSHIPS</Text>
+                  </View>
+                )}
               </View>
-              <Text style={s.price}>{money(p.price_cents)}<Text style={s.per}>/{p.interval}</Text></Text>
+              <Text style={s.price}>{priceLabel(p.price_cents)}{p.price_cents > 0 && <Text style={s.per}>/{p.interval}</Text>}</Text>
               <View style={{ marginTop: 10 }}>
                 {(p.features || []).map((f: string, i: number) => (
                   <View key={i} style={s.featRow}>
@@ -92,7 +98,7 @@ export default function Subscribe() {
                 onPress={() => subscribe(p.plan_id)} disabled={!!busyId || isCurrent}
                 testID={`subscribe-${p.plan_id}`}>
                 {busyId === p.plan_id ? <ActivityIndicator color="#fff" />
-                  : <Text style={common.btnPrimaryText}>{isCurrent ? 'Current Plan' : `Subscribe · ${money(p.price_cents)}/mo`}</Text>}
+                  : <Text style={common.btnPrimaryText}>{isCurrent ? 'Current Plan' : p.price_cents === 0 ? 'Start free' : `Choose ${p.name} · ${priceLabel(p.price_cents)}/mo`}</Text>}
               </TouchableOpacity>
             </View>
           );
@@ -114,6 +120,8 @@ const s = StyleSheet.create({
   planName: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900' },
   badge: { backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  memBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
+  memBadgeText: { color: '#92400E', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
   price: { color: COLORS.text, fontSize: 34, fontWeight: '900', marginTop: 6 },
   per: { color: COLORS.textMuted, fontSize: FONT.md, fontWeight: '700' },
   featRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
