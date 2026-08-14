@@ -20,7 +20,7 @@ function initialSelection(groups) {
   return sel;
 }
 
-export default function ItemOptionModal({ item, entitlement, onClose, onConfirm, confirmLabel = "Add to cart" }) {
+export default function ItemOptionModal({ item, entitlement, onClose, onConfirm }) {
   const groups = item.option_groups || [];
   const [selected, setSelected] = useState(() => initialSelection(groups));
   const [applyEnt, setApplyEnt] = useState(!!entitlement);
@@ -102,6 +102,12 @@ export default function ItemOptionModal({ item, entitlement, onClose, onConfirm,
         </div>
 
         <div className="p-4 space-y-4">
+          {item.image_url && (
+            <div className="w-full h-44 rounded-2xl overflow-hidden bg-slate-100 -mt-1" data-testid="item-option-hero">
+              <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+            </div>
+          )}
+          {item.description && <p className="text-sm text-slate-500 leading-relaxed">{item.description}</p>}
           {entitlement && (
             <button onClick={() => setApplyEnt((v) => !v)} data-testid="item-option-apply-membership"
               className={"w-full flex items-center gap-3 rounded-2xl p-3 text-left border-2 " + (applyEnt ? "border-orange-500 bg-orange-50" : "border-slate-200 bg-white")}>
@@ -118,8 +124,11 @@ export default function ItemOptionModal({ item, entitlement, onClose, onConfirm,
           {groups.map((g) => (
             <div key={g.group_id} data-testid={`opt-group-${g.group_id}`}>
               <div className="flex items-center justify-between mb-1.5">
-                <div className="text-sm font-black text-slate-900">{g.name}{g.required && <span className="text-rose-500">*</span>}</div>
-                <div className="text-[11px] font-bold text-slate-400">{g.type === "multi" ? `Up to ${g.max_select}` : "Pick one"}</div>
+                <div className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  {g.name}
+                  {g.required && <span className="text-[10px] font-black text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Required</span>}
+                </div>
+                <div className="text-[11px] font-bold text-slate-400">{g.type === "multi" ? `Up to ${g.max_select}` : "Choose 1"}</div>
               </div>
               <div className="space-y-1.5">
                 {g.options.map((o) => {
@@ -154,7 +163,7 @@ export default function ItemOptionModal({ item, entitlement, onClose, onConfirm,
         <div className="sticky bottom-0 bg-white border-t border-slate-100 p-4">
           <button onClick={confirm} data-testid="item-option-confirm"
             className="w-full flex items-center justify-between gap-2 bg-orange-600 text-white font-black rounded-full px-5 py-3.5 disabled:opacity-60">
-            <span>{confirmLabel}</span>
+            <span>Add {qty} to order</span>
             <span className="flex items-center gap-2">
               {entitlement && applyEnt && entDiscount > 0 && <span className="text-white/60 line-through text-sm">{money(unit * qty)}</span>}
               <span data-testid="item-option-total">{money(netPay * qty)}</span>

@@ -9,6 +9,10 @@ const lineKey = (itemId, optionIds, entId) =>
 export const useShopCart = create((set, get) => ({
   businessId: null,
   businessName: null,
+  fulfillment: "pickup",   // "pickup" | "delivery" (UI/display only)
+  pickupTime: "now",       // "now" | "+15" | "+30" | "+45"
+  setFulfillment: (f) => set({ fulfillment: f }),
+  setPickupTime: (t) => set({ pickupTime: t }),
   // {line_id, item_id, name, price_cents(unit, incl options), qty,
   //  selected_option_ids, option_summary, apply_entitlement_id, entitlement_label}
   items: [],

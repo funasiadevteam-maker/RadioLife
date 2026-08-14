@@ -48,6 +48,7 @@ import ShopBookingsRadioLife from "./screens/ShopBookingsRadioLife";
 import MerchantServicesRadioLife from "./screens/MerchantServicesRadioLife";
 // Phase D — ecommerce products, product orders, loyalty.
 import ShopProductsRadioLife from "./screens/ShopProductsRadioLife";
+import ShopProductDetailRadioLife from "./screens/ShopProductDetailRadioLife";
 import ShopCartRadioLife from "./screens/ShopCartRadioLife";
 import CheckoutCartRadioLife from "./screens/CheckoutCartRadioLife";
 import ShopMyMembershipsRadioLife from "./screens/ShopMyMembershipsRadioLife";
@@ -116,7 +117,11 @@ export function screenFor(pathname) {
   if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;
   if (pathname.startsWith("/shop/services/")) return ShopServicesRadioLife;
-  if (pathname.startsWith("/shop/products/")) return ShopProductsRadioLife;
+  if (pathname.startsWith("/shop/products/")) {
+    const parts = pathname.split("/").filter(Boolean); // [shop, products, bizId, (productId)]
+    if (parts.length >= 4) return ShopProductDetailRadioLife;
+    return ShopProductsRadioLife;
+  }
   if (pathname.startsWith("/shop/giftcards/")) return ShopGiftCardsRadioLife;
   if (pathname.startsWith("/shop/memberships/")) return ShopMembershipsRadioLife;
   if (pathname.startsWith("/shop/packages/")) return ShopPackagesRadioLife;

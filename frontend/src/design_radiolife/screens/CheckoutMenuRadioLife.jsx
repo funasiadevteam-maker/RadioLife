@@ -3,11 +3,12 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag, Tag, Crown } from "lucide-react";
+import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag, Tag, Crown, MapPin, Clock, Store } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
+const PICKUP_TIMES = [["now", "Now (~15 min)"], ["+15", "In 15 min"], ["+30", "In 30 min"], ["+45", "In 45 min"]];
 const BRAND = { visa: "Visa", mastercard: "Mastercard", amex: "Amex", discover: "Discover" };
 const ERR = {
   invalid_coupon: "That code isn't valid for this shop.",
@@ -36,6 +37,11 @@ export default function CheckoutMenuRadioLife() {
   const [payWith, setPayWith] = useState("new"); // "new" | pm_id
   const [coupon, setCoupon] = useState("");
   const [couponInput, setCouponInput] = useState("");
+  const [biz, setBiz] = useState(null);
+
+  useEffect(() => {
+    if (cart.businessId) axios.get(`${API}/shop/businesses/${cart.businessId}`).then((r) => setBiz(r.data.business || r.data)).catch(() => {});
+  }, [cart.businessId]);
 
   useEffect(() => {
     axios.get(`${API}/shop/wallet/cards`).then((r) => {
@@ -116,6 +122,34 @@ export default function CheckoutMenuRadioLife() {
       </div>
 
       <div className="px-4 mt-4 space-y-4">
+        {/* Pickup context */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="checkout-pickup">
+          <div className="flex gap-2 bg-slate-100 rounded-full p-1">
+            <button onClick={() => cart.setFulfillment("pickup")} data-testid="checkout-fulfillment-pickup"
+              className={`flex-1 py-2 rounded-full text-sm font-black ${(cart.fulfillment || "pickup") === "pickup" ? "bg-white text-slate-900 shadow" : "text-slate-500"}`}>Pickup</button>
+            <button onClick={() => cart.setFulfillment("delivery")} data-testid="checkout-fulfillment-delivery"
+              className={`flex-1 py-2 rounded-full text-sm font-black ${cart.fulfillment === "delivery" ? "bg-white text-slate-900 shadow" : "text-slate-500"}`}>Delivery</button>
+          </div>
+          <div className="flex items-start gap-2 mt-3">
+            <Store size={15} className="text-orange-600 mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-slate-900">{cart.businessName}</div>
+              {(biz?.locations?.[0]?.address || biz?.city) && (
+                <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5"><MapPin size={12} />{biz?.locations?.[0]?.address || biz?.city}</div>
+              )}
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-center gap-1.5 text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5"><Clock size={13} className="text-green-600" />{cart.fulfillment === "delivery" ? "Deliver" : "Pick up"} time</div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {PICKUP_TIMES.map(([v, l]) => (
+                <button key={v} onClick={() => cart.setPickupTime(v)} data-testid={`checkout-pickup-${v}`}
+                  className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap ${(cart.pickupTime || "now") === v ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-600"}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Order summary */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <div className="font-black text-slate-900 mb-2">{cart.businessName}</div>
