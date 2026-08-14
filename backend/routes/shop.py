@@ -5,9 +5,9 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
-from auth import current_user_optional
+from auth import current_user, current_user_optional
 from services.marketplace import resolve_point_cost_cents, ranking_score
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
@@ -229,6 +229,34 @@ async def business_menu(business_id: str, request: Request,
                 "address": geo.get("address")} if (geo.get("lat") is not None) else None,
         "sections": [{"title": s, "items": sections[s]} for s in order],
     }
+
+
+CHECKIN_POINTS = 50
+
+
+@router.post("/businesses/{business_id}/checkin")
+async def checkin(business_id: str, request: Request, user: dict = Depends(current_user)):
+    """Loyalty check-in — awards points once per day per business."""
+    db = request.app.state.db
+    p = await db.marketplace_profiles.find_one(
+        {"business_id": business_id, "status": "approved", "subscription_active": True},
+        {"public_name": 1})
+    if not p:
+        raise HTTPException(404, {"code": "business_not_found"})
+    from datetime import datetime, timezone
+    from services.points_service import PointsService
+    uid = user.get("user_id")
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    idem = f"checkin:{uid}:{business_id}:{day}"
+    svc = PointsService(db)
+    if await db.points_ledger.find_one({"idempotency_key": idem}):
+        return {"ok": True, "already": True, "awarded": 0,
+                "points_balance": await svc.get_balance(uid)}
+    await svc.award(user_id=uid, source="venue_checkin", source_id=business_id,
+                    delta=CHECKIN_POINTS, idempotency_key=idem, enforce_caps=False,
+                    metadata={"business_id": business_id, "business_name": p.get("public_name")})
+    return {"ok": True, "already": False, "awarded": CHECKIN_POINTS,
+            "points_balance": await svc.get_balance(uid)}
 
 
 __all__ = ["router"]

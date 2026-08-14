@@ -1,5 +1,20 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## STORE/RESTAURANT DETAIL REDESIGN + LOYALTY CHECK-IN (2026-06 fork) — testing agent PASS (iter85: backend 5/5, web + mobile fully verified, no parity issues)
+User-reported redesign of the business detail page (`/shop/:id`) on BOTH surfaces (web `ShopBusinessRadioLife.jsx`, mobile `app/shop/[id].tsx`):
+- **Ways-to-earn = single top bar** (Order/Buy · Check In · Pay with RadioLife) all in ONE horizontal row (was 3 stacked rows).
+- **Functional Check-In**: new `POST /api/shop/businesses/{id}/checkin` awards 50 pts once/day/business (idempotent via PointsService source `venue_checkin`, key `checkin:{uid}:{bid}:{yyyy-mm-dd}`). UI segment flips to "Done ✓".
+- **Horizontal category filter** (Uber-Eats style) from menu sections / product categories.
+- **Product/menu grid** shown directly on the detail page — multi-row (2-col mobile, 2/3-col web); tapping an item routes to the ordering page (`/shop/menu/:id` or `/shop/products/:id`).
+- **Floating Order + Membership** buttons bottom-right (compact rectangles) — fixes the old full-width buttons overlapping the phone/website contact (contact now inline).
+- Note: business detail already returns `ways_to_earn`, `sells`, `has_menu/has_products/has_memberships` etc.; grid fetches `/shop/businesses/{id}/menu` or `/products`.
+- Minor non-blocking nit (left as-is, verified working): redundant local `HTTPException` import in shop.py; web reads id from pathname (screens render via `screenFor`, not `<Route>`).
+
+## DEFERRED (user asked, paused mid-build to do the store redesign) — resume next
+The following 4 were approved by the user and are NOT yet built: (1) **Real push alerts** (mobile integration — needs the user's Firebase `google-services.json` + Publish/native build; playbook already fetched; NEVER edit EMERGENT_PUSH_KEY); (2) **Delivery address step** → destination-based tax + store→address map route (default: pin-on-map + free OSM reverse-geocode + OSRM route line); (3) **Merchant self-serve "AI fill my local tax"** button (per-merchant tax override); (4) **Live prep-timer countdown** + "head over now" nudge on the tracker (needs `ready_at` on the order).
+
+
+
 ## FEES + DELIVERY + NEAR-ME MAPS + ORDER TRACKER + JURISDICTION TAX (2026-06 fork) — testing agent PASS (iter83 backend 10/10; iter84 frontend both surfaces green)
 Big cross-platform batch, all user-approved. Shared FastAPI backend; web (/app/frontend) + mobile (/app/mobile).
 - **Merchant fees (owner.com-style)**: new `GET/PATCH /api/merchant/marketplace/fulfillment` — `service_fee{enabled,percent}` (% of order, passed to customer), `delivery{enabled,fee_cents,eta_min,eta_max,min_order_cents}`, `prep_time_min`, `geo{lat,lng,address}`, `tax_jurisdiction{country,state,county,city}`. Web UI: `MerchantFulfillmentRadioLife` (/shop/merchant/fulfillment, tile on Merchant Dashboard) incl. click-to-drop Leaflet pin.
