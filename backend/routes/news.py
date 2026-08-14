@@ -17,6 +17,14 @@ from services import news_api_provider as newsapi_provider
 router = APIRouter(prefix="/api/news", tags=["news"])
 log = logging.getLogger("bigfm.news")
 
+
+def _live_flag() -> bool:
+    """News is 'live' when a real source is serving — EITHER the active
+    NewsAPI provider (NEWS_PROVIDER=newsapi + key) OR the legacy NewsData.io
+    key. Previously this only checked NewsData.io, so prod (served by NewsAPI
+    with no NewsData key) wrongly showed the "mock mode" banner."""
+    return bool(is_live() or (newsapi_provider.is_preferred() and newsapi_provider.enabled()))
+
 VALID_CATEGORIES = {"top", "world", "business", "technology",
                     "entertainment", "sports", "health", "science",
                     "politics"}
@@ -162,7 +170,7 @@ async def get_headlines(request: Request,
                                               a.get("news_id"), up_err)
             return {"count":              len(blend["items"]),
                           "items":              blend["items"],
-                          "live":              is_live(),
+                          "live":              _live_flag(),
                           "cached_at":      _now_iso(),
                           "resolved_market": resolved_market,
                           "fallback_global": False,
@@ -199,7 +207,7 @@ async def get_headlines(request: Request,
                 r.pop("_id", None)
                 out.append(r)
             return {"count": len(out), "items": out,
-                              "live": is_live(), "cached_at": _now_iso(),
+                              "live": _live_flag(), "cached_at": _now_iso(),
                               "resolved_market": resolved_market,
                               "fallback_global": False}
         # No local hits — fall through to global with the flag set.
@@ -216,7 +224,7 @@ async def get_headlines(request: Request,
         r.pop("_id", None)
         out.append(r)
     return {"count": len(out), "items": out,
-                      "live": is_live(), "cached_at": _now_iso(),
+                      "live": _live_flag(), "cached_at": _now_iso(),
                       "resolved_market": resolved_market,
                       "fallback_global": fallback_global}
 
@@ -238,7 +246,7 @@ async def refresh_now(request: Request,
     """Manual refresh — used by tests + admin debug. Idempotent."""
     db = request.app.state.db
     n = await _refresh_cache(db, category=category, limit=limit)
-    return {"ok": True, "upserted": n, "live": is_live()}
+    return {"ok": True, "upserted": n, "live": _live_flag()}
 
 
 async def ensure_news_indexes(db) -> None:

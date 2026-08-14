@@ -6,6 +6,7 @@ and `current_user`-less public access for /api/news/*.
 from __future__ import annotations
 
 import time
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -18,8 +19,35 @@ from services import news_phase_r_service as svc
 from services import news_api_provider as _newsapi
 from services import geo as _geo_svc
 from services import bigcoin as _bigcoin
+from services.newsdata_client import is_live as _newsdata_is_live
 
 router = APIRouter(tags=["phase-r-news"])
+log = logging.getLogger("bigfm.news")
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _live_flag() -> bool:
+    """News is 'live' when a real source is serving — the active NewsAPI
+    provider OR the legacy NewsData.io key. Drives the client's mock banner."""
+    return bool(_newsdata_is_live() or (_newsapi.is_preferred() and _newsapi.enabled()))
+
+
+def _with_aliases(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Backward-compatible superset: expose BOTH the phase-R fields
+    (headline_id/headline_text/…) and the fields the /news web + mobile
+    clients read (news_id/title/description/pubDate/link). Adds keys only."""
+    r = dict(r)
+    r.setdefault("news_id", r.get("id") or r.get("headline_id"))
+    r.setdefault("title", r.get("headline_text"))
+    r.setdefault("description", r.get("summary_text"))
+    r.setdefault("pubDate", r.get("published_at"))
+    r.setdefault("source_id", r.get("source_name"))
+    if not r.get("link"):
+        r["link"] = r.get("source_url")
+    return r
 
 NEWS_READ_REWARD = 1        # BigCoin per unique article read
 NEWS_READ_DAILY_CAP = 10    # max rewarded reads per day (anti-abuse)
@@ -490,8 +518,25 @@ async def public_headlines(request: Request,
         override = market
         live = await _fetch_live_headlines(request, category, limit,
                                            market_override=override, scope=scope)
+        # Persist the live articles so the /news/:id detail page (which reads
+        # from the `news_articles` cache) can resolve them — otherwise every
+        # article click 404s.
+        db = request.app.state.db
+        for a in live:
+            try:
+                await db.news_articles.update_one(
+                    {"news_id": a["news_id"]},
+                    {"$set": {**a, "cached_at": _now_iso()},
+                     "$setOnInsert": {"summary_script": None,
+                                      "summary_built_at": None,
+                                      "tts_audio_url": None}},
+                    upsert=True)
+            except Exception as e:
+                log.warning("[news] live persist %s failed: %s", a.get("news_id"), e)
         rows = [_live_article_to_public(a) for a in live][:limit]
-    return {"items": rows, "total": len(rows)}
+    rows = [_with_aliases(r) for r in rows]
+    return {"items": rows, "total": len(rows), "count": len(rows),
+            "live": _live_flag()}
 
 
 @router.get("/api/news/headlines/breaking")
@@ -504,8 +549,21 @@ async def public_breaking(request: Request,
     # curated breaking pool is empty.
     if not rows:
         live = await _fetch_live_headlines(request, None, limit)
+        db = request.app.state.db
+        for a in live:
+            try:
+                await db.news_articles.update_one(
+                    {"news_id": a["news_id"]},
+                    {"$set": {**a, "cached_at": _now_iso()},
+                     "$setOnInsert": {"summary_script": None,
+                                      "summary_built_at": None,
+                                      "tts_audio_url": None}},
+                    upsert=True)
+            except Exception as e:
+                log.warning("[news] breaking persist %s failed: %s", a.get("news_id"), e)
         rows = [_live_article_to_public(a, is_breaking=True)
                 for a in live][:limit]
+    rows = [_with_aliases(r) for r in rows]
     return {"items": rows, "total": len(rows)}
 
 
