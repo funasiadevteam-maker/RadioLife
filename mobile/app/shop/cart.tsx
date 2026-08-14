@@ -13,6 +13,7 @@ import { useReward } from '../../src/components/RewardOverlay';
 import SavedCardPicker from '../../src/components/SavedCardPicker';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+const PICKUP_TIMES: [string, string][] = [['now', 'Now (~15 min)'], ['+15', 'In 15 min'], ['+30', 'In 30 min'], ['+45', 'In 45 min']];
 const COUPON_ERR: Record<string, string> = {
   invalid_coupon: "Not valid for this shop.", expired: "This coupon has expired.",
   not_started: "Not active yet.", min_spend_not_met: "Minimum spend not met.",
@@ -77,6 +78,8 @@ export default function Cart() {
         redeem_points: usePoints && quote ? quote.max_redeemable_points : 0,
         coupon_code: coupon || undefined,
         payment_method_id: payCard || undefined,
+        fulfillment: cart.fulfillment || 'pickup',
+        pickup_time: cart.pickupTime || 'now',
       });
       const orderId = r.data.order_id;
       if (r.data.checkout_url) {
@@ -123,6 +126,27 @@ export default function Cart() {
         <>
           <ScrollView contentContainerStyle={{ padding: SPACING.md, paddingBottom: 200 }} testID="cart-root">
             <Text style={s.biz}>{cart.businessName}</Text>
+
+            {/* Pickup context */}
+            <View style={s.pickupCard} testID="cart-pickup">
+              <View style={s.fulRow}>
+                <TouchableOpacity style={[s.fulBtn, (cart.fulfillment || 'pickup') === 'pickup' && s.fulBtnOn]} onPress={() => cart.setFulfillment('pickup')} testID="cart-fulfillment-pickup">
+                  <Text style={[s.fulText, (cart.fulfillment || 'pickup') === 'pickup' && s.fulTextOn]}>Pickup</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.fulBtn, cart.fulfillment === 'delivery' && s.fulBtnOn]} onPress={() => cart.setFulfillment('delivery')} testID="cart-fulfillment-delivery">
+                  <Text style={[s.fulText, cart.fulfillment === 'delivery' && s.fulTextOn]}>Delivery</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={s.pickupLabel}>{cart.fulfillment === 'delivery' ? 'Deliver' : 'Pick up'} time</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {PICKUP_TIMES.map(([v, l]) => (
+                  <TouchableOpacity key={v} onPress={() => cart.setPickupTime(v)} style={[s.timePill, (cart.pickupTime || 'now') === v && s.timePillOn]} testID={`cart-pickup-${v}`}>
+                    <Text style={[s.timePillText, (cart.pickupTime || 'now') === v && { color: '#fff' }]}>{l}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
             {cart.items.map((i) => (
               <View key={i.line_id} style={s.row} testID={`cart-item-${i.item_id}`}>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -221,6 +245,16 @@ const s = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
   topTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900' },
   biz: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', marginBottom: SPACING.md },
+  pickupCard: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginBottom: 12 },
+  fulRow: { flexDirection: 'row', gap: 6, backgroundColor: COLORS.inputBg, borderRadius: RADIUS.full, padding: 4 },
+  fulBtn: { flex: 1, paddingVertical: 8, borderRadius: RADIUS.full, alignItems: 'center' },
+  fulBtnOn: { backgroundColor: COLORS.card },
+  fulText: { color: COLORS.textMuted, fontSize: FONT.sm, fontWeight: '900' },
+  fulTextOn: { color: COLORS.text },
+  pickupLabel: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 12, marginBottom: 8 },
+  timePill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, flexShrink: 0 },
+  timePillOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  timePillText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginBottom: 8 },
   name: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   opts: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },

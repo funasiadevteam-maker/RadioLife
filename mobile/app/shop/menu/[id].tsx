@@ -137,7 +137,7 @@ export default function BusinessMenu() {
                       </View>
                     ) : (
                       <TouchableOpacity style={[s.addBtn, hasOpts && s.chooseBtn]} testID={`menu-add-${it.item_id}`} onPress={() => handleAdd(it)}>
-                        {hasOpts ? <><Ionicons name="options" size={14} color="#fff" /><Text style={s.chooseText}>Choose</Text></> : <Ionicons name="add" size={18} color="#fff" />}
+                        {hasOpts ? <><Ionicons name="options" size={14} color="#fff" /><Text style={s.chooseText} numberOfLines={1}>Choose</Text></> : <Ionicons name="add" size={18} color="#fff" />}
                       </TouchableOpacity>
                     )}
                   </View>
@@ -200,8 +200,8 @@ const s = StyleSheet.create({
   itemPrice: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
   entTag: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: COLORS.primary + '1f', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full },
   entTagText: { color: COLORS.primary, fontSize: 9, fontWeight: '900' },
-  addBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  chooseBtn: { width: undefined, flexDirection: 'row', gap: 4, paddingHorizontal: 12 },
+  addBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  chooseBtn: { width: undefined, height: 34, borderRadius: RADIUS.full, flexDirection: 'row', gap: 4, paddingHorizontal: 14, flexShrink: 0 },
   chooseText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 4 },
   stepBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.card, alignItems: 'center', justifyContent: 'center' },

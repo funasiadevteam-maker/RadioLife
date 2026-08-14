@@ -107,8 +107,11 @@ export default function ItemOptionSheet({ item, entitlement, onClose, onConfirm 
           {groups.map((g: any) => (
             <View key={g.group_id} style={{ marginTop: 12 }} testID={`opt-group-${g.group_id}`}>
               <View style={st.grpHead}>
-                <Text style={st.grpName}>{g.name}{g.required ? ' *' : ''}</Text>
-                <Text style={st.grpHint}>{g.type === 'multi' ? `Up to ${g.max_select}` : 'Pick one'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={st.grpName}>{g.name}</Text>
+                  {g.required && <View style={st.reqPill}><Text style={st.reqPillText}>REQUIRED</Text></View>}
+                </View>
+                <Text style={st.grpHint}>{g.type === 'multi' ? `Up to ${g.max_select}` : 'Choose 1'}</Text>
               </View>
               {g.options.map((o: any) => {
                 const on = selected.has(o.option_id);
@@ -135,7 +138,7 @@ export default function ItemOptionSheet({ item, entitlement, onClose, onConfirm 
           {!!err && <Text style={st.err} testID="item-option-error">{err}</Text>}
         </ScrollView>
         <TouchableOpacity style={st.confirm} onPress={confirm} testID="item-option-confirm">
-          <Text style={st.confirmText}>Add to cart</Text>
+          <Text style={st.confirmText}>Add {qty} to order</Text>
           <Text style={st.confirmPrice} testID="item-option-total">{money(netPay * qty)}</Text>
         </TouchableOpacity>
       </View>
@@ -157,6 +160,8 @@ const st = StyleSheet.create({
   entTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
   entSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
   freeTag: { color: COLORS.green, fontSize: FONT.xs, fontWeight: '900' },
+  reqPill: { backgroundColor: COLORS.green + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full },
+  reqPillText: { color: COLORS.green, fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
   grpHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   grpName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
   grpHint: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700' },

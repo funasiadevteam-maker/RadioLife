@@ -225,6 +225,8 @@ class CheckoutBody(BaseModel):
     note: Optional[str] = Field(None, max_length=300)
     payment_method_id: Optional[str] = None  # saved card → one-tap off-session
     coupon_code: Optional[str] = None
+    fulfillment: Optional[str] = "pickup"   # "pickup" | "delivery"
+    pickup_time: Optional[str] = "now"      # "now" | "+15" | "+30" | "+45"
 
 
 @router.post("/checkout")
@@ -263,6 +265,8 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         "points_to_award": q["points_to_award"], "points_multiplier": q["points_multiplier"],
         "happy_hour": q["happy_hour"], "points_awarded_done": False,
         "note": body.note, "pickup_code": pickup_code,
+        "fulfillment": (body.fulfillment or "pickup"),
+        "pickup_time": (body.pickup_time or "now"),
         "status": "pending_payment", "payment_status": "pending",
         "session_id": None, "status_history": [],
         "created_at": now(), "updated_at": now(),

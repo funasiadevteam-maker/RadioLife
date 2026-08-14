@@ -216,8 +216,7 @@ function DesktopShell({ children }) {
           {/* Phase P — responsive horizontal padding scales with viewport
               so ultra-wide monitors (1440+) get breathing room instead of
               edge-to-edge content. Pages retain their own max-w wrappers. */}
-          <main className="flex-1 overflow-y-auto px-8 xl:px-12 2xl:px-20
-                                  py-6 animate-fade-up pb-32">
+          <main className={`flex-1 overflow-y-auto py-6 animate-fade-up pb-32 ${isAdminRoute ? "px-4" : "px-8 xl:px-12 2xl:px-20"}`}>
             {children}
             <ChannelCategoryFooter />
           </main>

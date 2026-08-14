@@ -533,7 +533,7 @@ const styles = {
     minHeight: "100vh",
     background: "#0d0d18",
     color: "#e2e8f0",
-    padding: "24px 28px 60px 244px",
+    padding: "24px 28px 60px",
     fontFamily: "ui-sans-serif, system-ui, sans-serif",
   },
   header: { marginBottom: 20 },
@@ -552,7 +552,7 @@ const styles = {
                         alignItems: "center", gap: 8, marginBottom: 12 },
   tableWrap: {
     background: "#1e1e2e", borderRadius: 12,
-    border: "1px solid #2a2a3a", overflow: "hidden",
+    border: "1px solid #2a2a3a", overflowX: "auto",
   },
   table: { width: "100%", borderCollapse: "separate", borderSpacing: 0,
                     fontSize: 13 },

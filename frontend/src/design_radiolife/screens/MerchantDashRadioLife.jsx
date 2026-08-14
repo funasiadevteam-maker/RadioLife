@@ -2,12 +2,13 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, ArrowRight, Lock, Zap, CheckCircle2, Utensils, CreditCard, Package, Gift, Crown, CalendarDays, Tag, Bell, QrCode, Flame, Coins, TrendingUp } from "lucide-react";
+import { ChevronLeft, ArrowRight, Lock, Zap, CheckCircle2, Utensils, CreditCard, Package, Gift, Crown, CalendarDays, Tag, Bell, QrCode, Flame, Coins, TrendingUp, Clock } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const NEXT = { accepted: "preparing", preparing: "ready", ready: "picked_up" };
 const NEXT_LABEL = { accepted: "Start Preparing", preparing: "Mark Ready", ready: "Mark Picked Up" };
+const PICKUP_LABELS = { now: "Now (~15 min)", "+15": "In 15 min", "+30": "In 30 min", "+45": "In 45 min" };
 const PNEXT = { paid: "packed", packed: "shipped", shipped: "delivered" };
 const PNEXT_LABEL = { paid: "Mark Packed", packed: "Mark Shipped", shipped: "Mark Delivered" };
 
@@ -235,6 +236,9 @@ export default function MerchantDashRadioLife() {
             <div className="flex items-center justify-between">
               <div className="text-lg font-black tracking-widest text-slate-900">#{o.pickup_code}</div>
               <div className="text-xs font-black uppercase text-orange-600">{o.status}</div>
+            </div>
+            <div className="flex items-center gap-1.5 mt-1 text-xs font-black text-green-700" data-testid={`merchant-order-pickup-${o.order_id}`}>
+              <Clock size={12} />{o.fulfillment === "delivery" ? "Deliver" : "Pickup"} · {PICKUP_LABELS[o.pickup_time] || "Now (~15 min)"}
             </div>
             {(o.items || []).map((it, i) => <div key={i} className="text-sm text-slate-600 font-semibold">{it.qty}× {it.name}</div>)}
             <div className="text-sm font-bold text-slate-900 mt-1">{money(o.total_cents)} · rewards {o.points_to_award} BigPoints</div>

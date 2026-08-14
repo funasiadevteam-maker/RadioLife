@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 82 — Mobile parity for pickup/delivery + backend persistence + admin layout fix. Backend: 10/10 pass. Web admin (merchants/commissions/stripe-connect): sidebar/main layout correct, table full-width 1610px with all 8 columns visible, no dead space, no truncation. Mobile: demo login OK, ItemOptionSheet shows 2 REQUIRED pills + 'Add 1 to order' + entitlement 'BASE FREE' banner; Cart page renders Pickup/Delivery toggle + all 4 pickup-time pills; checkout POST body verified to contain fulfillment+pickup_time. Backend persists fulfillment+pickup_time on both the fully-covered ($0 entitlement) path and the Stripe-hosted path, merchant listing surfaces the fields, option upcharges price correctly on Grill House ribeye (+$2.50/+$3.50/+$5.00). One UI defect: 'Choose' button on Fun Pizza menu clips at true 390px width (renders 'Choo').",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "ShopMenuRadioLife (mobile) / menu-add button", "issue": "'Choose' label clips to 'Choo' at true 390px mobile width — the button flexes too narrow when the item title + price + Membership tag row is present. Confirmed at 390px, so NOT just a wide-preview artifact.", "testID": "menu-add-mi_biz_sample_funpizza_0", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Menu at 390px", "issues": ["'Choose' pill's text truncates; either shrink the button, use an icon-only add button, or reflow the row so the pill has flex-shrink:0."]}
+      ],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter82_pickup_fulfillment.py",
+    "/app/test_reports/pytest/iter82.xml"
+  ],
+  "action_items": [
+    "Fix 'Choose' button truncation on the Fun Pizza mobile menu at 390px width (menu-add-* button in ShopMenuRadioLife mobile screen).",
+    "OPTIONAL: Consider adding zustand `persist` middleware to useCartStore so a reloaded /shop/cart route retains items (currently a page reload wipes the cart — expected in single-app-session UX but brittle for testing)."
+  ],
+  "critical_code_review_comments": [
+    "marketplace_orders.py CheckoutBody accepts fulfillment/pickup_time as free-form strings — consider Literal['pickup','delivery'] and Literal['now','+15','+30','+45'] Pydantic types to reject bad input at the edge instead of silently persisting garbage.",
+    "Cart store useCartStore is in-memory only (no persist). Any reload of the mobile web preview clears the cart. Consider zustand/middleware/persist w/ AsyncStorage for parity with native behaviour."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter82_pickup_fulfillment.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "web 100%, mobile ~95% (1 truncation)"},
+  "test_credentials": "web admin@bigfm.dubai/AdminPass123!, web test@bigfm.dubai/TestUser123!, mobile demo-login (demo@bigfm.dubai bearer)",
+  "seed_data_creation": "None (used existing seeded fixtures). Test placed several $0 marketplace orders on biz_sample_funpizza and one pending_payment stripe-hosted order on biz_dc324d800f66 to verify persistence.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend contract for fulfillment/pickup_time is fully live and covered by /app/backend/tests/test_iter82_pickup_fulfillment.py (10 tests). Backend accepts both free ($0 entitlement) and Stripe-hosted paths, defaults to pickup/now when omitted. Merchant listing (/api/merchant/marketplace/orders) needs `?status=pending_payment` to see unpaid orders — default filter hides them. On mobile the option sheet + cart pickup pills work end-to-end; only cosmetic issue is the 'Choose' button label truncating at 390px width. Web admin layout is fixed — sidebar 220px, main flex-1, table not truncated (scrollWidth==clientWidth==1610px) on /admin/merchants, /admin/commissions and /admin/stripe-connect.",
+  "rca of the issue": "menu-add 'Choose' button clip: at 390px, the horizontal row [thumbnail + name/description/price/Membership tag + Choose button] leaves the trailing pill without a flex-shrink:0 (or a fixed minWidth) so it collapses when the price + Membership tag together push the intrinsic content wider than available space. Fix: add flex-shrink:0 + minWidth (or use just a '+' icon-only add-to-cart button, matching the design in the Sides section which uses an icon-only add btn)."
+}

@@ -796,7 +796,7 @@ function toneForSource(src) {
 
 const s = {
   page: { minHeight: "100vh", background: "#0d0d18", color: "#e2e8f0",
-                padding: "24px 28px 60px 244px",
+                padding: "24px 28px 60px",
                 fontFamily: "ui-sans-serif, system-ui, sans-serif" },
   header: { marginBottom: 20 },
   eyebrow: { fontSize: 11, letterSpacing: 2, textTransform: "uppercase",

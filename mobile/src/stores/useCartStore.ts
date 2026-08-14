@@ -28,6 +28,10 @@ type LineInput = {
 type CartState = {
   businessId: string | null;
   businessName: string | null;
+  fulfillment: string;
+  pickupTime: string;
+  setFulfillment: (f: string) => void;
+  setPickupTime: (t: string) => void;
   items: CartItem[];
   addLine: (bizId: string, bizName: string, line: LineInput) => void;
   add: (bizId: string, bizName: string, item: { item_id: string; name: string; price_cents: number }) => void;
@@ -44,6 +48,10 @@ type CartState = {
 export const useCartStore = create<CartState>((set, get) => ({
   businessId: null,
   businessName: null,
+  fulfillment: 'pickup',
+  pickupTime: 'now',
+  setFulfillment: (f) => set({ fulfillment: f }),
+  setPickupTime: (t) => set({ pickupTime: t }),
   items: [],
   conflicts: (bizId) => !!get().businessId && get().businessId !== bizId && get().items.length > 0,
   addLine: (bizId, bizName, line) => set((st) => {

@@ -96,6 +96,8 @@ export default function CheckoutMenuRadioLife() {
         business_id: cart.businessId, items,
         use_gift_card: useGift, redeem_points: redeemPoints,
         coupon_code: coupon || undefined,
+        fulfillment: cart.fulfillment || "pickup",
+        pickup_time: cart.pickupTime || "now",
         origin_url: window.location.origin,
         payment_method_id: payWith !== "new" ? payWith : undefined,
       });

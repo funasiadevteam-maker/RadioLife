@@ -1,5 +1,17 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## MOBILE PARITY (shopping/pickup) + PICKUP PERSISTENCE + ADMIN LAYOUT FIX (2026-06 fork) — testing agent PASS (iteration_82: backend 10/10, web admin + mobile flow green)
+Closed out the Amazon/Uber-Eats shopping revamp by bringing pickup/fulfillment to mobile + the backend order, and fixed the web admin dead-space/truncation. All code was written in the prior (interrupted) session; this session linted, seeded, screenshotted, and ran the testing agent.
+- **Backend pickup persistence** (`routes/marketplace_orders.py`): `CheckoutBody` + `QuoteBody` accept `fulfillment` ('pickup'|'delivery', default pickup) and `pickup_time` ('now'|'+15'|'+30'|'+45', default now); the created `marketplace_orders` doc stores both. Verified persisting on BOTH the fully-covered $0 (entitlement) path AND the Stripe-hosted path, and surfaced via `GET /api/merchant/marketplace/orders`. NO schema migration needed (additive, defaults applied).
+- **Web**: `CheckoutMenuRadioLife` sends `fulfillment`+`pickup_time`; `MerchantDashRadioLife` shows a pickup/delivery time line per food order (`merchant-order-pickup-{order_id}`, PICKUP_LABELS map).
+- **Web Admin layout fix**: removed the hardcoded `padding-left: 244px` from `AdminMerchants`/`AdminCommissions`/`AdminStripeConnect` page styles (the admin sidebar offset is already handled by `AppShell` `paddingLeft:220` on `/admin/*`), switched table wrappers from `overflow:hidden` → `overflowX:auto`, and `AppShell` main uses `px-4` on admin routes. Result (verified): Merchants table full-width, all 8 columns visible, no left dead-space.
+- **Mobile**: `useCartStore` gained `fulfillment`/`pickupTime` + setters; `app/shop/cart.tsx` added a Pickup/Delivery toggle (`cart-fulfillment-pickup|delivery`) + pickup-time pills (`cart-pickup-now|+15|+30|+45`) and sends both on checkout (captured payload `fulfillment:delivery, pickup_time:+30`). `ItemOptionSheet` shows a green REQUIRED pill + "Add N to order".
+- **Demo seed** (`backend/scripts/seed_shop_demo.py`, run manually): Ambreens serum size variants + a variant apparel tee; Grill House "Signature Ribeye" Cook(required)+Add-ons. **FIX this session**: options must use `price_delta_cents` (not `price_cents`) — corrected the seed AND migrated the stale Grill House doc in-place so add-on upcharges ($2.50/$3.50/$5.00) price correctly.
+- **Bug fixed (iter82 MEDIUM)**: mobile Fun Pizza menu "Choose" button (`menu-add-*`) clipped to "Choo" at 390px — added `flexShrink:0` + fixed height/pill radius to `addBtn`/`chooseBtn` and `numberOfLines={1}` on the label; re-verified at true 390px (button fully contained).
+- Non-blocking (deferred): mobile cart zustand has no persist (hard reload clears cart); `CheckoutBody` could use `Literal` types for fulfillment/pickup_time. Prod bugs (News mock-banner, `benefit_not_found`) fixed in preview earlier — need **Publish** to go live.
+
+
+
 ## SHOPPING EXPERIENCE REVAMP — Amazon products + Uber Eats pickup (WEB) (2026-06 fork) — testing agent PASS (iteration_81, all 7 web flows)
 User goal: simplify product display + multi-product listing, and make checkout feel like Amazon (products) and Uber Eats (restaurant pickup). WEB-only this phase; reuses existing shop/menu/cart/order APIs (NO backend change). User choices: web first → mobile parity later; revamp existing screens; pickup default (Pay now, pick up in-store) with pickup-time selector; build order = product shopping → pickup.
 - **Product shopping (Amazon-style)**:
