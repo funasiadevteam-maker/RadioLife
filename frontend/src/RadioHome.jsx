@@ -465,6 +465,14 @@ const COUNTRY_NAMES = {
   ZA: "South Africa", NG: "Nigeria", AR: "Argentina", CO: "Colombia",
 };
 
+const GENRE_COLORS = {
+  pop: "#EC4899", news: "#3B82F6", rock: "#EF4444", bollywood: "#F59E0B",
+  talk: "#8B5CF6", jazz: "#14B8A6", classical: "#A16207", edm: "#06B6D4",
+  hindi: "#F97316", sports: "#16A34A", devotional: "#7C3AED", country: "#CA8A04",
+  electronic: "#06B6D4", dance: "#DB2777", oldies: "#0EA5E9", _default: "#F26B2A",
+};
+const genreColor = (slug) => GENRE_COLORS[slug] || GENRE_COLORS._default;
+
 function countryName(cc) { return COUNTRY_NAMES[cc] || cc; }
 
 function flagEmoji(cc) {
@@ -474,21 +482,22 @@ function flagEmoji(cc) {
   return String.fromCodePoint(base + up.charCodeAt(0) - 65, base + up.charCodeAt(1) - 65);
 }
 
-function FilterChip({ light, active, onClick, children, testid }) {
+function FilterChip({ light, active, onClick, children, testid, dot }) {
   return (
     <button type="button" onClick={onClick} data-testid={testid}
-      className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap transition ${
+      className={`shrink-0 inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap transition ${
         active
           ? (light ? "bg-purple-600 text-white shadow shadow-purple-500/30"
                    : "bg-amber-500 text-slate-900 shadow shadow-amber-500/30")
           : (light ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
                    : "bg-slate-800 text-slate-300 hover:bg-slate-700")}`}>
+      {dot && <span className="w-2 h-2 rounded-full mr-1.5 shrink-0" style={{ backgroundColor: dot }} />}
       {children}
     </button>
   );
 }
 
-function StationCard({ s, showHot, light, isFav, onPlay, onToggleFav }) {
+function StationCard({ s, showHot, light, isFav, isNowPlaying, onPlay, onToggleFav }) {
   const cardCls = light
     ? "bg-white border border-slate-200 hover:border-purple-400"
     : "bg-slate-900/60 border border-slate-800 hover:border-amber-500/50";
@@ -500,9 +509,15 @@ function StationCard({ s, showHot, light, isFav, onPlay, onToggleFav }) {
       className={`${cardCls} shrink-0 w-36 sm:w-40 snap-start rounded-2xl p-3 text-left transition group cursor-pointer`}>
       <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-800/40 relative">
         <SafeImage src={s.favicon} alt={s.name} fallbackKind="station" fallbackText={s.name} className="w-full h-full object-cover" />
-        <span className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow" data-testid={`radio-browse-live-${s.id}`}>
-          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE
-        </span>
+        {isNowPlaying ? (
+          <span className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-emerald-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow" data-testid={`radio-browse-playing-${s.id}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />PLAYING
+          </span>
+        ) : (
+          <span className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow" data-testid={`radio-browse-live-${s.id}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE
+          </span>
+        )}
         {showHot && (
           <span className="absolute top-1.5 right-1.5 bg-amber-400 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow" data-testid={`radio-browse-hot-${s.id}`}>🔥 HOT</span>
         )}
@@ -524,6 +539,8 @@ function StationCard({ s, showHot, light, isFav, onPlay, onToggleFav }) {
 function BrowseTeaser({ light }) {
   const navigate = useNavigate();
   const setImportedStation = usePlayerStore((s) => s.setImportedStation);
+  const nowPlayingId = usePlayerStore((s) => s.importedStation?.id);
+  const nowPlaying = usePlayerStore((s) => s.playing);
   const saved = useMemo(() => {
     try { return JSON.parse(localStorage.getItem(DISCOVER_FILTERS_KEY) || "{}"); }
     catch (_) { return {}; }
@@ -641,7 +658,7 @@ function BrowseTeaser({ light }) {
           <div className={`text-[11px] font-black uppercase tracking-wider mb-2 ${muted}`}>Recently played</div>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x">
             {recent.map((s) => (
-              <StationCard key={s.id} s={s} light={light} isFav={favIds.has(s.id)} onPlay={play} onToggleFav={toggleFav} />
+              <StationCard key={s.id} s={s} light={light} isFav={favIds.has(s.id)} isNowPlaying={nowPlaying && s.id === nowPlayingId} onPlay={play} onToggleFav={toggleFav} />
             ))}
           </div>
         </div>
@@ -653,7 +670,7 @@ function BrowseTeaser({ light }) {
           <div className={`text-[11px] font-black uppercase tracking-wider mb-2 ${muted}`}>Your favourites ❤</div>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x">
             {favs.map((s) => (
-              <StationCard key={s.id} s={s} light={light} isFav onPlay={play} onToggleFav={toggleFav} />
+              <StationCard key={s.id} s={s} light={light} isFav isNowPlaying={nowPlaying && s.id === nowPlayingId} onPlay={play} onToggleFav={toggleFav} />
             ))}
           </div>
         </div>
@@ -700,6 +717,7 @@ function BrowseTeaser({ light }) {
           <FilterChip light={light} active={!genre} onClick={() => setGenre("")} testid="radio-browse-genre-all">All</FilterChip>
           {genres.map((g) => (
             <FilterChip light={light} key={g.slug} active={genre === g.slug} onClick={() => setGenre(g.slug)}
+                        dot={genreColor(g.slug)}
                         testid={`radio-browse-genre-${g.slug}`}>{g.label}</FilterChip>
           ))}
         </div>
@@ -738,7 +756,7 @@ function BrowseTeaser({ light }) {
                     data-testid="radio-browse-teaser-scroll">
           {(items || []).map((s, idx) => (
             <StationCard key={s.id} s={s} showHot={idx < 3 && !q}
-                         light={light} isFav={favIds.has(s.id)} onPlay={play} onToggleFav={toggleFav} />
+                         light={light} isFav={favIds.has(s.id)} isNowPlaying={nowPlaying && s.id === nowPlayingId} onPlay={play} onToggleFav={toggleFav} />
           ))}
         </div>
       )}

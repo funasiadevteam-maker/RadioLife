@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, ActivityIndicator, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,10 +15,19 @@ import api from '../api/client';
 import SafeImage from './SafeImage';
 import { COLORS, SPACING, FONT, RADIUS } from '../constants/theme';
 import { useStationsStore, SavedStation } from '../stores/useStationsStore';
+import { usePlayerStore } from '../stores/usePlayerStore';
 import { playImportedStation } from '../services/playStation';
 
 const FILTERS_KEY = 'bigfm_discover_filters';
 const CARD = 128;
+
+const GENRE_COLORS: Record<string, string> = {
+  pop: '#EC4899', news: '#3B82F6', rock: '#EF4444', bollywood: '#F59E0B',
+  talk: '#8B5CF6', jazz: '#14B8A6', classical: '#A16207', edm: '#06B6D4',
+  hindi: '#F97316', sports: '#16A34A', devotional: '#7C3AED', country: '#CA8A04',
+  electronic: '#06B6D4', dance: '#DB2777', oldies: '#0EA5E9',
+};
+const genreColor = (slug: string) => GENRE_COLORS[slug] || COLORS.primary;
 
 const COUNTRY_NAMES: Record<string, string> = {
   US: 'USA', GB: 'UK', DE: 'Germany', FR: 'France', IN: 'India', IT: 'Italy',
@@ -41,25 +50,46 @@ function flagEmoji(cc: string) {
 type Chip = { slug: string; label: string; count?: number };
 type Station = SavedStation;
 
-function Filter({ active, label, onPress, testID }: { active: boolean; label: string; onPress: () => void; testID: string }) {
+function PulseDot({ color = '#fff' }: { color?: string }) {
+  const a = useRef(new Animated.Value(0.4)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(a, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(a, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [a]);
+  return <Animated.View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: color, opacity: a }} />;
+}
+
+function Filter({ active, label, onPress, testID, dotColor }: { active: boolean; label: string; onPress: () => void; testID: string; dotColor?: string }) {
   return (
     <TouchableOpacity style={[c.chip, active && c.chipActive]} onPress={onPress} testID={testID} activeOpacity={0.8}>
+      {dotColor ? <View style={[c.genreDot, { backgroundColor: dotColor }]} /> : null}
       <Text style={[c.chipText, active && c.chipTextActive]} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function StationCard({ st, showHot, isFav, onPlay, onToggleFav, prefix }:
-  { st: Station; showHot?: boolean; isFav: boolean; onPlay: () => void; onToggleFav: () => void; prefix: string }) {
+function StationCard({ st, showHot, isFav, isNowPlaying, onPlay, onToggleFav, prefix }:
+  { st: Station; showHot?: boolean; isFav: boolean; isNowPlaying?: boolean; onPlay: () => void; onToggleFav: () => void; prefix: string }) {
   const sub = st.country || (st.language ? String(st.language).split(' ')[0] : '') || 'Live';
   return (
     <TouchableOpacity style={c.card} onPress={onPlay} testID={`${prefix}-card-${st.id}`} activeOpacity={0.85}>
       <View style={c.thumbWrap}>
         <SafeImage uri={st.favicon || st.logo_url} fallbackText={st.name} size={CARD} borderRadius={RADIUS.lg} />
-        <View style={c.liveBadge} testID={`${prefix}-live-${st.id}`}>
-          <View style={c.liveDot} />
-          <Text style={c.liveText}>LIVE</Text>
-        </View>
+        {isNowPlaying ? (
+          <View style={[c.liveBadge, c.playingBadge]} testID={`${prefix}-playing-${st.id}`}>
+            <PulseDot />
+            <Text style={c.liveText}>PLAYING</Text>
+          </View>
+        ) : (
+          <View style={c.liveBadge} testID={`${prefix}-live-${st.id}`}>
+            <View style={c.liveDot} />
+            <Text style={c.liveText}>LIVE</Text>
+          </View>
+        )}
         {showHot && (
           <View style={c.hotBadge} testID={`${prefix}-hot-${st.id}`}>
             <Text style={c.hotText}>🔥 HOT</Text>
@@ -83,6 +113,8 @@ function StationCard({ st, showHot, isFav, onPlay, onToggleFav, prefix }:
 export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: string }) {
   const router = useRouter();
   const { favorites, recents, load, toggleFavorite } = useStationsStore();
+  const activeChannel = usePlayerStore((s) => s.activeChannel);
+  const playing = usePlayerStore((s) => s.playing);
 
   const [langs, setLangs] = useState<Chip[]>([]);
   const [genres, setGenres] = useState<Chip[]>([]);
@@ -188,7 +220,7 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
           <Text style={c.railLabel}>Recently played</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.rail}>
             {recents.slice(0, 12).map((st) => (
-              <StationCard key={`rec-${st.id}`} st={st} isFav={favIds.has(st.id)} onPlay={() => play(st)} onToggleFav={() => toFav(st)} prefix={prefix} />
+              <StationCard key={`rec-${st.id}`} st={st} isFav={favIds.has(st.id)} isNowPlaying={playing && activeChannel === st.id} onPlay={() => play(st)} onToggleFav={() => toFav(st)} prefix={prefix} />
             ))}
           </ScrollView>
         </View>
@@ -200,7 +232,7 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
           <Text style={c.railLabel}>Your favourites ❤</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.rail}>
             {favorites.slice(0, 20).map((st) => (
-              <StationCard key={`fav-${st.id}`} st={st} isFav onPlay={() => play(st)} onToggleFav={() => toFav(st)} prefix={prefix} />
+              <StationCard key={`fav-${st.id}`} st={st} isFav isNowPlaying={playing && activeChannel === st.id} onPlay={() => play(st)} onToggleFav={() => toFav(st)} prefix={prefix} />
             ))}
           </ScrollView>
         </View>
@@ -245,7 +277,7 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.chipRow} testID={`${prefix}-genre-chips`}>
             <Filter active={!genre} label="All" onPress={() => setGenre('')} testID={`${prefix}-genre-all`} />
             {genres.map((g) => (
-              <Filter key={g.slug} active={genre === g.slug} label={g.label} onPress={() => setGenre(g.slug)} testID={`${prefix}-genre-${g.slug}`} />
+              <Filter key={g.slug} active={genre === g.slug} label={g.label} dotColor={genreColor(g.slug)} onPress={() => setGenre(g.slug)} testID={`${prefix}-genre-${g.slug}`} />
             ))}
           </ScrollView>
         </View>
@@ -285,7 +317,7 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[c.rail, loading && { opacity: 0.5 }]} testID={`${prefix}-scroll`}>
           {(items || []).map((st, idx) => (
-            <StationCard key={st.id} st={st} showHot={idx < 3 && !q} isFav={favIds.has(st.id)} onPlay={() => play(st)} onToggleFav={() => toFav(st)} prefix={prefix} />
+            <StationCard key={st.id} st={st} showHot={idx < 3 && !q} isFav={favIds.has(st.id)} isNowPlaying={playing && activeChannel === st.id} onPlay={() => play(st)} onToggleFav={() => toFav(st)} prefix={prefix} />
           ))}
         </ScrollView>
       )}
@@ -310,6 +342,7 @@ const c = StyleSheet.create({
   card: { width: CARD },
   thumbWrap: { width: CARD, height: CARD, position: 'relative' },
   liveBadge: { position: 'absolute', top: 6, left: 6, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(225,29,72,0.95)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full },
+  playingBadge: { backgroundColor: 'rgba(5,150,105,0.95)' },
   liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#fff' },
   liveText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
   hotBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: COLORS.gold, paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full },
@@ -327,8 +360,9 @@ const c = StyleSheet.create({
   filterLine: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm, paddingLeft: SPACING.md },
   filterIcon: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff2e6', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   chipRow: { gap: 6, alignItems: 'center', paddingRight: SPACING.md },
-  chip: { flexShrink: 0, paddingHorizontal: 14, paddingVertical: 7, borderRadius: RADIUS.full, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
+  chip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 7, borderRadius: RADIUS.full, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  genreDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   chipText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700' },
   chipTextActive: { color: '#fff' },
   loadWrap: { paddingVertical: 40, alignItems: 'center' },

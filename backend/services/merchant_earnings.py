@@ -5,14 +5,22 @@ we record one ledger row: gross, the platform fee (from the category commission
 engine, admin-overridable), and the merchant's net. The merchant Earnings
 dashboard reads these rows. Real bank payouts happen out-of-band (no Stripe
 Connect split until a merchant connects an account)."""
-from typing import Any, Dict
+from datetime import timedelta
+from typing import Any, Dict, List
 
 from services.marketplace import now, new_id
 from services.commission_service import calculate_platform_fee
 
+# An earning is payable until it's been swept into a payout batch.
+_PAID_STATES = ("processing", "transferred", "paid")
+
 
 def _period(dt=None) -> str:
     return (dt or now()).strftime("%Y-%m")
+
+
+def _is_available(r: Dict[str, Any]) -> bool:
+    return r.get("payout_status") not in _PAID_STATES
 
 
 def _clean(d: Dict[str, Any]) -> Dict[str, Any]:
@@ -60,16 +68,35 @@ async def earnings_summary(db, business_id: str) -> Dict[str, Any]:
     def _sum(items, key):
         return sum(int(r.get(key, 0)) for r in items)
 
+    # 30-day net-sales series (oldest → newest) for the trends chart.
+    today = now().date()
+    buckets: Dict[str, Dict[str, int]] = {}
+    for i in range(29, -1, -1):
+        d = (today - timedelta(days=i)).isoformat()
+        buckets[d] = {"date": d, "net_cents": 0, "count": 0}
+    for r in rows:
+        c = r.get("created_at")
+        key = c.date().isoformat() if hasattr(c, "date") else None
+        if key and key in buckets:
+            buckets[key]["net_cents"] += int(r.get("net_cents", 0))
+            buckets[key]["count"] += 1
+    daily: List[Dict[str, int]] = list(buckets.values())
+
+    available = [r for r in rows if _is_available(r)]
+
     return {
         "memberships_sold": len(rows),
         "gross_cents": _sum(rows, "gross_cents"),
         "fee_cents": _sum(rows, "fee_cents"),
         "net_cents": _sum(rows, "net_cents"),
+        "available_cents": _sum(available, "net_cents"),
+        "paid_out_cents": _sum([r for r in rows if not _is_available(r)], "net_cents"),
         "month": {
             "count": len(m_rows),
             "gross_cents": _sum(m_rows, "gross_cents"),
             "fee_cents": _sum(m_rows, "fee_cents"),
             "net_cents": _sum(m_rows, "net_cents"),
         },
+        "daily": daily,
         "transactions": [_clean(dict(r)) for r in rows[:25]],
     }

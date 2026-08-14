@@ -1,25 +1,161 @@
-// RadioLife Merchant Earnings — memberships sold, gross, platform fee, net (web).
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+// RadioLife Merchant Earnings — memberships sold, gross, platform fee, net,
+// 30-day trends chart, and Stripe Connect payouts (withdraw + instant).
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, TrendingUp, Crown } from "lucide-react";
+import { ChevronLeft, TrendingUp, Crown, Banknote, Zap, CheckCircle2, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 
+function TrendsChart({ daily }) {
+  const days = daily || [];
+  const max = Math.max(1, ...days.map((d) => d.net_cents || 0));
+  const total = days.reduce((a, d) => a + (d.net_cents || 0), 0);
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="earnings-trends">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs font-black uppercase tracking-wider text-slate-400">Last 30 days</div>
+        <div className="text-xs font-bold text-slate-500">{money(total)} net</div>
+      </div>
+      {total === 0 ? (
+        <div className="text-center text-xs text-slate-400 py-6" data-testid="earnings-trends-empty">No sales in the last 30 days yet.</div>
+      ) : (
+        <div className="flex items-end gap-[3px] h-28">
+          {days.map((d) => (
+            <div key={d.date} className="flex-1 flex flex-col justify-end group relative" title={`${d.date}: ${money(d.net_cents)}`}>
+              <div
+                className={`w-full rounded-t ${d.net_cents > 0 ? "bg-emerald-500 group-hover:bg-emerald-600" : "bg-slate-200"}`}
+                style={{ height: `${Math.max(d.net_cents > 0 ? 6 : 2, (d.net_cents / max) * 100)}%` }}
+                data-testid={`earnings-bar-${d.date}`}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PayoutsCard({ status, available, onConnect, onWithdraw, onInstant, busy }) {
+  if (!status) return null;
+  const connected = status.connected;
+  const hasAccount = status.has_account;
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="earnings-payouts">
+      <div className="flex items-center gap-2 mb-1">
+        <Banknote size={16} className="text-emerald-600" />
+        <div className="text-sm font-black text-slate-900">Payouts</div>
+        {connected && <span className="flex items-center gap-1 text-emerald-700 text-[10px] font-black bg-emerald-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} />Connected</span>}
+      </div>
+
+      {connected ? (
+        <>
+          <p className="text-xs text-slate-500">Available to withdraw</p>
+          <div className="text-2xl font-black text-slate-900" data-testid="payouts-available">{money(available)}</div>
+          <div className="flex gap-2 mt-3">
+            <button onClick={onWithdraw} disabled={busy || available <= 0} data-testid="payouts-withdraw"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 text-white font-black rounded-full py-2.5 text-sm disabled:opacity-40">
+              <Banknote size={15} />{busy ? "Working…" : "Withdraw"}
+            </button>
+            <button onClick={onInstant} disabled={busy} data-testid="payouts-instant"
+              className="flex items-center justify-center gap-1.5 bg-slate-900 text-white font-black rounded-full px-4 py-2.5 text-sm disabled:opacity-40">
+              <Zap size={15} />Cash out now
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-2">Withdraw moves your net to your Stripe balance (paid to your bank on schedule). &quot;Cash out now&quot; sends it to your bank instantly for a small fee.</p>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-slate-500 mt-1">
+            {hasAccount ? "Finish your payout setup to start receiving money." : "Connect a bank via Stripe to receive your earnings."}
+          </p>
+          {(status.requirements_due || []).length > 0 && (
+            <div className="flex items-start gap-1.5 mt-2 text-[11px] text-amber-700 bg-amber-50 rounded-lg p-2" data-testid="payouts-requirements">
+              <AlertCircle size={13} className="mt-0.5 shrink-0" />
+              <span>More info needed: {status.requirements_due.slice(0, 4).join(", ")}</span>
+            </div>
+          )}
+          <button onClick={onConnect} disabled={busy} data-testid="payouts-connect"
+            className="mt-3 w-full flex items-center justify-center gap-1.5 bg-orange-600 text-white font-black rounded-full py-2.5 text-sm disabled:opacity-50">
+            <Banknote size={15} />{busy ? "Opening…" : hasAccount ? "Finish payout setup" : "Connect payouts"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function MerchantEarningsRadioLife() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [data, setData] = useState(null);
+  const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const loadEarnings = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/merchant/marketplace/earnings`);
+      setData(r.data);
+    } catch { /* ignore */ }
+  }, []);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/merchant/marketplace/connect/status`);
+      setStatus(r.data);
+    } catch { setStatus({ has_account: false, connected: false }); }
+  }, []);
 
   useEffect(() => {
     (async () => {
-      try {
-        const r = await axios.get(`${API}/merchant/marketplace/earnings`);
-        setData(r.data);
-      } catch { /* ignore */ } finally { setLoading(false); }
+      await Promise.all([loadEarnings(), loadStatus()]);
+      setLoading(false);
     })();
-  }, []);
+  }, [loadEarnings, loadStatus]);
+
+  // Returning from the Stripe onboarding flow → re-check status.
+  useEffect(() => {
+    if (params.get("connect")) {
+      loadStatus();
+      const next = new URLSearchParams(params);
+      next.delete("connect");
+      setParams(next, { replace: true });
+    }
+  }, [params, loadStatus, setParams]);
+
+  const connectPayouts = async () => {
+    setBusy(true);
+    try {
+      await axios.post(`${API}/merchant/marketplace/connect/account`);
+      const r = await axios.post(`${API}/merchant/marketplace/connect/onboarding-link`, { origin_url: window.location.origin, platform: "web" });
+      if (r.data.url) { window.location.href = r.data.url; return; }
+    } catch { toast.error("Couldn't start payout setup"); }
+    finally { setBusy(false); }
+  };
+
+  const withdraw = async () => {
+    setBusy(true);
+    try {
+      const r = await axios.post(`${API}/merchant/marketplace/payout/withdraw`);
+      toast.success(`Transferred ${money(r.data.amount_cents)} to your Stripe balance`);
+      await loadEarnings();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail?.message || "Withdrawal failed");
+    } finally { setBusy(false); }
+  };
+
+  const instant = async () => {
+    setBusy(true);
+    try {
+      const r = await axios.post(`${API}/merchant/marketplace/payout/instant`);
+      toast.success(`Instant payout of ${money(r.data.amount_cents)} on its way`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail?.message || "Instant payout unavailable");
+    } finally { setBusy(false); }
+  };
 
   return (
     <div className="pb-24" data-testid="rl-merchant-earnings-page">
@@ -42,6 +178,13 @@ export default function MerchantEarningsRadioLife() {
               {money(data.gross_cents)} collected · {money(data.fee_cents)} platform fee
             </div>
           </div>
+
+          {/* Payouts (Stripe Connect) */}
+          <PayoutsCard status={status} available={data.available_cents} busy={busy}
+            onConnect={connectPayouts} onWithdraw={withdraw} onInstant={instant} />
+
+          {/* 30-day trends */}
+          <TrendsChart daily={data.daily} />
 
           {/* Stat grid */}
           <div className="grid grid-cols-3 gap-3">
@@ -84,7 +227,7 @@ export default function MerchantEarningsRadioLife() {
           </div>
 
           <p className="text-[11px] text-slate-400 text-center px-4">
-            The platform fee is set by your category and any negotiated rate. Payouts are settled to your account separately.
+            The platform fee is set by your category and any negotiated rate. Payouts settle to your connected account via Stripe.
           </p>
         </div>
       )}

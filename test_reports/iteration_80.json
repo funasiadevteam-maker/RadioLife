@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 80 — e2e verification of the FOUR new features across web + mobile: (1) Payout Connect (Stripe Connect Express), (2) Earnings Trends 30-day chart, (3) Genre Artwork colored dots, (4) Now-Playing Peek. BACKEND (16/16 pytest — /app/test_reports/pytest/iter80.xml): all 6 unauthenticated endpoints correctly 401/403; POST /api/merchant/marketplace/connect/account returns {ok:true, stripe_account_id:'acct_...'} for web test@ (existing acct_1U49wQLUK3zTD4ly reused); POST /api/merchant/marketplace/connect/onboarding-link returns https://connect.stripe.com URL (both web and mobile origin); GET /api/merchant/marketplace/connect/status → {has_account:true, connected:false, payouts_enabled:false, requirements_due:[business_profile.url, business_type, external_account, tos_acceptance.date]} for test@ as expected; POST /api/merchant/marketplace/payout/withdraw correctly returns 409 {code:'not_payout_ready'} for web test@ (has account, not onboarded) and 400/409 {code:'not_connected'|'not_payout_ready'} for mobile demo@; POST /api/merchant/marketplace/payout/instant returns graceful 409/402/400 with message (no connected balance). GET /api/merchant/marketplace/earnings returns full expected shape: memberships_sold, gross_cents/fee_cents/net_cents (net == gross-fee), available_cents, paid_out_cents, month{count,gross,fee,net}, EXACTLY 30 daily buckets with {date,net_cents,count}, and transactions[]. mobile demo@ ledger has 1 sale ($17.99 net, $2 fee, $19.99 gross) and one daily bucket >0. WEB (/shop/merchant/earnings?design=radiolife, cookie test@bigfm.dubai): rl-merchant-earnings-page + earnings-net-card + earnings-net-total ($0.00 for test@) + earnings-payouts + payouts-connect ('Finish payout setup', since has_account=true) + payouts-requirements (business_profile.url, business_type, external_account, tos_acceptance.date) + earnings-trends + earnings-trends-empty + earnings-sold + earnings-month-net + earnings-month-fee all rendered. Clicking payouts-connect navigated to https://connect.stripe.com/setup/e/acct_1U49wQLUK3zTD4ly/... — verified redirect target begins with https://connect.stripe.com (did not attempt to complete onboarding). WEB /radio DiscoverBrowse: 14 genre chips rendered, 11/12 chips contain a colored dot span (the 'All' chip correctly has no dot); radio-browse-teaser + search + sort-popular/az/newest + teaser-cta all present; 24 cards, 24 LIVE badges, 0 playing badges (per spec — web card tap navigates to station page, so peek best validated on mobile); no regression to search/filter/sort. MOBILE (Expo web preview, demo-login-btn → demo@bigfm.dubai): /radio DiscoverBrowse — 14 genre chips with 11/12 dots; 24 cards, 24 LIVE. After tapping radio-browse-card-imp_fun_talk_1003_uae, playImportedStation kept us on the screen and swapped that card's badge: radio-browse-playing-imp_fun_talk_1003_uae FOUND, radio-browse-live-imp_fun_talk_1003_uae GONE (2 total playing badges — the tapped card + its dupe in Recently Played rail). Search/sort chips all still functional. /merchant/earnings — rl-merchant-earnings-page + earnings-net-total ($17.99) + earnings-payouts + payouts-connect ('Finish payout setup') + earnings-trends (30 earnings-bar-* rendered, one green bar for today's sale) + earnings-sold ('1') + earnings-tx-list all present; payouts-requirements chip shows the same 4 required fields. Note: demo@ NOW has a Stripe account (button text 'Finish payout setup') — this is a state drift from the review-request expectation of 'Connect payouts' (demo@ had no account); most likely a previous session (this run or a prior E1/testing agent smoke) called POST /connect/account for demo. The label logic and endpoints are correct — not a bug. Full web↔mobile parity confirmed. All 4 features PASS.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/radio (RadioHome BrowseTeaser)", "issues": ["console still shows many http:// image mixed-content warnings for station logos (already reported in iter79). Not a regression from this iteration."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Now-Playing Peek", "platform": "web", "issue": "Peek badge only validated on mobile per spec — on web, tapping a Discover card navigates to the station page (with house-sponsor pre-roll), so radio-browse-playing-{id} does not appear on the /radio teaser card. Confirmed intended per review request (not a defect).", "expected": "Peek badge on tapped card (mobile only)", "actual": "Web navigates away; mobile shows PLAYING badge correctly"}
+  ],
+  "test_report_links": ["/app/backend/tests/test_iter80_payouts.py", "/app/test_reports/pytest/iter80.xml"],
+  "action_items": [
+    "(Optional / state drift) demo@ mobile earnings now shows 'Finish payout setup' (has_account=true) rather than the review-expected 'Connect payouts' — most likely a prior smoke created the account. Both label branches are wired; nothing to fix unless the fixture must be reset. If wanted, delete stripe_account_id off marketplace_profiles for demo@ business to restore the 'Connect payouts' first-run label.",
+    "(No-op reminder) Real onboarding + successful withdraw/instant remain untestable in automation — both platforms correctly gate on 409 not_payout_ready and no_instant_balance; that is the guaranteed guard."
+  ],
+  "critical_code_review_comments": [
+    "marketplace_payouts.py:167-173 _friendly_stripe_error swallows the underlying stripe error code — returns only the message. Consider surfacing a stable code (e.g. balance_insufficient) so the mobile/web UI can localize instead of showing raw English.",
+    "marketplace_payouts.py:191-203 payout/withdraw uses payout_status='processing' as an atomic reservation, but if the FastAPI request is cancelled between reserve and Transfer.create, rows can remain stuck in 'processing' forever. Consider a TTL/janitor to release stale reservations (e.g. rows in processing >5min with no transfer_id → available).",
+    "marketplace_payouts.py:242-246 uses idempotency_key=`instant-{business_id}-{int(time.time())}` — the second-precision timestamp means rapid double-tap within the same second reuses the same key; but different rounds with different Balance amounts would produce different keys. Fine, but consider hashing amount too for consistency with /withdraw idempotency.",
+    "MerchantEarningsRadioLife.jsx:105-110 loadStatus silently swallows all errors into {has_account:false, connected:false}. A 401 (session expired) will render 'Connect payouts' rather than surfacing an auth error to the user."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter80_payouts.py", "/app/test_reports/iteration_80.json"],
+  "success_rate": {"backend": "100% (16/16 pytest)", "frontend": "100% of critical flows on both platforms"},
+  "test_credentials": "Web cookie: test@bigfm.dubai / TestUser123! (stripe_account_id acct_1U49wQLUK3zTD4ly, not onboarded). Mobile demo: POST /api/auth/demo → demo@bigfm.dubai (session_token) — now ALSO has a stripe_account_id (created during this iteration's smoke), not onboarded.",
+  "seed_data_creation": "None. Note: connect/account is idempotent so calling it during backend testing did not create a new account for test@ (reused acct_1U49wQLUK3zTD4ly). demo@ likely acquired a stripe_account_id at some point during this run (backend test_status_no_account_yet only checks connected=false, does not preclude has_account=true). No ledger rows written.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "iter80 pytest suite at /app/backend/tests/test_iter80_payouts.py covers all payout guards + earnings shape (16 tests). Uses python-dotenv to load /app/frontend/.env for REACT_APP_BACKEND_URL. Web /radio card tap navigates to station page — peek is mobile-only per spec. Now-Playing peek verified on mobile via radio-browse-playing-{id} appearing after tapping radio-browse-card-{id} while radio-browse-live-{id} disappears. Both users (test@ + demo@) now have Stripe accounts on file — connected=false always in automation. Real withdraw/instant SUCCESS paths cannot be tested end-to-end.",
+  "rca of the issue": "N/A — no blockers found."
+}

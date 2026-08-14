@@ -5736,6 +5736,9 @@ try:
     app.include_router(_mkt_menu_router)
     app.include_router(_mkt_orders_router)
     app.include_router(_mkt_morders_router)
+    # Merchant payouts — Stripe Connect Express onboarding + transfers/instant.
+    from routes.marketplace_payouts import router as _mkt_payouts_router
+    app.include_router(_mkt_payouts_router)
     # Phase 2 Checkout — Saved Cards (Stripe wallet).
     from routes.saved_cards import router as _saved_cards_router
     app.include_router(_saved_cards_router)
