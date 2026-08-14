@@ -76,7 +76,7 @@ export default function NotificationsScreen() {
       if (val) {
         const token = await requestPushPermission();
         if (token) {
-          await registerPushToken(api);
+          await registerPushToken(api, user?.user_id);
           setPushEnabled(true);
         }
       } else {

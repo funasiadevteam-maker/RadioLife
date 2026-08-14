@@ -5813,6 +5813,14 @@ try:
 except Exception as _e:
     logger.warning("games_streak/favourites routers not loaded: %s", _e)
 
+# Emergent-managed push notifications — device registration relay.
+try:
+    from routes.push import router as _push_router
+    app.include_router(_push_router)
+    logger.info("Push route wired: /api/register-push")
+except Exception as _e:
+    logger.warning("push router not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router

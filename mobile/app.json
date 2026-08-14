@@ -36,7 +36,8 @@
         "ACCESS_FINE_LOCATION"
       ],
       "package": "com.bigfm.app",
-      "versionCode": 104
+      "versionCode": 104,
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -67,6 +68,7 @@
       "expo-font",
       "expo-video",
       "expo-localization",
+      "expo-notifications",
       [
         "expo-location",
         {

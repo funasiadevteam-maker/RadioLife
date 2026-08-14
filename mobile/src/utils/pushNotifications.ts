@@ -1,132 +1,66 @@
 /**
- * Push Notifications — wired to POST /api/users/push_token
+ * Push notifications — Emergent managed relay (SuprSend).
  *
- * On web preview: Push notifications are NOT supported. The permission request
- * will silently fail. This is expected — native builds will work correctly.
+ * The backend is the only caller of the push relay; the client just registers
+ * its NATIVE device token (getDevicePushTokenAsync) against the logged-in
+ * user_id via POST /api/register-push. Tokens rotate, so we re-register on
+ * every app open. Web preview + Expo Go cannot deliver real push — the calls
+ * no-op gracefully there (native builds work after Publish).
  */
 import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 
-let Notifications: any = null;
-let Device: any = null;
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
-/** Cached token so logout can deregister without re-requesting permission. */
 let _cachedToken: string | null = null;
 
 export function getCachedPushToken(): string | null {
   return _cachedToken;
 }
 
-async function loadModules() {
-  if (Platform.OS === 'web') return false;
-  try {
-    // eslint-disable-next-line import/no-unresolved
-    Notifications = await import('expo-notifications');
-    // eslint-disable-next-line import/no-unresolved
-    Device = await import('expo-device');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
+/** Request permission (iOS prompt / Android 13+ POST_NOTIFICATIONS) then fetch
+ *  the native FCM/APNs token. Returns null when unavailable/denied. */
 export async function requestPushPermission(): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
-
-  const loaded = await loadModules();
-  if (!loaded || !Notifications || !Device) return null;
-  if (!Device.isDevice) return null;
-
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== 'granted') return null;
-
+  if (Platform.OS === 'web' || !Device.isDevice) return null;
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync();
-    _cachedToken = tokenData.data;
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let status = existing;
+    if (existing !== 'granted') {
+      status = (await Notifications.requestPermissionsAsync()).status;
+    }
+    if (status !== 'granted') return null;
+    const tokenResp = await Notifications.getDevicePushTokenAsync();
+    _cachedToken = String(tokenResp.data);
     return _cachedToken;
   } catch {
     return null;
   }
 }
 
-/**
- * Register push token with backend.
- * Best-effort: logs on failure, never crashes, no retry loop.
- */
-export async function registerPushToken(apiClient: any): Promise<void> {
+/** Register (or refresh) this device for the given user. Best-effort. */
+export async function registerForPush(userId?: string | null): Promise<void> {
+  if (Platform.OS === 'web' || !userId) return;
   const token = await requestPushPermission();
   if (!token) return;
-
   try {
-    await apiClient.post('/users/push_token', {
-      expo_push_token: token,
-      platform: Platform.OS,
+    await fetch(`${BACKEND_URL}/api/register-push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, platform: Platform.OS, device_token: token }),
     });
-    console.log('[Push] Token registered');
-  } catch (e: any) {
-    console.warn('[Push] Registration failed (will retry on next foreground):', e?.message);
+  } catch {
+    /* best-effort — will retry on next app open */
   }
 }
 
-/**
- * Deregister push token on logout. Best-effort — never blocks logout.
- */
-export async function deregisterPushToken(apiClient: any): Promise<void> {
-  const token = _cachedToken;
-  if (!token) return;
-  try {
-    await apiClient.delete('/users/push_token', { data: { expo_push_token: token } });
-    console.log('[Push] Token deregistered');
-  } catch {
-    // best-effort — don't block logout
-  }
+/** Kept for call-site compatibility. SuprSend manages token lifecycle, so
+ *  there's nothing to deregister on the client. */
+export async function deregisterPushToken(_apiClient?: any): Promise<void> {
   _cachedToken = null;
 }
 
-/**
- * Setup foreground notification handler.
- */
-export function setupForegroundHandler() {
-  if (Platform.OS === 'web' || !Notifications) return;
-
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
-  });
-}
-
-/**
- * Setup notification response handler (tap on notification).
- */
-export function setupResponseHandler(router: any) {
-  if (Platform.OS === 'web' || !Notifications) return null;
-
-  const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
-    const data = response.notification.request.content.data;
-
-    if (data?.type === 'trivia_room' && data?.room_code) {
-      router.push(`/trivia/rooms/${data.room_code}`);
-    } else if (data?.screen === 'coupon' && data?.id) {
-      router.push(`/coupon/${data.id}`);
-    } else if (data?.screen === 'lobby' && data?.id) {
-      router.push(`/lobby/${data.id}`);
-    } else if (data?.screen === 'game' && data?.id) {
-      router.push(`/game/${data.id}`);
-    } else if (data?.screen === 'wallet') {
-      router.push('/(tabs)/wallet');
-    } else if (data?.screen === 'passport') {
-      router.push('/(tabs)/passport');
-    }
-  });
-
-  return subscription;
+/** Kept for the notifications toggle screen. */
+export async function registerPushToken(_apiClient: any, userId?: string | null): Promise<void> {
+  await registerForPush(userId);
 }

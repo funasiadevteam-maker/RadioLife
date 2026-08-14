@@ -6,13 +6,17 @@ BigPoints are awarded to the buyer when the order is marked picked_up.
 """
 from __future__ import annotations
 
+import logging
 import os
 import random
+from datetime import timedelta
 from typing import Any, Dict, List, Literal, Optional
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 from auth import current_user
 from services.marketplace import now, new_id, effective_points, points_for_order
@@ -41,7 +45,7 @@ ADVANCE = {"accepted": "preparing", "preparing": "ready", "ready": "picked_up"}
 
 def _clean(o: Dict[str, Any]) -> Dict[str, Any]:
     o.pop("_id", None)
-    for k in ("created_at", "updated_at"):
+    for k in ("created_at", "updated_at", "ready_at"):
         v = o.get(k)
         if hasattr(v, "isoformat"):
             o[k] = v.isoformat()
@@ -119,11 +123,27 @@ def _eta_label(profile: Dict[str, Any], fulfillment: str, pickup_time: Optional[
     return f"Ready in ~{offset} min" if offset else f"Ready in ~{prep} min"
 
 
+def _eta_minutes(profile: Dict[str, Any], fulfillment: str, pickup_time: Optional[str]) -> int:
+    """Estimated minutes until the order is ready (pickup) / arrives (delivery).
+    Powers the live countdown timer on the order tracker."""
+    prep = int(profile.get("prep_time_min", 20) or 20)
+    if fulfillment == "delivery":
+        dl = profile.get("delivery") or {}
+        return int(dl.get("eta_max", prep + 35) or (prep + 35))
+    return {"now": prep, "+15": 15, "+30": 30, "+45": 45}.get(pickup_time or "now", prep)
+
+
+def _ready_at(profile: Dict[str, Any], fulfillment: str, pickup_time: Optional[str]):
+    """Absolute timestamp the order is expected ready/arrived (for the timer)."""
+    return now() + timedelta(minutes=_eta_minutes(profile, fulfillment, pickup_time))
+
+
 async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
                       use_gift_card: bool, redeem_points: int,
                       coupon_code: Optional[str] = None,
                       fulfillment: str = "pickup",
-                      pickup_time: Optional[str] = "now") -> Dict[str, Any]:
+                      pickup_time: Optional[str] = "now",
+                      delivery_address: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Validate + price a single-restaurant basket with option upcharges, an
     optional membership entitlement (base free + included-option waivers),
     coupon, gift-card and BigPoints redemption. Shared by /quote and /checkout."""
@@ -200,9 +220,26 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     goods_total = after_gift - points_discount
     service_fee_cents, delivery_fee_cents = _compute_fees(profile, subtotal, fulfillment)
     fees_total = service_fee_cents + delivery_fee_cents
-    # Origin-based sales tax on everything (discounted goods + fees).
+    # Sales tax. Delivery → charge at the CUSTOMER's jurisdiction (destination);
+    # pickup → the store's local rate (origin), honouring a merchant override.
     from services.tax_service import resolve_tax_rate, calculate_tax
-    tax_info = await resolve_tax_rate(db, profile.get("tax_jurisdiction") or {})
+    if (fulfillment == "delivery" and delivery_address
+            and (delivery_address.get("country") or delivery_address.get("state")
+                 or delivery_address.get("city"))):
+        tax_info = await resolve_tax_rate(db, {
+            "country": delivery_address.get("country"),
+            "state": delivery_address.get("state"),
+            "county": delivery_address.get("county"),
+            "city": delivery_address.get("city")})
+        tax_basis = "destination"
+    else:
+        override = profile.get("tax_override") or {}
+        if override.get("enabled") and override.get("rate_percent") is not None:
+            tax_info = {"rate_percent": float(override.get("rate_percent") or 0),
+                        "label": override.get("label") or "Local tax", "rule_id": None}
+        else:
+            tax_info = await resolve_tax_rate(db, profile.get("tax_jurisdiction") or {})
+        tax_basis = "origin"
     taxable_base = max(0, after_coupon) + service_fee_cents + delivery_fee_cents
     tax_cents = calculate_tax(taxable_base, tax_info["rate_percent"])
     total = goods_total + fees_total + tax_cents
@@ -227,7 +264,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         "service_fee_cents": service_fee_cents, "delivery_fee_cents": delivery_fee_cents,
         "fees_total_cents": fees_total, "eta_label": _eta_label(profile, fulfillment, pickup_time),
         "tax_cents": tax_cents, "tax_rate_percent": tax_info["rate_percent"],
-        "tax_label": tax_info["label"],
+        "tax_label": tax_info["label"], "tax_basis": tax_basis,
         "prep_time_min": int(profile.get("prep_time_min", 20) or 20),
         "delivery_available": bool((profile.get("delivery") or {}).get("enabled")),
         "fulfillment": fulfillment, "pickup_time": pickup_time,
@@ -235,6 +272,17 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         "points_to_award": int(eff.get("points", 0)), "happy_hour": eff.get("happy_hour", False),
         "points_multiplier": eff.get("multiplier", 1),
     }
+
+
+class DeliveryAddress(BaseModel):
+    label: Optional[str] = Field(None, max_length=300)
+    line1: Optional[str] = Field(None, max_length=300)
+    lat: Optional[float] = Field(None, ge=-90, le=90)
+    lng: Optional[float] = Field(None, ge=-180, le=180)
+    country: Optional[str] = Field(None, max_length=80)
+    state: Optional[str] = Field(None, max_length=80)
+    county: Optional[str] = Field(None, max_length=100)
+    city: Optional[str] = Field(None, max_length=100)
 
 
 class QuoteBody(BaseModel):
@@ -245,6 +293,7 @@ class QuoteBody(BaseModel):
     coupon_code: Optional[str] = None
     fulfillment: Optional[Literal["pickup", "delivery"]] = "pickup"
     pickup_time: Optional[Literal["now", "+15", "+30", "+45"]] = "now"
+    delivery_address: Optional[DeliveryAddress] = None
 
 
 @router.post("/quote")
@@ -256,7 +305,9 @@ async def quote(body: QuoteBody, request: Request, user: dict = Depends(current_
     q = await _price_menu(db, user, body.business_id, body.items,
                           body.use_gift_card, body.redeem_points, body.coupon_code,
                           fulfillment=(body.fulfillment or "pickup"),
-                          pickup_time=(body.pickup_time or "now"))
+                          pickup_time=(body.pickup_time or "now"),
+                          delivery_address=(body.delivery_address.model_dump()
+                                            if body.delivery_address else None))
     q.pop("profile", None)
     q["public_name"] = None
     return q
@@ -273,6 +324,7 @@ class CheckoutBody(BaseModel):
     coupon_code: Optional[str] = None
     fulfillment: Optional[Literal["pickup", "delivery"]] = "pickup"
     pickup_time: Optional[Literal["now", "+15", "+30", "+45"]] = "now"
+    delivery_address: Optional[DeliveryAddress] = None
 
 
 @router.post("/checkout")
@@ -283,7 +335,9 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
     q = await _price_menu(db, user, body.business_id, body.items,
                           body.use_gift_card, body.redeem_points, body.coupon_code,
                           fulfillment=(body.fulfillment or "pickup"),
-                          pickup_time=(body.pickup_time or "now"))
+                          pickup_time=(body.pickup_time or "now"),
+                          delivery_address=(body.delivery_address.model_dump()
+                                            if body.delivery_address else None))
     profile = q["profile"]
     line_items = q["line_items"]
     subtotal = q["subtotal_cents"]
@@ -321,7 +375,12 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         "tax_cents": q.get("tax_cents", 0),
         "tax_rate_percent": q.get("tax_rate_percent", 0),
         "tax_label": q.get("tax_label"),
+        "tax_basis": q.get("tax_basis"),
+        "delivery_address": (body.delivery_address.model_dump()
+                             if body.delivery_address else None),
         "eta_label": q.get("eta_label"),
+        "ready_at": _ready_at(profile, q.get("fulfillment") or "pickup",
+                              q.get("pickup_time") or "now"),
         "status": "pending_payment", "payment_status": "pending",
         "session_id": None, "status_history": [],
         "created_at": now(), "updated_at": now(),
@@ -594,27 +653,45 @@ async def update_order_status(order_id: str, body: StatusBody, request: Request,
         raise HTTPException(400, {"code": "order_unpaid"})
 
     upd: Dict[str, Any] = {"status": new_status, "updated_at": now()}
+    # Restart the live prep clock the moment the kitchen actually starts.
+    if new_status == "preparing":
+        upd["ready_at"] = now() + timedelta(minutes=int(p.get("prep_time_min", 20) or 20))
     await db.marketplace_orders.update_one(
         {"order_id": order_id},
         {"$set": upd, "$push": {"status_history": {"status": new_status, "at": now()}}})
 
-    # Live order alerts — notify the buyer in-app on key transitions.
-    if new_status in ("ready", "picked_up"):
+    # Live order alerts — notify the buyer in-app + real push on key transitions.
+    if new_status in ("preparing", "ready", "picked_up"):
+        biz = p.get("public_name") or "Your order"
+        code = o.get("pickup_code")
+        is_delivery = (o.get("fulfillment") == "delivery")
+        if new_status == "ready":
+            title = "Order Ready — head over! 🎉" if not is_delivery else "Out for delivery! 🛵"
+            bodytxt = (f"{biz} · order #{code} is ready for pickup." if not is_delivery
+                       else f"{biz} · order #{code} is on its way to you.")
+        elif new_status == "preparing":
+            title, bodytxt = "In the kitchen 👩‍🍳", f"{biz} is preparing order #{code}."
+        else:
+            title, bodytxt = "Enjoy! 🥡", f"{biz} · order #{code} complete. BigPoints on the way!"
         try:
             from routes.notifications import _enqueue
-            biz = p.get("public_name") or "Your order"
-            if new_status == "ready":
-                title, bodytxt = "Order Ready for Pickup! 🎉", f"{biz} · order #{o.get('pickup_code')} is ready. Head over!"
-            else:
-                title, bodytxt = "Enjoy! 🥡", f"{biz} · order #{o.get('pickup_code')} picked up. BigPoints on the way!"
             await _enqueue(
                 db, owner_user_id=o["user_id"], station_id="marketplace",
                 station_slug="marketplace", type_=f"order_{new_status}",
                 payload={"title": title, "body": bodytxt, "order_id": order_id,
-                         "pickup_code": o.get("pickup_code"), "business_name": biz},
+                         "pickup_code": code, "business_name": biz},
                 dedupe_key=f"order_{new_status}_{order_id}")
         except Exception:
             pass
+        try:
+            from services.push_service import send_push
+            await send_push(
+                recipients=[o["user_id"]],
+                data={"title": title, "message": bodytxt,
+                      "action_url": f"/shop/order/{order_id}"},
+                idempotency_key=f"push_order_{new_status}_{order_id}")
+        except Exception as e:  # noqa: BLE001 — push failure never blocks the update
+            logger.warning("order status push failed (non-blocking): %s", e)
 
     # Award BigPoints to the buyer on pickup (idempotent).
     if new_status == "picked_up" and not o.get("points_awarded_done"):

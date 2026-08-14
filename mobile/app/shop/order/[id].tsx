@@ -10,6 +10,7 @@ import api from '../../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../../src/constants/theme';
 import { useReward } from '../../../src/components/RewardOverlay';
 import NativeMap, { MAPS_AVAILABLE } from '../../../src/components/NativeMap';
+import { routeLine } from '../../../src/utils/geocode';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 const STEPS = ['accepted', 'preparing', 'ready', 'picked_up'];
@@ -19,12 +20,19 @@ const LABELS: Record<string, string> = {
   ready: 'Ready — head over!', picked_up: 'Picked up · enjoy!', canceled: 'Canceled',
 };
 
+const fmtClock = (ms: number) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
 export default function OrderTracker() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { celebrate } = useReward();
   const [order, setOrder] = useState<any>(null);
   const [geo, setGeo] = useState<{ lat: number; lng: number; address?: string } | null>(null);
+  const [route, setRoute] = useState<{ lat: number; lng: number }[] | null>(null);
+  const [nowTs, setNowTs] = useState(Date.now());
   const [loading, setLoading] = useState(true);
   const prevStatus = useRef<string | null>(null);
 
@@ -55,6 +63,22 @@ export default function OrderTracker() {
     return () => clearInterval(t);
   }, [order, load]);
 
+  // Live prep countdown — tick every second until ready.
+  useEffect(() => {
+    if (!order || ['ready', 'picked_up', 'canceled'].includes(order.status)) return;
+    const t = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [order?.status]);
+
+  // Delivery route line (store → customer) once both points are known.
+  const dest = order?.delivery_address;
+  useEffect(() => {
+    if (order?.fulfillment === 'delivery' && geo && dest?.lat && dest?.lng) {
+      routeLine({ lat: geo.lat, lng: geo.lng }, { lat: dest.lat, lng: dest.lng })
+        .then(setRoute).catch(() => {});
+    }
+  }, [order?.fulfillment, geo, dest?.lat, dest?.lng]);
+
   if (loading) return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   if (!order) {
     return (
@@ -67,7 +91,29 @@ export default function OrderTracker() {
   const stepIdx = STEPS.indexOf(order.status);
   const isReady = order.status === 'ready';
   const isDelivery = order.fulfillment === 'delivery';
-  const region = geo ? { latitude: geo.lat, longitude: geo.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 } : undefined;
+
+  // Live prep timer.
+  const readyAt = order.ready_at ? Date.parse(order.ready_at) : null;
+  const remainingMs = readyAt != null ? readyAt - nowTs : null;
+  const showTimer = ['accepted', 'preparing'].includes(order.status) && remainingMs != null;
+
+  // Map region — fit both store + destination for delivery.
+  let region: any;
+  const hasDest = isDelivery && dest?.lat != null && dest?.lng != null;
+  if (geo && hasDest) {
+    region = {
+      latitude: (geo.lat + dest.lat) / 2,
+      longitude: (geo.lng + dest.lng) / 2,
+      latitudeDelta: Math.max(Math.abs(geo.lat - dest.lat) * 1.8, 0.02),
+      longitudeDelta: Math.max(Math.abs(geo.lng - dest.lng) * 1.8, 0.02),
+    };
+  } else if (geo) {
+    region = { latitude: geo.lat, longitude: geo.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 };
+  }
+  const mapMarkers = geo ? [
+    { id: 'store', lat: geo.lat, lng: geo.lng, title: order.business_name },
+    ...(hasDest ? [{ id: 'dest', lat: dest.lat, lng: dest.lng, title: 'Delivery address' }] : []),
+  ] : [];
 
   return (
     <SafeAreaView style={common.screen}>
@@ -90,6 +136,24 @@ export default function OrderTracker() {
           </View>
         </View>
 
+        {/* Live prep countdown */}
+        {showTimer && (
+          <View style={s.timerCard} testID="tracker-timer">
+            <Ionicons name="timer-outline" size={18} color={COLORS.primary} />
+            <Text style={s.timerText}>
+              {remainingMs! > 0
+                ? `${isDelivery ? 'Arriving' : 'Ready'} in ${fmtClock(remainingMs!)}`
+                : `Almost ${isDelivery ? 'there' : 'ready'}…`}
+            </Text>
+          </View>
+        )}
+        {isReady && (
+          <View style={s.nudgeCard} testID="tracker-ready-nudge">
+            <Ionicons name="walk" size={18} color={COLORS.green} />
+            <Text style={s.nudgeText}>{isDelivery ? 'On its way — get ready to receive it!' : 'Your order is ready — head over now!'}</Text>
+          </View>
+        )}
+
         {order.status !== 'canceled' && stepIdx >= 0 && (
           <View style={s.stepper}>
             {STEPS.map((st, idx) => (
@@ -106,20 +170,19 @@ export default function OrderTracker() {
           </View>
         )}
 
-        {/* Store map (native builds) */}
-        {!isDelivery && (MAPS_AVAILABLE && region ? (
+        {/* Store / route map (native builds) */}
+        {MAPS_AVAILABLE && region ? (
           <View style={s.mapWrap} testID="tracker-map">
-            <NativeMap region={region} interactive={false}
-              markers={[{ id: 'store', lat: geo!.lat, lng: geo!.lng, title: order.business_name }]} />
+            <NativeMap region={region} interactive={false} markers={mapMarkers} polyline={route || undefined} />
           </View>
         ) : (
           <View style={s.mapFallback} testID="tracker-map-fallback">
             <Ionicons name="map-outline" size={18} color={COLORS.textMuted} />
             <Text style={s.mapFallbackText}>
-              {geo?.address ? geo.address : order.business_name}{'  '}· live map in the app build
+              {isDelivery ? (dest?.label || 'Your delivery address') : (geo?.address || order.business_name)}{'  '}· live map in the app build
             </Text>
           </View>
-        ))}
+        )}
 
         <View style={s.card}>
           <Text style={s.bizName}>{order.business_name}</Text>
@@ -148,6 +211,10 @@ const s = StyleSheet.create({
   statusBannerReady: { backgroundColor: COLORS.green + '18', borderColor: COLORS.green + '55' },
   statusTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
   statusEta: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800', marginTop: 2 },
+  timerCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.primary + '12', borderWidth: 1, borderColor: COLORS.primary + '33', borderRadius: RADIUS.md, paddingVertical: 12, paddingHorizontal: 14, marginTop: 12 },
+  timerText: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
+  nudgeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.green + '18', borderWidth: 1, borderColor: COLORS.green + '55', borderRadius: RADIUS.md, paddingVertical: 12, paddingHorizontal: 14, marginTop: 12 },
+  nudgeText: { flex: 1, color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
   stepper: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', marginTop: 20 },
   dot: { width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center', justifyContent: 'center' },
   dotOn: { backgroundColor: COLORS.green, borderColor: COLORS.green },

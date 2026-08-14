@@ -24,6 +24,9 @@ export default function MerchantFulfillmentRadioLife() {
   const [prep, setPrep] = useState(20);
   const [geo, setGeo] = useState({ lat: null, lng: null, address: "" });
   const [tax, setTax] = useState({ country: "", state: "", county: "", city: "" });
+  const [taxOverride, setTaxOverride] = useState({ enabled: false, rate_percent: 0, label: "" });
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMsg, setAiMsg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -35,8 +38,23 @@ export default function MerchantFulfillmentRadioLife() {
       setPrep(r.data.prep_time_min ?? 20);
       setGeo(r.data.geo || { lat: null, lng: null, address: "" });
       setTax(r.data.tax_jurisdiction || { country: "", state: "", county: "", city: "" });
+      setTaxOverride(r.data.tax_override || { enabled: false, rate_percent: 0, label: "" });
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  const aiFillTax = async () => {
+    setAiBusy(true); setAiMsg(null);
+    try {
+      const r = await axios.post(`${API}/merchant/marketplace/tax/ai-estimate`, {
+        country: tax.country || null, state: tax.state || null,
+        county: tax.county || null, city: tax.city || null,
+      });
+      setTaxOverride({ enabled: true, rate_percent: r.data.rate_percent, label: r.data.label || "Local tax" });
+      setAiMsg(`AI suggests ${r.data.rate_percent}% (${r.data.label}). Review & Save.`);
+    } catch (e) {
+      setAiMsg(e?.response?.data?.detail?.message || "Set your store country first, then try AI.");
+    } finally { setAiBusy(false); }
+  };
 
   const save = async () => {
     setSaving(true); setSaved(false);
@@ -53,6 +71,11 @@ export default function MerchantFulfillmentRadioLife() {
         tax_jurisdiction: {
           country: tax.country || null, state: tax.state || null,
           county: tax.county || null, city: tax.city || null,
+        },
+        tax_override: {
+          enabled: !!taxOverride.enabled,
+          rate_percent: Number(taxOverride.rate_percent) || 0,
+          label: taxOverride.label || null,
         },
       });
       setSaved(true);
@@ -189,6 +212,34 @@ export default function MerchantFulfillmentRadioLife() {
             <input value={tax.city || ""} onChange={(e) => setTax((t) => ({ ...t, city: e.target.value }))}
               placeholder="City (optional)" data-testid="tax-city"
               className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold" />
+          </div>
+
+          {/* Self-serve override + AI fill */}
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <button onClick={aiFillTax} disabled={aiBusy} data-testid="tax-ai-fill"
+              className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white font-black rounded-full py-2.5 text-sm disabled:opacity-60">
+              {aiBusy ? "Asking AI…" : "✨ AI fill my local tax rate"}
+            </button>
+            {aiMsg && <div className="mt-2 text-xs font-bold text-orange-600" data-testid="tax-ai-msg">{aiMsg}</div>}
+            <label className="flex items-center gap-2 mt-3 cursor-pointer" data-testid="tax-override-toggle">
+              <input type="checkbox" checked={!!taxOverride.enabled}
+                onChange={(e) => setTaxOverride((o) => ({ ...o, enabled: e.target.checked }))}
+                className="w-4 h-4 accent-orange-600" />
+              <span className="text-sm font-bold text-slate-900">Use my own rate (overrides admin rules for pickup)</span>
+            </label>
+            {taxOverride.enabled && (
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <input type="number" step="0.01" value={taxOverride.rate_percent ?? 0}
+                  onChange={(e) => setTaxOverride((o) => ({ ...o, rate_percent: e.target.value }))}
+                  placeholder="Rate %" data-testid="tax-override-rate"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold" />
+                <input value={taxOverride.label || ""}
+                  onChange={(e) => setTaxOverride((o) => ({ ...o, label: e.target.value }))}
+                  placeholder="Label (e.g. VAT)" data-testid="tax-override-label"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold" />
+              </div>
+            )}
+            <p className="text-[11px] text-slate-400 mt-2">Delivery orders are taxed at the customer's location. AI is a convenience estimate — you remain responsible for filing & remitting.</p>
           </div>
         </div>
       </div>

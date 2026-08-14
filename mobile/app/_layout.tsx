@@ -1,13 +1,40 @@
-import { View, ActivityIndicator } from 'react-native';
-import { Stack } from 'expo-router';
+import { View, ActivityIndicator, Platform } from 'react-native';
+import { useEffect } from 'react';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import ChannelGateModal from '../src/components/ChannelGateModal';
 import MiniPlayer from '../src/components/MiniPlayer';
 import { RewardProvider } from '../src/components/RewardOverlay';
+import { registerForPush } from '../src/utils/pushNotifications';
 import { configureAudioMode } from '../src/services/audioInit';
 import { setupNativePlayer } from '../src/services/nativePlayerBridge';
 import { COLORS } from '../src/constants/theme';
+
+// Foreground display behaviour — MODULE SCOPE, before any component.
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
+
+// Android default channel — MODULE SCOPE, before any push can arrive.
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'Default',
+    importance: Notifications.AndroidImportance.MAX,
+    sound: 'default',
+  });
+}
 
 export default function RootLayout() {
   return (
@@ -22,13 +49,50 @@ export default function RootLayout() {
 }
 
 function AuthGatedStack() {
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
+  const router = useRouter();
 
   const initDone = require('react').useRef(false);
   if (!initDone.current) {
     initDone.current = true;
     configureAudioMode().then(() => setupNativePlayer()).catch(() => {});
   }
+
+  // Register this device for push whenever a user is signed in (tokens rotate).
+  useEffect(() => {
+    if (user?.user_id) registerForPush(user.user_id);
+  }, [user?.user_id]);
+
+  // Notification tap handling + denied-permission weekly nudge.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const openFromData = (data: any) => {
+      const url = data?.deeplink || data?.action_url;
+      if (!url) return;
+      url.startsWith('http') ? Linking.openURL(url) : router.push(url);
+    };
+
+    const tapSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      openFromData(response?.notification?.request?.content?.data || {});
+    });
+
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) openFromData(response.notification.request.content.data || {});
+    });
+
+    (async () => {
+      const { status, canAskAgain } = await Notifications.getPermissionsAsync();
+      if (status !== 'denied' || canAskAgain) return;
+      const lastNudge = await AsyncStorage.getItem('pushNudgeAt');
+      const oneWeek = 7 * 24 * 60 * 60 * 1000;
+      if (lastNudge && Date.now() - Number(lastNudge) <= oneWeek) return;
+      await AsyncStorage.setItem('pushNudgeAt', String(Date.now()));
+      Linking.openSettings();
+    })();
+
+    return () => { tapSub.remove(); };
+  }, [router]);
 
   if (loading) {
     return (

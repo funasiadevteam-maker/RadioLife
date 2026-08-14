@@ -3,10 +3,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { ChevronLeft, Clock, CheckCircle2, Store } from "lucide-react";
+import { ChevronLeft, Clock, CheckCircle2, Store, Timer, Footprints } from "lucide-react";
 import { API } from "@/AuthContext";
+import { routeLine } from "../lib/geocode";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const STEPS = ["accepted", "preparing", "ready", "picked_up"];
@@ -16,12 +17,18 @@ const LABELS = {
   preparing: "Getting your order ready", ready: "Ready — head over!",
   picked_up: "Picked up · enjoy!", canceled: "Canceled",
 };
+const fmtClock = (ms) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
 
 export default function ShopOrderTrackerRadioLife() {
   const navigate = useNavigate();
   const id = window.location.pathname.split("/shop/order/")[1];
   const [order, setOrder] = useState(null);
   const [geo, setGeo] = useState(null);
+  const [route, setRoute] = useState(null);
+  const [nowTs, setNowTs] = useState(Date.now());
   const [loading, setLoading] = useState(true);
   const prevStatus = useRef(null);
 
@@ -46,12 +53,32 @@ export default function ShopOrderTrackerRadioLife() {
     return () => clearInterval(t);
   }, [order, load]);
 
+  // Live prep countdown — tick every second until ready.
+  useEffect(() => {
+    if (!order || ["ready", "picked_up", "canceled"].includes(order.status)) return;
+    const t = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [order?.status]);
+
+  // Delivery route (store → customer).
+  const dest = order?.delivery_address;
+  useEffect(() => {
+    if (order?.fulfillment === "delivery" && geo && dest?.lat != null && dest?.lng != null) {
+      routeLine({ lat: geo.lat, lng: geo.lng }, { lat: dest.lat, lng: dest.lng }).then(setRoute).catch(() => {});
+    }
+  }, [order?.fulfillment, geo, dest?.lat, dest?.lng]);
+
   if (loading) return <div className="px-4 pt-16 text-center text-slate-500">Loading order…</div>;
   if (!order) return <div className="px-4 pt-16 text-center text-slate-500">Order not found.</div>;
 
   const stepIdx = STEPS.indexOf(order.status);
   const isReady = order.status === "ready";
   const isDelivery = order.fulfillment === "delivery";
+  const hasDest = isDelivery && dest?.lat != null && dest?.lng != null;
+  const readyAt = order.ready_at ? Date.parse(order.ready_at) : null;
+  const remainingMs = readyAt != null ? readyAt - nowTs : null;
+  const showTimer = ["accepted", "preparing"].includes(order.status) && remainingMs != null;
+  const mapCenter = geo ? (hasDest ? [(geo.lat + dest.lat) / 2, (geo.lng + dest.lng) / 2] : [geo.lat, geo.lng]) : null;
 
   return (
     <div className="pb-24" data-testid="rl-order-tracker-page">
@@ -72,6 +99,21 @@ export default function ShopOrderTrackerRadioLife() {
           </div>
         </div>
 
+        {showTimer && (
+          <div className="rounded-2xl p-4 flex items-center gap-3 border border-orange-200 bg-orange-50" data-testid="tracker-timer">
+            <Timer size={22} className="text-orange-600" />
+            <div className="font-black text-slate-900 text-lg">
+              {remainingMs > 0 ? `${isDelivery ? "Arriving" : "Ready"} in ${fmtClock(remainingMs)}` : `Almost ${isDelivery ? "there" : "ready"}…`}
+            </div>
+          </div>
+        )}
+        {isReady && (
+          <div className="rounded-2xl p-4 flex items-center gap-3 border border-green-300 bg-green-50" data-testid="tracker-ready-nudge">
+            <Footprints size={22} className="text-green-600" />
+            <div className="font-black text-slate-900">{isDelivery ? "On its way — get ready to receive it!" : "Your order is ready — head over now!"}</div>
+          </div>
+        )}
+
         {order.status !== "canceled" && stepIdx >= 0 && (
           <div className="flex items-start justify-between px-2">
             {STEPS.map((st, idx) => (
@@ -88,13 +130,19 @@ export default function ShopOrderTrackerRadioLife() {
           </div>
         )}
 
-        {!isDelivery && geo && (
+        {mapCenter && (
           <div className="rounded-2xl overflow-hidden border border-slate-200" style={{ height: 200 }} data-testid="tracker-map">
-            <MapContainer center={[geo.lat, geo.lng]} zoom={15} style={{ height: "100%", width: "100%" }} scrollWheelZoom={false}>
+            <MapContainer center={mapCenter} zoom={hasDest ? 13 : 15} style={{ height: "100%", width: "100%" }} scrollWheelZoom={false}>
               <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <CircleMarker center={[geo.lat, geo.lng]} radius={10} pathOptions={{ color: "#ea580c", fillColor: "#ea580c", fillOpacity: 0.85 }}>
                 <Popup>{order.business_name}</Popup>
               </CircleMarker>
+              {hasDest && (
+                <CircleMarker center={[dest.lat, dest.lng]} radius={10} pathOptions={{ color: "#16a34a", fillColor: "#16a34a", fillOpacity: 0.85 }}>
+                  <Popup>Delivery address</Popup>
+                </CircleMarker>
+              )}
+              {route && route.length > 1 && <Polyline positions={route} pathOptions={{ color: "#ea580c", weight: 4 }} />}
             </MapContainer>
           </div>
         )}

@@ -156,12 +156,19 @@ class TaxJurisdiction(BaseModel):
     city: Optional[str] = Field(None, max_length=80)
 
 
+class TaxOverride(BaseModel):
+    enabled: bool = False
+    rate_percent: float = Field(0, ge=0, le=40)
+    label: Optional[str] = Field(None, max_length=100)
+
+
 class FulfillmentSettingsBody(BaseModel):
     service_fee: Optional[ServiceFeeConfig] = None
     delivery: Optional[DeliveryConfig] = None
     prep_time_min: Optional[int] = Field(None, ge=0, le=240)
     geo: Optional[GeoConfig] = None
     tax_jurisdiction: Optional[TaxJurisdiction] = None
+    tax_override: Optional[TaxOverride] = None
 
 
 def _fulfillment_view(p: Dict[str, Any]) -> Dict[str, Any]:
@@ -172,6 +179,7 @@ def _fulfillment_view(p: Dict[str, Any]) -> Dict[str, Any]:
         "prep_time_min": int(p.get("prep_time_min", 20) or 20),
         "geo": p.get("geo") or {"lat": None, "lng": None, "address": None},
         "tax_jurisdiction": p.get("tax_jurisdiction") or {"country": None, "state": None, "county": None, "city": None},
+        "tax_override": p.get("tax_override") or {"enabled": False, "rate_percent": 0, "label": None},
     }
 
 
@@ -198,9 +206,42 @@ async def set_fulfillment_settings(body: FulfillmentSettingsBody, request: Reque
         upd["geo"] = body.geo.model_dump()
     if body.tax_jurisdiction is not None:
         upd["tax_jurisdiction"] = body.tax_jurisdiction.model_dump()
+    if body.tax_override is not None:
+        upd["tax_override"] = body.tax_override.model_dump()
     await db.marketplace_profiles.update_one({"business_id": p["business_id"]}, {"$set": upd})
     saved = await db.marketplace_profiles.find_one({"business_id": p["business_id"]})
     return {"ok": True, **_fulfillment_view(saved)}
+
+
+class TaxAiEstimateBody(BaseModel):
+    country: Optional[str] = None
+    state: Optional[str] = None
+    county: Optional[str] = None
+    city: Optional[str] = None
+
+
+@router.post("/tax/ai-estimate")
+async def merchant_tax_ai_estimate(body: TaxAiEstimateBody, request: Request,
+                                   user: dict = Depends(current_user)):
+    """Merchant self-serve 'AI fill my local tax' — estimates a typical combined
+    rate for the merchant's jurisdiction (falls back to their saved store
+    jurisdiction). The merchant reviews & saves it as a tax override; they remain
+    responsible for filing and remitting."""
+    from services.tax_service import ai_estimate_rate
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    j = p.get("tax_jurisdiction") or {}
+    country = body.country or j.get("country")
+    if not country:
+        raise HTTPException(400, {"code": "jurisdiction_required",
+                                  "message": "Set your store country first."})
+    try:
+        est = await ai_estimate_rate(country, body.state or j.get("state"),
+                                     body.county or j.get("county"), body.city or j.get("city"))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, {"code": "ai_unavailable", "message": str(e)[:200]})
+    return {"ok": True, **est,
+            "disclaimer": "AI estimate for convenience only. Verify against local law; you must file and remit."}
 
 
 # ───────────── BigPoints settings + cost preview ─────────────

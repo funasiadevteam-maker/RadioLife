@@ -2,7 +2,7 @@
 // so react-native-maps is never bundled for the web preview.
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 
 export const MAPS_AVAILABLE = true;
 
@@ -14,11 +14,12 @@ export type MapPin = {
 type Props = {
   region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
   markers?: MapPin[];
+  polyline?: { lat: number; lng: number }[];
   showsUserLocation?: boolean;
   interactive?: boolean;
 };
 
-export default function NativeMap({ region, markers = [], showsUserLocation, interactive = true }: Props) {
+export default function NativeMap({ region, markers = [], polyline, showsUserLocation, interactive = true }: Props) {
   return (
     <MapView
       style={StyleSheet.absoluteFill}
@@ -26,6 +27,13 @@ export default function NativeMap({ region, markers = [], showsUserLocation, int
       showsUserLocation={showsUserLocation}
       pointerEvents={interactive ? 'auto' : 'none'}
     >
+      {polyline && polyline.length > 1 && (
+        <Polyline
+          coordinates={polyline.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
+          strokeColor="#ea580c"
+          strokeWidth={4}
+        />
+      )}
       {markers.map((m) => (
         <Marker
           key={m.id}

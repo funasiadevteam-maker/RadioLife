@@ -11,6 +11,7 @@ import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme
 import { useCartStore } from '../../src/stores/useCartStore';
 import { useReward } from '../../src/components/RewardOverlay';
 import SavedCardPicker from '../../src/components/SavedCardPicker';
+import DeliveryAddressCard from '../../src/components/DeliveryAddressCard';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 const PICKUP_TIMES: [string, string][] = [['now', 'Now (~15 min)'], ['+15', 'In 15 min'], ['+30', 'In 30 min'], ['+45', 'In 45 min']];
@@ -54,10 +55,11 @@ export default function Cart() {
         coupon_code: cpn || undefined,
         fulfillment: cart.fulfillment || 'pickup',
         pickup_time: cart.pickupTime || 'now',
+        delivery_address: cart.fulfillment === 'delivery' ? cart.deliveryAddress || undefined : undefined,
       });
       setQuote(r.data);
     } catch { /* keep last quote */ }
-  }, [cart.businessId, cart.items, coupon, cart.fulfillment, cart.pickupTime]);
+  }, [cart.businessId, cart.items, coupon, cart.fulfillment, cart.pickupTime, cart.deliveryAddress]);
 
   React.useEffect(() => { refresh(useGift, usePoints); }, [useGift, usePoints, refresh]);
 
@@ -74,9 +76,11 @@ export default function Cart() {
   };
 
   const total = quote ? quote.total_cents : subtotal;
+  const needsAddress = cart.fulfillment === 'delivery' && !cart.deliveryAddress;
 
   const checkout = async () => {
     if (!cart.businessId || !cart.items.length) return;
+    if (needsAddress) { setError('Add a delivery address first.'); return; }
     setBusy(true); setError(null);
     try {
       const r = await api.post('/shop/orders/checkout', {
@@ -89,6 +93,7 @@ export default function Cart() {
         payment_method_id: payCard || undefined,
         fulfillment: cart.fulfillment || 'pickup',
         pickup_time: cart.pickupTime || 'now',
+        delivery_address: cart.fulfillment === 'delivery' ? cart.deliveryAddress || undefined : undefined,
       });
       const orderId = r.data.order_id;
       if (r.data.checkout_url) {
@@ -163,6 +168,10 @@ export default function Cart() {
                 </View>
               )}
             </View>
+
+            {cart.fulfillment === 'delivery' && (
+              <DeliveryAddressCard value={cart.deliveryAddress} onChange={cart.setDeliveryAddress} />
+            )}
 
             {cart.items.map((i) => (
               <View key={i.line_id} style={s.row} testID={`cart-item-${i.item_id}`}>
@@ -271,11 +280,11 @@ export default function Cart() {
               <Text style={s.sumLabel}>Total to pay</Text>
               <Text style={s.sumValue} testID="cart-total">{money(total)}</Text>
             </View>
-            <TouchableOpacity style={[common.btnPrimary, busy && { opacity: 0.6 }]} disabled={busy}
+            <TouchableOpacity style={[common.btnPrimary, (busy || needsAddress) && { opacity: 0.6 }]} disabled={busy || needsAddress}
               onPress={checkout} testID="cart-checkout">
               {busy ? <ActivityIndicator color="#fff" />
-                : <><Ionicons name={total > 0 ? 'card' : 'checkmark-circle'} size={16} color="#fff" />
-                  <Text style={common.btnPrimaryText}>{total > 0 ? `Pay by card · ${money(total)}` : 'Place order'}</Text></>}
+                : <><Ionicons name={needsAddress ? 'location' : (total > 0 ? 'card' : 'checkmark-circle')} size={16} color="#fff" />
+                  <Text style={common.btnPrimaryText}>{needsAddress ? 'Add delivery address' : (total > 0 ? `Pay by card · ${money(total)}` : 'Place order')}</Text></>}
             </TouchableOpacity>
           </View>
         </>

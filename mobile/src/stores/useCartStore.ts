@@ -24,6 +24,17 @@ export type CartItem = {
 const lineKey = (itemId: string, optionIds: string[], entId?: string | null) =>
   `${itemId}::${[...(optionIds || [])].sort().join(',')}::${entId || ''}`;
 
+export type DeliveryAddress = {
+  label?: string | null;
+  line1?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  country?: string | null;
+  state?: string | null;
+  county?: string | null;
+  city?: string | null;
+};
+
 type LineInput = {
   item_id: string; name: string; price_cents: number; qty?: number;
   selected_option_ids?: string[]; option_summary?: string | null;
@@ -35,8 +46,10 @@ type CartState = {
   businessName: string | null;
   fulfillment: string;
   pickupTime: string;
+  deliveryAddress: DeliveryAddress | null;
   setFulfillment: (f: string) => void;
   setPickupTime: (t: string) => void;
+  setDeliveryAddress: (a: DeliveryAddress | null) => void;
   items: CartItem[];
   addLine: (bizId: string, bizName: string, line: LineInput) => void;
   add: (bizId: string, bizName: string, item: { item_id: string; name: string; price_cents: number }) => void;
@@ -55,8 +68,10 @@ export const useCartStore = create<CartState>((set, get) => ({
   businessName: null,
   fulfillment: 'pickup',
   pickupTime: 'now',
+  deliveryAddress: null,
   setFulfillment: (f) => set({ fulfillment: f }),
   setPickupTime: (t) => set({ pickupTime: t }),
+  setDeliveryAddress: (a) => set({ deliveryAddress: a }),
   items: [],
   conflicts: (bizId) => !!get().businessId && get().businessId !== bizId && get().items.length > 0,
   addLine: (bizId, bizName, line) => set((st) => {
@@ -111,6 +126,7 @@ AsyncStorage.getItem(CART_STORAGE_KEY)
       businessName: d.businessName ?? null,
       fulfillment: d.fulfillment === 'delivery' ? 'delivery' : 'pickup',
       pickupTime: d.pickupTime ?? 'now',
+      deliveryAddress: d.deliveryAddress ?? null,
     });
   })
   .catch(() => { /* first run / bad data */ });
@@ -119,5 +135,6 @@ useCartStore.subscribe((s) => {
   AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify({
     items: s.items, businessId: s.businessId, businessName: s.businessName,
     fulfillment: s.fulfillment, pickupTime: s.pickupTime,
+    deliveryAddress: s.deliveryAddress,
   })).catch(() => { /* ignore */ });
 });

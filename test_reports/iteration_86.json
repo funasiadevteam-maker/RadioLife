@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 86 backend PASSED 8/8 tests + 1 skipped (no accepted+paid order in this env to exercise merchant transitions; the placeholder-push try/except in code guarantees it can't block). Verified: (1) POST /api/shop/orders/quote pickup for Fun Pizza (item mi_biz_sample_funpizza_6) returns tax_basis='origin' at 5% UAE VAT; (2) delivery quote with {country:US,state:CA,city:Los Angeles,lat,lng} returns tax_basis='destination' at 7.25% CA; (3) POST /checkout with delivery_address persists tax_basis='destination', ready_at, eta_label, delivery_address.state='CA' — verified via GET; (4) GET/PATCH /api/merchant/marketplace/fulfillment round-trips tax_override {enabled,rate_percent,label}; (5) POST /api/merchant/marketplace/tax/ai-estimate (owner-gated 401 anon) returns {ok,rate_percent,label,disclaimer} via real Emergent Gemini call (US/CA/Los Angeles returned a plausible rate); (6) POST /api/register-push returns 500 with placeholder EMERGENT_PUSH_KEY (expected/correct wiring). Web UI: merchant fulfillment page /shop/merchant/fulfillment fully verified — 'AI fill my local tax rate' button [data-testid=tax-ai-fill] clicked → 'AI suggests 5% (UAE VAT). Review & Save.' → tax-override-toggle auto-enabled, tax-override-rate='5', tax-override-label='UAE VAT'; all pre-existing testIDs present (rl-merchant-fulfillment-page, tax-country/state/county/city). Code-verified for both web and mobile that all requested testIDs exist and delivery-address gating logic is wired: web CheckoutMenuRadioLife has `const needsAddress = cart.fulfillment==='delivery' && !deliveryAddr;` and `<button ... disabled={busy || needsAddress} data-testid='checkout-pay'>` with 'Add a delivery address' label; DeliveryAddressPicker renders checkout-delivery-address + delivery-map + delivery-use-location + delivery-address-input + delivery-address-find. Order tracker has tracker-timer, tracker-ready-nudge, tracker-map. Mobile cart.tsx exposes cart-fulfillment-pickup/delivery + cart-checkout; DeliveryAddressCard.tsx exposes delivery-address / delivery-use-location / delivery-address-input / delivery-address-find. Mobile order/[id].tsx exposes tracker-timer + tracker-ready-nudge. Full web/mobile e2e cart flow via headless playwright was blocked because Zustand cart state is in-memory only and does not survive playwright's full-page navigations (page.goto()); adding an item then goto('/shop/checkout/menu') always lands on 'Your cart is empty.' This is a KNOWN test-harness limitation, NOT an app bug — the empty-state fallback (rl-checkout-menu-empty / cart-empty) rendered correctly on both surfaces.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter86_delivery_tax_push.py",
+    "/app/test_reports/pytest/iter86.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/marketplace_orders.py:243 — taxable_base = max(0, after_coupon) + service_fee + delivery_fee. The subtotal used here is after coupon but NOT after entitlement/gift/points. For jurisdictions that tax pre-discount base this is fine; for those that tax the actual charged amount, tax may be over-collected. Product decision needed, not a bug.",
+    "backend/routes/marketplace_orders.py:157 — When fulfillment=delivery but the shop doesn't deliver, backend silently coerces to pickup. UI should keep parity — verify the client hides the delivery option when profile.delivery.enabled=false to avoid confusing tax_basis flips.",
+    "frontend CheckoutMenuRadioLife.jsx delivery address is stored only in local component state (deliveryAddr) — if the user backs out of checkout and returns the address is lost. Consider persisting on the cart store."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter86_delivery_tax_push.py"],
+  "success_rate": {"backend": "100% (8/8 executed; 1 test skipped as env has no accepted+paid order)", "frontend": "Merchant AI-fill flow verified end-to-end on web. Full cart→delivery→pay flow verified via CODE INSPECTION only (all testIDs & gating present); live UI blocked by Zustand cart being non-persistent across playwright page.goto()."},
+  "test_credentials": "Web cookie login: admin@bigfm.dubai / AdminPass123!, test@bigfm.dubai / TestUser123! (business owner). Mobile: demo-login-btn -> demo@bigfm.dubai. All work.",
+  "seed_data_creation": "Left a delivery order (state=CA, tax_basis=destination) in pending_payment for the test user via checkout. tax_override PATCH state was reset to enabled=false at end of test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "For future SPA cart-based e2e on web/mobile, avoid page.goto() between add-to-cart and checkout — either (a) click in-app cart/nav links to preserve Zustand state, (b) inject cart items via page.evaluate + zustand set, or (c) preload localStorage before goto. The rl-checkout-menu-empty (web) and cart-empty (mobile) fallbacks are the correct empty-state markers. Backend curl/pytest verifies destination-vs-origin tax + persistence deterministically. LLM AI-estimate can occasionally 502 — my test retries once.",
+  "rca of the issue": "N/A — no bugs found. The playwright cart e2e limitation is documented above as a harness artifact, not an app defect."
+}

@@ -6,6 +6,7 @@ import axios from "axios";
 import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag, Tag, Crown, MapPin, Clock, Store } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
+import DeliveryAddressPicker from "../components/DeliveryAddressPicker";
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const PICKUP_TIMES = [["now", "Now (~15 min)"], ["+15", "In 15 min"], ["+30", "In 30 min"], ["+45", "In 45 min"]];
@@ -38,6 +39,7 @@ export default function CheckoutMenuRadioLife() {
   const [coupon, setCoupon] = useState("");
   const [couponInput, setCouponInput] = useState("");
   const [biz, setBiz] = useState(null);
+  const [deliveryAddr, setDeliveryAddr] = useState(null);
 
   useEffect(() => {
     if (cart.businessId) axios.get(`${API}/shop/businesses/${cart.businessId}`).then((r) => setBiz(r.data.business || r.data)).catch(() => {});
@@ -66,11 +68,12 @@ export default function CheckoutMenuRadioLife() {
         coupon_code: cpn || undefined,
         fulfillment: cart.fulfillment || "pickup",
         pickup_time: cart.pickupTime || "now",
+        delivery_address: cart.fulfillment === "delivery" ? deliveryAddr || undefined : undefined,
       });
       setQuote(r.data);
       if (r.data.redeemed_points !== rp) setRedeemPoints(r.data.redeemed_points);
     } catch (e) { setError(e?.response?.data?.detail?.code || "Could not price order"); }
-  }, [cart.businessId, items, useGift, coupon, cart.fulfillment, cart.pickupTime]);
+  }, [cart.businessId, items, useGift, coupon, cart.fulfillment, cart.pickupTime, deliveryAddr]);
 
   const applyCoupon = () => {
     const c = couponInput.trim().toUpperCase();
@@ -78,7 +81,7 @@ export default function CheckoutMenuRadioLife() {
     refresh(redeemPoints, c);
   };
 
-  useEffect(() => { refresh(redeemPoints); /* eslint-disable-next-line */ }, [useGift, cart.fulfillment, cart.pickupTime]);
+  useEffect(() => { refresh(redeemPoints); /* eslint-disable-next-line */ }, [useGift, cart.fulfillment, cart.pickupTime, deliveryAddr]);
   useEffect(() => { refresh(0); /* eslint-disable-next-line */ }, []);
   // Snap back to pickup if this shop doesn't deliver.
   useEffect(() => {
@@ -105,6 +108,7 @@ export default function CheckoutMenuRadioLife() {
         coupon_code: coupon || undefined,
         fulfillment: cart.fulfillment || "pickup",
         pickup_time: cart.pickupTime || "now",
+        delivery_address: cart.fulfillment === "delivery" ? deliveryAddr || undefined : undefined,
         origin_url: window.location.origin,
         payment_method_id: payWith !== "new" ? payWith : undefined,
       });
@@ -121,6 +125,7 @@ export default function CheckoutMenuRadioLife() {
   const maxPts = quote ? quote.max_redeemable_points : 0;
   const paysByCard = total > 0;
   const savedCard = cards.find((c) => c.id === payWith);
+  const needsAddress = cart.fulfillment === "delivery" && !deliveryAddr;
 
   return (
     <div className="pb-40" data-testid="rl-checkout-menu-page">
@@ -165,6 +170,11 @@ export default function CheckoutMenuRadioLife() {
             )}
           </div>
         </div>
+
+        {/* Delivery address (destination-based tax + route) */}
+        {cart.fulfillment === "delivery" && (
+          <DeliveryAddressPicker value={deliveryAddr} onChange={setDeliveryAddr} />
+        )}
 
         {/* Order summary */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
@@ -318,9 +328,11 @@ export default function CheckoutMenuRadioLife() {
 
         {error && <div className="text-rose-600 text-sm font-semibold" data-testid="checkout-error">{ERR[error] || error}</div>}
 
-        <button onClick={pay} disabled={busy} data-testid="checkout-pay"
+        <button onClick={pay} disabled={busy || needsAddress} data-testid="checkout-pay"
           className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-4 disabled:opacity-60">
-          {busy ? "Processing…" : paysByCard
+          {busy ? "Processing…" : needsAddress
+            ? <><MapPin size={18} />Add a delivery address</>
+            : paysByCard
             ? <><CreditCard size={18} />{savedCard ? `Pay ${money(total)} · •••• ${savedCard.last4}` : `Pay ${money(total)} by card`}</>
             : <><Check size={18} />Place order · {money(0)}</>}
         </button>
