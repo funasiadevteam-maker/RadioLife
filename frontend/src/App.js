@@ -49,6 +49,7 @@ import MerchantStatus from "@/pages/merchant/MerchantStatus";
 import MerchantOnboardingComplete from "@/pages/merchant/MerchantOnboardingComplete";
 // Phase SC.3 — Commission Rules Engine + public schedule + merchant dashboard stub.
 import AdminCommissions from "@/AdminCommissions";
+import AdminTaxRules from "@/AdminTaxRules";
 import AdminMarketplacePhaseA from "@/pages/admin/AdminMarketplacePhaseA";  // Super Marketplace Phase A
 import LegalCommissions from "@/pages/legal/LegalCommissions";
 import MerchantDashboardStub from "@/pages/merchant/MerchantDashboardStub"; // eslint-disable-line no-unused-vars -- kept for reference; MER.1 replaces with MerchantOverview via nested shell route
@@ -678,6 +679,9 @@ function AppRouter() {
       {/* Phase SC.3 — Commissions admin + public schedule + merchant dashboard stub. */}
       <Route path="/admin/commissions" element={
         <ProtectedRoute requireAdmin><AdminCommissions /></ProtectedRoute>
+      } />
+      <Route path="/admin/tax" element={
+        <ProtectedRoute requireAdmin><AdminTaxRules /></ProtectedRoute>
       } />
       <Route path="/admin/marketplace" element={
         <ProtectedRoute requireAdmin><AdminMarketplacePhaseA /></ProtectedRoute>

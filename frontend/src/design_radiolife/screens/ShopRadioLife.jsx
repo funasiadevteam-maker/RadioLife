@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar, Sparkles } from "lucide-react";
+import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar, Sparkles, Navigation } from "lucide-react";
 import { API } from "@/AuthContext";
 import { RLCard, RLChip } from "../DesignSystem";
 import { useProductCart } from "../useProductCart";
@@ -134,6 +134,13 @@ export default function ShopRadioLife() {
         <input value={q} onChange={(e) => setQ(e.target.value)} data-testid="shop-search"
           placeholder="What are you looking for?" className="flex-1 outline-none text-sm text-slate-800" />
       </div>
+
+      <Link to="/shop/near-me" data-testid="shop-near-me"
+        className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-full px-4 py-2.5 hover:bg-orange-100 transition-colors">
+        <Navigation size={16} className="text-orange-600" />
+        <span className="flex-1 text-sm font-bold text-slate-800">Explore shops &amp; services near you</span>
+        <ArrowRight size={16} className="text-slate-400" />
+      </Link>
 
       <div className="flex gap-2 overflow-x-auto pb-1" data-testid="shop-categories">
         {cats.map((c) => (

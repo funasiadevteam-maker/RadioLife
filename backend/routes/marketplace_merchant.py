@@ -129,6 +129,80 @@ async def my_profile(request: Request, user: dict = Depends(current_user)):
     return {"profile": _clean(p)}
 
 
+# ───────────── Fees & fulfillment (owner.com-style pass-through) ─────────────
+class ServiceFeeConfig(BaseModel):
+    enabled: bool = False
+    percent: float = Field(0, ge=0, le=30)
+
+
+class DeliveryConfig(BaseModel):
+    enabled: bool = False
+    fee_cents: int = Field(0, ge=0, le=100000)
+    eta_min: int = Field(30, ge=0, le=240)
+    eta_max: int = Field(45, ge=0, le=240)
+    min_order_cents: int = Field(0, ge=0, le=1_000_000)
+
+
+class GeoConfig(BaseModel):
+    lat: Optional[float] = Field(None, ge=-90, le=90)
+    lng: Optional[float] = Field(None, ge=-180, le=180)
+    address: Optional[str] = Field(None, max_length=300)
+
+
+class TaxJurisdiction(BaseModel):
+    country: Optional[str] = Field(None, max_length=60)
+    state: Optional[str] = Field(None, max_length=60)
+    county: Optional[str] = Field(None, max_length=80)
+    city: Optional[str] = Field(None, max_length=80)
+
+
+class FulfillmentSettingsBody(BaseModel):
+    service_fee: Optional[ServiceFeeConfig] = None
+    delivery: Optional[DeliveryConfig] = None
+    prep_time_min: Optional[int] = Field(None, ge=0, le=240)
+    geo: Optional[GeoConfig] = None
+    tax_jurisdiction: Optional[TaxJurisdiction] = None
+
+
+def _fulfillment_view(p: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "service_fee": p.get("service_fee") or {"enabled": False, "percent": 0},
+        "delivery": p.get("delivery") or {"enabled": False, "fee_cents": 0,
+                                          "eta_min": 30, "eta_max": 45, "min_order_cents": 0},
+        "prep_time_min": int(p.get("prep_time_min", 20) or 20),
+        "geo": p.get("geo") or {"lat": None, "lng": None, "address": None},
+        "tax_jurisdiction": p.get("tax_jurisdiction") or {"country": None, "state": None, "county": None, "city": None},
+    }
+
+
+@router.get("/fulfillment")
+async def get_fulfillment_settings(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    return _fulfillment_view(p)
+
+
+@router.patch("/fulfillment")
+async def set_fulfillment_settings(body: FulfillmentSettingsBody, request: Request,
+                                   user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    upd: Dict[str, Any] = {"updated_at": now()}
+    if body.service_fee is not None:
+        upd["service_fee"] = body.service_fee.model_dump()
+    if body.delivery is not None:
+        upd["delivery"] = body.delivery.model_dump()
+    if body.prep_time_min is not None:
+        upd["prep_time_min"] = int(body.prep_time_min)
+    if body.geo is not None:
+        upd["geo"] = body.geo.model_dump()
+    if body.tax_jurisdiction is not None:
+        upd["tax_jurisdiction"] = body.tax_jurisdiction.model_dump()
+    await db.marketplace_profiles.update_one({"business_id": p["business_id"]}, {"$set": upd})
+    saved = await db.marketplace_profiles.find_one({"business_id": p["business_id"]})
+    return {"ok": True, **_fulfillment_view(saved)}
+
+
 # ───────────── BigPoints settings + cost preview ─────────────
 async def _my_business(db, user) -> Dict[str, Any]:
     p = await db.marketplace_profiles.find_one({"owner_user_id": user.get("user_id")})

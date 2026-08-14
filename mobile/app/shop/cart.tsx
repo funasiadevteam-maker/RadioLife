@@ -52,12 +52,21 @@ export default function Cart() {
         use_gift_card: gift,
         redeem_points: pts ? 10 ** 9 : 0, // server caps to max redeemable
         coupon_code: cpn || undefined,
+        fulfillment: cart.fulfillment || 'pickup',
+        pickup_time: cart.pickupTime || 'now',
       });
       setQuote(r.data);
     } catch { /* keep last quote */ }
-  }, [cart.businessId, cart.items, coupon]);
+  }, [cart.businessId, cart.items, coupon, cart.fulfillment, cart.pickupTime]);
 
   React.useEffect(() => { refresh(useGift, usePoints); }, [useGift, usePoints, refresh]);
+
+  // If the shop doesn't deliver, snap back to pickup.
+  React.useEffect(() => {
+    if (quote && quote.delivery_available === false && cart.fulfillment === 'delivery') {
+      cart.setFulfillment('pickup');
+    }
+  }, [quote, cart.fulfillment]);
 
   const applyCoupon = () => {
     const c = couponInput.trim().toUpperCase();
@@ -88,14 +97,14 @@ export default function Cart() {
         if (st.data.payment_status === 'paid') {
           cart.clear();
           celebrate({ points: 0, title: 'Order placed! 🎉' });
-          router.replace('/shop/orders');
+          router.replace(`/shop/order/${orderId}` as any);
           return;
         }
         setError('Payment not completed. Your order is saved as pending.');
       } else {
         cart.clear();
         celebrate({ points: 0, title: 'Order placed! 🎉' });
-        router.replace('/shop/orders');
+        router.replace(`/shop/order/${orderId}` as any);
         return;
       }
     } catch (e: any) {
@@ -133,9 +142,11 @@ export default function Cart() {
                 <TouchableOpacity style={[s.fulBtn, (cart.fulfillment || 'pickup') === 'pickup' && s.fulBtnOn]} onPress={() => cart.setFulfillment('pickup')} testID="cart-fulfillment-pickup">
                   <Text style={[s.fulText, (cart.fulfillment || 'pickup') === 'pickup' && s.fulTextOn]}>Pickup</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.fulBtn, cart.fulfillment === 'delivery' && s.fulBtnOn]} onPress={() => cart.setFulfillment('delivery')} testID="cart-fulfillment-delivery">
-                  <Text style={[s.fulText, cart.fulfillment === 'delivery' && s.fulTextOn]}>Delivery</Text>
-                </TouchableOpacity>
+                {quote?.delivery_available !== false && (
+                  <TouchableOpacity style={[s.fulBtn, cart.fulfillment === 'delivery' && s.fulBtnOn]} onPress={() => cart.setFulfillment('delivery')} testID="cart-fulfillment-delivery">
+                    <Text style={[s.fulText, cart.fulfillment === 'delivery' && s.fulTextOn]}>Delivery</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <Text style={s.pickupLabel}>{cart.fulfillment === 'delivery' ? 'Deliver' : 'Pick up'} time</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
@@ -145,6 +156,12 @@ export default function Cart() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+              {!!quote?.eta_label && (
+                <View style={s.etaRow} testID="cart-eta">
+                  <Ionicons name="time-outline" size={14} color={COLORS.primary} />
+                  <Text style={s.etaText}>{cart.fulfillment === 'delivery' ? `Arrives in ${quote.eta_label}` : quote.eta_label}</Text>
+                </View>
+              )}
             </View>
 
             {cart.items.map((i) => (
@@ -219,6 +236,32 @@ export default function Cart() {
             {quote && quote.coupon_error && !!coupon && (
               <Text style={s.couponErr} testID="cart-coupon-error">{COUPON_ERR[quote.coupon_error] || 'Coupon not valid'}</Text>
             )}
+            {quote && (quote.service_fee_cents > 0 || (cart.fulfillment === 'delivery' && quote.delivery_fee_cents > 0) || quote.tax_cents > 0) && (
+              <View style={s.feeBlock} testID="cart-fees">
+                <View style={s.feeRow}>
+                  <Text style={s.feeLabel}>Subtotal</Text>
+                  <Text style={s.feeVal}>{money(quote.subtotal_cents)}</Text>
+                </View>
+                {quote.service_fee_cents > 0 && (
+                  <View style={s.feeRow} testID="cart-service-fee">
+                    <Text style={s.feeLabel}>Service fee</Text>
+                    <Text style={s.feeVal}>{money(quote.service_fee_cents)}</Text>
+                  </View>
+                )}
+                {cart.fulfillment === 'delivery' && quote.delivery_fee_cents > 0 && (
+                  <View style={s.feeRow} testID="cart-delivery-fee">
+                    <Text style={s.feeLabel}>Delivery fee</Text>
+                    <Text style={s.feeVal}>{money(quote.delivery_fee_cents)}</Text>
+                  </View>
+                )}
+                {quote.tax_cents > 0 && (
+                  <View style={s.feeRow} testID="cart-tax">
+                    <Text style={s.feeLabel}>{quote.tax_label || 'Tax'}{quote.tax_rate_percent ? ` (${quote.tax_rate_percent}%)` : ''}</Text>
+                    <Text style={s.feeVal}>{money(quote.tax_cents)}</Text>
+                  </View>
+                )}
+              </View>
+            )}
             {total > 0 && <SavedCardPicker selected={payCard} onSelect={setPayCard} />}
             {!!error && <Text style={s.error} testID="cart-error">{COUPON_ERR[error] || error}</Text>}
           </ScrollView>
@@ -255,6 +298,12 @@ const s = StyleSheet.create({
   timePill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, flexShrink: 0 },
   timePillOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   timePillText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
+  etaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  etaText: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '900' },
+  feeBlock: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginTop: 10, gap: 6 },
+  feeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  feeLabel: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700' },
+  feeVal: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginBottom: 8 },
   name: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   opts: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },

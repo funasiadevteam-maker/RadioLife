@@ -64,11 +64,13 @@ export default function CheckoutMenuRadioLife() {
       const r = await axios.post(`${API}/shop/orders/quote`, {
         business_id: cart.businessId, items, use_gift_card: useGift, redeem_points: rp,
         coupon_code: cpn || undefined,
+        fulfillment: cart.fulfillment || "pickup",
+        pickup_time: cart.pickupTime || "now",
       });
       setQuote(r.data);
       if (r.data.redeemed_points !== rp) setRedeemPoints(r.data.redeemed_points);
     } catch (e) { setError(e?.response?.data?.detail?.code || "Could not price order"); }
-  }, [cart.businessId, items, useGift, coupon]);
+  }, [cart.businessId, items, useGift, coupon, cart.fulfillment, cart.pickupTime]);
 
   const applyCoupon = () => {
     const c = couponInput.trim().toUpperCase();
@@ -76,8 +78,13 @@ export default function CheckoutMenuRadioLife() {
     refresh(redeemPoints, c);
   };
 
-  useEffect(() => { refresh(redeemPoints); /* eslint-disable-next-line */ }, [useGift]);
+  useEffect(() => { refresh(redeemPoints); /* eslint-disable-next-line */ }, [useGift, cart.fulfillment, cart.pickupTime]);
   useEffect(() => { refresh(0); /* eslint-disable-next-line */ }, []);
+  // Snap back to pickup if this shop doesn't deliver.
+  useEffect(() => {
+    if (quote && quote.delivery_available === false && cart.fulfillment === "delivery") cart.setFulfillment("pickup");
+    /* eslint-disable-next-line */
+  }, [quote]);
 
   if (!cart.businessId || !cart.items.length) {
     return (
@@ -103,7 +110,7 @@ export default function CheckoutMenuRadioLife() {
       });
       cart.clear();
       if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
-      navigate("/shop/orders");
+      navigate(`/shop/order/${r.data.order_id}`);
     } catch (e) {
       setError(e?.response?.data?.detail?.code || "Checkout failed");
       setBusy(false);
@@ -129,8 +136,10 @@ export default function CheckoutMenuRadioLife() {
           <div className="flex gap-2 bg-slate-100 rounded-full p-1">
             <button onClick={() => cart.setFulfillment("pickup")} data-testid="checkout-fulfillment-pickup"
               className={`flex-1 py-2 rounded-full text-sm font-black ${(cart.fulfillment || "pickup") === "pickup" ? "bg-white text-slate-900 shadow" : "text-slate-500"}`}>Pickup</button>
-            <button onClick={() => cart.setFulfillment("delivery")} data-testid="checkout-fulfillment-delivery"
-              className={`flex-1 py-2 rounded-full text-sm font-black ${cart.fulfillment === "delivery" ? "bg-white text-slate-900 shadow" : "text-slate-500"}`}>Delivery</button>
+            {quote?.delivery_available !== false && (
+              <button onClick={() => cart.setFulfillment("delivery")} data-testid="checkout-fulfillment-delivery"
+                className={`flex-1 py-2 rounded-full text-sm font-black ${cart.fulfillment === "delivery" ? "bg-white text-slate-900 shadow" : "text-slate-500"}`}>Delivery</button>
+            )}
           </div>
           <div className="flex items-start gap-2 mt-3">
             <Store size={15} className="text-orange-600 mt-0.5 shrink-0" />
@@ -149,6 +158,11 @@ export default function CheckoutMenuRadioLife() {
                   className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap ${(cart.pickupTime || "now") === v ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-600"}`}>{l}</button>
               ))}
             </div>
+            {quote?.eta_label && (
+              <div className="mt-2 text-xs font-black text-orange-600 flex items-center gap-1" data-testid="checkout-eta">
+                <Clock size={12} />{cart.fulfillment === "delivery" ? `Arrives in ${quote.eta_label}` : quote.eta_label}
+              </div>
+            )}
           </div>
         </div>
 
@@ -172,6 +186,24 @@ export default function CheckoutMenuRadioLife() {
             <div className="flex justify-between text-sm mt-1" data-testid="checkout-entitlement-discount">
               <span className="text-orange-600 font-bold flex items-center gap-1"><Crown size={12} />Membership</span>
               <span className="font-black text-orange-600">−{money(quote.entitlement_discount_cents)}</span>
+            </div>
+          )}
+          {quote && quote.service_fee_cents > 0 && (
+            <div className="flex justify-between text-sm mt-1" data-testid="checkout-service-fee">
+              <span className="text-slate-500">Service fee</span>
+              <span className="font-bold text-slate-900">{money(quote.service_fee_cents)}</span>
+            </div>
+          )}
+          {quote && cart.fulfillment === "delivery" && quote.delivery_fee_cents > 0 && (
+            <div className="flex justify-between text-sm mt-1" data-testid="checkout-delivery-fee">
+              <span className="text-slate-500">Delivery fee</span>
+              <span className="font-bold text-slate-900">{money(quote.delivery_fee_cents)}</span>
+            </div>
+          )}
+          {quote && quote.tax_cents > 0 && (
+            <div className="flex justify-between text-sm mt-1" data-testid="checkout-tax">
+              <span className="text-slate-500">{quote.tax_label || "Tax"}{quote.tax_rate_percent ? ` (${quote.tax_rate_percent}%)` : ""}</span>
+              <span className="font-bold text-slate-900">{money(quote.tax_cents)}</span>
             </div>
           )}
           {quote && quote.join_nudge && (

@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 83 — Backend + Web are green; Mobile Expo web preview is a HARD BLOCKER (stuck on auth-splash forever). Backend: 10/10 pytest pass (fees+tax quote/checkout persistence, nearby distance-sorted mixed categories, merchant fulfillment GET/PATCH round-trip, admin tax CRUD, AI estimate via Emergent LLM). Web: /shop/near-me, /shop/order/{id}, /shop/merchant/fulfillment, /admin/tax all render with the correct data-testids and expected data (fees, ETA, tracker code, seeded rules AE 5% / US-CA 7.25% / US-CA-LA 9.5%). Web /shop/checkout/menu could not be visually verified because the cart was empty after the item-option-confirm flow — needs a look at whether ItemOptionModal correctly writes to the cart store from the ShopMenu 'menu-add' entry (or if a default option was already selected we should surface differently). Mobile: demo-login-btn NEVER RENDERS — root layout stays on <ActivityIndicator testID='auth-splash'/> indefinitely; no /api/auth/me call is ever fired, no console error, no pageerror. Persists across a full `sudo supervisorctl restart mobile`. Very likely regression from this iteration's new zustand `persist` middleware wiring in /app/mobile/src/stores/useCartStore.ts (imports @react-native-async-storage/async-storage which on web sometimes hangs rehydration). Because of this blocker, none of the mobile items (cart persistence, cart-fulfillment/pickup/eta/service-fee/tax, near-me gate, tracker fallback, orders list fulfillment+ETA) could be exercised this pass.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Menu add-to-cart from item modal", "issue": "After clicking [data-testid='menu-add-mi_biz_sample_funpizza_0'] → item-option-confirm, /shop/checkout/menu still shows 'Your cart is empty'. The default size may not be a valid selection or the confirm handler needs an explicit selection before adding. Not blocking (backend proves the same items price correctly), but blocks the UI verification of checkout-service-fee / checkout-tax / checkout-eta.", "affected_selectors": ["menu-add-mi_biz_sample_funpizza_0", "item-option-confirm", "rl-checkout-menu-page"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "Root Expo Router layout (AuthContext boot)", "issue": "The auth-splash <ActivityIndicator/> never resolves on the Expo web preview — app hangs there forever. No /api/auth/me network call is issued, no console/page errors. Reproduces after `sudo supervisorctl restart mobile` and cookie clear. Blocks ALL mobile testing this iteration.", "testID": "auth-splash", "priority": "CRITICAL"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Full mobile smoke", "platform": "mobile", "issue": "Cannot compare with web because mobile app never leaves the auth-splash on the web preview. Cart persistence via AsyncStorage, /shop/cart fee breakdown, /shop/near-me gate, and /shop/order/{id} tracker fallback all inaccessible.", "expected": "Same feature set as web renders on 390x844 viewport", "actual": "auth-splash spinner indefinitely"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter83_fees_nearby_tax.py",
+    "/app/test_reports/pytest/iter83.xml"
+  ],
+  "action_items": [
+    "MOBILE BLOCKER — investigate why mobile root layout hangs on auth-splash on the Expo web preview. Suspect: newly-added zustand persist middleware in /app/mobile/src/stores/useCartStore.ts importing @react-native-async-storage/async-storage — its web rehydration may be interacting badly with the AuthProvider boot useEffect. Consider (a) wrapping the persist hydration in a onRehydrateStorage that never rejects, (b) short-circuiting persist on Platform.OS === 'web' with a localStorage-backed storage, or (c) preloading loadToken via a separate provider that gates children only after loading:false. Once fixed, re-run the mobile section of this iteration (cart persistence + cart fees + near-me + tracker + orders).",
+    "WEB CHECKOUT — verify ItemOptionModal.confirm actually commits the selected item to the cart store when only a default option is pre-selected on Fun Pizza Mac & Cheese Pizza. From backend the /quote succeeds with selected_option_ids=['opt_size_medium'], but from the UI /shop/checkout/menu still renders empty after the modal flow. Add a functional test or trace add-to-cart to confirm the writer is not throwing silently.",
+    "Consider narrowing CheckoutBody.fulfillment / pickup_time to Pydantic Literals (raised in iter82) — still open."
+  ],
+  "critical_code_review_comments": [
+    "/app/mobile/src/stores/useCartStore.ts — zustand persist with AsyncStorage on web has been the #1 source of hard-hangs in prior projects. Recommend a `skipHydration: true` + explicit `useCartStore.persist.rehydrate()` after the AuthContext resolves, or a web-only createJSONStorage(() => localStorage-adapter).",
+    "/app/backend/routes/marketplace_orders.py — CheckoutBody accepts fulfillment/pickup_time as free-form Optional[str] with default 'pickup'/'now'; a bad value like 'delivery' with delivery.enabled=false still charges delivery_fee=0 silently. Consider validating that fulfillment='delivery' requires profile.delivery.enabled=True (throw 400 delivery_unavailable) instead of falling back to 0."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter83_fees_nearby_tax.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "web ~90% (near-me, order tracker, admin tax, merchant fulfillment all pass; checkout page cart-add path unverified), mobile 0% (auth-splash blocker)"},
+  "test_credentials": "web admin@bigfm.dubai/AdminPass123!, web test@bigfm.dubai/TestUser123!, web demo@bigfm.dubai/DemoPass123!, mobile demo-login (currently unreachable)",
+  "seed_data_creation": "Backend test created 1 delivery order (ord_f265100b7fe6) on biz_sample_funpizza with service_fee $1.80 / delivery $5.00 / UAE VAT $1.24 which was used to verify the Order Tracker on the web. Merchant fulfillment for test@'s business was patched to {service_fee:12.5%, delivery:750¢/25-40min/min1000, prep 18min, geo 25.21/55.27, tax AE/Dubai} then left in place.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend contracts fully covered by /app/backend/tests/test_iter83_fees_nearby_tax.py (10 tests, 6s runtime). If the mobile splash blocker is fixed, next agent should: (a) demo-login on mobile 390x844, (b) add mi_biz_sample_funpizza_0 with opt_size_medium and RELOAD /shop/cart to check the item survived (AsyncStorage persist), (c) verify cart-service-fee/cart-delivery-fee/cart-tax/cart-eta line testIDs, (d) /shop/near-me gate → Browse Dubai default → near-me-list with near-me-dist-* and near-me-map-fallback, (e) /shop/orders → order-track-* → tracker-status/code/map-fallback. On web, /shop/checkout/menu could not be exercised due to the item-modal add path apparently not writing to the cart store — verify or fix and re-run the checkout-service-fee / checkout-tax / checkout-eta / checkout-delivery-fee visual check. Web admin/tax UI, near-me UI, merchant fulfillment UI, and order tracker UI all rendered correctly this pass.",
+  "rca of the issue": "Mobile auth-splash hang: mobile app root layout (/app/mobile/app/_layout.tsx) gates all screens on AuthContext.loading. AuthProvider boot useEffect runs `await loadToken(); await refresh(); setLoading(false);` — but NO /api/auth/me network call ever fires (no requests in network log). Combined with (i) the new persist middleware wrapping useCartStore with AsyncStorage rehydration and (ii) no console/page errors, the most likely cause is that a module-level import (e.g. AsyncStorage on web, or a cart-side effect) is throwing/hanging synchronously before the AuthContext effect runs, or that persist rehydration is throwing an unhandled promise rejection that stalls the JS event loop for the boot phase. Mitigation: gate persist with `skipHydration:true` and hydrate on-demand from a screen that mounts *after* auth, OR provide a web-safe custom storage adapter (localStorage) instead of AsyncStorage on Platform.OS==='web'."
+}

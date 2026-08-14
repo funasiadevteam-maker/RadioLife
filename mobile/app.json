@@ -17,7 +17,8 @@
         "UIBackgroundModes": [
           "audio"
         ],
-        "NSCameraUsageDescription": "Scan customer QR codes to take payment."
+        "NSCameraUsageDescription": "Scan customer QR codes to take payment.",
+        "NSLocationWhenInUseUsageDescription": "Show shops and services near you."
       }
     },
     "android": {
@@ -30,7 +31,9 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "WAKE_LOCK",
-        "CAMERA"
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
       ],
       "package": "com.bigfm.app",
       "versionCode": 104
@@ -62,7 +65,14 @@
       "expo-secure-store",
       "expo-apple-authentication",
       "expo-font",
-      "expo-video"
+      "expo-video",
+      "expo-localization",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Show shops and services near you."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

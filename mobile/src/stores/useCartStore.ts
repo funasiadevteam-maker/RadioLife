@@ -1,8 +1,13 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /* ── Single-merchant Shop cart (Marketplace Phase B + entitlement engine) ──
    One restaurant per order. Each line can carry option selections + an applied
-   membership entitlement, so the same item with different options is its own line. */
+   membership entitlement, so the same item with different options is its own line.
+   Persisted to AsyncStorage so the cart survives app reload / background.
+   NOTE: persistence is done MANUALLY (hydrate + subscribe) rather than via
+   zustand/middleware — that middleware ships `import.meta`, which crashes the
+   Expo web bundle (metro.config is protected and can't transpile it). */
 
 export type CartItem = {
   line_id: string;
@@ -92,3 +97,27 @@ export const useCartStore = create<CartState>((set, get) => ({
   count: () => get().items.reduce((n, i) => n + i.qty, 0),
   subtotal: () => get().items.reduce((n, i) => n + i.price_cents * i.qty, 0),
 }));
+
+/* ── Manual AsyncStorage persistence (no zustand/middleware) ── */
+const CART_STORAGE_KEY = 'radiolife-cart';
+
+AsyncStorage.getItem(CART_STORAGE_KEY)
+  .then((raw) => {
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    useCartStore.setState({
+      items: Array.isArray(d.items) ? d.items : [],
+      businessId: d.businessId ?? null,
+      businessName: d.businessName ?? null,
+      fulfillment: d.fulfillment === 'delivery' ? 'delivery' : 'pickup',
+      pickupTime: d.pickupTime ?? 'now',
+    });
+  })
+  .catch(() => { /* first run / bad data */ });
+
+useCartStore.subscribe((s) => {
+  AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify({
+    items: s.items, businessId: s.businessId, businessName: s.businessName,
+    fulfillment: s.fulfillment, pickupTime: s.pickupTime,
+  })).catch(() => { /* ignore */ });
+});

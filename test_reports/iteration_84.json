@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 84 — Mobile HARD BLOCKER from iter83 is FIXED. The manual AsyncStorage persistence in /app/mobile/src/stores/useCartStore.ts (no zustand/middleware) removed the import.meta crash — Expo web preview now boots to the login screen, demo-login-btn renders, /api/auth/me fires (401 pre-login), demo-login logs in as demo@bigfm.dubai and lands on /home. FRONTEND passes on both surfaces. Web checkout gap from iter83 is ALSO closed — /shop/checkout/menu renders Service fee $1.80, UAE VAT (5%) $0.09, Delivery fee $5.00 (delivery toggle) and ETA 'Ready in ~20 min' / 'Arrives in 30–45 min' with a single 'Ready'. Only two minor findings: (1) on mobile, tapping the 'Pay by card' button on /shop/cart creates the order (POST /api/shop/orders/checkout -> ord_XXX) but the user is NOT auto-routed to /shop/order/{id} — the cart stays put. The order is reachable manually from /shop/orders -> order-track-*. (2) On web, the sticky mini-player at the bottom overlaps the fixed menu-checkout pill on /shop/menu; a native Playwright click gets intercepted (a programmatic el.click() works fine and the flow completes). Non-blocking overlay z-index nudge. All mobile testIDs from the request are present with correct values; near-me shows both restaurants and services with distance badges in km; the tracker eta line has a single 'Ready', pickup code and map-fallback all render; the /shop menu 'Choose' buttons at 390px are not clipped (bounding box x=327, w=34 -> right edge 361 < 390).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "ShopMenu sticky checkout pill vs global mini-player", "issue": "The floating [data-testid='menu-checkout'] pill at the bottom of /shop/menu/* is visually overlapped by the sticky mini-player (RadioLife audio bar) on Desktop 1920px, so a Playwright native .click(force=True) is intercepted by the player. A programmatic el.click() (or a real user press higher on the button) navigates to /shop/checkout/menu correctly. Bump z-index / adjust bottom padding of the menu-checkout container above the player.", "selector": "[data-testid='menu-checkout']", "priority": "LOW"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "Shop cart 'Pay by card' button flow", "issue": "Tapping the pay-by-card button at the bottom of /shop/cart successfully calls POST /api/shop/orders/quote + POST /api/shop/orders/checkout and creates an order (e.g. ord_6fcd820ba706), but the app does NOT auto-navigate to /shop/order/{id}. The user remains on /shop/cart with the same items; only /shop/orders shows the new order (and Track button routes correctly to /shop/order/{id}). Expected per test spec: 'Placing the order should route to /shop/order/{id}'.", "testID": "cart-checkout", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Place order redirect", "platform": "mobile", "issue": "Web /shop/checkout/menu 'Pay by card' progresses through the Stripe/payment step, but the mobile /shop/cart pay-by-card creates the order and stays on /shop/cart instead of pushing to /shop/order/{id}.", "expected": "Same post-checkout redirect to the Order Tracker on both surfaces", "actual": "Mobile leaves the user on /shop/cart with the same in-cart items"}
+  ],
+  "test_report_links": [
+    "/app/test_reports/iteration_83.json",
+    "/app/backend/tests/test_iter83_fees_nearby_tax.py"
+  ],
+  "action_items": [
+    "MOBILE: after a successful POST /api/shop/orders/checkout on /shop/cart, router.push('/shop/order/'+order_id) and useCartStore.clear() (or leave the cart as pending pending-payment but at minimum navigate to the tracker so the user sees the pickup code and status).",
+    "WEB (minor): give [data-testid='menu-checkout'] a higher z-index (or reserve bottom padding) so the RadioLife mini audio-player doesn't overlap the sticky checkout pill on Desktop breakpoints.",
+    "Consider narrowing CheckoutBody.fulfillment / pickup_time to Pydantic Literals (still open from iter82/83)."
+  ],
+  "critical_code_review_comments": [
+    "/app/mobile/src/stores/useCartStore.ts — manual persistence pattern works well; consider debouncing the AsyncStorage.setItem inside subscribe to avoid a write on every keystroke-style setState.",
+    "/app/backend/routes/marketplace_orders.py — CheckoutBody still accepts fulfillment/pickup_time as free-form Optional[str] with defaults; a client sending 'delivery' when profile.delivery.enabled=false is silently treated as delivery with delivery_fee=0. Recommend 400 delivery_unavailable."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested this iteration (skipped per request)", "frontend": "web 100% of requested testIDs render with correct values (~1 low-priority overlay note); mobile 100% of requested testIDs render with correct values (~1 medium post-checkout redirect issue)"},
+  "test_credentials": "web demo@bigfm.dubai/DemoPass123!, web admin@bigfm.dubai/AdminPass123! (verified admin-tax-page renders), mobile demo-login-btn -> demo@bigfm.dubai (verified working).",
+  "seed_data_creation": "Created 1 mobile order via demo user pay-by-card flow: ord_6fcd820ba706 on biz_sample_funpizza (pickup, Mac & Cheese Pizza Medium, service_fee $1.80, UAE VAT $0.09, total $1.89 after membership discount, pickup_code 5656). Left in place.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter83 mobile boot blocker + iter83 web checkout gap are BOTH resolved. Remaining action item is the mobile post-checkout navigation — after main agent adds `router.push('/shop/order/'+id)` on mobile cart pay, re-run the mobile cart -> place order -> tracker flow end-to-end. All other cart / near-me / orders / tracker / menu / checkout / admin-tax / merchant-fulfillment surfaces are verified this pass. Backend was 10/10 in iter83 and was skipped this iteration per the review request.",
+  "rca of the issue": "iter83 mobile boot hang RCA: `zustand/middleware`'s persist ships an `import.meta` reference which the Expo/Metro web bundler could not transform (metro.config.js is protected). Because the store was imported at module-graph load time by every screen behind AuthProvider, the JS crashed before AuthProvider's boot useEffect ran, leaving auth-splash indefinitely with no /api/auth/me fired. Fix (already applied by main agent): drop zustand/middleware and implement one-shot AsyncStorage rehydrate + subscribe write-back in useCartStore.ts (safe on web because AsyncStorage on web resolves to localStorage via @react-native-async-storage/async-storage's web shim). Verified this iteration: /api/auth/me now fires, demo-login-btn renders, cart persists across page reload on the Expo web preview."
+}

@@ -85,6 +85,11 @@ export default function Orders() {
               </View>
               <Text style={s.meta}>{(o.items || []).reduce((n: number, i: any) => n + i.qty, 0)} items · {money(o.total_cents)}
                 {o.gift_card_applied_cents > 0 ? ` · gift card −${money(o.gift_card_applied_cents)}` : ''}</Text>
+              {!!o.fulfillment && (
+                <Text style={s.fulfillLine} testID={`order-fulfill-${o.order_id}`}>
+                  {o.fulfillment === 'delivery' ? '🛵 Delivery' : '🛍 Pickup'}{o.eta_label ? ` · ${o.eta_label}` : ''}
+                </Text>
+              )}
 
               {o.status !== 'canceled' && stepIdx >= 0 && (
                 <View style={s.tracker}>
@@ -111,10 +116,18 @@ export default function Orders() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity style={s.reorderBtn} onPress={() => reorder(o.order_id)} testID={`order-reorder-${o.order_id}`}>
-                <Ionicons name="repeat" size={15} color={COLORS.primary} />
-                <Text style={s.reorderText}>Order Again</Text>
-              </TouchableOpacity>
+              <View style={s.actionRow}>
+                {o.status !== 'canceled' && o.status !== 'picked_up' && (
+                  <TouchableOpacity style={s.trackBtn} onPress={() => router.push(`/shop/order/${o.order_id}` as any)} testID={`order-track-${o.order_id}`}>
+                    <Ionicons name="navigate" size={15} color="#fff" />
+                    <Text style={s.trackText}>Track order</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={s.reorderBtn} onPress={() => reorder(o.order_id)} testID={`order-reorder-${o.order_id}`}>
+                  <Ionicons name="repeat" size={15} color={COLORS.primary} />
+                  <Text style={s.reorderText}>Order Again</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           );
         })}
@@ -132,6 +145,10 @@ const s = StyleSheet.create({
   statusPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.full },
   statusText: { fontSize: FONT.xs, fontWeight: '900' },
   meta: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '600', marginTop: 6 },
+  fulfillLine: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '900', marginTop: 4 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  trackBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 10 },
+  trackText: { color: '#fff', fontWeight: '900', fontSize: FONT.sm },
   tracker: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
   dot: { width: 22, height: 22, borderRadius: 11, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center', justifyContent: 'center' },
   dotOn: { backgroundColor: COLORS.green, borderColor: COLORS.green },
@@ -144,6 +161,6 @@ const s = StyleSheet.create({
   ptsBox: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.gold + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: RADIUS.full },
   ptsGlyph: { color: COLORS.gold, fontSize: FONT.sm, fontWeight: '900' },
   ptsText: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '800' },
-  reorderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, paddingVertical: 10, marginTop: 12 },
+  reorderBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, paddingVertical: 10 },
   reorderText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.sm },
 });

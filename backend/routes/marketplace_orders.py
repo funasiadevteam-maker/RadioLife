@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -99,9 +99,31 @@ class CheckoutItem(BaseModel):
     apply_entitlement_id: Optional[str] = None
 
 
+def _compute_fees(profile: Dict[str, Any], base_cents: int, fulfillment: str) -> tuple:
+    """Merchant-configurable owner.com-style fees added ON TOP of the goods
+    (never discounted by gift card / points). Returns (service_fee, delivery_fee)."""
+    sf = profile.get("service_fee") or {}
+    service_fee = int(round(base_cents * float(sf.get("percent", 0) or 0) / 100.0)) if sf.get("enabled") else 0
+    dl = profile.get("delivery") or {}
+    delivery_fee = int(dl.get("fee_cents", 0) or 0) if (fulfillment == "delivery" and dl.get("enabled")) else 0
+    return service_fee, delivery_fee
+
+
+def _eta_label(profile: Dict[str, Any], fulfillment: str, pickup_time: Optional[str]) -> str:
+    prep = int(profile.get("prep_time_min", 20) or 20)
+    if fulfillment == "delivery":
+        dl = profile.get("delivery") or {}
+        lo, hi = int(dl.get("eta_min", prep + 20) or 0), int(dl.get("eta_max", prep + 35) or 0)
+        return f"{lo}–{hi} min"
+    offset = {"now": 0, "+15": 15, "+30": 30, "+45": 45}.get(pickup_time or "now", 0)
+    return f"Ready in ~{offset} min" if offset else f"Ready in ~{prep} min"
+
+
 async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
                       use_gift_card: bool, redeem_points: int,
-                      coupon_code: Optional[str] = None) -> Dict[str, Any]:
+                      coupon_code: Optional[str] = None,
+                      fulfillment: str = "pickup",
+                      pickup_time: Optional[str] = "now") -> Dict[str, Any]:
     """Validate + price a single-restaurant basket with option upcharges, an
     optional membership entitlement (base free + included-option waivers),
     coupon, gift-card and BigPoints redemption. Shared by /quote and /checkout."""
@@ -111,6 +133,9 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         {"business_id": business_id, "status": "approved", "subscription_active": True})
     if not profile:
         raise HTTPException(404, {"code": "business_unavailable"})
+    # Coerce to pickup if the shop doesn't deliver, so fees + ETA stay consistent.
+    if fulfillment == "delivery" and not (profile.get("delivery") or {}).get("enabled"):
+        fulfillment = "pickup"
     line_items: List[Dict[str, Any]] = []
     subtotal = 0
     entitlement_discount = 0
@@ -172,7 +197,15 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     max_redeemable = min(int(balance or 0), _cents_to_max_points(after_gift))
     used_points = max(0, min(int(redeem_points or 0), max_redeemable))
     points_discount = _points_to_cents(used_points)
-    total = after_gift - points_discount
+    goods_total = after_gift - points_discount
+    service_fee_cents, delivery_fee_cents = _compute_fees(profile, subtotal, fulfillment)
+    fees_total = service_fee_cents + delivery_fee_cents
+    # Origin-based sales tax on everything (discounted goods + fees).
+    from services.tax_service import resolve_tax_rate, calculate_tax
+    tax_info = await resolve_tax_rate(db, profile.get("tax_jurisdiction") or {})
+    taxable_base = max(0, after_coupon) + service_fee_cents + delivery_fee_cents
+    tax_cents = calculate_tax(taxable_base, tax_info["rate_percent"])
+    total = goods_total + fees_total + tax_cents
     eff = points_for_order(profile, after_entitlement)
     join_nudge = None
     if entitlement_discount <= 0:
@@ -189,7 +222,16 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         "coupon_id": (coupon_doc or {}).get("coupon_id") if coupon_discount > 0 else None,
         "points_balance": int(balance or 0), "redeem_points_per_dollar": REDEEM_POINTS_PER_DOLLAR,
         "max_redeemable_points": max_redeemable, "redeemed_points": used_points,
-        "points_discount_cents": points_discount, "total_cents": total,
+        "points_discount_cents": points_discount,
+        "goods_total_cents": goods_total,
+        "service_fee_cents": service_fee_cents, "delivery_fee_cents": delivery_fee_cents,
+        "fees_total_cents": fees_total, "eta_label": _eta_label(profile, fulfillment, pickup_time),
+        "tax_cents": tax_cents, "tax_rate_percent": tax_info["rate_percent"],
+        "tax_label": tax_info["label"],
+        "prep_time_min": int(profile.get("prep_time_min", 20) or 20),
+        "delivery_available": bool((profile.get("delivery") or {}).get("enabled")),
+        "fulfillment": fulfillment, "pickup_time": pickup_time,
+        "total_cents": total,
         "points_to_award": int(eff.get("points", 0)), "happy_hour": eff.get("happy_hour", False),
         "points_multiplier": eff.get("multiplier", 1),
     }
@@ -201,6 +243,8 @@ class QuoteBody(BaseModel):
     use_gift_card: bool = False
     redeem_points: int = Field(0, ge=0)
     coupon_code: Optional[str] = None
+    fulfillment: Optional[Literal["pickup", "delivery"]] = "pickup"
+    pickup_time: Optional[Literal["now", "+15", "+30", "+45"]] = "now"
 
 
 @router.post("/quote")
@@ -210,7 +254,9 @@ async def quote(body: QuoteBody, request: Request, user: dict = Depends(current_
         raise HTTPException(400, {"code": "empty_cart"})
     db = request.app.state.db
     q = await _price_menu(db, user, body.business_id, body.items,
-                          body.use_gift_card, body.redeem_points, body.coupon_code)
+                          body.use_gift_card, body.redeem_points, body.coupon_code,
+                          fulfillment=(body.fulfillment or "pickup"),
+                          pickup_time=(body.pickup_time or "now"))
     q.pop("profile", None)
     q["public_name"] = None
     return q
@@ -225,8 +271,8 @@ class CheckoutBody(BaseModel):
     note: Optional[str] = Field(None, max_length=300)
     payment_method_id: Optional[str] = None  # saved card → one-tap off-session
     coupon_code: Optional[str] = None
-    fulfillment: Optional[str] = "pickup"   # "pickup" | "delivery"
-    pickup_time: Optional[str] = "now"      # "now" | "+15" | "+30" | "+45"
+    fulfillment: Optional[Literal["pickup", "delivery"]] = "pickup"
+    pickup_time: Optional[Literal["now", "+15", "+30", "+45"]] = "now"
 
 
 @router.post("/checkout")
@@ -235,7 +281,9 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
     if not body.items:
         raise HTTPException(400, {"code": "empty_cart"})
     q = await _price_menu(db, user, body.business_id, body.items,
-                          body.use_gift_card, body.redeem_points, body.coupon_code)
+                          body.use_gift_card, body.redeem_points, body.coupon_code,
+                          fulfillment=(body.fulfillment or "pickup"),
+                          pickup_time=(body.pickup_time or "now"))
     profile = q["profile"]
     line_items = q["line_items"]
     subtotal = q["subtotal_cents"]
@@ -265,8 +313,15 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         "points_to_award": q["points_to_award"], "points_multiplier": q["points_multiplier"],
         "happy_hour": q["happy_hour"], "points_awarded_done": False,
         "note": body.note, "pickup_code": pickup_code,
-        "fulfillment": (body.fulfillment or "pickup"),
-        "pickup_time": (body.pickup_time or "now"),
+        "fulfillment": q.get("fulfillment") or "pickup",
+        "pickup_time": q.get("pickup_time") or "now",
+        "service_fee_cents": q.get("service_fee_cents", 0),
+        "delivery_fee_cents": q.get("delivery_fee_cents", 0),
+        "fees_total_cents": q.get("fees_total_cents", 0),
+        "tax_cents": q.get("tax_cents", 0),
+        "tax_rate_percent": q.get("tax_rate_percent", 0),
+        "tax_label": q.get("tax_label"),
+        "eta_label": q.get("eta_label"),
         "status": "pending_payment", "payment_status": "pending",
         "session_id": None, "status_history": [],
         "created_at": now(), "updated_at": now(),

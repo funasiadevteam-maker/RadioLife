@@ -5727,6 +5727,9 @@ try:
     app.include_router(_mkt_admin_router)
     app.include_router(_mkt_merchant_router)
     app.include_router(_shop_router)
+    # Jurisdiction-based sales tax (admin rules + AI estimate).
+    from routes.marketplace_tax import router as _mkt_tax_router
+    app.include_router(_mkt_tax_router)
     # Phase B — subscriptions, menus, orders.
     from routes.marketplace_subscription import router as _mkt_sub_router
     from routes.marketplace_menu import router as _mkt_menu_router

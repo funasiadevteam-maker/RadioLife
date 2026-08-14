@@ -86,6 +86,11 @@ export default function ShopHome() {
               placeholder="What are you looking for?" placeholderTextColor={COLORS.textMuted}
               returnKeyType="search" onSubmitEditing={goSearch} testID="shop-search-input" />
           </View>
+          <TouchableOpacity style={s.nearMeBtn} onPress={() => router.push('/shop/near-me')} testID="shop-near-me">
+            <Ionicons name="navigate" size={16} color={COLORS.primary} />
+            <Text style={s.nearMeText}>Explore shops &amp; services near you</Text>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -105,7 +110,9 @@ export default function ShopHome() {
           contentContainerStyle={s.filterRow} testID="shop-filters">
           {filters.map((f) => (
             <TouchableOpacity key={f} style={s.filterChip}
-              onPress={() => router.push({ pathname: '/shop/browse', params: { filter: f } })}>
+              onPress={() => (f === 'Nearby'
+                ? router.push('/shop/near-me')
+                : router.push({ pathname: '/shop/browse', params: { filter: f } }))}>
               <Text style={s.filterText}>{f}</Text>
             </TouchableOpacity>
           ))}
@@ -247,6 +254,8 @@ const s = StyleSheet.create({
   headline: { color: COLORS.text, fontSize: 26, fontWeight: '900', marginTop: 4, marginBottom: 14, lineHeight: 30 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 12 },
   searchInput: { flex: 1, color: COLORS.text, fontSize: FONT.sm, padding: 0 },
+  nearMeBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, backgroundColor: COLORS.primary + '12', borderWidth: 1, borderColor: COLORS.primary + '44', borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 11 },
+  nearMeText: { flex: 1, color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   catRow: { paddingHorizontal: SPACING.md, gap: 14, paddingVertical: SPACING.sm },
   catChip: { alignItems: 'center', width: 68 },
   catIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },

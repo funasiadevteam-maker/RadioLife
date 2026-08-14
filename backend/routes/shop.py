@@ -2,6 +2,7 @@
 Reads APPROVED marketplace profiles.  Platform-agnostic (mobile + web)."""
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Request
@@ -12,8 +13,18 @@ from services.marketplace import resolve_point_cost_cents, ranking_score
 router = APIRouter(prefix="/api/shop", tags=["shop"])
 
 
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return round(r * 2 * math.asin(math.sqrt(a)), 2)
+
+
 def _card(p: Dict[str, Any]) -> Dict[str, Any]:
     bp = p.get("bigpoints", {}) or {}
+    geo = p.get("geo") or {}
     return {
         "business_id": p.get("business_id"),
         "public_name": p.get("public_name"),
@@ -29,6 +40,10 @@ def _card(p: Dict[str, Any]) -> Dict[str, Any]:
         "rating": p.get("rating"),
         "featured": bool(p.get("featured")),
         "sponsored": bool(p.get("sponsored")),
+        "geo": {"lat": geo.get("lat"), "lng": geo.get("lng"),
+                "address": geo.get("address")} if (geo.get("lat") is not None) else None,
+        "delivery_enabled": bool((p.get("delivery") or {}).get("enabled")),
+        "prep_time_min": int(p.get("prep_time_min", 20) or 20),
     }
 
 
@@ -48,6 +63,7 @@ async def categories(request: Request):
 async def businesses(request: Request, category: Optional[str] = None,
                      market: Optional[str] = None, q: Optional[str] = None,
                      sort: str = "featured", limit: int = 40,
+                     lat: Optional[float] = None, lng: Optional[float] = None,
                      user: dict = Depends(current_user_optional)):
     db = request.app.state.db
     query: Dict[str, Any] = {"status": "approved", "subscription_active": True}
@@ -57,13 +73,25 @@ async def businesses(request: Request, category: Optional[str] = None,
         query["market"] = market
     if q:
         query["public_name"] = {"$regex": q, "$options": "i"}
-    items = [_card(p) async for p in db.marketplace_profiles.find(query).limit(max(1, min(limit, 100)))]
-    if sort == "bigpoints":
+    want = max(1, min(limit, 100))
+    # Fetch a wide pool first so post-sort truncation (nearby / bigpoints / rating)
+    # doesn't drop the best matches before ranking.
+    items = [_card(p) async for p in db.marketplace_profiles.find(query).limit(200)]
+    # Attach distance when the caller shares a location.
+    if lat is not None and lng is not None:
+        for it in items:
+            g = it.get("geo")
+            it["distance_km"] = _haversine_km(lat, lng, g["lat"], g["lng"]) if g else None
+    if sort == "nearby" and lat is not None and lng is not None:
+        items.sort(key=lambda x: (x.get("distance_km") is None,
+                                  x["distance_km"] if x.get("distance_km") is not None else 1e9))
+    elif sort == "bigpoints":
         items.sort(key=lambda x: x.get("default_bigpoints", 0), reverse=True)
     elif sort == "rating":
         items.sort(key=lambda x: (x.get("rating") or 0), reverse=True)
     else:  # featured — sponsored/featured/points-per-dollar boost first
         items.sort(key=ranking_score, reverse=True)
+    items = items[:want]
     return {"items": items, "total": len(items)}
 
 
@@ -81,6 +109,9 @@ async def business_detail(business_id: str, request: Request,
     card["phone"] = p.get("phone")
     card["website"] = p.get("website")
     card["cover_urls"] = p.get("cover_urls", [])
+    card["service_fee"] = p.get("service_fee") or {"enabled": False, "percent": 0}
+    card["delivery"] = p.get("delivery") or {"enabled": False, "fee_cents": 0,
+                                             "eta_min": 30, "eta_max": 45, "min_order_cents": 0}
     card["has_menu"] = "menu" in (p.get("sells") or []) or bool(
         await db.menu_items.find_one({"business_id": business_id, "available": True}))
     card["has_giftcards"] = bool(
@@ -161,7 +192,8 @@ async def business_menu(business_id: str, request: Request,
     db = request.app.state.db
     p = await db.marketplace_profiles.find_one(
         {"business_id": business_id, "status": "approved", "subscription_active": True},
-        {"public_name": 1, "cover_urls": 1, "bigpoints": 1, "happy_hour": 1})
+        {"public_name": 1, "cover_urls": 1, "bigpoints": 1, "happy_hour": 1,
+         "service_fee": 1, "delivery": 1, "prep_time_min": 1, "geo": 1})
     if not p:
         from fastapi import HTTPException
         raise HTTPException(404, {"code": "business_not_found"})
@@ -181,6 +213,7 @@ async def business_menu(business_id: str, request: Request,
             "image_url": it.get("image_url"), "bigpoints": it.get("bigpoints"),
             "option_groups": it.get("option_groups", []),
         })
+    geo = p.get("geo") or {}
     return {
         "business_id": business_id,
         "public_name": p.get("public_name"),
@@ -188,6 +221,12 @@ async def business_menu(business_id: str, request: Request,
         "default_bigpoints": (p.get("bigpoints") or {}).get("default_points", 0),
         "happy_hour": eff.get("happy_hour", False),
         "points_multiplier": eff.get("multiplier", 1),
+        "service_fee": p.get("service_fee") or {"enabled": False, "percent": 0},
+        "delivery": p.get("delivery") or {"enabled": False, "fee_cents": 0,
+                                          "eta_min": 30, "eta_max": 45, "min_order_cents": 0},
+        "prep_time_min": int(p.get("prep_time_min", 20) or 20),
+        "geo": {"lat": geo.get("lat"), "lng": geo.get("lng"),
+                "address": geo.get("address")} if (geo.get("lat") is not None) else None,
         "sections": [{"title": s, "items": sections[s]} for s in order],
     }
 

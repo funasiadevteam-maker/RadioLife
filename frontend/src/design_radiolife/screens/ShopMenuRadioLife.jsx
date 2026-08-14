@@ -220,7 +220,7 @@ export default function ShopMenuRadioLife() {
       )}
 
       {count > 0 && (
-        <div className="fixed bottom-20 left-0 right-0 px-4 max-w-md mx-auto z-10">
+        <div className="fixed bottom-24 left-0 right-0 px-4 max-w-md mx-auto z-30">
           <button onClick={() => navigate("/shop/checkout/menu")} data-testid="menu-checkout"
             className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3.5 shadow-lg">
             <ShoppingCart size={16} />View order ({count}) · {money(cart.subtotal())}
