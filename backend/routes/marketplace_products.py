@@ -300,6 +300,7 @@ class ProductCheckoutItem(BaseModel):
     qty: int = Field(1, ge=1, le=100)
     selected_option_ids: List[str] = Field(default_factory=list)
     apply_entitlement_id: Optional[str] = None
+    note: Optional[str] = Field(None, max_length=140)
 
 
 class ProductCheckoutBody(BaseModel):
@@ -371,8 +372,11 @@ async def product_checkout(body: ProductCheckoutBody, request: Request,
         if avail < ci.qty:
             raise HTTPException(409, {"code": "out_of_stock", "product_id": ci.product_id})
         subtotal += price * ci.qty
-        line_items.append({"product_id": ci.product_id, "variant_label": ci.variant_label,
-                           "name": prod.get("name"), "price_cents": price, "qty": ci.qty})
+        _li = {"product_id": ci.product_id, "variant_label": ci.variant_label,
+               "name": prod.get("name"), "price_cents": price, "qty": ci.qty}
+        if ci.note:
+            _li["note"] = ci.note.strip()[:140]
+        line_items.append(_li)
     if subtotal <= 0:
         raise HTTPException(400, {"code": "zero_total"})
 
@@ -533,6 +537,8 @@ async def _price_group(db, user, g: CartGroup, use_gift: bool = True,
         line = {"product_id": ci.product_id, "variant_label": ci.variant_label,
                 "name": prod.get("name"), "price_cents": unit_price, "qty": ci.qty,
                 "selected_options": selected_detail}
+        if ci.note:
+            line["note"] = ci.note.strip()[:140]
         if ci.apply_entitlement_id and user:
             ev = await evaluate_line_entitlement(
                 db, user, g.business_id, item_id=ci.product_id, category=prod.get("category"),

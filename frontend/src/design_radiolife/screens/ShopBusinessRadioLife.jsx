@@ -9,7 +9,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import {
   ChevronLeft, Star, ShoppingBag, ShoppingCart, MapPin, Wallet, Crown, Gift,
-  Package as PackageIcon, CalendarDays, Check, Plus, Coins, Sliders,
+  Package as PackageIcon, CalendarDays, Check, Plus, Minus, Coins, Sliders,
 } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
@@ -114,6 +114,34 @@ export default function ShopBusinessRadioLife() {
   };
   const onPlus = (it) => (it.kind === "product" ? quickAddProduct(it.raw) : quickAddMenu(it.raw));
   const onCustomize = (it) => (it.kind === "product" ? setVariantProduct(it.raw) : setModalItem(it.raw));
+
+  // ---- Per-card "in cart" state (sticky add bar) ----
+  const menuLines = menuCart.businessId === id ? menuCart.items : [];
+  const productItems = productCart.groups[id]?.items || [];
+  const qtyFor = (it) => it.kind === "product"
+    ? productItems.filter((i) => i.product_id === it.raw.product_id).reduce((n, i) => n + i.qty, 0)
+    : menuLines.filter((l) => l.item_id === it.raw.item_id).reduce((n, l) => n + l.qty, 0);
+  const isPlain = (it) => it.kind === "product"
+    ? !(it.raw.variants || []).length
+    : !(it.raw.option_groups || []).length;
+  const plainInc = (it) => it.kind === "product" ? productCart.inc(id, it.raw.product_id) : menuCart.inc(`${it.raw.item_id}::::`);
+  const plainDec = (it) => it.kind === "product" ? productCart.dec(id, it.raw.product_id) : menuCart.dec(`${it.raw.item_id}::::`);
+
+  // ---- Related upsell (cheapest add-ons not already in the cart) ----
+  const ADDON = ["coffee", "drink", "beverage", "side", "dessert", "extra", "sauce"];
+  const inCartKeys = new Set(mode === "product" ? productItems.map((i) => i.product_id) : menuLines.map((l) => l.item_id));
+  const keyOfItem = (it) => (it.kind === "product" ? it.raw.product_id : it.raw.item_id);
+  const preferred = [];
+  const rest = [];
+  groups.forEach((g) => {
+    const addon = ADDON.some((p) => (g.title || "").toLowerCase().includes(p));
+    g.items.forEach((it) => {
+      if (inCartKeys.has(keyOfItem(it))) return;
+      (addon ? preferred : rest).push(it);
+    });
+  });
+  const suggestions = [...(preferred.length ? preferred : rest)]
+    .sort((a, b) => a.price_cents - b.price_cents).slice(0, 3);
 
   // ---- Cart totals (for mobile bar) ----
   const cartCount = mode === "product"
@@ -246,28 +274,45 @@ export default function ShopBusinessRadioLife() {
           {/* Product / menu grid */}
           {groups.length > 0 ? (
             <div className="px-4 lg:px-0 mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="shop-item-grid">
-              {shown.map((it) => (
+              {shown.map((it) => {
+                const qn = orderable ? qtyFor(it) : 0;
+                const plain = isPlain(it);
+                return (
                 <div key={it.id} data-testid={`shop-item-${it.id}`}
                   className="bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-orange-300 transition-colors flex flex-col">
                   <div className="relative bg-slate-100 overflow-hidden" style={{ aspectRatio: "1 / 1" }}>
                     {it.image_url && <img src={it.image_url} alt={it.name} className="w-full h-full object-cover" />}
+                    {qn > 0 && (
+                      <span className="absolute top-2 right-2 inline-flex items-center gap-1 bg-green-600 text-white text-[11px] font-black rounded-full pl-1.5 pr-2 py-0.5 shadow" data-testid={`shop-incart-${it.id}`}>
+                        <Check size={11} />{qn}
+                      </span>
+                    )}
                     {orderable && (
                       <button onClick={() => onCustomize(it)} data-testid={`shop-customize-${it.id}`}
                         className="absolute bottom-2 left-2 inline-flex items-center gap-1 bg-white/95 backdrop-blur text-slate-800 text-[11px] font-black rounded-full pl-2 pr-2.5 py-1.5 shadow border border-slate-200">
                         <Sliders size={12} className="text-orange-600" />Customize
                       </button>
                     )}
-                    <button onClick={() => (orderable ? onPlus(it) : navigate(`/shop/menu/${b.business_id}`))} data-testid={`shop-add-${it.id}`}
-                      className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-orange-600 text-white flex items-center justify-center shadow hover:bg-orange-700 active:scale-95 transition">
-                      <Plus size={18} />
-                    </button>
+                    {orderable && qn > 0 && plain ? (
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-white rounded-full px-1 py-0.5 shadow border border-slate-200" data-testid={`shop-stepper-${it.id}`}>
+                        <button onClick={() => plainDec(it)} data-testid={`shop-dec-${it.id}`} className="w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center"><Minus size={15} className="text-orange-600" /></button>
+                        <span className="font-black text-slate-900 w-5 text-center text-sm">{qn}</span>
+                        <button onClick={() => plainInc(it)} data-testid={`shop-inc-${it.id}`} className="w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center"><Plus size={15} className="text-orange-600" /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => (orderable ? onPlus(it) : navigate(`/shop/menu/${b.business_id}`))} data-testid={`shop-add-${it.id}`}
+                        className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-orange-600 text-white flex items-center justify-center shadow hover:bg-orange-700 active:scale-95 transition">
+                        <Plus size={18} />
+                      </button>
+                    )}
                   </div>
                   <div className="p-2.5">
                     <div className="text-sm font-bold text-slate-900 line-clamp-1">{it.name}</div>
                     <div className="text-sm font-black text-slate-900 mt-1">{money(it.price_cents)}{it.hasVariants ? "+" : ""}</div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="px-4 lg:px-0 mt-4">
@@ -290,7 +335,7 @@ export default function ShopBusinessRadioLife() {
         {orderable && (
           <aside className="hidden lg:block lg:w-[340px] lg:shrink-0 mt-4">
             <div className="sticky top-4">
-              <StoreCartPanel mode={mode} bizId={id} />
+              <StoreCartPanel mode={mode} bizId={id} suggestions={suggestions} onAdd={onPlus} />
             </div>
           </aside>
         )}
@@ -316,7 +361,8 @@ export default function ShopBusinessRadioLife() {
             menuCart.addLine(id, b.public_name, {
               item_id: modalItem.item_id, name: modalItem.name, price_cents: sel.unit_price_cents,
               qty: sel.qty, selected_option_ids: sel.selected_option_ids,
-              option_summary: sel.option_summary, apply_entitlement_id: sel.apply_entitlement_id,
+              option_summary: sel.option_summary, note: sel.note,
+              apply_entitlement_id: sel.apply_entitlement_id,
               entitlement_label: sel.entitlement_label,
             });
             setModalItem(null);
@@ -328,8 +374,8 @@ export default function ShopBusinessRadioLife() {
         <ProductVariantModal
           product={variantProduct}
           onClose={() => setVariantProduct(null)}
-          onConfirm={({ variant, qty }) => {
-            productCart.add(id, b.public_name, variantProduct, variant, qty);
+          onConfirm={({ variant, qty, note }) => {
+            productCart.add(id, b.public_name, variantProduct, variant, qty, note);
             setVariantProduct(null);
             toast.success(`Added ${variantProduct.name}`);
           }}

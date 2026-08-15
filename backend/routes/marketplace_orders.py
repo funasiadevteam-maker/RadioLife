@@ -101,6 +101,7 @@ class CheckoutItem(BaseModel):
     qty: int = Field(1, ge=1, le=50)
     selected_option_ids: List[str] = Field(default_factory=list)
     apply_entitlement_id: Optional[str] = None
+    note: Optional[str] = Field(None, max_length=140)
 
 
 def _compute_fees(profile: Dict[str, Any], base_cents: int, fulfillment: str) -> tuple:
@@ -178,6 +179,8 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         unit_price, selected_detail = price_with_options(base, ogs, sel)
         line = {"item_id": ci.item_id, "name": it.get("name"), "price_cents": unit_price,
                 "qty": ci.qty, "selected_options": selected_detail}
+        if ci.note:
+            line["note"] = ci.note.strip()[:140]
         if ci.apply_entitlement_id:
             ev = await evaluate_line_entitlement(
                 db, user, business_id, item_id=ci.item_id, category=it.get("section"),

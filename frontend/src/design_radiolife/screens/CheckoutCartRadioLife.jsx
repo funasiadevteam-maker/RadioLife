@@ -43,7 +43,7 @@ export default function CheckoutCartRadioLife() {
   const buildGroups = useCallback((giftMap, redeemMap, couponMap) => entries.map(([bizId, g]) => ({
     business_id: bizId, fulfillment: g.fulfillment,
     address: g.fulfillment === "delivery" ? (g.address || "").trim() : null,
-    items: g.items.map((i) => ({ product_id: i.product_id, variant_label: i.variant_label, qty: i.qty })),
+    items: g.items.map((i) => ({ product_id: i.product_id, variant_label: i.variant_label, qty: i.qty, note: i.note || undefined })),
     use_gift_card: giftMap[bizId] !== false,
     redeem_points: redeemMap[bizId] || 0,
     coupon_code: (couponMap || {})[bizId] || undefined,
@@ -121,9 +121,12 @@ export default function CheckoutCartRadioLife() {
             <div key={bizId} className="bg-white border border-slate-200 rounded-2xl p-4" data-testid={`checkout-group-${bizId}`}>
               <div className="font-black text-slate-900 flex items-center gap-1.5 mb-2"><Store size={16} className="text-orange-600" />{g.business_name}</div>
               {g.items.map((i) => (
-                <div key={`${i.product_id}-${i.variant_label || ""}`} className="flex justify-between text-sm text-slate-600 py-0.5">
-                  <span>{i.qty}× {i.name}{i.variant_label ? ` (${i.variant_label})` : ""}</span>
-                  <span className="font-bold text-slate-900">{money(i.price_cents * i.qty)}</span>
+                <div key={`${i.product_id}-${i.variant_label || ""}-${i.note || ""}`} className="py-0.5">
+                  <div className="flex justify-between text-sm text-slate-600">
+                    <span>{i.qty}× {i.name}{i.variant_label ? ` (${i.variant_label})` : ""}</span>
+                    <span className="font-bold text-slate-900">{money(i.price_cents * i.qty)}</span>
+                  </div>
+                  {i.note && <div className="text-[11px] text-orange-600 font-semibold">“{i.note}”</div>}
                 </div>
               ))}
               <div className="text-xs text-slate-500 mt-1 capitalize">{g.fulfillment}{q && q.delivery_fee_cents > 0 ? ` · delivery ${money(q.delivery_fee_cents)}` : ""}</div>

@@ -49,6 +49,7 @@ export default function ItemOptionModal({ item, entitlement, onClose, onConfirm 
   const [selected, setSelected] = useState(() => initialSelection(groups));
   const [applyEnt, setApplyEnt] = useState(!!entitlement);
   const [qty, setQty] = useState(1);
+  const [note, setNote] = useState("");
   const [err, setErr] = useState(null);
 
   const toggle = (g, o) => {
@@ -109,6 +110,7 @@ export default function ItemOptionModal({ item, entitlement, onClose, onConfirm 
       qty,
       selected_option_ids: [...selected],
       option_summary: optionSummary,
+      note: note.trim() || null,
       unit_price_cents: unit,
       apply_entitlement_id: entitlement && applyEnt ? entitlement.entitlement_id : null,
       entitlement_label: entitlement && applyEnt ? entitlement.label : null,
@@ -171,6 +173,13 @@ export default function ItemOptionModal({ item, entitlement, onClose, onConfirm 
               </div>
             </div>
           ))}
+
+          <div>
+            <div className="text-sm font-black text-slate-900 mb-1.5">Special instructions</div>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} rows={2}
+              placeholder="e.g. no onions, extra spicy" data-testid="item-option-note"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none resize-none focus:border-orange-400" />
+          </div>
 
           <div className="flex items-center justify-between">
             <span className="text-sm font-black text-slate-900">Quantity</span>

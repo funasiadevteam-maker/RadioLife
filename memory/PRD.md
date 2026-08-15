@@ -1,5 +1,14 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## STORE PAGE ORDERING — Item Notes · Sticky Add Bar · Clear+Undo · Upsell (2026-06 fork) — self-verified on web (both stores)
+Four enhancements on top of the store-page ordering surface:
+- **Item Notes** (per-line, e.g. "no onions"): note field added to `ItemOptionModal` (menu) + `ProductVariantModal` (products). Threads through `useShopCart` (note in `lineKey` so distinct notes = distinct lines) + `useProductCart` (`keyOf` includes note), shown in the right cart panel + both checkout summaries, and PERSISTED on the order — backend `CheckoutItem`/`ProductCheckoutItem` gained `note` (≤140) written onto each order line (merchants see it). Quote/checkout verified to accept it (no price impact).
+- **Sticky Add Bar** (per card): once an item is in the cart a green "✓ N" badge shows on the image (`shop-incart-{id}`); plain items (no options/variants) get an inline −/qty/+ stepper (`shop-stepper/inc/dec-{id}`) driving the single line; optioned/variant items keep "+" (adds another default) + the badge.
+- **Clear cart + Undo**: `store-cart-clear` in the panel header snapshots then clears, with a sonner toast "Undo" that restores — new store actions `useShopCart.restore` + `useProductCart.restoreGroup`.
+- **Related Upsell**: `store-cart-upsell` "Add a little extra" — up to 3 cheapest add-ons NOT already in cart (prefers coffee/drink/side/dessert-titled sections), each with a one-tap `+` that quick-adds. Computed in `ShopBusinessRadioLife`, passed to `StoreCartPanel` as `suggestions` + `onAdd`.
+- Files: `ShopBusinessRadioLife.jsx`, `components/StoreCartPanel.jsx`, `components/ProductVariantModal.jsx`, `ItemOptionModal.jsx`, `useShopCart.js`, `useProductCart.js`, `CheckoutMenuRadioLife.jsx`, `CheckoutCartRadioLife.jsx`; backend `marketplace_orders.py` + `marketplace_products.py`.
+
+
 ## STORE PAGE = INLINE ORDERING SURFACE (2026-06 fork) — self-verified on web (desktop), both food + product stores
 User request (with production screenshot): on the store/restaurant page, the "+" should add the product instantly; each image should have a **Customize** button; and a **cart should be pinned on the right** (always visible, sticky on scroll). Applies to BOTH food/menu stores and retail product stores.
 - **File:** `frontend/src/design_radiolife/screens/ShopBusinessRadioLife.jsx` (rewritten). Detects `mode` = `menu | product | other` from the profile.

@@ -58,6 +58,7 @@ export default function CheckoutMenuRadioLife() {
       item_id: i.item_id, qty: i.qty,
       selected_option_ids: i.selected_option_ids || [],
       apply_entitlement_id: i.apply_entitlement_id || undefined,
+      note: i.note || undefined,
     })), [cart.items]);
 
   const refresh = useCallback(async (rp, cpn = coupon) => {
@@ -185,6 +186,7 @@ export default function CheckoutMenuRadioLife() {
                 <span>{i.qty}× {i.name}</span><span className="font-bold text-slate-900">{money(i.price_cents * i.qty)}</span>
               </div>
               {i.option_summary && <div className="text-[11px] text-slate-400 ml-4">{i.option_summary}</div>}
+              {i.note && <div className="text-[11px] text-orange-600 font-semibold ml-4">“{i.note}”</div>}
               {i.entitlement_label && <div className="text-[11px] font-bold text-orange-600 ml-4 flex items-center gap-1"><Crown size={10} />{i.entitlement_label}</div>}
             </div>
           ))}

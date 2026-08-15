@@ -3,20 +3,24 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-const keyOf = (pid, v) => (v ? `${pid}::${v}` : pid);
+const keyOf = (pid, v, note) => {
+  let k = v ? `${pid}::${v}` : pid;
+  if (note && note.trim()) k += `::n:${note.trim()}`;
+  return k;
+};
 
 export const useProductCart = create(persist((set, get) => ({
-  groups: {}, // { [businessId]: { business_name, fulfillment, address, items: [{key, product_id, variant_label, name, price_cents, qty}] } }
+  groups: {}, // { [businessId]: { business_name, fulfillment, address, items: [{key, product_id, variant_label, name, price_cents, qty, note}] } }
 
-  add: (bizId, bizName, product, variant, qty = 1) => set((st) => {
+  add: (bizId, bizName, product, variant, qty = 1, note = null) => set((st) => {
     const groups = { ...st.groups };
     const g = groups[bizId] || { business_name: bizName, fulfillment: "pickup", address: "", items: [] };
-    const key = keyOf(product.product_id, variant?.label);
+    const key = keyOf(product.product_id, variant?.label, note);
     const price = variant && variant.price_cents > 0 ? variant.price_cents : product.price_cents;
     const items = [...g.items];
     const ex = items.find((i) => i.key === key);
     if (ex) ex.qty += qty;
-    else items.push({ key, product_id: product.product_id, variant_label: variant?.label || null, name: product.name, price_cents: price, qty, image_url: product.image_url || null });
+    else items.push({ key, product_id: product.product_id, variant_label: variant?.label || null, name: product.name, price_cents: price, qty, image_url: product.image_url || null, note: note || null });
     groups[bizId] = { ...g, business_name: bizName, items };
     return { groups };
   }),
@@ -42,6 +46,7 @@ export const useProductCart = create(persist((set, get) => ({
     return { groups };
   }),
   clear: () => set({ groups: {} }),
+  restoreGroup: (bizId, group) => set((st) => (group ? { groups: { ...st.groups, [bizId]: group } } : {})),
 
   count: () => Object.values(get().groups).reduce((n, g) => n + g.items.reduce((m, i) => m + i.qty, 0), 0),
   venueCount: () => Object.keys(get().groups).length,

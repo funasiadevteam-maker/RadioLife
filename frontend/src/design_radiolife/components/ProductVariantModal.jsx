@@ -11,6 +11,7 @@ export default function ProductVariantModal({ product, onClose, onConfirm }) {
   const firstInStock = useMemo(() => variants.find((v) => v.stock > 0) || variants[0] || null, [variants]);
   const [variant, setVariant] = useState(hasVariants ? firstInStock : null);
   const [qty, setQty] = useState(1);
+  const [note, setNote] = useState("");
   const price = variant && variant.price_cents > 0 ? variant.price_cents : product.price_cents;
   const soldOut = hasVariants ? variants.every((v) => v.stock <= 0) : product.stock <= 0;
 
@@ -51,6 +52,13 @@ export default function ProductVariantModal({ product, onClose, onConfirm }) {
             </div>
           )}
 
+          <div>
+            <div className="text-sm font-black text-slate-900 mb-1.5">Note to seller</div>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} rows={2}
+              placeholder="e.g. gift wrap, colour preference" data-testid="product-variant-note"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none resize-none focus:border-orange-400" />
+          </div>
+
           <div className="flex items-center justify-between">
             <span className="text-sm font-black text-slate-900">Quantity</span>
             <div className="flex items-center gap-3 bg-slate-50 rounded-full px-2 py-1 border border-slate-200">
@@ -62,7 +70,7 @@ export default function ProductVariantModal({ product, onClose, onConfirm }) {
         </div>
 
         <div className="sticky bottom-0 bg-white border-t border-slate-100 p-4">
-          <button onClick={() => onConfirm({ variant, qty })} disabled={soldOut} data-testid="product-variant-confirm"
+          <button onClick={() => onConfirm({ variant, qty, note: note.trim() || null })} disabled={soldOut} data-testid="product-variant-confirm"
             className="w-full flex items-center justify-between gap-2 bg-orange-600 text-white font-black rounded-full px-5 py-3.5 disabled:opacity-60">
             <span className="flex items-center gap-2"><ShoppingCart size={18} />{soldOut ? "Sold out" : `Add ${qty} to cart`}</span>
             {!soldOut && <span data-testid="product-variant-total">{money(price * qty)}</span>}
