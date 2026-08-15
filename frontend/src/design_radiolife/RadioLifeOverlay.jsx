@@ -42,6 +42,7 @@ import ShopOrdersRadioLife from "./screens/ShopOrdersRadioLife";
 import MerchantDashRadioLife from "./screens/MerchantDashRadioLife";
 import MerchantMenuRadioLife from "./screens/MerchantMenuRadioLife";
 import MerchantSubscribeRadioLife from "./screens/MerchantSubscribeRadioLife";
+import MerchantPromoteRadioLife from "./screens/MerchantPromoteRadioLife";
 // Phase C — service bookings.
 import ShopServicesRadioLife from "./screens/ShopServicesRadioLife";
 import ShopBookingsRadioLife from "./screens/ShopBookingsRadioLife";
@@ -118,6 +119,7 @@ export function screenFor(pathname) {
   if (pathname === "/shop/merchant/specials") return MerchantSpecialsRadioLife;
   if (pathname === "/shop/merchant/tickets") return MerchantTicketScanRadioLife;
   if (pathname === "/shop/merchant/subscribe") return MerchantSubscribeRadioLife;
+  if (pathname === "/shop/merchant/promote") return MerchantPromoteRadioLife;
   if (pathname === "/shop/merchant/fulfillment") return MerchantFulfillmentRadioLife;
   if (pathname === "/shop/near-me") return ShopNearMeRadioLife;
   if (pathname.startsWith("/shop/order/")) return ShopOrderTrackerRadioLife;

@@ -1518,6 +1518,9 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_scanpay_indexes(db)
         from routes.marketplace_specials import ensure_specials_indexes
         await ensure_specials_indexes(db)
+        from routes.marketplace_promotions import ensure_promotions_seed
+        promo_seed = await ensure_promotions_seed(db)
+        logger.info(f"Promotions seed: {promo_seed}")
         from services.membership_entitlements import migrate_memberships_v2
         mbr_mig = await migrate_memberships_v2(db)
         logger.info(f"Membership entitlements v2 migration: {mbr_mig}")
@@ -5828,6 +5831,16 @@ try:
     logger.info("Combos route wired: /api/merchant/marketplace/combos")
 except Exception as _e:
     logger.warning("combos router not loaded: %s", _e)
+
+# Promoted Marketplace (Phase F) — merchant self-serve shop boosting.
+try:
+    from routes.marketplace_promotions import router as _mkt_promo_router
+    from routes.marketplace_promotions import admin_router as _mkt_promo_admin_router
+    app.include_router(_mkt_promo_router)
+    app.include_router(_mkt_promo_admin_router)
+    logger.info("Promotions routes wired: /api/merchant/marketplace/promotion /api/admin/marketplace/promotions")
+except Exception as _e:
+    logger.warning("promotions router not loaded: %s", _e)
 
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:

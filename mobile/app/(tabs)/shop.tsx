@@ -14,7 +14,7 @@ import { useCartStore } from '../../src/stores/useCartStore';
 interface Biz {
   business_id: string; public_name: string; category: string; subcategory?: string;
   cover_url?: string; default_bigpoints: number; rating?: number;
-  featured?: boolean; sponsored?: boolean;
+  featured?: boolean; sponsored?: boolean; promoted?: boolean;
 }
 interface Section { key: string; title: string; items: Biz[]; }
 interface Cat { key: string; name: string; icon?: string; }
@@ -271,7 +271,8 @@ export function BizCard({ b, onPress, wide }: { b: Biz; onPress: () => void; wid
       testID={`shop-biz-${b.business_id}`} activeOpacity={0.85}>
       <View style={s.coverWrap}>
         <Image source={{ uri: b.cover_url }} style={s.cover} contentFit="cover" transition={200} />
-        {b.sponsored && <View style={s.sponsoredTag}><Text style={s.sponsoredText}>Sponsored</Text></View>}
+        {b.promoted ? <View style={s.promotedTag}><Text style={s.sponsoredText}>Promoted</Text></View>
+          : b.sponsored ? <View style={s.sponsoredTag}><Text style={s.sponsoredText}>Sponsored</Text></View> : null}
         <View style={s.ptsBadge}>
           <Text style={s.ptsGlyph}>₿</Text>
           <Text style={s.ptsText}>Earn {b.default_bigpoints}</Text>
@@ -351,6 +352,7 @@ const s = StyleSheet.create({
   coverWrap: { position: 'relative' },
   cover: { width: '100%', height: 120, backgroundColor: COLORS.inputBg },
   sponsoredTag: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
+  promotedTag: { position: 'absolute', top: 8, left: 8, backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
   sponsoredText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   ptsBadge: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: COLORS.gold, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full },
   ptsGlyph: { color: '#3a2a00', fontSize: 11, fontWeight: '900' },

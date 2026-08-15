@@ -16,7 +16,8 @@ function BizCard({ b }) {
       className="block rounded-2xl overflow-hidden bg-white border border-slate-200 hover:shadow-lg transition-shadow">
       <div className="relative h-32 bg-slate-100">
         {b.cover_url && <img src={b.cover_url} alt={b.public_name} className="w-full h-full object-cover" />}
-        {b.sponsored && <span className="absolute top-2 left-2 text-[10px] font-bold text-white bg-black/60 px-2 py-0.5 rounded-full">Sponsored</span>}
+        {b.promoted ? <span className="absolute top-2 left-2 text-[10px] font-black text-white bg-orange-600 px-2 py-0.5 rounded-full">Promoted</span>
+          : b.sponsored ? <span className="absolute top-2 left-2 text-[10px] font-bold text-white bg-black/60 px-2 py-0.5 rounded-full">Sponsored</span> : null}
         <span className="absolute bottom-2 right-2 flex items-center gap-1 bg-amber-400 text-amber-950 text-[11px] font-black px-2 py-1 rounded-full">
           <Coins size={11} /> Earn {b.default_bigpoints}
         </span>

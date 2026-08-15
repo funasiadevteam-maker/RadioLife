@@ -115,6 +115,7 @@ const SECTIONS = [
       { to: "/admin/disputes",               label: "Disputes",            testid: "adnav-merchants-disputes" },
       { to: "/admin/points",                   label: "Points & Rewards", testid: "adnav-points-ledger" },
       { to: "/admin/price-parity",         label: "Price Parity",     testid: "adnav-price-parity" },
+      { to: "/admin/promotions",           label: "Promotions",       testid: "adnav-merchants-promotions" },
     ],
   },
   {

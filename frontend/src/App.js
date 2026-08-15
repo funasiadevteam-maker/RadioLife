@@ -172,6 +172,7 @@ import EarnPoints from "@/rewards/EarnPoints";
 import MerchantOps from "@/admin/MerchantOps";
 import RateCard from "@/admin/RateCard";
 import PriceParity from "@/admin/PriceParity";
+import Promotions from "@/admin/Promotions";
 import Premium from "@/premium/Premium";
 import Billing from "@/Billing";
 import Audition from "@/Audition";
@@ -464,6 +465,9 @@ function AppRouter() {
       } />
       <Route path="/admin/price-parity" element={
         <ProtectedRoute requireAdmin><PriceParity /></ProtectedRoute>
+      } />
+      <Route path="/admin/promotions" element={
+        <ProtectedRoute requireAdmin><Promotions /></ProtectedRoute>
       } />
       <Route path="/admin/predict-win/self-serve" element={
         <ProtectedRoute requireAdmin><AdminPredictWinSelfServe /></ProtectedRoute>

@@ -1,5 +1,21 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## PROMOTED MARKETPLACE (Phase F) — testing agent PASS (iter88: backend 17/17; web + mobile e2e verified live)
+Merchant self-serve shop boosting, user-approved: Stripe-paid tiered promotions + a free admin-comp path, admin approval required, boosts Shop search ranking + a "Promoted near you" rail + a "Promoted" badge, on BOTH web + mobile. The Shop search ranking + Sponsored badge plumbing already existed; this adds the merchant purchase flow, admin review, and the promoted-shop surfacing.
+- **Backend** — NEW `routes/marketplace_promotions.py` (+ registered in `server.py`, seed wired at boot):
+  - Tiers (server constant): Spotlight $19.99/7d (w1), Boost $34.99/14d (w2), Premium $59.99/30d (w3).
+  - Merchant: `GET /api/merchant/marketplace/promotion/tiers`, `GET /api/merchant/marketplace/promotion` (mine + active), `POST /checkout {tier, origin_url}` (Stripe hosted Checkout mode=payment → `pending_payment`), `GET /{id}/status` (syncs Stripe paid → `pending_review`).
+  - Admin (`require_admin`): `GET /api/admin/marketplace/promotions?status=`, `POST /{id}/approve` (→ active, sets profile `promoted_until`/`promotion_tier`/`promotion_weight`; **guarded** to only approve `pending_review`), `POST /{id}/reject {note}`, `POST /grant {business_id, tier}` (comp/free instant activation).
+  - `_apply_active` **anti-demotion guard**: a weaker/earlier promotion never overwrites a currently-active stronger one.
+  - `ensure_promotions_seed` comps `biz_sample_ambreens` (Premium/w3) at boot so the rail/badge show out of the box.
+  - Ranking: `services/marketplace.ranking_score` adds `+20000 + weight*100` when `promoted`. `shop._card` computes `promoted` (from `promoted_until > now`) + `promotion_weight`. `shop/home` prepends a `promoted` section "Promoted near you"; `shop/businesses?sort=featured` ranks promoted first.
+  - Collections: NEW `marketplace_promotions` {promotion_id, business_id, owner_user_id, tier, days, price_cents, weight, status(pending_payment→pending_review→active / rejected / expired), stripe_session_id, paid, comp, expires_at…}. `marketplace_profiles` gained `promoted_until` / `promotion_tier` / `promotion_weight`.
+- **Web**: NEW `MerchantPromoteRadioLife.jsx` (`/shop/merchant/promote`, tiers + buy→Stripe redirect + active banner + history) wired in `RadioLifeOverlay` + Merchant Dashboard tile (`merchant-open-promote`). NEW admin `admin/Promotions.jsx` (`/admin/promotions`, tabs + approve/reject + comp-grant) wired in `App.js` + `AdminSidebar` (`adnav-merchants-promotions`). BizCard shows orange "Promoted" badge (falls back to "Sponsored").
+- **Mobile**: NEW `app/merchant/promote.tsx` (tiers + Stripe via `expo-web-browser` + status sync) + dashboard tile (`merchant-open-promote`). Shop-tab BizCard shows orange "Promoted" badge; "Promoted near you" rail renders from the home `promoted` section (no client change needed — it iterates `sections`).
+- Non-blocking notes (from testing agent, acknowledged): stale `pending_payment` docs are not swept (harmless; reads are time/status gated).
+
+
+
 ## WEB USUAL ONE-TAP (Shop Home) + FULL MOBILE ORDERING PARITY (2026-06 fork) — testing agent PASS (iter87: backend 5/5; web + mobile live-verified, no parity issues)
 Two-part batch, user-approved to do together. (A) finished the WEB "Get your usual" shortcut on the Shop Home; (B) brought the Expo MOBILE app to parity with 5+ batches of store-ordering UX that had been built web-only (instant inline ordering, item notes + presets, combo nudges/badges + happy-hour combos, save-for-later, "usual"/reorder). Shared FastAPI backend unchanged (contracts already existed: `/api/shop/usual`, `/businesses/{id}/usual`, `/businesses/{id}/combos`, `/orders/last/{id}`; menu+product checkout accept per-line `note`).
 - **Web (`ShopRadioLife.jsx`)**: new `shop-usual-card` on the Shop Home (non-browsing view) — fetches `GET /api/shop/usual` (auth; 401→hidden), shows the shopper's go-to store + top items in a horizontal row, "Add my usual (N) & checkout" (`shop-usual-add-all`) adds all lines to the menu cart (`useShopCart`) and navigates to `/shop/checkout/menu`; `shop-usual-dismiss`. Verified live (demo@ → 3 Fun Pizza items → $45.97, membership Free Pizza applied → $1.89).

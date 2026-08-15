@@ -168,6 +168,8 @@ export default function MerchantDashRadioLife() {
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Tag size={15} />Coupons</button>
           <button onClick={() => navigate("/shop/merchant/specials")} data-testid="merchant-open-specials"
             className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-600 font-black rounded-xl py-3 text-sm"><Flame size={15} />Specials</button>
+          <button onClick={() => navigate("/shop/merchant/promote")} data-testid="merchant-open-promote"
+            className="flex items-center justify-center gap-1.5 bg-orange-600 text-white font-black rounded-xl py-3 text-sm"><TrendingUp size={15} />Promote</button>
           <button onClick={() => navigate("/shop/merchant/scan")} data-testid="merchant-open-scan"
             className="flex items-center justify-center gap-1.5 bg-green-600 text-white font-black rounded-xl py-3 text-sm"><QrCode size={15} />Scan to Charge</button>
           <button onClick={() => navigate("/shop/merchant/earnings")} data-testid="merchant-open-earnings"

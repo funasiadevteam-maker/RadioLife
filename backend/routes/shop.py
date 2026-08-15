@@ -3,6 +3,7 @@ Reads APPROVED marketplace profiles.  Platform-agnostic (mobile + web)."""
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -11,6 +12,10 @@ from auth import current_user, current_user_optional
 from services.marketplace import resolve_point_cost_cents, ranking_score
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -25,6 +30,8 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 def _card(p: Dict[str, Any]) -> Dict[str, Any]:
     bp = p.get("bigpoints", {}) or {}
     geo = p.get("geo") or {}
+    pu = p.get("promoted_until")
+    promoted = bool(pu and str(pu) > _now_iso())
     return {
         "business_id": p.get("business_id"),
         "public_name": p.get("public_name"),
@@ -40,6 +47,8 @@ def _card(p: Dict[str, Any]) -> Dict[str, Any]:
         "rating": p.get("rating"),
         "featured": bool(p.get("featured")),
         "sponsored": bool(p.get("sponsored")),
+        "promoted": promoted,
+        "promotion_weight": int(p.get("promotion_weight") or 0) if promoted else 0,
         "geo": {"lat": geo.get("lat"), "lng": geo.get("lng"),
                 "address": geo.get("address")} if (geo.get("lat") is not None) else None,
         "delivery_enabled": bool((p.get("delivery") or {}).get("enabled")),
@@ -167,8 +176,23 @@ async def shop_home(request: Request, market: Optional[str] = None,
     services = await _list({**base, "sells": "services"}, None, 10)
     featured = await _list({**base, "featured": True}, None, 10)
 
+    # Promoted near you — active paid/comped promotions, highest tier first.
+    promoted = await _list({**base_market, "promoted_until": {"$gt": _now_iso()}},
+                           lambda x: x.get("promotion_weight", 0) * 1e6 + ranking_score(x), 12)
+
     from routes.marketplace_specials import get_active_specials
     specials = await get_active_specials(db, mk, 12)
+
+    sections = []
+    if promoted:
+        sections.append({"key": "promoted", "title": "Promoted near you", "items": promoted})
+    sections += [
+        {"key": "recommended", "title": "Recommended for You", "items": recommended},
+        {"key": "earn_more", "title": "Earn More BigPoints", "items": most_points},
+        {"key": "food", "title": "Food Ready for Pickup", "items": food},
+        {"key": "services", "title": "Popular Services", "items": services},
+        {"key": "featured", "title": "Featured Businesses", "items": featured},
+    ]
 
     return {
         "headline": "SHOP LOCAL. EARN BIGPOINTS.",
@@ -177,13 +201,7 @@ async def shop_home(request: Request, market: Optional[str] = None,
         "filters": ["Nearby", "Open Now", "Top Rated", "Most BigPoints",
                     "Special Offers", "Available Today", "Book Now", "Pickup Today"],
         "specials": specials,
-        "sections": [
-            {"key": "recommended", "title": "Recommended for You", "items": recommended},
-            {"key": "earn_more", "title": "Earn More BigPoints", "items": most_points},
-            {"key": "food", "title": "Food Ready for Pickup", "items": food},
-            {"key": "services", "title": "Popular Services", "items": services},
-            {"key": "featured", "title": "Featured Businesses", "items": featured},
-        ],
+        "sections": sections,
     }
 
 

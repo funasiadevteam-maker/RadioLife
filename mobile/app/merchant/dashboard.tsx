@@ -199,6 +199,10 @@ export default function MerchantDashboard() {
                 <Ionicons name="flame" size={16} color={COLORS.primary} />
                 <Text style={s.linkText}>Specials</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[s.linkBtn, { backgroundColor: COLORS.primary }]} onPress={() => router.push('/merchant/promote')} testID="merchant-open-promote">
+                <Ionicons name="trending-up" size={16} color="#fff" />
+                <Text style={[s.linkText, { color: '#fff' }]}>Promote</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={[s.linkBtn, { backgroundColor: COLORS.green }]} onPress={() => router.push('/merchant/scan')} testID="merchant-open-scan">
                 <Ionicons name="qr-code" size={16} color="#fff" />
                 <Text style={[s.linkText, { color: '#fff' }]}>Scan to Charge</Text>

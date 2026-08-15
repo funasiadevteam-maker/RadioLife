@@ -241,6 +241,8 @@ def ranking_score(profile_or_card: Dict[str, Any]) -> float:
     base = int(profile_or_card.get("default_bigpoints")
                or bp.get("default_points") or 0)
     score = 0.0
+    if profile_or_card.get("promoted"):
+        score += 20000 + int(profile_or_card.get("promotion_weight") or 0) * 100
     if profile_or_card.get("sponsored"):
         score += 10000
     if profile_or_card.get("featured"):
