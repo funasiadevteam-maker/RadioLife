@@ -44,7 +44,7 @@ export function menuQuickAddReady(item) {
   });
 }
 
-export default function ItemOptionModal({ item, entitlement, onClose, onConfirm }) {
+export default function ItemOptionModal({ item, entitlement, notePresets, onClose, onConfirm }) {
   const groups = item.option_groups || [];
   const [selected, setSelected] = useState(() => initialSelection(groups));
   const [applyEnt, setApplyEnt] = useState(!!entitlement);
@@ -177,7 +177,7 @@ export default function ItemOptionModal({ item, entitlement, onClose, onConfirm 
           <div>
             <div className="text-sm font-black text-slate-900 mb-1.5">Special instructions</div>
             <div className="flex flex-wrap gap-1.5 mb-2" data-testid="item-note-presets">
-              {["No onions", "Extra spicy", "No ice", "Less sugar", "Well done", "On the side"].map((chip) => (
+              {(notePresets && notePresets.length ? notePresets : ["No onions", "Extra spicy", "No ice", "Less sugar", "Well done", "On the side"]).map((chip) => (
                 <button key={chip} type="button" data-testid={`item-note-chip-${chip}`}
                   onClick={() => setNote((n) => (n.toLowerCase().includes(chip.toLowerCase()) ? n : (n ? `${n}, ${chip}` : chip)))}
                   className="px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-xs font-bold text-slate-600 hover:border-orange-400 hover:text-orange-600">

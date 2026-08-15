@@ -124,6 +124,7 @@ async def business_detail(business_id: str, request: Request,
         await db.products.find_one({"business_id": business_id, "active": True}))
     card["has_events"] = bool(
         await db.events.find_one({"business_id": business_id, "active": True}))
+    card["note_presets"] = p.get("note_presets") or []
     # Happy Hour live state for consumer.
     from services.marketplace import effective_points
     eff = effective_points(p)
@@ -237,21 +238,21 @@ CHECKIN_POINTS = 50
 @router.get("/businesses/{business_id}/combos")
 async def business_combos(business_id: str, request: Request,
                           user: dict = Depends(current_user_optional)):
-    """Active merchant-defined meal combos — powers the store-page combo nudge."""
+    """Active merchant-defined meal combos — powers the store-page combo nudge
+    and badges. Honours happy-hour schedules via active_now."""
+    from services.combos import combo_active_now
     db = request.app.state.db
     combos = []
     async for c in db.marketplace_combos.find({"business_id": business_id, "active": True}):
         combos.append({"combo_id": c.get("combo_id"), "name": c.get("name"),
                        "price_cents": c.get("price_cents", 0),
-                       "requirements": c.get("requirements", [])})
+                       "requirements": c.get("requirements", []),
+                       "schedule": c.get("schedule"),
+                       "active_now": combo_active_now(c)})
     return {"combos": combos}
 
 
-@router.get("/businesses/{business_id}/usual")
-async def my_usual(business_id: str, request: Request, user: dict = Depends(current_user)):
-    """Most-ordered items across the shopper's paid orders here — 'Get your usual?'."""
-    db = request.app.state.db
-    uid = user.get("user_id")
+async def _usual_items(db, uid: str, business_id: str, limit: int = 4):
     agg: Dict[str, Dict[str, Any]] = {}
     async for o in db.marketplace_orders.find(
             {"user_id": uid, "business_id": business_id, "payment_status": "paid"}).sort("created_at", -1).limit(40):
@@ -264,7 +265,7 @@ async def my_usual(business_id: str, request: Request, user: dict = Depends(curr
                                      "selected_options": li.get("selected_options") or [],
                                      "note": li.get("note")})
             e["count"] += int(li.get("qty", 1) or 1)
-    ranked = sorted(agg.values(), key=lambda x: x["count"], reverse=True)[:4]
+    ranked = sorted(agg.values(), key=lambda x: x["count"], reverse=True)[:limit]
     out = []
     for e in ranked:
         mi = await db.menu_items.find_one({"item_id": e["item_id"], "business_id": business_id, "available": True})
@@ -278,7 +279,49 @@ async def my_usual(business_id: str, request: Request, user: dict = Depends(curr
             "option_summary": ", ".join([op.get("label") for op in opts if op.get("label")]) or None,
             "note": e.get("note"),
         })
-    return {"has_usual": len(out) > 0, "items": out}
+    return out
+
+
+@router.get("/usual")
+async def my_usual_home(request: Request, user: dict = Depends(current_user)):
+    """The shopper's go-to store + usual items — powers the Shop-home shortcut."""
+    db = request.app.state.db
+    uid = user.get("user_id")
+    counts: Dict[str, int] = {}
+    async for o in db.marketplace_orders.find(
+            {"user_id": uid, "payment_status": "paid"}).sort("created_at", -1).limit(60):
+        bid = o.get("business_id")
+        if bid:
+            counts[bid] = counts.get(bid, 0) + 1
+    if not counts:
+        return {"has_usual": False}
+    top_biz = max(counts, key=counts.get)
+    p = await db.marketplace_profiles.find_one({"business_id": top_biz})
+    if not p or "menu" not in (p.get("sells") or []):
+        # only menu stores support quick reorder
+        menu_biz = [b for b in sorted(counts, key=counts.get, reverse=True)]
+        p = None
+        for b in menu_biz:
+            cand = await db.marketplace_profiles.find_one({"business_id": b})
+            if cand and ("menu" in (cand.get("sells") or []) or await db.menu_items.find_one({"business_id": b})):
+                p = cand
+                top_biz = b
+                break
+        if not p:
+            return {"has_usual": False}
+    items = await _usual_items(db, uid, top_biz)
+    if not items:
+        return {"has_usual": False}
+    return {"has_usual": True, "business_id": top_biz,
+            "business_name": p.get("public_name"), "items": items}
+
+
+@router.get("/businesses/{business_id}/usual")
+async def my_usual(business_id: str, request: Request, user: dict = Depends(current_user)):
+    """Most-ordered items across the shopper's paid orders here — 'Get your usual?'."""
+    db = request.app.state.db
+    items = await _usual_items(db, user.get("user_id"), business_id)
+    return {"has_usual": len(items) > 0, "items": items}
 
 
 @router.post("/businesses/{business_id}/checkin")

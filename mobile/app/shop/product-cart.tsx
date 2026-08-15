@@ -9,6 +9,7 @@ import * as WebBrowser from 'expo-web-browser';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 import { useProductCart } from '../../src/stores/useProductCart';
+import { useSavedForLater } from '../../src/stores/useSavedForLater';
 import { useReward } from '../../src/components/RewardOverlay';
 import SavedCardPicker from '../../src/components/SavedCardPicker';
 
@@ -21,7 +22,8 @@ const COUPON_ERR: Record<string, string> = {
 
 export default function ProductCart() {
   const router = useRouter();
-  const { groups, inc, dec, setFulfillment, setAddress, removeGroup, clear } = useProductCart();
+  const { groups, inc, dec, add, removeItem, setFulfillment, setAddress, removeGroup, clear } = useProductCart();
+  const saved = useSavedForLater();
   const { celebrate } = useReward();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,19 @@ export default function ProductCart() {
 
   const entries = Object.entries(groups);
   const grand = entries.reduce((s, [, g]) => s + g.items.reduce((m, i) => m + i.price_cents * i.qty, 0), 0);
+
+  const saveForLater = (bizId: string, i: any) => {
+    saved.save(bizId, {
+      key: `p:${i.key}`, kind: 'product', note: i.note || null,
+      product: { product_id: i.product_id, name: i.name, image_url: i.image_url || null, price_cents: i.price_cents },
+      variant: i.variant_label ? { label: i.variant_label, price_cents: i.price_cents } : null,
+    });
+    removeItem(bizId, i.key);
+  };
+  const moveToCart = (bizId: string, g: any, e: any) => {
+    add(bizId, g.business_name, e.product, e.variant, g.delivery_cfg, 1, e.note);
+    saved.remove(bizId, e.key);
+  };
 
   const applyCoupon = async (bizId: string) => {
     const code = (couponInputs[bizId] || '').trim().toUpperCase();
@@ -49,7 +64,7 @@ export default function ProductCart() {
       business_id: bizId,
       fulfillment: g.fulfillment,
       address: g.fulfillment === 'delivery' ? (g.address || '').trim() : null,
-      items: g.items.map((i) => ({ product_id: i.product_id, variant_label: i.variant_label, qty: i.qty })),
+      items: g.items.map((i) => ({ product_id: i.product_id, variant_label: i.variant_label, qty: i.qty, note: i.note || undefined })),
       coupon_code: coupons[bizId] || undefined,
     }));
     if (payload.some((p) => p.fulfillment === 'delivery' && !p.address)) {
@@ -116,7 +131,13 @@ export default function ProductCart() {
 
                   {g.items.map((i) => (
                     <View key={i.key} style={s.itemRow} testID={`pcart-item-${bizId}-${i.key}`}>
-                      <Text style={s.itemName} numberOfLines={1}>{i.name}{i.variant_label ? ` (${i.variant_label})` : ''}</Text>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={s.itemName} numberOfLines={1}>{i.name}{i.variant_label ? ` (${i.variant_label})` : ''}</Text>
+                        {!!i.note && <Text style={s.itemNote} numberOfLines={1} testID={`pcart-note-${bizId}-${i.key}`}>“{i.note}”</Text>}
+                      </View>
+                      <TouchableOpacity onPress={() => saveForLater(bizId, i)} testID={`pcart-save-${bizId}-${i.key}`} style={s.bookmarkBtn}>
+                        <Ionicons name="bookmark-outline" size={15} color={COLORS.primary} />
+                      </TouchableOpacity>
                       <View style={s.stepper}>
                         <TouchableOpacity onPress={() => dec(bizId, i.key)} testID={`pcart-dec-${bizId}-${i.key}`} style={s.stepBtn}>
                           <Ionicons name="remove" size={16} color={COLORS.primary} />
@@ -129,6 +150,23 @@ export default function ProductCart() {
                       </View>
                     </View>
                   ))}
+
+                  {saved.listFor(bizId).length > 0 && (
+                    <View style={s.savedShelf} testID={`pcart-saved-${bizId}`}>
+                      <Text style={s.savedTitle}>Saved for later</Text>
+                      {saved.listFor(bizId).map((e) => (
+                        <View key={e.key} style={s.savedRow} testID={`pcart-saved-item-${bizId}-${e.key}`}>
+                          <Text style={s.savedName} numberOfLines={1}>{e.name}{e.variant?.label ? ` (${e.variant.label})` : ''}</Text>
+                          <TouchableOpacity onPress={() => moveToCart(bizId, g, e)} testID={`pcart-saved-add-${bizId}-${e.key}`} style={s.savedAdd}>
+                            <Ionicons name="add" size={13} color={COLORS.primary} /><Text style={s.savedAddText}>Move</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => saved.remove(bizId, e.key)} testID={`pcart-saved-remove-${bizId}-${e.key}`} style={{ paddingLeft: 6 }}>
+                            <Ionicons name="trash-outline" size={15} color={COLORS.red} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
 
                   <View style={s.fulRow}>
                     {cfg.pickup !== false && (
@@ -191,7 +229,15 @@ const s = StyleSheet.create({
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   bizName: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
   itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 },
-  itemName: { flex: 1, minWidth: 0, color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700' },
+  itemName: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700' },
+  itemNote: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '700', fontStyle: 'italic', marginTop: 2 },
+  bookmarkBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
+  savedShelf: { marginTop: 6, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder, paddingTop: 8 },
+  savedTitle: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '900', marginBottom: 6 },
+  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  savedName: { flex: 1, minWidth: 0, color: COLORS.text, fontSize: FONT.xs, fontWeight: '800' },
+  savedAdd: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  savedAddText: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '900' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stepBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
   qty: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900', minWidth: 14, textAlign: 'center' },

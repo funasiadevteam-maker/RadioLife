@@ -17,12 +17,16 @@ export type CartItem = {
   qty: number;
   selected_option_ids: string[];
   option_summary?: string | null;
+  note?: string | null;
   apply_entitlement_id?: string | null;
   entitlement_label?: string | null;
 };
 
-const lineKey = (itemId: string, optionIds: string[], entId?: string | null) =>
-  `${itemId}::${[...(optionIds || [])].sort().join(',')}::${entId || ''}`;
+// Note is part of the line identity so distinct kitchen notes = distinct lines.
+const lineKey = (itemId: string, optionIds: string[], entId?: string | null, note?: string | null) => {
+  const base = `${itemId}::${[...(optionIds || [])].sort().join(',')}::${entId || ''}`;
+  return note && note.trim() ? `${base}::n:${note.trim()}` : base;
+};
 
 export type DeliveryAddress = {
   label?: string | null;
@@ -37,7 +41,7 @@ export type DeliveryAddress = {
 
 type LineInput = {
   item_id: string; name: string; price_cents: number; qty?: number;
-  selected_option_ids?: string[]; option_summary?: string | null;
+  selected_option_ids?: string[]; option_summary?: string | null; note?: string | null;
   apply_entitlement_id?: string | null; entitlement_label?: string | null;
 };
 
@@ -57,6 +61,7 @@ type CartState = {
   dec: (lineId: string) => void;
   remove: (lineId: string) => void;
   clear: () => void;
+  restore: (bizId: string | null, bizName: string | null, items: CartItem[]) => void;
   replaceWith: (bizId: string, bizName: string, items: { item_id: string; name: string; price_cents: number; qty?: number }[]) => void;
   count: () => number;
   subtotal: () => number;
@@ -77,7 +82,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   addLine: (bizId, bizName, line) => set((st) => {
     let { items, businessId, businessName } = st;
     if (businessId !== bizId) { items = []; businessId = bizId; businessName = bizName; }
-    const lid = lineKey(line.item_id, line.selected_option_ids || [], line.apply_entitlement_id);
+    const lid = lineKey(line.item_id, line.selected_option_ids || [], line.apply_entitlement_id, line.note);
     const ex = items.find((i) => i.line_id === lid);
     items = ex
       ? items.map((i) => (i.line_id === lid ? { ...i, qty: i.qty + (line.qty || 1) } : i))
@@ -85,6 +90,7 @@ export const useCartStore = create<CartState>((set, get) => ({
           line_id: lid, item_id: line.item_id, name: line.name, price_cents: line.price_cents,
           qty: line.qty || 1, selected_option_ids: line.selected_option_ids || [],
           option_summary: line.option_summary || null,
+          note: line.note || null,
           apply_entitlement_id: line.apply_entitlement_id || null,
           entitlement_label: line.entitlement_label || null,
         }];
@@ -101,6 +107,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     return items.length ? { items } : { items: [], businessId: null, businessName: null };
   }),
   clear: () => set({ items: [], businessId: null, businessName: null }),
+  restore: (bizId, bizName, items) => set({ businessId: bizId, businessName: bizName, items: items || [] }),
   replaceWith: (bizId, bizName, items) => set({
     businessId: bizId, businessName: bizName,
     items: (items || []).map((i) => ({

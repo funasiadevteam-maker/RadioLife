@@ -170,13 +170,16 @@ export default function ShopBusinessRadioLife() {
   const lc = (s) => (s || "").toLowerCase();
   const sectionByItem = {};
   groups.forEach((g) => g.items.forEach((it) => { sectionByItem[keyOfItem(it)] = g.title || ""; }));
+  const activeCombos = combos.filter((c) => c.active_now !== false);
+  const comboCats = activeCombos.flatMap((c) => (c.requirements || []).map((r) => lc(r.category)));
+  const isComboItem = (it) => mode === "menu" && comboCats.some((cat) => cat && lc(sectionByItem[keyOfItem(it)]).includes(cat));
   const computeCombo = () => {
     if (mode !== "menu") return { applies: false, saveCents: 0 };
     const units = [];
     menuLines.forEach((l) => { for (let k = 0; k < l.qty; k++) units.push({ sec: lc(sectionByItem[l.item_id]), unit: l.price_cents, used: false }); });
-    if (combos.length) {
+    if (activeCombos.length) {
       let total = 0;
-      for (const c of combos) {
+      for (const c of activeCombos) {
         const reqs = c.requirements || []; const price = c.price_cents || 0;
         if (!reqs.length) continue;
         let guard = 0;
@@ -393,6 +396,11 @@ export default function ShopBusinessRadioLife() {
                   className="bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-orange-300 transition-colors flex flex-col">
                   <div className="relative bg-slate-100 overflow-hidden" style={{ aspectRatio: "1 / 1" }}>
                     {it.image_url && <img src={it.image_url} alt={it.name} className="w-full h-full object-cover" />}
+                    {isComboItem(it) && (
+                      <span className="absolute top-2 left-2 inline-flex items-center gap-0.5 bg-green-600 text-white text-[10px] font-black rounded-full px-2 py-0.5 shadow" data-testid={`shop-combo-badge-${it.id}`}>
+                        🍔 Combo deal
+                      </span>
+                    )}
                     {qn > 0 && (
                       <span className="absolute top-2 right-2 inline-flex items-center gap-1 bg-green-600 text-white text-[11px] font-black rounded-full pl-1.5 pr-2 py-0.5 shadow" data-testid={`shop-incart-${it.id}`}>
                         <Check size={11} />{qn}
@@ -467,6 +475,7 @@ export default function ShopBusinessRadioLife() {
         <ItemOptionModal
           item={modalItem}
           entitlement={null}
+          notePresets={b.note_presets || []}
           onClose={() => setModalItem(null)}
           onConfirm={(sel) => {
             menuCart.addLine(id, b.public_name, {

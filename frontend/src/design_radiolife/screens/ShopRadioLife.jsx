@@ -1,11 +1,14 @@
 // RadioLife Shop — web consumer marketplace (Super Marketplace Phase A).
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar, Sparkles, Navigation } from "lucide-react";
+import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar, Sparkles, Navigation, RotateCcw } from "lucide-react";
 import { API } from "@/AuthContext";
 import { RLCard, RLChip } from "../DesignSystem";
 import { useProductCart } from "../useProductCart";
+import { useShopCart } from "../useShopCart";
+
+const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 
 function BizCard({ b }) {
   return (
@@ -31,6 +34,7 @@ function BizCard({ b }) {
 }
 
 export default function ShopRadioLife() {
+  const navigate = useNavigate();
   const [home, setHome] = useState(null);
   const [cats, setCats] = useState([]);
   const [category, setCategory] = useState("all");
@@ -40,6 +44,9 @@ export default function ShopRadioLife() {
   const [loading, setLoading] = useState(true);
   const [isMerchant, setIsMerchant] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [usual, setUsual] = useState(null);
+  const [usualDismissed, setUsualDismissed] = useState(false);
+  const menuCart = useShopCart();
   const cartCount = useProductCart((st) => Object.values(st.groups).reduce((n, g) => n + g.items.reduce((m, i) => m + i.qty, 0), 0));
 
   useEffect(() => {
@@ -55,7 +62,20 @@ export default function ShopRadioLife() {
     axios.get(`${API}/merchant/marketplace/profile`)
       .then((r) => setIsMerchant(!!r.data?.profile))
       .catch(() => setIsMerchant(false));
+    // "Get your usual" one-tap for returning customers (auth-only; 401 → hide).
+    axios.get(`${API}/shop/usual`)
+      .then((r) => { if (r.data?.has_usual) setUsual(r.data); })
+      .catch(() => setUsual(null));
   }, []);
+
+  const addUsual = () => {
+    if (!usual?.items?.length) return;
+    usual.items.forEach((u) => menuCart.addLine(usual.business_id, usual.business_name, {
+      item_id: u.item_id, name: u.name, price_cents: u.price_cents,
+      selected_option_ids: u.selected_option_ids || [], option_summary: u.option_summary, note: u.note,
+    }));
+    navigate("/shop/checkout/menu");
+  };
 
   useEffect(() => {
     const params = { sort };
@@ -195,6 +215,38 @@ export default function ShopRadioLife() {
         </>
       ) : (
         <>
+          {usual && !usualDismissed && (
+            <section data-testid="shop-usual-card"
+              className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="font-black text-slate-900 flex items-center gap-1.5">
+                  <RotateCcw size={17} className="text-orange-600" />Get your usual
+                </div>
+                <button onClick={() => setUsualDismissed(true)} data-testid="shop-usual-dismiss"
+                  className="text-slate-400 text-xs font-black">Dismiss</button>
+              </div>
+              <div className="text-xs text-slate-500 font-bold mt-0.5">from {usual.business_name}</div>
+              <div className="flex gap-2 overflow-x-auto pb-1 mt-2.5 -mx-1 px-1">
+                {(usual.items || []).map((u) => (
+                  <Link key={u.item_id} to={`/shop/${usual.business_id}`} data-testid={`shop-usual-item-${u.item_id}`}
+                    className="shrink-0 w-28 rounded-xl overflow-hidden bg-white border border-orange-200">
+                    <div className="relative h-20 bg-slate-100">
+                      {u.image_url && <img src={u.image_url} alt={u.name} className="w-full h-full object-cover" />}
+                      <span className="absolute top-1 right-1 text-[10px] font-black text-white bg-orange-600 px-1.5 py-0.5 rounded-full">×{u.times_ordered}</span>
+                    </div>
+                    <div className="p-2">
+                      <div className="text-[11px] font-bold text-slate-900 line-clamp-1">{u.name}</div>
+                      <div className="text-[11px] font-black text-slate-900">{money(u.price_cents)}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <button onClick={addUsual} data-testid="shop-usual-add-all"
+                className="mt-2 w-full bg-orange-600 text-white font-black rounded-full py-2.5 text-sm hover:bg-orange-700 transition-colors">
+                Add my usual ({(usual.items || []).length}) &amp; checkout
+              </button>
+            </section>
+          )}
           {specials.length > 0 && (
             <section data-testid="shop-specials-row">
               <h2 className="text-lg font-black text-slate-900 mb-2 flex items-center gap-1.5">🔥 Today&apos;s Specials</h2>

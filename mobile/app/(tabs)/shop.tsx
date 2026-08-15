@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
+import { useCartStore } from '../../src/stores/useCartStore';
 
 interface Biz {
   business_id: string; public_name: string; category: string; subcategory?: string;
@@ -30,6 +31,9 @@ export default function ShopHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [isMerchant, setIsMerchant] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [usual, setUsual] = useState<any>(null);
+  const [usualDismissed, setUsualDismissed] = useState(false);
+  const menuCart = useCartStore();
 
   const load = useCallback(async () => {
     try {
@@ -48,7 +52,20 @@ export default function ShopHome() {
     api.get('/merchant/marketplace/profile')
       .then((r) => setIsMerchant(!!r.data?.profile))
       .catch(() => setIsMerchant(false));
+    // "Get your usual" one-tap for returning customers (auth-only; 401 → hide).
+    api.get('/shop/usual')
+      .then((r) => { if (r.data?.has_usual) setUsual(r.data); })
+      .catch(() => setUsual(null));
   }, []);
+
+  const addUsual = () => {
+    if (!usual?.items?.length) return;
+    usual.items.forEach((u: any) => menuCart.addLine(usual.business_id, usual.business_name, {
+      item_id: u.item_id, name: u.name, price_cents: u.price_cents,
+      selected_option_ids: u.selected_option_ids || [], option_summary: u.option_summary, note: u.note,
+    }));
+    router.push('/shop/cart');
+  };
 
   const ACCOUNT_LINKS: [string, string, string, string][] = [
     ['/shop/concierge', 'sparkles', 'Order by Chat', 'shop-concierge-link'],
@@ -145,6 +162,36 @@ export default function ShopHome() {
           </View>
           <Ionicons name="arrow-forward-circle" size={30} color="#fff" />
         </TouchableOpacity>
+
+        {usual && !usualDismissed && (
+          <View style={s.usualCard} testID="shop-usual-card">
+            <View style={s.usualHead}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="refresh" size={16} color={COLORS.primary} />
+                <Text style={s.usualTitle}>Get your usual</Text>
+              </View>
+              <TouchableOpacity onPress={() => setUsualDismissed(true)} testID="shop-usual-dismiss">
+                <Text style={s.usualDismiss}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={s.usualSub}>from {usual.business_name}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginTop: 10 }}>
+              {(usual.items || []).map((u: any) => (
+                <TouchableOpacity key={u.item_id} style={s.usualItem} onPress={() => router.push(`/shop/${usual.business_id}`)} testID={`shop-usual-item-${u.item_id}`}>
+                  <View style={s.usualImgWrap}>
+                    <Image source={{ uri: u.image_url }} style={s.usualImg} contentFit="cover" transition={150} />
+                    <View style={s.usualCount}><Text style={s.usualCountText}>×{u.times_ordered}</Text></View>
+                  </View>
+                  <Text style={s.usualName} numberOfLines={1}>{u.name}</Text>
+                  <Text style={s.usualPrice}>${(u.price_cents / 100).toFixed(2)}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={s.usualBtn} onPress={addUsual} testID="shop-usual-add-all">
+              <Text style={s.usualBtnText}>Add my usual ({(usual.items || []).length}) &amp; checkout</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {specials.length > 0 && (
           <View style={{ marginTop: SPACING.lg }} testID="shop-specials-row">
@@ -266,6 +313,20 @@ const s = StyleSheet.create({
   sellCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: 16 },
   dashCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1f2430', borderRadius: RADIUS.lg, padding: 16 },
   conciergeCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: 16 },
+  usualCard: { marginHorizontal: SPACING.md, marginTop: SPACING.md, backgroundColor: COLORS.primary + '10', borderWidth: 1, borderColor: COLORS.primary + '33', borderRadius: RADIUS.lg, padding: 14 },
+  usualHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  usualTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
+  usualDismiss: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '900' },
+  usualSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
+  usualItem: { width: 104, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.primary + '33', borderRadius: RADIUS.md, overflow: 'hidden' },
+  usualImgWrap: { position: 'relative', width: '100%', height: 72, backgroundColor: COLORS.inputBg },
+  usualImg: { width: '100%', height: '100%' },
+  usualCount: { position: 'absolute', top: 6, right: 6, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 2 },
+  usualCountText: { color: '#fff', fontSize: 10, fontWeight: '900' },
+  usualName: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '800', paddingHorizontal: 8, paddingTop: 6 },
+  usualPrice: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '900', paddingHorizontal: 8, paddingBottom: 8, paddingTop: 2 },
+  usualBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
+  usualBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
   sellTitle: { color: '#fff', fontSize: FONT.md, fontWeight: '900' },
   sellSub: { color: '#fff', opacity: 0.9, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
   overlayFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' },

@@ -32,7 +32,8 @@ export default function MerchantMenuRadioLife() {
   const [photoBusy, setPhotoBusy] = useState(null);
   const [photoTarget, setPhotoTarget] = useState(null);
   const [combos, setCombos] = useState([]);
-  const [comboForm, setComboForm] = useState({ name: "", price: "", reqs: [{ category: "", qty: 1 }, { category: "", qty: 1 }] });
+  const emptyCombo = { name: "", price: "", reqs: [{ category: "", qty: 1 }, { category: "", qty: 1 }], schedule: { enabled: false, start: "12:00", end: "14:00", days: [], tz: "UTC" } };
+  const [comboForm, setComboForm] = useState(emptyCombo);
   const [editingCombo, setEditingCombo] = useState(null);
   const [comboSaving, setComboSaving] = useState(false);
   const imgRef = useRef(); const pdfRef = useRef(); const xlsRef = useRef(); const photoRef = useRef();
@@ -49,8 +50,10 @@ export default function MerchantMenuRadioLife() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const resetCombo = () => { setComboForm({ name: "", price: "", reqs: [{ category: "", qty: 1 }, { category: "", qty: 1 }] }); setEditingCombo(null); };
+  const resetCombo = () => { setComboForm(emptyCombo); setEditingCombo(null); };
   const setReq = (i, patch) => setComboForm((f) => ({ ...f, reqs: f.reqs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) }));
+  const setSched = (patch) => setComboForm((f) => ({ ...f, schedule: { ...f.schedule, ...patch } }));
+  const toggleDay = (d) => setComboForm((f) => ({ ...f, schedule: { ...f.schedule, days: f.schedule.days.includes(d) ? f.schedule.days.filter((x) => x !== d) : [...f.schedule.days, d] } }));
   const addReq = () => setComboForm((f) => (f.reqs.length < 4 ? { ...f, reqs: [...f.reqs, { category: "", qty: 1 }] } : f));
   const removeReq = (i) => setComboForm((f) => ({ ...f, reqs: f.reqs.filter((_, idx) => idx !== i) }));
   const saveCombo = async () => {
@@ -60,12 +63,13 @@ export default function MerchantMenuRadioLife() {
     try {
       await axios.post(`${API}/merchant/marketplace/combos`, {
         combo_id: editingCombo || undefined, name: comboForm.name.trim(),
-        price_cents: Math.round((parseFloat(comboForm.price) || 0) * 100), requirements: reqs, active: true,
+        price_cents: Math.round((parseFloat(comboForm.price) || 0) * 100), requirements: reqs,
+        schedule: comboForm.schedule, active: true,
       });
       resetCombo(); load();
     } catch { /* ignore */ } finally { setComboSaving(false); }
   };
-  const editCombo = (c) => { setEditingCombo(c.combo_id); setComboForm({ name: c.name, price: ((c.price_cents || 0) / 100).toString(), reqs: (c.requirements || []).map((r) => ({ category: r.category, qty: r.qty })) }); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const editCombo = (c) => { setEditingCombo(c.combo_id); setComboForm({ name: c.name, price: ((c.price_cents || 0) / 100).toString(), reqs: (c.requirements || []).map((r) => ({ category: r.category, qty: r.qty })), schedule: c.schedule || { ...emptyCombo.schedule } }); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const delCombo = async (cid) => { try { await axios.delete(`${API}/merchant/marketplace/combos/${cid}`); load(); } catch { /* ignore */ } };
 
   const reset = () => { setForm({ section: "", name: "", description: "", price: "" }); setOptionGroups([]); setEditingId(null); };
@@ -223,6 +227,32 @@ export default function MerchantMenuRadioLife() {
                 </div>
               ))}
               {comboForm.reqs.length < 4 && <button onClick={addReq} data-testid="combo-add-req" className="flex items-center gap-1 text-xs font-black text-orange-600"><Plus size={13} />Add requirement</button>}
+
+              {/* Happy hour schedule */}
+              <label className="flex items-center gap-2 pt-2 cursor-pointer" data-testid="combo-schedule-toggle">
+                <input type="checkbox" checked={comboForm.schedule.enabled} onChange={(e) => setSched({ enabled: e.target.checked })} className="w-4 h-4 accent-orange-600" />
+                <span className="text-sm font-black text-slate-900">⏰ Happy hour only (set times)</span>
+              </label>
+              {comboForm.schedule.enabled && (
+                <div className="space-y-2 bg-slate-50 rounded-xl p-2.5" data-testid="combo-schedule">
+                  <div className="flex items-center gap-2">
+                    <input type="time" value={comboForm.schedule.start} onChange={(e) => setSched({ start: e.target.value })} data-testid="combo-sched-start" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm" />
+                    <span className="text-xs text-slate-400">to</span>
+                    <input type="time" value={comboForm.schedule.end} onChange={(e) => setSched({ end: e.target.value })} data-testid="combo-sched-end" className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm" />
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, di) => (
+                      <button key={d} onClick={() => toggleDay(di)} data-testid={`combo-day-${di}`}
+                        className={`px-2 py-1 rounded-full text-[11px] font-black ${comboForm.schedule.days.includes(di) ? "bg-orange-600 text-white" : "bg-white border border-slate-200 text-slate-500"}`}>{d}</button>
+                    ))}
+                  </div>
+                  <div className="text-[11px] text-slate-400">Leave days empty = every day.</div>
+                  <select value={comboForm.schedule.tz} onChange={(e) => setSched({ tz: e.target.value })} data-testid="combo-sched-tz" className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                    {["UTC", "Asia/Dubai", "Asia/Kolkata", "Europe/London", "Europe/Paris", "America/New_York", "America/Chicago", "America/Los_Angeles", "Australia/Sydney"].map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+                  </select>
+                </div>
+              )}
+
               <div className="flex gap-2 pt-1">
                 {editingCombo && <button onClick={resetCombo} data-testid="combo-cancel" className="flex-1 border border-slate-200 rounded-full py-2.5 font-bold text-slate-600">Cancel</button>}
                 <button onClick={saveCombo} disabled={comboSaving} data-testid="combo-save" className="flex-1 bg-orange-600 text-white font-black rounded-full py-2.5 disabled:opacity-60">{editingCombo ? "Update combo" : "Add combo"}</button>
@@ -236,6 +266,7 @@ export default function MerchantMenuRadioLife() {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-black text-slate-900">{c.name} · {money(c.price_cents)}</div>
                     <div className="text-xs text-slate-500">{(c.requirements || []).map((r) => `${r.qty}× ${r.category}`).join(" + ")}</div>
+                    {c.schedule?.enabled && <div className="text-[11px] text-orange-600 font-bold">⏰ {c.schedule.start}–{c.schedule.end}{(c.schedule.days || []).length ? ` · ${c.schedule.days.map((d) => ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]).join(",")}` : ""}</div>}
                   </div>
                   <button onClick={() => editCombo(c)} data-testid={`combo-edit-${c.combo_id}`} className="w-8 h-8 rounded-full bg-white flex items-center justify-center"><Pencil size={14} className="text-blue-600" /></button>
                   <button onClick={() => delCombo(c.combo_id)} data-testid={`combo-del-${c.combo_id}`} className="w-8 h-8 rounded-full bg-white flex items-center justify-center"><Trash2 size={14} className="text-rose-600" /></button>

@@ -9,6 +9,7 @@ import * as WebBrowser from 'expo-web-browser';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 import { useCartStore } from '../../src/stores/useCartStore';
+import { useSavedForLater } from '../../src/stores/useSavedForLater';
 import { useReward } from '../../src/components/RewardOverlay';
 import SavedCardPicker from '../../src/components/SavedCardPicker';
 import DeliveryAddressCard from '../../src/components/DeliveryAddressCard';
@@ -26,12 +27,14 @@ const COUPON_ERR: Record<string, string> = {
 const cartItemsPayload = (items: any[]) => items.map((i) => ({
   item_id: i.item_id, qty: i.qty,
   selected_option_ids: i.selected_option_ids || [],
+  note: i.note || undefined,
   apply_entitlement_id: i.apply_entitlement_id || undefined,
 }));
 
 export default function Cart() {
   const router = useRouter();
   const cart = useCartStore();
+  const saved = useSavedForLater();
   const { celebrate } = useReward();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +44,12 @@ export default function Cart() {
   const [payCard, setPayCard] = useState<string | null>(null);
   const [coupon, setCoupon] = useState('');
   const [couponInput, setCouponInput] = useState('');
+  const [bizRef, setBizRef] = useState<{ id: string; name: string } | null>(null);
+  const [undoSnap, setUndoSnap] = useState<{ id: string | null; name: string | null; items: any[] } | null>(null);
 
   const subtotal = cart.subtotal();
+  const savedBiz = cart.businessId || bizRef?.id || '';
+  const savedList = saved.listFor(savedBiz);
 
   const refresh = React.useCallback(async (gift: boolean, pts: boolean, cpn: string = coupon) => {
     if (!cart.businessId || !cart.items.length) return;
@@ -63,6 +70,38 @@ export default function Cart() {
 
   React.useEffect(() => { refresh(useGift, usePoints); }, [useGift, usePoints, refresh]);
 
+  // Remember the business even after the cart empties, so the saved-for-later
+  // shelf stays reachable.
+  React.useEffect(() => {
+    if (cart.businessId) setBizRef({ id: cart.businessId, name: cart.businessName || '' });
+  }, [cart.businessId, cart.businessName]);
+
+  const saveForLater = (i: any) => {
+    if (!savedBiz) return;
+    saved.save(savedBiz, {
+      key: `m:${i.line_id}`, kind: 'menu', item_id: i.item_id, name: i.name, price_cents: i.price_cents,
+      selected_option_ids: i.selected_option_ids || [], option_summary: i.option_summary || null, note: i.note || null,
+    });
+    cart.remove(i.line_id);
+  };
+  const moveToCart = (e: any) => {
+    cart.addLine(savedBiz, bizRef?.name || cart.businessName || '', {
+      item_id: e.item_id, name: e.name, price_cents: e.price_cents,
+      selected_option_ids: e.selected_option_ids, option_summary: e.option_summary, note: e.note,
+    });
+    saved.remove(savedBiz, e.key);
+  };
+  const clearCart = () => {
+    if (!cart.items.length) return;
+    setUndoSnap({ id: cart.businessId, name: cart.businessName, items: cart.items });
+    cart.clear();
+  };
+  const undoClear = () => {
+    if (!undoSnap) return;
+    cart.restore(undoSnap.id, undoSnap.name, undoSnap.items);
+    setUndoSnap(null);
+  };
+
   // If the shop doesn't deliver, snap back to pickup.
   React.useEffect(() => {
     if (quote && quote.delivery_available === false && cart.fulfillment === 'delivery') {
@@ -77,6 +116,26 @@ export default function Cart() {
 
   const total = quote ? quote.total_cents : subtotal;
   const needsAddress = cart.fulfillment === 'delivery' && !cart.deliveryAddress;
+
+  const savedShelfEl = savedList.length > 0 ? (
+    <View style={s.savedShelf} testID="cart-saved-shelf">
+      <Text style={s.savedTitle}>Saved for later</Text>
+      {savedList.map((e) => (
+        <View key={e.key} style={s.savedRow} testID={`cart-saved-${e.key}`}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.savedName} numberOfLines={1}>{e.name}</Text>
+            <Text style={s.savedPrice}>{money(e.price_cents)}</Text>
+          </View>
+          <TouchableOpacity onPress={() => moveToCart(e)} testID={`cart-saved-add-${e.key}`} style={s.savedAdd}>
+            <Ionicons name="add" size={14} color={COLORS.primary} /><Text style={s.savedAddText}>Move to cart</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => saved.remove(savedBiz, e.key)} testID={`cart-saved-remove-${e.key}`} style={{ paddingLeft: 8 }}>
+            <Ionicons name="trash-outline" size={16} color={COLORS.red} />
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  ) : null;
 
   const checkout = async () => {
     if (!cart.businessId || !cart.items.length) return;
@@ -124,18 +183,30 @@ export default function Cart() {
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={s.topTitle}>Your Cart</Text>
-        <View style={{ width: 22 }} />
+        {cart.items.length ? (
+          <TouchableOpacity onPress={clearCart} testID="cart-clear"><Ionicons name="trash-outline" size={20} color={COLORS.red} /></TouchableOpacity>
+        ) : <View style={{ width: 22 }} />}
       </View>
 
-      {!cart.items.length ? (
-        <View style={common.center} testID="cart-empty">
-          <Ionicons name="cart-outline" size={48} color={COLORS.textMuted} />
-          <Text style={{ color: COLORS.textDim, marginTop: 12, fontWeight: '700' }}>Your cart is empty.</Text>
-          <TouchableOpacity style={[common.btnGhost, { marginTop: 16, paddingHorizontal: 24 }]}
-            onPress={() => router.replace('/shop')} testID="cart-browse">
-            <Text style={common.btnGhostText}>Browse the Shop</Text>
-          </TouchableOpacity>
+      {undoSnap && (
+        <View style={s.undoBanner} testID="cart-undo-banner">
+          <Text style={s.undoText}>Cart cleared</Text>
+          <TouchableOpacity onPress={undoClear} testID="cart-undo"><Text style={s.undoBtn}>Undo</Text></TouchableOpacity>
         </View>
+      )}
+
+      {!cart.items.length ? (
+        <ScrollView contentContainerStyle={{ padding: SPACING.md }} testID="cart-root-empty">
+          <View style={{ alignItems: 'center', paddingVertical: 40 }} testID="cart-empty">
+            <Ionicons name="cart-outline" size={48} color={COLORS.textMuted} />
+            <Text style={{ color: COLORS.textDim, marginTop: 12, fontWeight: '700' }}>Your cart is empty.</Text>
+            <TouchableOpacity style={[common.btnGhost, { marginTop: 16, paddingHorizontal: 24 }]}
+              onPress={() => router.replace('/shop')} testID="cart-browse">
+              <Text style={common.btnGhostText}>Browse the Shop</Text>
+            </TouchableOpacity>
+          </View>
+          {savedShelfEl}
+        </ScrollView>
       ) : (
         <>
           <ScrollView contentContainerStyle={{ padding: SPACING.md, paddingBottom: 200 }} testID="cart-root">
@@ -179,19 +250,35 @@ export default function Cart() {
                   <Text style={s.name}>{i.name}</Text>
                   {!!i.option_summary && <Text style={s.opts}>{i.option_summary}</Text>}
                   {!!i.entitlement_label && <Text style={s.entLine}>♛ {i.entitlement_label}</Text>}
+                  {!!i.note && <Text style={s.noteLine} testID={`cart-note-${i.item_id}`}>“{i.note}”</Text>}
                   <Text style={s.price}>{money(i.price_cents)}</Text>
                 </View>
-                <View style={s.stepper}>
-                  <TouchableOpacity onPress={() => cart.dec(i.line_id)} testID={`cart-dec-${i.item_id}`} style={s.stepBtn}>
-                    <Ionicons name="remove" size={18} color={COLORS.primary} />
+                <View style={s.rowActions}>
+                  <TouchableOpacity onPress={() => saveForLater(i)} testID={`cart-save-${i.item_id}`} style={s.bookmarkBtn}>
+                    <Ionicons name="bookmark-outline" size={16} color={COLORS.primary} />
                   </TouchableOpacity>
-                  <Text style={s.qty}>{i.qty}</Text>
-                  <TouchableOpacity onPress={() => cart.inc(i.line_id)} testID={`cart-inc-${i.item_id}`} style={s.stepBtn}>
-                    <Ionicons name="add" size={18} color={COLORS.primary} />
-                  </TouchableOpacity>
+                  <View style={s.stepper}>
+                    <TouchableOpacity onPress={() => cart.dec(i.line_id)} testID={`cart-dec-${i.item_id}`} style={s.stepBtn}>
+                      <Ionicons name="remove" size={18} color={COLORS.primary} />
+                    </TouchableOpacity>
+                    <Text style={s.qty}>{i.qty}</Text>
+                    <TouchableOpacity onPress={() => cart.inc(i.line_id)} testID={`cart-inc-${i.item_id}`} style={s.stepBtn}>
+                      <Ionicons name="add" size={18} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             ))}
+
+            {savedShelfEl}
+
+            {quote && quote.combo_discount_cents > 0 && (
+              <View style={s.comboRow} testID="cart-combo-discount">
+                <Ionicons name="fast-food" size={15} color={COLORS.green} />
+                <Text style={s.comboText}>{quote.combo_label || 'Meal combo'}</Text>
+                <Text style={s.comboVal}>−{money(quote.combo_discount_cents)}</Text>
+              </View>
+            )}
 
             {quote && quote.entitlement_discount_cents > 0 && (
               <View style={s.entDiscRow} testID="cart-entitlement-discount">
@@ -317,6 +404,22 @@ const s = StyleSheet.create({
   name: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   opts: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
   entLine: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '900', marginTop: 2 },
+  noteLine: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '700', fontStyle: 'italic', marginTop: 2 },
+  rowActions: { alignItems: 'flex-end', gap: 8 },
+  bookmarkBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
+  comboRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.green + '14', borderRadius: RADIUS.md, padding: 12, marginTop: 10 },
+  comboText: { flex: 1, color: COLORS.green, fontSize: FONT.sm, fontWeight: '900' },
+  comboVal: { color: COLORS.green, fontSize: FONT.sm, fontWeight: '900' },
+  savedShelf: { marginTop: 12, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder, paddingTop: 12 },
+  savedTitle: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '900', marginBottom: 8 },
+  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  savedName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  savedPrice: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '800', marginTop: 2 },
+  savedAdd: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  savedAddText: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '900' },
+  undoBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.text, marginHorizontal: SPACING.md, marginTop: 10, borderRadius: RADIUS.md, paddingHorizontal: 14, paddingVertical: 10 },
+  undoText: { color: '#fff', fontSize: FONT.sm, fontWeight: '800' },
+  undoBtn: { color: COLORS.gold, fontSize: FONT.sm, fontWeight: '900' },
   price: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900', marginTop: 4 },
   entDiscRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.md, padding: 12, marginTop: 10 },
   entDiscText: { flex: 1, color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },

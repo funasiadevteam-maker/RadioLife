@@ -35,11 +35,20 @@ class ComboReq(BaseModel):
     qty: int = Field(1, ge=1, le=10)
 
 
+class ComboSchedule(BaseModel):
+    enabled: bool = False
+    start: Optional[str] = Field(None, max_length=5)  # "HH:MM"
+    end: Optional[str] = Field(None, max_length=5)
+    days: List[int] = Field(default_factory=list)      # 0=Mon .. 6=Sun
+    tz: Optional[str] = Field("UTC", max_length=48)
+
+
 class ComboBody(BaseModel):
     combo_id: Optional[str] = None
     name: str = Field(..., min_length=1, max_length=80)
     price_cents: int = Field(..., ge=0, le=1_000_000)
     requirements: List[ComboReq] = Field(..., min_length=1, max_length=4)
+    schedule: Optional[ComboSchedule] = None
     active: bool = True
 
 
@@ -57,18 +66,19 @@ async def upsert_combo(body: ComboBody, request: Request, user: dict = Depends(c
     db = request.app.state.db
     p = await _my_business(db, user)
     reqs = [r.model_dump() for r in body.requirements]
+    sched = body.schedule.model_dump() if body.schedule else None
     if body.combo_id:
         await db.marketplace_combos.update_one(
             {"combo_id": body.combo_id, "business_id": p["business_id"]},
             {"$set": {"name": body.name, "price_cents": body.price_cents,
-                      "requirements": reqs, "active": body.active}})
+                      "requirements": reqs, "schedule": sched, "active": body.active}})
         cid = body.combo_id
     else:
         cid = f"combo_{uuid.uuid4().hex[:10]}"
         await db.marketplace_combos.insert_one({
             "combo_id": cid, "business_id": p["business_id"], "name": body.name,
-            "price_cents": body.price_cents, "requirements": reqs, "active": body.active,
-            "created_at": datetime.now(timezone.utc)})
+            "price_cents": body.price_cents, "requirements": reqs, "schedule": sched,
+            "active": body.active, "created_at": datetime.now(timezone.utc)})
     saved = await db.marketplace_combos.find_one({"combo_id": cid})
     return {"ok": True, "combo": _clean(saved)}
 

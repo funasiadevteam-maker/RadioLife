@@ -169,6 +169,7 @@ class FulfillmentSettingsBody(BaseModel):
     geo: Optional[GeoConfig] = None
     tax_jurisdiction: Optional[TaxJurisdiction] = None
     tax_override: Optional[TaxOverride] = None
+    note_presets: Optional[List[str]] = None
 
 
 def _fulfillment_view(p: Dict[str, Any]) -> Dict[str, Any]:
@@ -180,6 +181,7 @@ def _fulfillment_view(p: Dict[str, Any]) -> Dict[str, Any]:
         "geo": p.get("geo") or {"lat": None, "lng": None, "address": None},
         "tax_jurisdiction": p.get("tax_jurisdiction") or {"country": None, "state": None, "county": None, "city": None},
         "tax_override": p.get("tax_override") or {"enabled": False, "rate_percent": 0, "label": None},
+        "note_presets": p.get("note_presets") or [],
     }
 
 
@@ -208,6 +210,8 @@ async def set_fulfillment_settings(body: FulfillmentSettingsBody, request: Reque
         upd["tax_jurisdiction"] = body.tax_jurisdiction.model_dump()
     if body.tax_override is not None:
         upd["tax_override"] = body.tax_override.model_dump()
+    if body.note_presets is not None:
+        upd["note_presets"] = [s.strip()[:40] for s in body.note_presets if s and s.strip()][:12]
     await db.marketplace_profiles.update_one({"business_id": p["business_id"]}, {"$set": upd})
     saved = await db.marketplace_profiles.find_one({"business_id": p["business_id"]})
     return {"ok": True, **_fulfillment_view(saved)}

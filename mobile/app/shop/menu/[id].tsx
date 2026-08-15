@@ -162,7 +162,7 @@ export default function BusinessMenu() {
             cart.addLine(id!, data.public_name, {
               item_id: sheetItem.item_id, name: sheetItem.name, price_cents: sel.unit_price_cents,
               qty: sel.qty, selected_option_ids: sel.selected_option_ids, option_summary: sel.option_summary,
-              apply_entitlement_id: sel.apply_entitlement_id, entitlement_label: sel.entitlement_label,
+              note: sel.note, apply_entitlement_id: sel.apply_entitlement_id, entitlement_label: sel.entitlement_label,
             });
             setSheetItem(null);
           }}

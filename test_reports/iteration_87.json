@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 87 — Full web + mobile parity verification of Shop Home 'Get your usual' + mobile inline ordering surface. BACKEND: 5/5 pytest passed against /api/shop/usual, /api/shop/businesses/{id}/usual, /api/shop/businesses/{id}/menu, /api/shop/businesses/{id}/combos. Demo user (bearer via /api/auth/demo, session_token) returns has_usual=True with 3 items at biz_sample_funpizza; unauth 401; all usual item_ids present in the store's menu; combos endpoint returns Fun Pizza's seeded combo. WEB: /shop shows shop-usual-card for demo@bigfm.dubai with 3 items from Fun Pizza Kitchen, button label 'Add my usual (3) & checkout' correct, tap navigates to /shop/checkout/menu with all 3 items in cart (subtotal $45.97, membership entitlement Free Pizza applied → total $1.89 after VAT). shop-usual-dismiss removes the card. MOBILE (Expo web preview @ 390x844): (1) Shop tab shows shop-usual-card, tap shop-usual-add-all → routes to /shop/cart with 3 items; shop-usual-dismiss present. (2) /shop/biz_sample_funpizza is a full inline ordering surface: shop-detail-root, shop-earn-bar, shop-detail-actions with shop-reorder-last + membership pill, usual-card + usual-add-all + usual-dismiss (loaded after auth settles), shop-item-grid with 8 items, 6 shop-combo-badge-* on Pizzas/Coffee items, shop-customize-* opens the ItemOptionSheet with item-note-presets + 6 item-note-chip-* + item-option-note field. After 'Add 1 to order' from sheet: shop-incart-* badge appears on card, shop-mobile-cart-bar appears with running subtotal. Tapping cart-bar routes to /shop/cart. (3) /shop/cart works: cart-save-* moves the line to cart-saved-shelf (verified via UI), cart-clear removes items; cart-note-*, cart-combo-discount, cart-undo-banner + cart-undo, cart-saved-add-* + cart-saved-remove-* all exist in code (cart-undo/note-* only render when preconditions met — no bug). (4) Product variant sheet (product-variant-sheet, pv-variant-*, product-note-presets, product-variant-confirm) and product-cart testIDs (pcart-note-*, pcart-save-*, pcart-saved-*, pcart-saved-add-*, pcart-saved-remove-*) all present in code. No parity issues; both surfaces behave identically for the primary 'Get your usual' flow. No react-native red screen. No deprecated packages found in shop code paths touched.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter87_shop_usual.py",
+    "/app/test_reports/pytest/iter87.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "mobile/app/shop/[id].tsx:101 — /shop/businesses/{id}/usual is fetched inside the mode==='menu' effect, which fires only after the biz payload loads. On a cold navigation directly to /shop/[id] before auth restores the bearer, the request can 401 silently and the usual-card never appears until the user re-navigates. Consider retrying once after auth restores, or a small delay before the initial call. Reproduced during headless testing; resolved after re-navigation.",
+    "web ShopRadioLife.jsx:66 — GET /api/shop/usual is fired on every mount without gating on the cookie session; unauth users get a 401 that is silently swallowed. Fine functionally but produces noise in the console for guest visits.",
+    "mobile /shop/cart is missing a testID on the fulfilment radio group container — cart-fulfillment-pickup/delivery exist but adding a wrapper testID like 'cart-fulfillment' would simplify e2e assertions. Optional."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter87_shop_usual.py"],
+  "success_rate": {"backend": "100% (5/5 pytest)", "frontend": "Web + Mobile end-to-end 'Get your usual' + mobile inline ordering verified live via Playwright"},
+  "test_credentials": "Web: demo@bigfm.dubai / DemoPass123! (cookie via /api/auth/login). Mobile: demo-login-btn -> /api/auth/demo (session_token bearer). Both target Fun Pizza Kitchen (biz_sample_funpizza) which has seeded paid orders + a seeded combo for demo user.",
+  "seed_data_creation": "No new seed. My mobile Playwright run left the cart in an empty state with one item on the 'Saved for later' shelf for the demo user's device-local Zustand store (persisted client-side only; backend unaffected).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "For mobile /shop/[id], DO NOT page.goto() directly — first press demo-login-btn on home, then goto /shop, then goto /shop/[id] with a 5s+ wait so the /businesses/{id}/usual + /orders/last/{id} calls complete after the bearer is attached. Also: shop-add-* on items with option_groups opens the ItemOptionSheet — you must press the sheet's 'Add N to order' button to actually add. Direct '+' add only works on items without required options. Backend session_token is bearer; use `Authorization: Bearer <session_token>` after POST /api/auth/demo. VAT is 5% (UAE) on origin fulfilment at Fun Pizza.",
+  "rca of the issue": "N/A — no bugs found."
+}

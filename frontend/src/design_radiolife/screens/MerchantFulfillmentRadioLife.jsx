@@ -25,6 +25,8 @@ export default function MerchantFulfillmentRadioLife() {
   const [geo, setGeo] = useState({ lat: null, lng: null, address: "" });
   const [tax, setTax] = useState({ country: "", state: "", county: "", city: "" });
   const [taxOverride, setTaxOverride] = useState({ enabled: false, rate_percent: 0, label: "" });
+  const [notePresets, setNotePresets] = useState([]);
+  const [presetInput, setPresetInput] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiMsg, setAiMsg] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,7 @@ export default function MerchantFulfillmentRadioLife() {
       setGeo(r.data.geo || { lat: null, lng: null, address: "" });
       setTax(r.data.tax_jurisdiction || { country: "", state: "", county: "", city: "" });
       setTaxOverride(r.data.tax_override || { enabled: false, rate_percent: 0, label: "" });
+      setNotePresets(r.data.note_presets || []);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -77,6 +80,7 @@ export default function MerchantFulfillmentRadioLife() {
           rate_percent: Number(taxOverride.rate_percent) || 0,
           label: taxOverride.label || null,
         },
+        note_presets: notePresets,
       });
       setSaved(true);
     } catch { /* ignore */ }
@@ -240,6 +244,29 @@ export default function MerchantFulfillmentRadioLife() {
               </div>
             )}
             <p className="text-[11px] text-slate-400 mt-2">Delivery orders are taxed at the customer's location. AI is a convenience estimate — you remain responsible for filing & remitting.</p>
+          </div>
+
+          {/* Quick note chips (customer special-instruction presets) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="note-presets-card">
+            <div className="font-black text-slate-900 text-sm">Quick note chips</div>
+            <p className="text-[11px] text-slate-400 mt-0.5 mb-2">Tap-to-add chips customers see under an item's note (e.g. "Extra napkins"). Leave empty to use defaults.</p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {notePresets.map((chip, i) => (
+                <span key={i} className="inline-flex items-center gap-1 bg-orange-50 border border-orange-200 text-orange-700 rounded-full pl-2.5 pr-1.5 py-1 text-xs font-bold" data-testid={`note-preset-${i}`}>
+                  {chip}
+                  <button onClick={() => setNotePresets((ps) => ps.filter((_, idx) => idx !== i))} data-testid={`note-preset-remove-${i}`} className="w-4 h-4 rounded-full bg-white flex items-center justify-center text-rose-600">×</button>
+                </span>
+              ))}
+              {notePresets.length === 0 && <span className="text-xs text-slate-400">No custom chips — defaults shown to customers.</span>}
+            </div>
+            <div className="flex gap-2">
+              <input value={presetInput} onChange={(e) => setPresetInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && presetInput.trim() && notePresets.length < 12) { setNotePresets((ps) => [...ps, presetInput.trim().slice(0, 40)]); setPresetInput(""); } }}
+                placeholder="Add a chip (e.g. Extra napkins)" data-testid="note-preset-input"
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold" />
+              <button onClick={() => { if (presetInput.trim() && notePresets.length < 12) { setNotePresets((ps) => [...ps, presetInput.trim().slice(0, 40)]); setPresetInput(""); } }}
+                data-testid="note-preset-add" className="bg-slate-900 text-white font-black rounded-xl px-4 text-sm">Add</button>
+            </div>
           </div>
         </div>
       </div>

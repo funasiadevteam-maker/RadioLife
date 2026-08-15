@@ -3,12 +3,13 @@
 // ItemOptionModal: size/single/multi groups with upcharges + optional
 // "apply membership" so the base is free and only upgrades are charged.
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS } from '../constants/theme';
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 const signed = (c: number) => (c > 0 ? `+${money(c)}` : c < 0 ? `−${money(-c)}` : 'Free');
+const DEFAULT_PRESETS = ['No onions', 'Extra spicy', 'No ice', 'Less sugar', 'Well done', 'On the side'];
 
 function initialSelection(groups: any[]) {
   const sel = new Set<string>();
@@ -21,12 +22,40 @@ function initialSelection(groups: any[]) {
   return sel;
 }
 
-export default function ItemOptionSheet({ item, entitlement, onClose, onConfirm }: any) {
+// Default line (selection + unit price + summary) for one-tap "quick add".
+export function defaultMenuSelection(item: any) {
+  const groups = item.option_groups || [];
+  const sel = initialSelection(groups);
+  let unit = item.price_cents || 0;
+  const labels: string[] = [];
+  groups.forEach((g: any) => g.options.forEach((o: any) => {
+    if (sel.has(o.option_id)) { unit += o.price_delta_cents || 0; labels.push(o.label); }
+  }));
+  return { selected_option_ids: [...sel], unit_price_cents: unit, option_summary: labels.join(', ') || null };
+}
+
+// True when defaults already satisfy every required group, so "+" can add
+// instantly; otherwise the customize sheet must be opened.
+export function menuQuickAddReady(item: any) {
+  const groups = item.option_groups || [];
+  const sel = initialSelection(groups);
+  return groups.every((g: any) => {
+    if (!g.required && !(g.min_select > 0)) return true;
+    const n = g.options.filter((o: any) => sel.has(o.option_id)).length;
+    return n >= Math.max(1, g.min_select || 0);
+  });
+}
+
+export default function ItemOptionSheet({ item, entitlement, notePresets, onClose, onConfirm }: any) {
   const groups = item.option_groups || [];
   const [selected, setSelected] = useState<Set<string>>(() => initialSelection(groups));
   const [applyEnt, setApplyEnt] = useState(!!entitlement);
   const [qty, setQty] = useState(1);
+  const [note, setNote] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const presets: string[] = (notePresets && notePresets.length ? notePresets : DEFAULT_PRESETS);
+  const addPreset = (chip: string) =>
+    setNote((n) => (n.toLowerCase().includes(chip.toLowerCase()) ? n : (n ? `${n}, ${chip}` : chip)));
 
   const toggle = (g: any, o: any) => {
     setErr(null);
@@ -78,6 +107,7 @@ export default function ItemOptionSheet({ item, entitlement, onClose, onConfirm 
     if (overCap) { setErr(`Upgrades over ${money(cap)} aren't covered by this membership`); return; }
     onConfirm({
       qty, selected_option_ids: [...selected], option_summary: optionSummary, unit_price_cents: unit,
+      note: note.trim() || null,
       apply_entitlement_id: entitlement && applyEnt ? entitlement.entitlement_id : null,
       entitlement_label: entitlement && applyEnt ? entitlement.label : null,
     });
@@ -127,6 +157,19 @@ export default function ItemOptionSheet({ item, entitlement, onClose, onConfirm 
               })}
             </View>
           ))}
+          <View style={st.noteBlock}>
+            <Text style={st.grpName}>Special instructions</Text>
+            <View style={st.chips} testID="item-note-presets">
+              {presets.map((chip) => (
+                <TouchableOpacity key={chip} onPress={() => addPreset(chip)} style={st.chip} testID={`item-note-chip-${chip}`}>
+                  <Text style={st.chipText}>+ {chip}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput value={note} onChangeText={setNote} maxLength={140} multiline
+              placeholder="e.g. no onions, extra spicy" placeholderTextColor={COLORS.textMuted}
+              style={st.noteInput} testID="item-option-note" />
+          </View>
           <View style={st.qtyRow}>
             <Text style={st.grpName}>Quantity</Text>
             <View style={st.stepper}>
@@ -173,6 +216,11 @@ const st = StyleSheet.create({
   optLabel: { flex: 1, color: COLORS.text, fontSize: FONT.sm, fontWeight: '700' },
   optPrice: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '900' },
   qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
+  noteBlock: { marginTop: 14 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 8 },
+  chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.inputBg },
+  chipText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
+  noteInput: { minHeight: 44, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: FONT.sm, textAlignVertical: 'top' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.inputBg, borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 4 },
   stepBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.card, alignItems: 'center', justifyContent: 'center' },
   qtyText: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', minWidth: 18, textAlign: 'center' },

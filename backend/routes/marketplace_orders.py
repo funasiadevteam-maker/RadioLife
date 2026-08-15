@@ -274,6 +274,8 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     # "Make it a meal" combos — merchant-defined if any, else the default
     # 30%-off-a-drink. Server-enforced so /quote and /checkout stay in sync.
     combos = [c async for c in db.marketplace_combos.find({"business_id": business_id, "active": True})]
+    from services.combos import combo_active_now
+    combos = [c for c in combos if combo_active_now(c)]
     combo_raw, combo_names = _apply_combos(combos, line_meta) if combos else _auto_combo(line_meta)
     combo_discount = min(combo_raw, max(0, after_coupon))
     combo_applied = combo_discount > 0
