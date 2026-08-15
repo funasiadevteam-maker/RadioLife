@@ -9,7 +9,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import {
   ChevronLeft, Star, ShoppingBag, ShoppingCart, MapPin, Wallet, Crown, Gift,
-  Package as PackageIcon, CalendarDays, Check, Plus, Minus, Coins, Sliders,
+  Package as PackageIcon, CalendarDays, Check, Plus, Minus, Coins, Sliders, RotateCcw,
 } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
@@ -32,6 +32,7 @@ export default function ShopBusinessRadioLife() {
   const [checking, setChecking] = useState(false);
   const [modalItem, setModalItem] = useState(null);      // menu customize
   const [variantProduct, setVariantProduct] = useState(null); // product customize
+  const [lastOrder, setLastOrder] = useState(null);
 
   const menuCart = useShopCart();
   const productCart = useProductCart();
@@ -82,6 +83,16 @@ export default function ShopBusinessRadioLife() {
     })();
     return () => { alive = false; };
   }, [id]);
+
+  // Last order for "Reorder" (menu stores only).
+  useEffect(() => {
+    if (mode !== "menu") { setLastOrder(null); return; }
+    let alive = true;
+    axios.get(`${API}/shop/orders/last/${id}`)
+      .then((r) => { if (alive && r.data?.has_order && (r.data.items || []).length) setLastOrder(r.data); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [id, mode]);
 
   const allItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const shown = useMemo(() => {
@@ -143,6 +154,27 @@ export default function ShopBusinessRadioLife() {
   const suggestions = [...(preferred.length ? preferred : rest)]
     .sort((a, b) => a.price_cents - b.price_cents).slice(0, 3);
 
+  // ---- "Make it a meal" combo (menu only) — mirrors backend detection ----
+  const DRINK_KW = ["coffee", "drink", "beverage", "tea", "juice", "soda", "shake", "latte", "smoothie", "cola", "water", "mocktail"];
+  const ADDON_KW = [...DRINK_KW, "dessert", "side", "extra", "sauce", "topping"];
+  const sectionByItem = {};
+  groups.forEach((g) => g.items.forEach((it) => { sectionByItem[keyOfItem(it)] = g.title || ""; }));
+  const lc = (s) => (s || "").toLowerCase();
+  const drinkUnits = menuLines.filter((l) => DRINK_KW.some((k) => lc(sectionByItem[l.item_id]).includes(k))).map((l) => l.price_cents);
+  const hasMainInCart = menuLines.some((l) => !ADDON_KW.some((k) => lc(sectionByItem[l.item_id]).includes(k)));
+  const comboApplies = mode === "menu" && hasMainInCart && drinkUnits.length > 0;
+  const combo = { applies: comboApplies, saveCents: comboApplies ? Math.round(Math.min(...drinkUnits) * 0.30) : 0 };
+
+  const reorderLast = () => {
+    if (!lastOrder?.items?.length) return;
+    lastOrder.items.forEach((li) => menuCart.addLine(id, b.public_name, {
+      item_id: li.item_id, name: li.name, price_cents: li.price_cents,
+      selected_option_ids: li.selected_option_ids || [], option_summary: li.option_summary,
+      note: li.note, qty: li.qty || 1,
+    }));
+    toast.success(lastOrder.dropped ? "Added your last order (some items are no longer available)" : "Added your last order");
+  };
+
   // ---- Cart totals (for mobile bar) ----
   const cartCount = mode === "product"
     ? (productCart.groups[id]?.items || []).reduce((n, i) => n + i.qty, 0)
@@ -178,6 +210,12 @@ export default function ShopBusinessRadioLife() {
   // Secondary shop extras (inline, wrap — avoids overlapping the right cart).
   const extras = (
     <div className="flex flex-wrap gap-2" data-testid="shop-detail-actions">
+      {mode === "menu" && lastOrder && (
+        <button onClick={reorderLast} data-testid="shop-reorder-last"
+          className="flex items-center gap-1.5 bg-orange-50 border-2 border-orange-500 text-orange-700 font-black rounded-full pl-3 pr-4 py-2 shadow-sm text-sm">
+          <RotateCcw size={15} />Reorder last order
+        </button>
+      )}
       {b.has_giftcards && (
         <button onClick={() => navigate(`/shop/giftcards/${b.business_id}`)} data-testid="shop-detail-giftcard"
           className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-full pl-3 pr-4 py-2 shadow-sm text-sm"><Gift size={15} className="text-orange-600" />Gift card</button>
@@ -335,7 +373,7 @@ export default function ShopBusinessRadioLife() {
         {orderable && (
           <aside className="hidden lg:block lg:w-[340px] lg:shrink-0 mt-4">
             <div className="sticky top-4">
-              <StoreCartPanel mode={mode} bizId={id} suggestions={suggestions} onAdd={onPlus} />
+              <StoreCartPanel mode={mode} bizId={id} bizName={b.public_name} suggestions={suggestions} onAdd={onPlus} combo={combo} />
             </div>
           </aside>
         )}

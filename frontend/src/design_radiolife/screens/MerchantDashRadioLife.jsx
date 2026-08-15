@@ -237,12 +237,27 @@ export default function MerchantDashRadioLife() {
           <div key={o.order_id} className="bg-white border border-slate-200 rounded-xl p-4" data-testid={`merchant-order-${o.order_id}`}>
             <div className="flex items-center justify-between">
               <div className="text-lg font-black tracking-widest text-slate-900">#{o.pickup_code}</div>
-              <div className="text-xs font-black uppercase text-orange-600">{o.status}</div>
+              <div className="flex items-center gap-2">
+                {(o.items || []).some((it) => it.note) && (
+                  <span className="text-[10px] font-black bg-amber-100 text-amber-800 rounded-full px-2 py-0.5" data-testid={`merchant-order-hasnotes-${o.order_id}`}>📝 NOTES</span>
+                )}
+                <div className="text-xs font-black uppercase text-orange-600">{o.status}</div>
+              </div>
             </div>
             <div className="flex items-center gap-1.5 mt-1 text-xs font-black text-green-700" data-testid={`merchant-order-pickup-${o.order_id}`}>
               <Clock size={12} />{o.fulfillment === "delivery" ? "Deliver" : "Pickup"} · {PICKUP_LABELS[o.pickup_time] || "Now (~15 min)"}
             </div>
-            {(o.items || []).map((it, i) => <div key={i} className="text-sm text-slate-600 font-semibold">{it.qty}× {it.name}</div>)}
+            {(o.items || []).map((it, i) => (
+              <div key={i} className="text-sm text-slate-600 font-semibold mt-0.5">
+                <div>{it.qty}× {it.name}</div>
+                {(it.selected_options || []).length > 0 && (
+                  <div className="text-xs text-slate-400 ml-4">{it.selected_options.map((op) => op.label).join(", ")}</div>
+                )}
+                {it.note && (
+                  <div className="ml-4 mt-0.5 inline-flex items-center gap-1 bg-amber-100 text-amber-900 rounded-md px-2 py-0.5 text-xs font-black" data-testid={`merchant-order-note-${o.order_id}-${i}`}>📝 {it.note}</div>
+                )}
+              </div>
+            ))}
             <div className="text-sm font-bold text-slate-900 mt-1">{money(o.total_cents)} · rewards {o.points_to_award} BigPoints</div>
             {NEXT[o.status] && (
               <button onClick={() => advance(o)} data-testid={`merchant-advance-${o.order_id}`}
@@ -261,9 +276,21 @@ export default function MerchantDashRadioLife() {
           <div key={o.order_id} className="bg-white border border-slate-200 rounded-xl p-4" data-testid={`merchant-product-order-${o.order_id}`}>
             <div className="flex items-center justify-between">
               <div className="text-sm font-black text-slate-900">{o.fulfillment === "delivery" ? "🚚 Delivery" : "🏬 Pickup"}</div>
-              <div className="text-xs font-black uppercase text-orange-600">{o.status}</div>
+              <div className="flex items-center gap-2">
+                {(o.items || []).some((it) => it.note) && (
+                  <span className="text-[10px] font-black bg-amber-100 text-amber-800 rounded-full px-2 py-0.5" data-testid={`merchant-product-hasnotes-${o.order_id}`}>📝 NOTES</span>
+                )}
+                <div className="text-xs font-black uppercase text-orange-600">{o.status}</div>
+              </div>
             </div>
-            {(o.items || []).map((it, i) => <div key={i} className="text-sm text-slate-600 font-semibold">{it.qty}× {it.name}{it.variant_label ? ` (${it.variant_label})` : ""}</div>)}
+            {(o.items || []).map((it, i) => (
+              <div key={i} className="text-sm text-slate-600 font-semibold mt-0.5">
+                <div>{it.qty}× {it.name}{it.variant_label ? ` (${it.variant_label})` : ""}</div>
+                {it.note && (
+                  <div className="ml-4 mt-0.5 inline-flex items-center gap-1 bg-amber-100 text-amber-900 rounded-md px-2 py-0.5 text-xs font-black" data-testid={`merchant-product-note-${o.order_id}-${i}`}>📝 {it.note}</div>
+                )}
+              </div>
+            ))}
             {o.fulfillment === "delivery" && o.address && <div className="text-xs text-slate-400 mt-1">📍 {o.address}</div>}
             <div className="text-sm font-bold text-slate-900 mt-1">{money(o.total_cents)} · rewards {o.points_to_award} BigPoints</div>
             {PNEXT[o.status] && (

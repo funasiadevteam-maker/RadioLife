@@ -158,6 +158,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     if fulfillment == "delivery" and not (profile.get("delivery") or {}).get("enabled"):
         fulfillment = "pickup"
     line_items: List[Dict[str, Any]] = []
+    line_meta: List[Dict[str, Any]] = []
     subtotal = 0
     entitlement_discount = 0
     applied_entitlements: List[Dict[str, Any]] = []
@@ -201,6 +202,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
                 "upcharge_cents": int(ev.get("charged_upcharge_cents", 0)),
                 "reset_frequency": ent.get("reset_frequency", "monthly"), "label": ent.get("label")})
         subtotal += unit_price * ci.qty
+        line_meta.append({"section": it.get("section") or "", "unit": unit_price})
         line_items.append(line)
     if subtotal <= 0:
         raise HTTPException(400, {"code": "zero_total"})
@@ -211,10 +213,25 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         user_id=user.get("user_id"), base_cents=after_entitlement)
     after_coupon = after_entitlement - coupon_discount
 
+    # "Make it a meal" combo — when the basket has a main + a drink, take 30%
+    # off one drink. Detected by menu section keywords; server-enforced here so
+    # /quote and /checkout stay in sync.
+    _DRINK_KW = ("coffee", "drink", "beverage", "tea", "juice", "soda", "shake",
+                 "latte", "smoothie", "cola", "water", "mocktail")
+    _ADDON_KW = _DRINK_KW + ("dessert", "side", "extra", "sauce", "topping", "add-on", "addon")
+    drink_units = [m["unit"] for m in line_meta
+                   if any(k in (m["section"] or "").lower() for k in _DRINK_KW)]
+    has_main = any(not any(k in (m["section"] or "").lower() for k in _ADDON_KW) for m in line_meta)
+    combo_discount = 0
+    if has_main and drink_units:
+        combo_discount = min(int(round(min(drink_units) * 0.30)), max(0, after_coupon))
+    combo_applied = combo_discount > 0
+    after_combo = after_coupon - combo_discount
+
     gift_card = await _pick_gift_card(db, user, business_id)
     gift_available = int(gift_card.get("balance_cents", 0)) if gift_card else 0
-    gift_applied = min(gift_available, after_coupon) if (use_gift_card and gift_card) else 0
-    after_gift = after_coupon - gift_applied
+    gift_applied = min(gift_available, after_combo) if (use_gift_card and gift_card) else 0
+    after_gift = after_combo - gift_applied
 
     balance = await PointsService(db).get_balance(user.get("user_id"))
     max_redeemable = min(int(balance or 0), _cents_to_max_points(after_gift))
@@ -243,7 +260,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         else:
             tax_info = await resolve_tax_rate(db, profile.get("tax_jurisdiction") or {})
         tax_basis = "origin"
-    taxable_base = max(0, after_coupon) + service_fee_cents + delivery_fee_cents
+    taxable_base = max(0, after_combo) + service_fee_cents + delivery_fee_cents
     tax_cents = calculate_tax(taxable_base, tax_info["rate_percent"])
     total = goods_total + fees_total + tax_cents
     eff = points_for_order(profile, after_entitlement)
@@ -260,6 +277,8 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         "coupon_discount_cents": coupon_discount, "coupon_error": coupon_error,
         "coupon_code": (coupon_doc or {}).get("code") if coupon_discount > 0 else None,
         "coupon_id": (coupon_doc or {}).get("coupon_id") if coupon_discount > 0 else None,
+        "combo_discount_cents": combo_discount, "combo_applied": combo_applied,
+        "combo_label": "Meal combo · 30% off a drink" if combo_applied else None,
         "points_balance": int(balance or 0), "redeem_points_per_dollar": REDEEM_POINTS_PER_DOLLAR,
         "max_redeemable_points": max_redeemable, "redeemed_points": used_points,
         "points_discount_cents": points_discount,
@@ -364,6 +383,8 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         "coupon_id": q.get("coupon_id"), "coupon_code": q.get("coupon_code"),
         "coupon_discount_cents": q.get("coupon_discount_cents", 0),
         "coupon_recorded_done": False,
+        "combo_discount_cents": q.get("combo_discount_cents", 0),
+        "combo_applied": q.get("combo_applied", False),
         "redeemed_points": redeemed_points, "points_discount_cents": points_discount,
         "points_redeemed_done": False,
         "total_cents": total,
@@ -558,6 +579,37 @@ async def reorder(order_id: str, request: Request, user: dict = Depends(current_
         raise HTTPException(400, {"code": "nothing_available"})
     return {"ok": True, "business_id": o["business_id"],
             "business_name": profile.get("public_name"), "items": items, "dropped": dropped}
+
+
+@router.get("/last/{business_id}")
+async def last_order(business_id: str, request: Request, user: dict = Depends(current_user)):
+    """Most recent paid order at this business, as a reorderable basket (only
+    items that still exist & are available). Powers 'Reorder my last order'."""
+    db = request.app.state.db
+    o = await db.marketplace_orders.find_one(
+        {"user_id": user.get("user_id"), "business_id": business_id,
+         "payment_status": "paid"},
+        sort=[("created_at", -1)])
+    if not o:
+        return {"has_order": False, "items": [], "dropped": 0}
+    items, dropped = [], 0
+    for li in (o.get("items") or []):
+        mi = await db.menu_items.find_one(
+            {"item_id": li.get("item_id"), "business_id": business_id, "available": True})
+        if not mi:
+            dropped += 1
+            continue
+        opts = li.get("selected_options") or []
+        items.append({
+            "item_id": li.get("item_id"), "name": li.get("name"),
+            "price_cents": li.get("price_cents"), "qty": li.get("qty", 1),
+            "selected_option_ids": [op.get("option_id") for op in opts if op.get("option_id")],
+            "option_summary": ", ".join([op.get("label") for op in opts if op.get("label")]) or None,
+            "note": li.get("note"),
+        })
+    return {"has_order": True, "order_id": o.get("order_id"),
+            "created_at": o.get("created_at").isoformat() if hasattr(o.get("created_at"), "isoformat") else o.get("created_at"),
+            "items": items, "dropped": dropped}
 
 
 @router.get("")

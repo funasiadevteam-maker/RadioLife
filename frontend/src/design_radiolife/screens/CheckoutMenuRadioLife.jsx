@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag, Tag, Crown, MapPin, Clock, Store } from "lucide-react";
+import { ChevronLeft, Coins, Gift, CreditCard, Check, ShoppingBag, Tag, Crown, MapPin, Clock, Store, Utensils } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
 import DeliveryAddressPicker from "../components/DeliveryAddressPicker";
@@ -200,6 +200,12 @@ export default function CheckoutMenuRadioLife() {
               <span className="font-black text-orange-600">−{money(quote.entitlement_discount_cents)}</span>
             </div>
           )}
+          {quote && quote.combo_discount_cents > 0 && (
+            <div className="flex justify-between text-sm mt-1" data-testid="checkout-combo-discount">
+              <span className="text-green-600 font-bold flex items-center gap-1"><Utensils size={12} />Meal combo</span>
+              <span className="font-black text-green-600">−{money(quote.combo_discount_cents)}</span>
+            </div>
+          )}
           {quote && quote.service_fee_cents > 0 && (
             <div className="flex justify-between text-sm mt-1" data-testid="checkout-service-fee">
               <span className="text-slate-500">Service fee</span>
@@ -296,7 +302,7 @@ export default function CheckoutMenuRadioLife() {
 
         {quote && (
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Coins size={13} className="text-amber-500" />You'll earn {quote.points_to_award} BigPoints on this order.
+            <Coins size={13} className="text-amber-500" />You&apos;ll earn {quote.points_to_award} BigPoints on this order.
           </div>
         )}
         {/* Payment method (only when a card payment is due) */}

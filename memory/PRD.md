@@ -1,5 +1,13 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## STORE ORDERING — Combo Nudge · Reorder Last · Kitchen Note Flag · Save For Later (2026-06 fork) — self-verified on web
+- **Combo Nudge ("make it a meal")**: server-enforced in `_price_menu` — when the basket has a main + a drink (detected by menu section keywords: coffee/drink/beverage/tea/juice/soda/…), take **30% off one drink**. Returns `combo_discount_cents`/`combo_applied`/`combo_label`, persisted on the order. Shown as a green nudge in `StoreCartPanel` (parent `ShopBusinessRadioLife` mirrors the detection to estimate the saving via `sectionByItem`) and as a "Meal combo" discount line on `CheckoutMenuRadioLife`. Verified: pizza+coffee → 105¢ off; coffee alone → none.
+- **Reorder Last**: new `GET /api/shop/orders/last/{business_id}` returns the most recent PAID order as a reorderable basket (rebuilds `selected_option_ids` from stored `selected_options[].option_id`, drops items no longer available). Store page shows a "Reorder last order" button (menu stores) that re-adds every line via `menuCart.addLine`. Verified live.
+- **Kitchen Note Flag**: merchant tickets (`MerchantDashRadioLife`, food + product) now show a "📝 NOTES" badge on any order with item notes, each item's option summary, and the note highlighted in an amber chip. Verified live on the merchant dashboard.
+- **Save For Later**: new persisted store `useSavedForLater` (`rl-saved-for-later`, keyed by business). Each cart line has a bookmark → moves it to a "Saved for later" shelf in `StoreCartPanel` with Move-to-cart / remove. Works for both menu + product carts. Verified live.
+- Files: backend `marketplace_orders.py` (+`marketplace_products.py` note); web `ShopBusinessRadioLife.jsx`, `components/StoreCartPanel.jsx`, `useSavedForLater.js`, `CheckoutMenuRadioLife.jsx`, `CheckoutCartRadioLife.jsx`, `MerchantDashRadioLife.jsx`.
+
+
 ## STORE PAGE ORDERING — Item Notes · Sticky Add Bar · Clear+Undo · Upsell (2026-06 fork) — self-verified on web (both stores)
 Four enhancements on top of the store-page ordering surface:
 - **Item Notes** (per-line, e.g. "no onions"): note field added to `ItemOptionModal` (menu) + `ProductVariantModal` (products). Threads through `useShopCart` (note in `lineKey` so distinct notes = distinct lines) + `useProductCart` (`keyOf` includes note), shown in the right cart panel + both checkout summaries, and PERSISTED on the order — backend `CheckoutItem`/`ProductCheckoutItem` gained `note` (≤140) written onto each order line (merchants see it). Quote/checkout verified to accept it (no price impact).
