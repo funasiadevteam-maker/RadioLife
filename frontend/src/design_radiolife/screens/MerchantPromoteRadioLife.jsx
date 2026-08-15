@@ -30,6 +30,28 @@ function Stat({ label, value, extra }) {
   );
 }
 
+function TrendChart({ trend }) {
+  const pts = (trend || []).filter(Boolean);
+  if (!pts.length) return null;
+  const max = Math.max(1, ...pts.map((d) => d.views));
+  return (
+    <div className="mt-3" data-testid="promote-trend">
+      <div className="text-[11px] font-bold text-slate-400 mb-1">Daily views · orders</div>
+      <div className="flex items-end gap-1 h-16">
+        {pts.map((d) => (
+          <div key={d.date} className="flex-1 flex flex-col items-center justify-end" title={`${d.date}: ${d.views} views, ${d.orders} orders`}>
+            {d.orders > 0 && <div className="text-[9px] font-black text-orange-600 leading-none mb-0.5">{d.orders}</div>}
+            <div className="w-full bg-orange-400 rounded-t" style={{ height: `${Math.max(4, (d.views / max) * 52)}px` }} />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-[9px] text-slate-400 mt-1">
+        <span>{pts[0].date.slice(5)}</span><span>{pts[pts.length - 1].date.slice(5)}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function MerchantPromoteRadioLife() {
   const navigate = useNavigate();
   const [tiers, setTiers] = useState([]);
@@ -41,6 +63,7 @@ export default function MerchantPromoteRadioLife() {
   const [busy, setBusy] = useState(null);
   const [bidCat, setBidCat] = useState("");
   const [bidCents, setBidCents] = useState("5");
+  const [dailyCap, setDailyCap] = useState("0");
   const [topupDollars, setTopupDollars] = useState("10");
 
   const load = useCallback(async () => {
@@ -60,6 +83,7 @@ export default function MerchantPromoteRadioLife() {
       if (cb.data?.bid?.category) setBidCat(cb.data.bid.category);
       else if ((cc.data.items || [])[0]) setBidCat(cc.data.items[0].key);
       if (cb.data?.bid?.bid_cents) setBidCents(String(cb.data.bid.bid_cents));
+      if (cb.data?.bid?.daily_cap_cents != null) setDailyCap(String(cb.data.bid.daily_cap_cents));
       const pend = (m.data.items || []).find((p) => p.status === "pending_payment");
       if (pend) {
         const st = await axios.get(`${API}/merchant/marketplace/promotion/${pend.promotion_id}/status`);
@@ -103,7 +127,8 @@ export default function MerchantPromoteRadioLife() {
     setBusy("bid");
     try {
       const r = await axios.post(`${API}/merchant/marketplace/category-bid/set`,
-        { category: bidCat, bid_cents: Math.max(1, parseInt(bidCents, 10) || 1) });
+        { category: bidCat, bid_cents: Math.max(1, parseInt(bidCents, 10) || 1),
+          daily_cap_cents: Math.max(0, parseInt(dailyCap, 10) || 0) });
       setCbid((c) => ({ ...(c || {}), standing: r.data.standing }));
       toast.success(r.data.status === "active" ? "Bid live" : "Bid saved — add budget to go live");
       load();
@@ -156,7 +181,7 @@ export default function MerchantPromoteRadioLife() {
               <div>
                 <div className="font-black text-slate-800 flex items-center gap-1.5 text-sm"><RefreshCw size={14} className="text-green-700" />Auto-renew</div>
                 <div className="text-[11px] text-slate-500 mt-0.5">
-                  {data?.default_pm || (data?.saved_cards || []).length ? "Charges your saved card when it expires." : "Add a card to keep it running automatically."}
+                  {data?.default_pm || (data?.saved_cards || []).length ? "Charges your saved card when it expires — a receipt is emailed each time." : "Add a card to keep it running automatically."}
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -181,6 +206,7 @@ export default function MerchantPromoteRadioLife() {
               <Stat label="Orders" value={analytics.orders} extra={analytics.extra_orders || null} />
               <Stat label="Revenue" value={money(analytics.revenue_cents)} extra={analytics.extra_revenue_cents ? money(analytics.extra_revenue_cents).replace("$", "$") : null} />
             </div>
+            <TrendChart trend={analytics.trend} />
           </div>
         )}
 
@@ -230,6 +256,17 @@ export default function MerchantPromoteRadioLife() {
             </div>
           )}
 
+          {cbid?.budget && bid && (cbid.budget.low_budget || cbid.budget.depleted) && (
+            <div className="rounded-xl p-3 mb-3 bg-amber-50 border border-amber-200" data-testid="promote-low-budget">
+              <div className="font-black text-sm text-amber-700">
+                {cbid.budget.depleted ? "Budget used up — you're no longer spotlighted" : "Low budget — top up to keep your spot"}
+              </div>
+              <div className="text-[11px] text-amber-700/80 mt-0.5">
+                About {cbid.budget.impressions_left} impression{cbid.budget.impressions_left === 1 ? "" : "s"} left at your current bid.
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <select value={bidCat} onChange={(e) => setBidCat(e.target.value)} data-testid="promote-bid-category"
               className="flex-1 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5 text-sm font-bold">
@@ -239,6 +276,17 @@ export default function MerchantPromoteRadioLife() {
               <input type="number" min="1" value={bidCents} onChange={(e) => setBidCents(e.target.value)} data-testid="promote-bid-cents"
                 className="w-14 bg-transparent text-center font-black text-slate-900 py-2.5" />
               <span className="text-xs font-bold text-slate-400 pr-1">¢/imp</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs font-bold text-slate-500 flex-1">Max spend per day (0 = no cap)</span>
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3">
+              <span className="text-sm font-bold text-slate-400">$</span>
+              <input type="number" min="0" step="0.5"
+                value={(parseInt(dailyCap, 10) || 0) / 100 || ""}
+                onChange={(e) => setDailyCap(String(Math.round((parseFloat(e.target.value) || 0) * 100)))}
+                placeholder="0" data-testid="promote-daily-cap"
+                className="w-16 bg-transparent text-center font-black text-slate-900 py-2" />
             </div>
           </div>
           <button onClick={saveBid} disabled={busy === "bid"} data-testid="promote-bid-save"

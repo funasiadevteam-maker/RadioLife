@@ -5,6 +5,7 @@ Stripe hosted Checkout, ADMIN-approved before it goes live. Admins can also comp
 `promotion_weight` onto the marketplace_profile; shop reads boost + badge it."""
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -290,8 +291,33 @@ async def analytics(request: Request, user: dict = Depends(current_user)):
     def _extra(a, b):
         return max(0, a - b)
 
+    # Day-by-day trend across the promotion window (capped to 60 points).
+    day = start.date()
+    days = []
+    while day <= end.date() and len(days) < 60:
+        days.append(day.isoformat())
+        day += timedelta(days=1)
+    tmap = {d: {"date": d, "views": 0, "impressions": 0, "orders": 0, "revenue_cents": 0} for d in days}
+    if days:
+        async for doc in db.promotion_daily.find(
+                {"business_id": bid, "date": {"$gte": days[0], "$lte": days[-1]}}):
+            t = tmap.get(doc.get("date"))
+            if t:
+                t["views"] += int(doc.get("views", 0))
+                t["impressions"] += int(doc.get("impressions", 0))
+        async for o in db.marketplace_orders.find(
+                {"business_id": bid, "payment_status": "paid", "created_at": {"$gte": start, "$lt": end}}):
+            ca = o.get("created_at")
+            dk = ca.date().isoformat() if hasattr(ca, "date") else str(ca)[:10]
+            t = tmap.get(dk)
+            if t:
+                t["orders"] += 1
+                t["revenue_cents"] += int(o.get("total_cents", 0))
+    trend = [tmap[d] for d in days]
+
     return {
         "has_data": True, "tier": promo.get("name"), "status": promo.get("status"),
+        "trend": trend,
         "window": {"start": _iso(start), "end": _iso(end)},
         "impressions": win_v["impressions"], "views": win_v["views"],
         "orders": win_o["orders"], "revenue_cents": win_o["revenue_cents"],
@@ -341,6 +367,7 @@ async def sweep_renewals(db, throttle_seconds: int = 45):
         tier = TIERS_BY_ID.get(promo.get("tier")) or TIERS_BY_ID["spotlight_7"]
         days = int(tier["days"])
         charged = False
+        u = None
         pm = promo.get("auto_renew_pm")
         if pm:
             try:
@@ -371,8 +398,37 @@ async def sweep_renewals(db, throttle_seconds: int = 45):
         await _apply_active(db, promo["business_id"], tier["tier"], tier["weight"], expires_iso)
         await db.marketplace_promotions.update_one(
             {"promotion_id": promo["promotion_id"]}, {"$set": {"status": "expired", "auto_renew": False}})
+        if charged:
+            await _email_renewal_receipt(u, promo.get("public_name"), tier, expires_iso)
         renewed += 1
     return {"renewed": renewed}
+
+
+async def _email_renewal_receipt(u, shop_name, tier, expires_iso):
+    """Best-effort receipt email after an auto-renew charge (never blocks/raises)."""
+    try:
+        from services.mailgun_client import send_email, is_live
+        if not (is_live() and u and u.get("email")):
+            return
+        amount = f"${tier['price_cents'] / 100:.2f}"
+        until = str(expires_iso)[:10]
+        html = (
+            f"<div style='font-family:sans-serif;max-width:520px'>"
+            f"<h2 style='color:#ea580c;margin:0 0 8px'>Promotion renewed 🚀</h2>"
+            f"<p>Hi {u.get('name') or 'there'},</p>"
+            f"<p>Your <b>{tier['name']}</b> promotion for <b>{shop_name}</b> auto-renewed.</p>"
+            f"<table style='border-collapse:collapse;margin:12px 0'>"
+            f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Plan</td><td style='padding:4px 0'><b>{tier['name']} · {tier['days']} days</b></td></tr>"
+            f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Amount</td><td style='padding:4px 0'><b>{amount}</b></td></tr>"
+            f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Active until</td><td style='padding:4px 0'><b>{until}</b></td></tr>"
+            f"</table>"
+            f"<p style='color:#64748b;font-size:13px'>You can turn off auto-renew any time from Promote my Shop.</p>"
+            f"</div>")
+        await asyncio.to_thread(send_email, u["email"],
+                                f"Your RadioLife promotion renewed — {tier['name']}",
+                                html, tags=["promotion_renewal"])
+    except Exception:
+        pass
 
 
 

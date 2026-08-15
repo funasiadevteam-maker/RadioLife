@@ -30,6 +30,25 @@ function Stat({ label, value, extra }: { label: string; value: string | number; 
   );
 }
 
+function TrendChart({ trend }: { trend: any[] }) {
+  const pts = (trend || []).filter(Boolean);
+  if (!pts.length) return null;
+  const max = Math.max(1, ...pts.map((d) => d.views));
+  return (
+    <View style={{ marginTop: 12 }} testID="promote-trend">
+      <Text style={s.trendLabel}>Daily views · orders</Text>
+      <View style={s.trendRow}>
+        {pts.map((d) => (
+          <View key={d.date} style={s.trendCol}>
+            {d.orders > 0 ? <Text style={s.trendOrders}>{d.orders}</Text> : null}
+            <View style={[s.trendBar, { height: Math.max(4, (d.views / max) * 52) }]} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function Promote() {
   const router = useRouter();
   const { celebrate } = useReward();
@@ -42,6 +61,7 @@ export default function Promote() {
   const [busy, setBusy] = useState<string | null>(null);
   const [bidCat, setBidCat] = useState('');
   const [bidCents, setBidCents] = useState('5');
+  const [dailyCap, setDailyCap] = useState('0');
   const [topupDollars, setTopupDollars] = useState('10');
 
   const load = useCallback(async () => {
@@ -61,6 +81,7 @@ export default function Promote() {
       if (cb.data?.bid?.category) setBidCat(cb.data.bid.category);
       else if ((cc.data.items || [])[0]) setBidCat(cc.data.items[0].key);
       if (cb.data?.bid?.bid_cents) setBidCents(String(cb.data.bid.bid_cents));
+      if (cb.data?.bid?.daily_cap_cents != null) setDailyCap(String(cb.data.bid.daily_cap_cents));
     } catch { setData({ no_profile: true }); }
     finally { setLoading(false); }
   }, []);
@@ -98,7 +119,8 @@ export default function Promote() {
     setBusy('bid');
     try {
       const r = await api.post('/merchant/marketplace/category-bid/set',
-        { category: bidCat, bid_cents: Math.max(1, parseInt(bidCents, 10) || 1) });
+        { category: bidCat, bid_cents: Math.max(1, parseInt(bidCents, 10) || 1),
+          daily_cap_cents: Math.max(0, parseInt(dailyCap, 10) || 0) });
       setCbid((c: any) => ({ ...(c || {}), standing: r.data.standing }));
       load();
     } catch { celebrate({ points: 0, title: 'Could not save bid' }); }
@@ -158,7 +180,7 @@ export default function Promote() {
             <View style={s.autoRow}>
               <View style={{ flex: 1 }}>
                 <Text style={s.autoTitle}>Auto-renew</Text>
-                <Text style={s.autoHint}>{data?.default_pm || (data?.saved_cards || []).length ? 'Charges your saved card at expiry.' : 'Add a card in Wallet to enable.'}</Text>
+                <Text style={s.autoHint}>{data?.default_pm || (data?.saved_cards || []).length ? 'Charges your saved card at expiry — receipt emailed.' : 'Add a card in Wallet to enable.'}</Text>
               </View>
               <Switch value={!!data?.auto_renew} onValueChange={toggleAutoRenew}
                 trackColor={{ true: COLORS.green, false: COLORS.surfaceBorder }} testID="promote-autorenew-toggle" />
@@ -178,6 +200,7 @@ export default function Promote() {
               <Stat label="Orders" value={analytics.orders} extra={analytics.extra_orders ? String(analytics.extra_orders) : null} />
               <Stat label="Revenue" value={money(analytics.revenue_cents)} extra={analytics.extra_revenue_cents ? money(analytics.extra_revenue_cents) : null} />
             </View>
+            <TrendChart trend={analytics.trend} />
           </View>
         )}
 
@@ -220,6 +243,15 @@ export default function Promote() {
             </View>
           )}
 
+          {cbid?.budget && bid && (cbid.budget.low_budget || cbid.budget.depleted) && (
+            <View style={s.lowBudget} testID="promote-low-budget">
+              <Text style={s.lowBudgetTitle}>
+                {cbid.budget.depleted ? "Budget used up — you're no longer spotlighted" : "Low budget — top up to keep your spot"}
+              </Text>
+              <Text style={s.lowBudgetSub}>About {cbid.budget.impressions_left} impression{cbid.budget.impressions_left === 1 ? '' : 's'} left at your bid.</Text>
+            </View>
+          )}
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
             {cats.map((c) => (
               <TouchableOpacity key={c.key} onPress={() => setBidCat(c.key)} testID={`promote-bid-cat-${c.key}`}
@@ -238,6 +270,18 @@ export default function Promote() {
             <TouchableOpacity style={s.bidBtn} onPress={saveBid} disabled={busy === 'bid'} testID="promote-bid-save">
               <Text style={s.bidBtnText}>{busy === 'bid' ? 'Saving…' : bid ? 'Update bid' : 'Place bid'}</Text>
             </TouchableOpacity>
+          </View>
+
+          <View style={s.capRow}>
+            <Text style={s.capLabel}>Max spend per day (0 = no cap)</Text>
+            <View style={s.capInputWrap}>
+              <Text style={s.dollar}>$</Text>
+              <TextInput
+                value={String((parseInt(dailyCap, 10) || 0) / 100 || '')}
+                onChangeText={(v) => setDailyCap(String(Math.round((parseFloat(v) || 0) * 100)))}
+                keyboardType="decimal-pad" placeholder="0" placeholderTextColor={COLORS.textMuted}
+                style={s.capInput} testID="promote-daily-cap" />
+            </View>
           </View>
 
           {bid && (
@@ -294,6 +338,18 @@ const s = StyleSheet.create({
   statVal: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900' },
   statLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700' },
   statExtra: { color: COLORS.green, fontSize: 11, fontWeight: '900', marginTop: 2 },
+  trendLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 6 },
+  trendRow: { flexDirection: 'row', alignItems: 'flex-end', height: 64, gap: 3 },
+  trendCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  trendOrders: { color: COLORS.primary, fontSize: 9, fontWeight: '900', marginBottom: 2 },
+  trendBar: { width: '100%', backgroundColor: COLORS.primary, borderTopLeftRadius: 3, borderTopRightRadius: 3 },
+  lowBudget: { backgroundColor: COLORS.gold + '1e', borderWidth: 1, borderColor: COLORS.gold + '55', borderRadius: RADIUS.md, padding: 10, marginBottom: 8 },
+  lowBudgetTitle: { color: COLORS.gold, fontSize: FONT.sm, fontWeight: '900' },
+  lowBudgetSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
+  capRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  capLabel: { flex: 1, color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
+  capInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, paddingHorizontal: 10 },
+  capInput: { width: 54, color: COLORS.text, fontSize: FONT.md, fontWeight: '900', paddingVertical: 8, textAlign: 'center' },
   standing: { borderRadius: RADIUS.md, padding: 10, marginBottom: 8, borderWidth: 1 },
   standingGood: { backgroundColor: COLORS.green + '12', borderColor: COLORS.green + '44' },
   standingBad: { backgroundColor: COLORS.red + '12', borderColor: COLORS.red + '44' },

@@ -6,7 +6,7 @@ longer cover the next impression the bid auto-pauses ('depleted'). Active
 bidders also get the Promoted badge + the Promoted-near-you rail."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Set
 
 
@@ -14,12 +14,21 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _today() -> str:
+    return date.today().isoformat()
+
+
+def _capped_today(b: Dict[str, Any]) -> bool:
+    cap = int(b.get("daily_cap_cents", 0) or 0)
+    return cap > 0 and b.get("spend_date") == _today() and int(b.get("spent_today", 0)) >= cap
+
+
 def _eligible(b: Dict[str, Any]) -> bool:
-    return int(b.get("budget_cents", 0)) >= int(b.get("bid_cents", 0)) > 0
+    return int(b.get("budget_cents", 0)) >= int(b.get("bid_cents", 0)) > 0 and not _capped_today(b)
 
 
 async def active_bids_for(db, category: str) -> List[Dict[str, Any]]:
-    """Live, funded bids for a category — best (highest) bid first."""
+    """Live, funded, not-daily-capped bids for a category — highest bid first."""
     out = [b async for b in db.category_bids.find({"category": category, "status": "active"})]
     out = [b for b in out if _eligible(b)]
     out.sort(key=lambda b: int(b.get("bid_cents", 0)), reverse=True)
@@ -36,16 +45,24 @@ async def active_bid_business_ids(db) -> Set[str]:
 
 async def bill_impressions(db, bids: List[Dict[str, Any]]):
     """Charge one impression per served bidder against its prepaid budget.
-    Atomic: the conditional $inc only fires while budget covers the bid, so
-    concurrent shop reads never double-bill or drive the budget negative."""
+    Atomic: the conditional $inc only fires while budget covers the bid AND the
+    daily cap isn't hit, so concurrent reads never double-bill, overspend a
+    day, or drive the budget negative."""
+    today = _today()
     for b in bids:
         bid = int(b.get("bid_cents", 0))
         if bid <= 0:
             continue
-        r = await db.category_bids.update_one(
-            {"bid_id": b["bid_id"], "budget_cents": {"$gte": bid}},
-            {"$inc": {"spent_cents": bid, "impressions": 1, "budget_cents": -bid},
-             "$set": {"updated_at": _now()}})
+        cap = int(b.get("daily_cap_cents", 0) or 0)
+        if b.get("spend_date") != today:  # roll the daily counter over
+            await db.category_bids.update_one(
+                {"bid_id": b["bid_id"]}, {"$set": {"spent_today": 0, "spend_date": today}})
+        filt: Dict[str, Any] = {"bid_id": b["bid_id"], "budget_cents": {"$gte": bid}}
+        if cap > 0:
+            filt["spent_today"] = {"$lte": cap - bid}
+        r = await db.category_bids.update_one(filt,
+            {"$inc": {"spent_cents": bid, "impressions": 1, "budget_cents": -bid, "spent_today": bid},
+             "$set": {"updated_at": _now(), "spend_date": today}})
         if r.modified_count:
             await db.category_bids.update_one(
                 {"bid_id": b["bid_id"], "status": "active", "budget_cents": {"$lt": bid}},

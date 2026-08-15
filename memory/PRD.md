@@ -1,5 +1,15 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## CATEGORY SPOTLIGHT REFINEMENTS (Daily Cap · Low-Budget Alert · Analytics Trend · Renewal Receipt) — testing agent PASS (iter90: backend 8/8; web 8 testids, mobile 6 testids)
+Four user-approved refinements on the Promotions/Category-Spotlight suite. Shared backend + web + mobile.
+- **Daily Budget Cap** — `category_bids.daily_cap_cents` (0 = none). `POST /category-bid/set` accepts it; `bill_impressions` gates spend with an atomic `spent_today ≤ cap-bid` conditional and a lazy day-rollover; once capped the bid drops out of `active_bids_for` (loses its #1/spotlight spot) until the next day. UI: "Max spend per day" input on both promote screens (`promote-daily-cap`).
+- **Low-Budget Alert** — `GET /category-bid` returns `budget:{impressions_left, low_budget (<20 left & active), depleted}`. UI: amber warning banner on both promote screens (`promote-low-budget`, conditional).
+- **Analytics Trend** — `GET /promotion/analytics` now returns `trend[]` of `{date, views, impressions, orders, revenue_cents}` across the window (capped 60 pts). UI: simple day-by-day bar chart (views bars + order-count labels) in the analytics card (`promote-trend`) on both surfaces (dependency-free `View`/div bars).
+- **Renewal Receipt** — `sweep_renewals` calls `_email_renewal_receipt` (Mailgun `send_email` via `asyncio.to_thread`, `is_live`-gated) after a SUCCESSFUL off-session auto-renew charge; emails the merchant a receipt (plan/amount/active-until). Fires only at real expiry (not e2e-triggerable). UI hint added to the auto-renew row on both surfaces.
+- Non-blocking (documented, fine for single worker): `sweep_renewals` throttle is per-process (could double-send receipts across multiple uvicorn workers); `_email_renewal_receipt` swallows errors silently; spend-date rollover + billing are two ops (rare race).
+
+
+
 ## PROMO ANALYTICS + AUTO-RENEW + CATEGORY SPOTLIGHT AUCTION (Phase F+) — testing agent PASS (iter89: backend 14/14; web + mobile e2e verified) + reviewer-flagged integrity hardening applied & re-verified
 Three merchant growth features on top of the Promoted Marketplace, user-approved. Shared backend + web + mobile.
 - **Promo Analytics** — `GET /api/merchant/marketplace/promotion/analytics`: views + impressions (from `promotion_daily` counters), orders + revenue (from `marketplace_orders`) for the active/most-recent promotion window, plus **uplift vs the equal prior window** (`extra_*`). Beacon `POST /api/shop/track {business_id, kind:'impression'|'view'}` (auth-gated). Web fires impression beacons per promoted card on the Shop home + a view beacon on business-detail open; mobile fires impressions from the Shop tab + a view on `shop/[id]`. UI: analytics card on both promote screens (`promote-analytics`).

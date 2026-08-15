@@ -43,6 +43,7 @@ async def _my_business(db, user) -> Dict[str, Any]:
 class SetBidBody(BaseModel):
     category: str
     bid_cents: int = Field(..., ge=1, le=1000)
+    daily_cap_cents: int = Field(0, ge=0, le=10000000)
 
 
 class TopupBody(BaseModel):
@@ -65,8 +66,15 @@ async def my_bid(request: Request, user: dict = Depends(current_user)):
     p = await _my_business(db, user)
     b = await db.category_bids.find_one({"business_id": p["business_id"]})
     standing = await bid_standing(db, b["category"], p["business_id"]) if b and b.get("category") else None
+    # Low-budget warning so the merchant tops up before losing the top spot.
+    low = None
+    if b:
+        bid_c = int(b.get("bid_cents", 0) or 0)
+        left = int(b.get("budget_cents", 0)) // bid_c if bid_c else 0
+        low = {"impressions_left": left, "low_budget": b.get("status") == "active" and left < 20,
+               "depleted": b.get("status") == "depleted"}
     return {"business_id": p["business_id"], "public_name": p.get("public_name"),
-            "bid": _clean(dict(b)) if b else None, "standing": standing}
+            "bid": _clean(dict(b)) if b else None, "standing": standing, "budget": low}
 
 
 @router.post("/set")
@@ -78,14 +86,15 @@ async def set_bid(body: SetBidBody, request: Request, user: dict = Depends(curre
     status = "active" if budget >= body.bid_cents else "pending_budget"
     base = {"business_id": p["business_id"], "owner_user_id": user.get("user_id"),
             "public_name": p.get("public_name"), "category": body.category,
-            "bid_cents": body.bid_cents, "status": status, "updated_at": _now()}
+            "bid_cents": body.bid_cents, "daily_cap_cents": body.daily_cap_cents,
+            "status": status, "updated_at": _now()}
     if ex:
         await db.category_bids.update_one({"business_id": p["business_id"]}, {"$set": base})
         bid_id = ex["bid_id"]
     else:
         bid_id = f"cbid_{uuid.uuid4().hex[:10]}"
         base.update({"bid_id": bid_id, "budget_cents": 0, "spent_cents": 0,
-                     "impressions": 0, "created_at": _now()})
+                     "impressions": 0, "spent_today": 0, "spend_date": None, "created_at": _now()})
         await db.category_bids.insert_one(base)
     standing = await bid_standing(db, body.category, p["business_id"])
     return {"ok": True, "bid_id": bid_id, "status": status, "standing": standing}
