@@ -54,6 +54,15 @@ export default function ProductVariantModal({ product, onClose, onConfirm }) {
 
           <div>
             <div className="text-sm font-black text-slate-900 mb-1.5">Note to seller</div>
+            <div className="flex flex-wrap gap-1.5 mb-2" data-testid="product-note-presets">
+              {["Gift wrap", "Fragile", "Leave at door", "Call on arrival"].map((chip) => (
+                <button key={chip} type="button" data-testid={`product-note-chip-${chip}`}
+                  onClick={() => setNote((n) => (n.toLowerCase().includes(chip.toLowerCase()) ? n : (n ? `${n}, ${chip}` : chip)))}
+                  className="px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-xs font-bold text-slate-600 hover:border-orange-400 hover:text-orange-600">
+                  + {chip}
+                </button>
+              ))}
+            </div>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} rows={2}
               placeholder="e.g. gift wrap, colour preference" data-testid="product-variant-note"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none resize-none focus:border-orange-400" />

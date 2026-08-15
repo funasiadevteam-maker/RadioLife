@@ -234,6 +234,53 @@ async def business_menu(business_id: str, request: Request,
 CHECKIN_POINTS = 50
 
 
+@router.get("/businesses/{business_id}/combos")
+async def business_combos(business_id: str, request: Request,
+                          user: dict = Depends(current_user_optional)):
+    """Active merchant-defined meal combos — powers the store-page combo nudge."""
+    db = request.app.state.db
+    combos = []
+    async for c in db.marketplace_combos.find({"business_id": business_id, "active": True}):
+        combos.append({"combo_id": c.get("combo_id"), "name": c.get("name"),
+                       "price_cents": c.get("price_cents", 0),
+                       "requirements": c.get("requirements", [])})
+    return {"combos": combos}
+
+
+@router.get("/businesses/{business_id}/usual")
+async def my_usual(business_id: str, request: Request, user: dict = Depends(current_user)):
+    """Most-ordered items across the shopper's paid orders here — 'Get your usual?'."""
+    db = request.app.state.db
+    uid = user.get("user_id")
+    agg: Dict[str, Dict[str, Any]] = {}
+    async for o in db.marketplace_orders.find(
+            {"user_id": uid, "business_id": business_id, "payment_status": "paid"}).sort("created_at", -1).limit(40):
+        for li in (o.get("items") or []):
+            iid = li.get("item_id")
+            if not iid:
+                continue
+            e = agg.setdefault(iid, {"item_id": iid, "name": li.get("name"),
+                                     "price_cents": li.get("price_cents"), "count": 0,
+                                     "selected_options": li.get("selected_options") or [],
+                                     "note": li.get("note")})
+            e["count"] += int(li.get("qty", 1) or 1)
+    ranked = sorted(agg.values(), key=lambda x: x["count"], reverse=True)[:4]
+    out = []
+    for e in ranked:
+        mi = await db.menu_items.find_one({"item_id": e["item_id"], "business_id": business_id, "available": True})
+        if not mi:
+            continue
+        opts = e.get("selected_options") or []
+        out.append({
+            "item_id": e["item_id"], "name": e["name"], "price_cents": e["price_cents"],
+            "image_url": mi.get("image_url"), "times_ordered": e["count"],
+            "selected_option_ids": [op.get("option_id") for op in opts if op.get("option_id")],
+            "option_summary": ", ".join([op.get("label") for op in opts if op.get("label")]) or None,
+            "note": e.get("note"),
+        })
+    return {"has_usual": len(out) > 0, "items": out}
+
+
 @router.post("/businesses/{business_id}/checkin")
 async def checkin(business_id: str, request: Request, user: dict = Depends(current_user)):
     """Loyalty check-in — awards points once per day per business."""

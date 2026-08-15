@@ -5821,6 +5821,14 @@ try:
 except Exception as _e:
     logger.warning("push router not loaded: %s", _e)
 
+# Merchant-defined meal combos.
+try:
+    from routes.marketplace_combos import router as _mkt_combos_router
+    app.include_router(_mkt_combos_router)
+    logger.info("Combos route wired: /api/merchant/marketplace/combos")
+except Exception as _e:
+    logger.warning("combos router not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router

@@ -139,6 +139,64 @@ def _ready_at(profile: Dict[str, Any], fulfillment: str, pickup_time: Optional[s
     return now() + timedelta(minutes=_eta_minutes(profile, fulfillment, pickup_time))
 
 
+_DRINK_KW = ("coffee", "drink", "beverage", "tea", "juice", "soda", "shake",
+             "latte", "smoothie", "cola", "water", "mocktail")
+_ADDON_KW = _DRINK_KW + ("dessert", "side", "extra", "sauce", "topping", "add-on", "addon")
+
+
+def _auto_combo(line_meta: List[Dict[str, Any]]):
+    """Default combo when a merchant hasn't defined any: 30% off one drink when
+    the basket has a main + a drink."""
+    drink_units = [m["unit"] for m in line_meta
+                   if any(k in (m["section"] or "").lower() for k in _DRINK_KW)]
+    has_main = any(not any(k in (m["section"] or "").lower() for k in _ADDON_KW) for m in line_meta)
+    if has_main and drink_units:
+        return int(round(min(drink_units) * 0.30)), ["Meal combo"]
+    return 0, []
+
+
+def _apply_combos(combos: List[Dict[str, Any]], line_meta: List[Dict[str, Any]]):
+    """Merchant-defined combos. Each combo = {name, price_cents, requirements:
+    [{category, qty}]}. A combo fires whenever the basket contains enough
+    units matching every requirement (cheapest units chosen); it applies
+    repeatedly while it keeps matching. Discount = regular total − combo price."""
+    units: List[Dict[str, Any]] = []
+    for m in line_meta:
+        for _ in range(int(m.get("qty", 1) or 1)):
+            units.append({"section": (m["section"] or "").lower(), "unit": m["unit"], "used": False})
+    total, names = 0, []
+    for c in combos:
+        reqs = c.get("requirements") or []
+        price = int(c.get("price_cents", 0) or 0)
+        if not reqs:
+            continue
+        guard = 0
+        while guard < 20:
+            guard += 1
+            chosen, picked, ok = [], set(), True
+            for req in reqs:
+                cat = (req.get("category") or "").lower().strip()
+                need = int(req.get("qty", 1) or 1)
+                cands = sorted([u for u in units if not u["used"] and id(u) not in picked and cat and cat in u["section"]],
+                               key=lambda x: x["unit"])
+                if len(cands) < need:
+                    ok = False
+                    break
+                for u in cands[:need]:
+                    picked.add(id(u))
+                    chosen.append(u)
+            if not ok:
+                break
+            disc = sum(u["unit"] for u in chosen) - price
+            if disc <= 0:
+                break
+            for u in chosen:
+                u["used"] = True
+            total += disc
+            names.append(c.get("name") or "Combo")
+    return total, list(dict.fromkeys(names))
+
+
 async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
                       use_gift_card: bool, redeem_points: int,
                       coupon_code: Optional[str] = None,
@@ -202,7 +260,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
                 "upcharge_cents": int(ev.get("charged_upcharge_cents", 0)),
                 "reset_frequency": ent.get("reset_frequency", "monthly"), "label": ent.get("label")})
         subtotal += unit_price * ci.qty
-        line_meta.append({"section": it.get("section") or "", "unit": unit_price})
+        line_meta.append({"section": it.get("section") or "", "unit": unit_price, "qty": ci.qty})
         line_items.append(line)
     if subtotal <= 0:
         raise HTTPException(400, {"code": "zero_total"})
@@ -213,19 +271,13 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         user_id=user.get("user_id"), base_cents=after_entitlement)
     after_coupon = after_entitlement - coupon_discount
 
-    # "Make it a meal" combo — when the basket has a main + a drink, take 30%
-    # off one drink. Detected by menu section keywords; server-enforced here so
-    # /quote and /checkout stay in sync.
-    _DRINK_KW = ("coffee", "drink", "beverage", "tea", "juice", "soda", "shake",
-                 "latte", "smoothie", "cola", "water", "mocktail")
-    _ADDON_KW = _DRINK_KW + ("dessert", "side", "extra", "sauce", "topping", "add-on", "addon")
-    drink_units = [m["unit"] for m in line_meta
-                   if any(k in (m["section"] or "").lower() for k in _DRINK_KW)]
-    has_main = any(not any(k in (m["section"] or "").lower() for k in _ADDON_KW) for m in line_meta)
-    combo_discount = 0
-    if has_main and drink_units:
-        combo_discount = min(int(round(min(drink_units) * 0.30)), max(0, after_coupon))
+    # "Make it a meal" combos — merchant-defined if any, else the default
+    # 30%-off-a-drink. Server-enforced so /quote and /checkout stay in sync.
+    combos = [c async for c in db.marketplace_combos.find({"business_id": business_id, "active": True})]
+    combo_raw, combo_names = _apply_combos(combos, line_meta) if combos else _auto_combo(line_meta)
+    combo_discount = min(combo_raw, max(0, after_coupon))
     combo_applied = combo_discount > 0
+    combo_names = combo_names if combo_applied else []
     after_combo = after_coupon - combo_discount
 
     gift_card = await _pick_gift_card(db, user, business_id)
@@ -278,7 +330,7 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
         "coupon_code": (coupon_doc or {}).get("code") if coupon_discount > 0 else None,
         "coupon_id": (coupon_doc or {}).get("coupon_id") if coupon_discount > 0 else None,
         "combo_discount_cents": combo_discount, "combo_applied": combo_applied,
-        "combo_label": "Meal combo · 30% off a drink" if combo_applied else None,
+        "combo_label": ", ".join(combo_names) if combo_applied else None,
         "points_balance": int(balance or 0), "redeem_points_per_dollar": REDEEM_POINTS_PER_DOLLAR,
         "max_redeemable_points": max_redeemable, "redeemed_points": used_points,
         "points_discount_cents": points_discount,

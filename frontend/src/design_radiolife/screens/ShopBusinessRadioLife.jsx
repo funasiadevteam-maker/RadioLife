@@ -9,7 +9,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import {
   ChevronLeft, Star, ShoppingBag, ShoppingCart, MapPin, Wallet, Crown, Gift,
-  Package as PackageIcon, CalendarDays, Check, Plus, Minus, Coins, Sliders, RotateCcw,
+  Package as PackageIcon, CalendarDays, Check, Plus, Minus, Coins, Sliders, RotateCcw, Bookmark,
 } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useShopCart } from "../useShopCart";
@@ -17,6 +17,7 @@ import { useProductCart } from "../useProductCart";
 import ItemOptionModal, { defaultMenuSelection, menuQuickAddReady } from "../ItemOptionModal";
 import ProductVariantModal from "../components/ProductVariantModal";
 import StoreCartPanel from "../components/StoreCartPanel";
+import { useSavedForLater } from "../useSavedForLater";
 
 const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 const EARN_ICONS = { "bag-check": ShoppingBag, location: MapPin, wallet: Wallet };
@@ -33,9 +34,14 @@ export default function ShopBusinessRadioLife() {
   const [modalItem, setModalItem] = useState(null);      // menu customize
   const [variantProduct, setVariantProduct] = useState(null); // product customize
   const [lastOrder, setLastOrder] = useState(null);
+  const [combos, setCombos] = useState([]);
+  const [usual, setUsual] = useState(null);
+  const [usualDismissed, setUsualDismissed] = useState(false);
 
   const menuCart = useShopCart();
   const productCart = useProductCart();
+  const savedStore = useSavedForLater();
+  const savedCount = savedStore.listFor(id).length;
 
   const mode = useMemo(() => {
     if (!b) return "other";
@@ -84,12 +90,18 @@ export default function ShopBusinessRadioLife() {
     return () => { alive = false; };
   }, [id]);
 
-  // Last order for "Reorder" (menu stores only).
+  // Last order + combos + "usual" for menu stores.
   useEffect(() => {
-    if (mode !== "menu") { setLastOrder(null); return; }
+    if (mode !== "menu") { setLastOrder(null); setCombos([]); setUsual(null); return; }
     let alive = true;
     axios.get(`${API}/shop/orders/last/${id}`)
       .then((r) => { if (alive && r.data?.has_order && (r.data.items || []).length) setLastOrder(r.data); })
+      .catch(() => {});
+    axios.get(`${API}/shop/businesses/${id}/combos`)
+      .then((r) => { if (alive) setCombos(r.data?.combos || []); })
+      .catch(() => {});
+    axios.get(`${API}/shop/businesses/${id}/usual`)
+      .then((r) => { if (alive && r.data?.has_usual) setUsual(r.data.items || []); })
       .catch(() => {});
     return () => { alive = false; };
   }, [id, mode]);
@@ -154,16 +166,44 @@ export default function ShopBusinessRadioLife() {
   const suggestions = [...(preferred.length ? preferred : rest)]
     .sort((a, b) => a.price_cents - b.price_cents).slice(0, 3);
 
-  // ---- "Make it a meal" combo (menu only) — mirrors backend detection ----
-  const DRINK_KW = ["coffee", "drink", "beverage", "tea", "juice", "soda", "shake", "latte", "smoothie", "cola", "water", "mocktail"];
-  const ADDON_KW = [...DRINK_KW, "dessert", "side", "extra", "sauce", "topping"];
+  // ---- "Make it a meal" combo (menu only) — mirrors the backend engine ----
+  const lc = (s) => (s || "").toLowerCase();
   const sectionByItem = {};
   groups.forEach((g) => g.items.forEach((it) => { sectionByItem[keyOfItem(it)] = g.title || ""; }));
-  const lc = (s) => (s || "").toLowerCase();
-  const drinkUnits = menuLines.filter((l) => DRINK_KW.some((k) => lc(sectionByItem[l.item_id]).includes(k))).map((l) => l.price_cents);
-  const hasMainInCart = menuLines.some((l) => !ADDON_KW.some((k) => lc(sectionByItem[l.item_id]).includes(k)));
-  const comboApplies = mode === "menu" && hasMainInCart && drinkUnits.length > 0;
-  const combo = { applies: comboApplies, saveCents: comboApplies ? Math.round(Math.min(...drinkUnits) * 0.30) : 0 };
+  const computeCombo = () => {
+    if (mode !== "menu") return { applies: false, saveCents: 0 };
+    const units = [];
+    menuLines.forEach((l) => { for (let k = 0; k < l.qty; k++) units.push({ sec: lc(sectionByItem[l.item_id]), unit: l.price_cents, used: false }); });
+    if (combos.length) {
+      let total = 0;
+      for (const c of combos) {
+        const reqs = c.requirements || []; const price = c.price_cents || 0;
+        if (!reqs.length) continue;
+        let guard = 0;
+        while (guard < 20) {
+          guard += 1;
+          const chosen = []; const picked = new Set(); let ok = true;
+          for (const r of reqs) {
+            const cat = lc(r.category || ""); const need = r.qty || 1;
+            const cands = units.filter((u) => !u.used && !picked.has(u) && cat && u.sec.includes(cat)).sort((a, b) => a.unit - b.unit);
+            if (cands.length < need) { ok = false; break; }
+            cands.slice(0, need).forEach((u) => { picked.add(u); chosen.push(u); });
+          }
+          if (!ok) break;
+          const disc = chosen.reduce((s, u) => s + u.unit, 0) - price;
+          if (disc <= 0) break;
+          chosen.forEach((u) => { u.used = true; }); total += disc;
+        }
+      }
+      return { applies: total > 0, saveCents: total };
+    }
+    const DRINK = ["coffee", "drink", "beverage", "tea", "juice", "soda", "shake", "latte", "smoothie", "cola", "water", "mocktail"];
+    const ADDON = [...DRINK, "dessert", "side", "extra", "sauce", "topping"];
+    const drinkUnits = units.filter((u) => DRINK.some((k) => u.sec.includes(k))).map((u) => u.unit);
+    const hasMain = units.some((u) => !ADDON.some((k) => u.sec.includes(k)));
+    return (hasMain && drinkUnits.length) ? { applies: true, saveCents: Math.round(Math.min(...drinkUnits) * 0.30) } : { applies: false, saveCents: 0 };
+  };
+  const combo = computeCombo();
 
   const reorderLast = () => {
     if (!lastOrder?.items?.length) return;
@@ -173,6 +213,16 @@ export default function ShopBusinessRadioLife() {
       note: li.note, qty: li.qty || 1,
     }));
     toast.success(lastOrder.dropped ? "Added your last order (some items are no longer available)" : "Added your last order");
+  };
+
+  const addUsual = () => {
+    if (!usual?.length) return;
+    usual.forEach((u) => menuCart.addLine(id, b.public_name, {
+      item_id: u.item_id, name: u.name, price_cents: u.price_cents,
+      selected_option_ids: u.selected_option_ids || [], option_summary: u.option_summary, note: u.note,
+    }));
+    setUsualDismissed(true);
+    toast.success("Added your usual 🎉");
   };
 
   // ---- Cart totals (for mobile bar) ----
@@ -214,6 +264,13 @@ export default function ShopBusinessRadioLife() {
         <button onClick={reorderLast} data-testid="shop-reorder-last"
           className="flex items-center gap-1.5 bg-orange-50 border-2 border-orange-500 text-orange-700 font-black rounded-full pl-3 pr-4 py-2 shadow-sm text-sm">
           <RotateCcw size={15} />Reorder last order
+        </button>
+      )}
+      {savedCount > 0 && (
+        <button onClick={() => document.querySelector('[data-testid="store-saved-list"]')?.scrollIntoView({ behavior: "smooth" })}
+          data-testid="shop-saved-pill"
+          className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-full pl-3 pr-4 py-2 shadow-sm text-sm">
+          <Bookmark size={15} className="text-orange-600" />{savedCount} saved for later
         </button>
       )}
       {b.has_giftcards && (
@@ -295,6 +352,22 @@ export default function ShopBusinessRadioLife() {
 
             {/* Shop extras */}
             <div className="mt-3">{extras}</div>
+
+            {/* Get your usual? */}
+            {mode === "menu" && usual && !usualDismissed && (
+              <div className="mt-3 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-3" data-testid="usual-card">
+                <div className="flex items-center justify-between">
+                  <div className="font-black text-slate-900 text-sm flex items-center gap-1.5"><RotateCcw size={15} className="text-orange-600" />Get your usual?</div>
+                  <button onClick={() => setUsualDismissed(true)} data-testid="usual-dismiss" className="text-slate-400 text-xs font-black">Dismiss</button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {usual.map((u) => (
+                    <span key={u.item_id} className="text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1">{u.name} ×{u.times_ordered}</span>
+                  ))}
+                </div>
+                <button onClick={addUsual} data-testid="usual-add-all" className="mt-2.5 w-full bg-orange-600 text-white font-black rounded-full py-2.5 text-sm">Add my usual ({usual.length})</button>
+              </div>
+            )}
           </div>
 
           {/* Category filter — horizontal scroll */}

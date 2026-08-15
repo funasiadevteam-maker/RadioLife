@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Sparkles, Image as ImageIcon, FileText, Grid3x3, Pencil, Trash2, Camera } from "lucide-react";
+import { ChevronLeft, Sparkles, Image as ImageIcon, FileText, Grid3x3, Pencil, Trash2, Camera, Utensils, Plus, X } from "lucide-react";
 import { API } from "@/AuthContext";
 import OptionGroupsEditor from "../OptionGroupsEditor";
 
@@ -31,13 +31,42 @@ export default function MerchantMenuRadioLife() {
   const [msg, setMsg] = useState(null);
   const [photoBusy, setPhotoBusy] = useState(null);
   const [photoTarget, setPhotoTarget] = useState(null);
+  const [combos, setCombos] = useState([]);
+  const [comboForm, setComboForm] = useState({ name: "", price: "", reqs: [{ category: "", qty: 1 }, { category: "", qty: 1 }] });
+  const [editingCombo, setEditingCombo] = useState(null);
+  const [comboSaving, setComboSaving] = useState(false);
   const imgRef = useRef(); const pdfRef = useRef(); const xlsRef = useRef(); const photoRef = useRef();
 
   const load = useCallback(async () => {
-    try { const r = await axios.get(`${API}/merchant/marketplace/menu`); setItems(r.data.items || []); }
-    catch { /* ignore */ } finally { setLoading(false); }
+    try {
+      const [r, cr] = await Promise.all([
+        axios.get(`${API}/merchant/marketplace/menu`),
+        axios.get(`${API}/merchant/marketplace/combos`).catch(() => ({ data: { items: [] } })),
+      ]);
+      setItems(r.data.items || []);
+      setCombos(cr.data.items || []);
+    } catch { /* ignore */ } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const resetCombo = () => { setComboForm({ name: "", price: "", reqs: [{ category: "", qty: 1 }, { category: "", qty: 1 }] }); setEditingCombo(null); };
+  const setReq = (i, patch) => setComboForm((f) => ({ ...f, reqs: f.reqs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) }));
+  const addReq = () => setComboForm((f) => (f.reqs.length < 4 ? { ...f, reqs: [...f.reqs, { category: "", qty: 1 }] } : f));
+  const removeReq = (i) => setComboForm((f) => ({ ...f, reqs: f.reqs.filter((_, idx) => idx !== i) }));
+  const saveCombo = async () => {
+    const reqs = comboForm.reqs.filter((r) => r.category).map((r) => ({ category: r.category, qty: Number(r.qty) || 1 }));
+    if (!comboForm.name.trim() || !comboForm.price || reqs.length < 1) return;
+    setComboSaving(true);
+    try {
+      await axios.post(`${API}/merchant/marketplace/combos`, {
+        combo_id: editingCombo || undefined, name: comboForm.name.trim(),
+        price_cents: Math.round((parseFloat(comboForm.price) || 0) * 100), requirements: reqs, active: true,
+      });
+      resetCombo(); load();
+    } catch { /* ignore */ } finally { setComboSaving(false); }
+  };
+  const editCombo = (c) => { setEditingCombo(c.combo_id); setComboForm({ name: c.name, price: ((c.price_cents || 0) / 100).toString(), reqs: (c.requirements || []).map((r) => ({ category: r.category, qty: r.qty })) }); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const delCombo = async (cid) => { try { await axios.delete(`${API}/merchant/marketplace/combos/${cid}`); load(); } catch { /* ignore */ } };
 
   const reset = () => { setForm({ section: "", name: "", description: "", price: "" }); setOptionGroups([]); setEditingId(null); };
   const save = async () => {
@@ -108,6 +137,7 @@ export default function MerchantMenuRadioLife() {
 
   const grouped = {};
   items.forEach((it) => { (grouped[it.section || "Menu"] ||= []).push(it); });
+  const sections = Object.keys(grouped);
 
   return (
     <div className="pb-24" data-testid="rl-merchant-menu-page">
@@ -168,6 +198,51 @@ export default function MerchantMenuRadioLife() {
             {editingId && <button onClick={reset} data-testid="item-cancel" className="flex-1 border border-slate-200 rounded-full py-2.5 font-bold text-slate-600">Cancel</button>}
             <button onClick={save} disabled={saving} data-testid="item-save" className="flex-1 bg-orange-600 text-white font-black rounded-full py-2.5 disabled:opacity-60">{editingId ? "Update" : "Add Item"}</button>
           </div>
+        </div>
+
+        {/* Meal Combos */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2" data-testid="combos-card">
+          <div className="font-black text-slate-900 flex items-center gap-1.5"><Utensils size={16} className="text-orange-600" />{editingCombo ? "Edit combo" : "Meal Combos"}</div>
+          <div className="text-xs text-slate-500 -mt-1">Bundle categories for a fixed price (e.g. 1 Pizza + 1 Drink = $15). Auto-applies in the customer's cart.</div>
+          {sections.length === 0 ? (
+            <div className="text-xs text-slate-400 py-2">Add menu items first so you can pick categories.</div>
+          ) : (
+            <>
+              <input value={comboForm.name} onChange={(e) => setComboForm({ ...comboForm, name: e.target.value })} placeholder="Combo name (e.g. Pizza + Drink)" data-testid="combo-name" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+              <input value={comboForm.price} onChange={(e) => setComboForm({ ...comboForm, price: e.target.value })} placeholder="Combo price (e.g. 15.00)" data-testid="combo-price" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+              <div className="text-xs font-black text-slate-500 pt-1">Requires</div>
+              {comboForm.reqs.map((r, i) => (
+                <div key={i} className="flex gap-2 items-center" data-testid={`combo-req-${i}`}>
+                  <input type="number" min={1} max={10} value={r.qty} onChange={(e) => setReq(i, { qty: e.target.value })} data-testid={`combo-req-qty-${i}`} className="w-14 bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-sm" />
+                  <span className="text-xs text-slate-400">×</span>
+                  <select value={r.category} onChange={(e) => setReq(i, { category: e.target.value })} data-testid={`combo-req-cat-${i}`} className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-sm">
+                    <option value="">Pick a category…</option>
+                    {sections.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  {comboForm.reqs.length > 1 && <button onClick={() => removeReq(i)} data-testid={`combo-req-remove-${i}`} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"><X size={14} className="text-rose-600" /></button>}
+                </div>
+              ))}
+              {comboForm.reqs.length < 4 && <button onClick={addReq} data-testid="combo-add-req" className="flex items-center gap-1 text-xs font-black text-orange-600"><Plus size={13} />Add requirement</button>}
+              <div className="flex gap-2 pt-1">
+                {editingCombo && <button onClick={resetCombo} data-testid="combo-cancel" className="flex-1 border border-slate-200 rounded-full py-2.5 font-bold text-slate-600">Cancel</button>}
+                <button onClick={saveCombo} disabled={comboSaving} data-testid="combo-save" className="flex-1 bg-orange-600 text-white font-black rounded-full py-2.5 disabled:opacity-60">{editingCombo ? "Update combo" : "Add combo"}</button>
+              </div>
+            </>
+          )}
+          {combos.length > 0 && (
+            <div className="pt-2 space-y-2">
+              {combos.map((c) => (
+                <div key={c.combo_id} className="flex items-center gap-2 bg-slate-50 rounded-xl p-2.5" data-testid={`combo-item-${c.combo_id}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-black text-slate-900">{c.name} · {money(c.price_cents)}</div>
+                    <div className="text-xs text-slate-500">{(c.requirements || []).map((r) => `${r.qty}× ${r.category}`).join(" + ")}</div>
+                  </div>
+                  <button onClick={() => editCombo(c)} data-testid={`combo-edit-${c.combo_id}`} className="w-8 h-8 rounded-full bg-white flex items-center justify-center"><Pencil size={14} className="text-blue-600" /></button>
+                  <button onClick={() => delCombo(c.combo_id)} data-testid={`combo-del-${c.combo_id}`} className="w-8 h-8 rounded-full bg-white flex items-center justify-center"><Trash2 size={14} className="text-rose-600" /></button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Existing */}
