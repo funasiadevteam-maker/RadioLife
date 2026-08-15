@@ -1,14 +1,16 @@
 // Merchant "Promote my shop" (Phase F) — buy a tiered promotion (Stripe hosted
-// Checkout) that boosts the shop higher in Shop search + the Promoted-near-you
-// rail. Goes live only after admin approval.
+// Checkout) that boosts the shop in Shop search + the Promoted-near-you rail;
+// see promo analytics (extra views/orders); auto-renew via a saved card; and
+// run a per-impression Category Spotlight bid auction.
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Rocket, CheckCircle2, Clock, XCircle, TrendingUp } from "lucide-react";
+import { ChevronLeft, Rocket, CheckCircle2, Clock, XCircle, TrendingUp, BarChart3, RefreshCw, Target, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { API } from "@/AuthContext";
 
 const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
+const cents = (c) => `${c}¢`;
 
 const STATUS_UI = {
   pending_payment: { label: "Awaiting payment", cls: "bg-slate-100 text-slate-600", Icon: Clock },
@@ -18,47 +20,106 @@ const STATUS_UI = {
   expired: { label: "Expired", cls: "bg-slate-100 text-slate-500", Icon: Clock },
 };
 
+function Stat({ label, value, extra }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-3 flex-1">
+      <div className="text-xl font-black text-slate-900">{value}</div>
+      <div className="text-[11px] font-bold text-slate-400">{label}</div>
+      {extra != null && <div className="text-[11px] font-black text-green-600 mt-0.5">+{extra} vs before</div>}
+    </div>
+  );
+}
+
 export default function MerchantPromoteRadioLife() {
   const navigate = useNavigate();
   const [tiers, setTiers] = useState([]);
   const [data, setData] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [cbid, setCbid] = useState(null);
+  const [cats, setCats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
+  const [bidCat, setBidCat] = useState("");
+  const [bidCents, setBidCents] = useState("5");
+  const [topupDollars, setTopupDollars] = useState("10");
 
   const load = useCallback(async () => {
     try {
-      const [t, m] = await Promise.all([
+      const [t, m, a, cb, cc] = await Promise.all([
         axios.get(`${API}/merchant/marketplace/promotion/tiers`),
         axios.get(`${API}/merchant/marketplace/promotion`),
+        axios.get(`${API}/merchant/marketplace/promotion/analytics`).catch(() => ({ data: { has_data: false } })),
+        axios.get(`${API}/merchant/marketplace/category-bid`).catch(() => ({ data: {} })),
+        axios.get(`${API}/merchant/marketplace/category-bid/categories`).catch(() => ({ data: { items: [] } })),
       ]);
       setTiers(t.data.tiers || []);
       setData(m.data);
-      // Reconcile any promotion that came back from Stripe still marked unpaid.
+      setAnalytics(a.data);
+      setCbid(cb.data);
+      setCats(cc.data.items || []);
+      if (cb.data?.bid?.category) setBidCat(cb.data.bid.category);
+      else if ((cc.data.items || [])[0]) setBidCat(cc.data.items[0].key);
+      if (cb.data?.bid?.bid_cents) setBidCents(String(cb.data.bid.bid_cents));
       const pend = (m.data.items || []).find((p) => p.status === "pending_payment");
       if (pend) {
         const st = await axios.get(`${API}/merchant/marketplace/promotion/${pend.promotion_id}/status`);
-        if (st.data.status !== "pending_payment") {
-          const m2 = await axios.get(`${API}/merchant/marketplace/promotion`);
-          setData(m2.data);
-        }
+        if (st.data.status !== "pending_payment") { const m2 = await axios.get(`${API}/merchant/marketplace/promotion`); setData(m2.data); }
       }
-    } catch {
-      setData({ no_profile: true });
-    } finally {
-      setLoading(false);
-    }
+    } catch { setData({ no_profile: true }); }
+    finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const buy = async (tier) => {
     setBusy(tier);
     try {
-      const r = await axios.post(`${API}/merchant/marketplace/promotion/checkout`,
-        { tier, origin_url: window.location.origin });
+      const r = await axios.post(`${API}/merchant/marketplace/promotion/checkout`, { tier, origin_url: window.location.origin });
       if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
     } catch (e) {
-      toast.error(e?.response?.data?.detail?.code === "stripe_unconfigured"
-        ? "Payments not configured" : "Could not start checkout");
+      toast.error(e?.response?.data?.detail?.code === "stripe_unconfigured" ? "Payments not configured" : "Could not start checkout");
+    } finally { setBusy(null); }
+  };
+
+  const toggleAutoRenew = async (enabled) => {
+    const active = data?.active;
+    if (!active) return;
+    if (enabled && !data?.default_pm && !(data?.saved_cards || []).length) {
+      // No card yet — send them to save one first.
+      try {
+        const r = await axios.post(`${API}/shop/wallet/cards/setup-session`, { origin_url: window.location.origin });
+        if (r.data.checkout_url || r.data.url) { window.location.href = r.data.checkout_url || r.data.url; return; }
+      } catch { toast.error("Could not open card setup"); }
+      return;
+    }
+    try {
+      await axios.post(`${API}/merchant/marketplace/promotion/${active.promotion_id}/auto-renew`,
+        { enabled, payment_method_id: data?.default_pm });
+      toast.success(enabled ? "Auto-renew on" : "Auto-renew off");
+      load();
+    } catch { toast.error("Could not update auto-renew"); }
+  };
+
+  const saveBid = async () => {
+    setBusy("bid");
+    try {
+      const r = await axios.post(`${API}/merchant/marketplace/category-bid/set`,
+        { category: bidCat, bid_cents: Math.max(1, parseInt(bidCents, 10) || 1) });
+      setCbid((c) => ({ ...(c || {}), standing: r.data.standing }));
+      toast.success(r.data.status === "active" ? "Bid live" : "Bid saved — add budget to go live");
+      load();
+    } catch { toast.error("Could not save bid"); }
+    finally { setBusy(null); }
+  };
+
+  const topUp = async () => {
+    setBusy("topup");
+    try {
+      const amt = Math.round(parseFloat(topupDollars) * 100);
+      const r = await axios.post(`${API}/merchant/marketplace/category-bid/topup/checkout`,
+        { amount_cents: amt, origin_url: window.location.origin });
+      if (r.data.checkout_url) { window.location.href = r.data.checkout_url; return; }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail?.code === "set_bid_first" ? "Set a bid first" : "Could not start top-up");
     } finally { setBusy(null); }
   };
 
@@ -73,6 +134,8 @@ export default function MerchantPromoteRadioLife() {
 
   const active = data?.active;
   const history = (data?.items || []).filter((p) => !active || p.promotion_id !== active.promotion_id);
+  const bid = cbid?.bid;
+  const standing = cbid?.standing;
 
   return (
     <div className="pb-24" data-testid="rl-merchant-promote-page">
@@ -88,9 +151,40 @@ export default function MerchantPromoteRadioLife() {
           <div className="bg-green-50 border border-green-200 rounded-2xl p-4" data-testid="promote-active">
             <div className="flex items-center gap-2 font-black text-green-700"><CheckCircle2 size={18} />You&apos;re promoted — {active.name}</div>
             <div className="text-xs text-green-700/80 mt-1">Live until {new Date(active.expires_at).toLocaleDateString()}.</div>
+            {/* Auto-renew */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-green-200">
+              <div>
+                <div className="font-black text-slate-800 flex items-center gap-1.5 text-sm"><RefreshCw size={14} className="text-green-700" />Auto-renew</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {data?.default_pm || (data?.saved_cards || []).length ? "Charges your saved card when it expires." : "Add a card to keep it running automatically."}
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" checked={!!data?.auto_renew}
+                  onChange={(e) => toggleAutoRenew(e.target.checked)} data-testid="promote-autorenew-toggle" />
+                <div className="w-11 h-6 bg-slate-200 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+              </label>
+            </div>
           </div>
         )}
 
+        {/* Analytics */}
+        {analytics?.has_data && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="promote-analytics">
+            <div className="font-black text-slate-900 flex items-center gap-1.5"><BarChart3 size={16} className="text-orange-600" />Promotion impact</div>
+            <div className="text-[11px] text-slate-400 mb-3">Since your {analytics.tier} promotion started</div>
+            <div className="flex gap-2">
+              <Stat label="Views" value={analytics.views} extra={analytics.extra_views || null} />
+              <Stat label="Impressions" value={analytics.impressions} extra={analytics.extra_impressions || null} />
+            </div>
+            <div className="flex gap-2 mt-2">
+              <Stat label="Orders" value={analytics.orders} extra={analytics.extra_orders || null} />
+              <Stat label="Revenue" value={money(analytics.revenue_cents)} extra={analytics.extra_revenue_cents ? money(analytics.extra_revenue_cents).replace("$", "$") : null} />
+            </div>
+          </div>
+        )}
+
+        {/* Tiers */}
         <div className="space-y-3">
           {tiers.map((t) => {
             const isActiveTier = active && active.tier === t.tier;
@@ -104,14 +198,70 @@ export default function MerchantPromoteRadioLife() {
                   <div className="text-lg font-black text-slate-900">{money(t.price_cents)}</div>
                 </div>
                 <div className="text-xs text-slate-500 mt-1">{t.blurb}</div>
-                <button onClick={() => buy(t.tier)} disabled={!!busy || isActiveTier}
-                  data-testid={`promote-buy-${t.tier}`}
+                <button onClick={() => buy(t.tier)} disabled={!!busy || isActiveTier} data-testid={`promote-buy-${t.tier}`}
                   className={`mt-3 w-full font-black rounded-full py-2.5 text-sm transition-colors ${isActiveTier ? "bg-slate-100 text-slate-400" : "bg-orange-600 text-white hover:bg-orange-700"}`}>
                   {isActiveTier ? "Current promotion" : busy === t.tier ? "Starting…" : `Promote for ${t.days} days`}
                 </button>
               </div>
             );
           })}
+        </div>
+
+        {/* Category Spotlight bid auction */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4" data-testid="promote-category-spotlight">
+          <div className="font-black text-slate-900 flex items-center gap-1.5"><Target size={16} className="text-orange-600" />Category Spotlight</div>
+          <div className="text-xs text-slate-500 mt-0.5 mb-3">Bid per impression to top one category. Highest bid ranks first — you only pay from your prepaid budget as your shop is shown.</div>
+
+          {standing && bid && (
+            <div className={`rounded-xl p-3 mb-3 ${standing.outbid ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`} data-testid="promote-bid-standing">
+              {standing.rank ? (
+                <div className={`font-black text-sm ${standing.outbid ? "text-red-700" : "text-green-700"}`}>
+                  You&apos;re #{standing.rank} of {standing.competitors} in {bid.category}
+                </div>
+              ) : <div className="font-black text-sm text-slate-600">Not ranking yet in {bid.category}</div>}
+              <div className="text-[11px] text-slate-600 mt-0.5">
+                Top bid {cents(standing.top_bid_cents)} · your bid {cents(bid.bid_cents)} · budget {money(bid.budget_cents)} left
+              </div>
+              {standing.outbid && (
+                <div className="text-[11px] font-black text-red-600 mt-1" data-testid="promote-outbid-alert">
+                  You&apos;ve been outbid — bid {cents(standing.suggested_bid_cents)}+ to take #1.
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <select value={bidCat} onChange={(e) => setBidCat(e.target.value)} data-testid="promote-bid-category"
+              className="flex-1 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5 text-sm font-bold">
+              {cats.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
+            </select>
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2">
+              <input type="number" min="1" value={bidCents} onChange={(e) => setBidCents(e.target.value)} data-testid="promote-bid-cents"
+                className="w-14 bg-transparent text-center font-black text-slate-900 py-2.5" />
+              <span className="text-xs font-bold text-slate-400 pr-1">¢/imp</span>
+            </div>
+          </div>
+          <button onClick={saveBid} disabled={busy === "bid"} data-testid="promote-bid-save"
+            className="mt-2 w-full bg-slate-900 text-white font-black rounded-full py-2.5 text-sm">
+            {busy === "bid" ? "Saving…" : bid ? "Update bid" : "Place bid"}
+          </button>
+
+          {bid && (
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <div className="text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1"><CreditCard size={13} />Add budget</div>
+              <div className="flex gap-2">
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 flex-1">
+                  <span className="text-sm font-bold text-slate-400">$</span>
+                  <input type="number" min="5" value={topupDollars} onChange={(e) => setTopupDollars(e.target.value)} data-testid="promote-topup-amount"
+                    className="w-full bg-transparent font-black text-slate-900 py-2.5 px-1" />
+                </div>
+                <button onClick={topUp} disabled={busy === "topup"} data-testid="promote-topup-btn"
+                  className="bg-orange-600 text-white font-black rounded-full px-5 text-sm">
+                  {busy === "topup" ? "…" : "Top up"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {history.length > 0 && (
@@ -123,7 +273,7 @@ export default function MerchantPromoteRadioLife() {
                 return (
                   <div key={p.promotion_id} className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-3" data-testid={`promote-history-${p.promotion_id}`}>
                     <div>
-                      <div className="font-bold text-slate-800 text-sm">{p.name} · {money(p.price_cents)}</div>
+                      <div className="font-bold text-slate-800 text-sm">{p.name} · {p.price_cents ? money(p.price_cents) : "COMP"}{p.renewed ? " · renewed" : ""}</div>
                       {p.admin_note && <div className="text-xs text-red-500 mt-0.5">{p.admin_note}</div>}
                     </div>
                     <span className={`text-[11px] font-black px-2.5 py-1 rounded-full flex items-center gap-1 ${ui.cls}`}><ui.Icon size={12} />{ui.label}</span>

@@ -59,6 +59,8 @@ export default function ShopBusinessRadioLife() {
         if (!alive) return;
         const biz = r.data.business;
         setB(biz);
+        // Promotion analytics — count a detail view.
+        axios.post(`${API}/shop/track`, { business_id: id, kind: "view" }).catch(() => {});
         const sells = biz.sells || [];
         if (sells.includes("menu") || biz.has_menu) {
           const m = await axios.get(`${API}/shop/businesses/${id}/menu`);

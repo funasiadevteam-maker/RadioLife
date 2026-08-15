@@ -7,15 +7,38 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from auth import current_user, current_user_optional
 from services.marketplace import resolve_point_cost_cents, ranking_score
+from services.category_bids import active_bids_for, active_bid_business_ids, bill_impressions
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+class TrackBody(BaseModel):
+    business_id: str
+    kind: str  # "impression" (rail/search card shown) | "view" (detail opened)
+
+
+@router.post("/track")
+async def track(body: TrackBody, request: Request, user: dict = Depends(current_user_optional)):
+    """Fire-and-forget promotion analytics beacon (impressions + detail views).
+    Auth-gated so anonymous callers can't inflate a competitor's counters."""
+    if not user:
+        return {"ok": False}
+    db = request.app.state.db
+    field = "views" if body.kind == "view" else "impressions"
+    today = datetime.now(timezone.utc).date().isoformat()
+    await db.promotion_daily.update_one(
+        {"business_id": body.business_id, "date": today},
+        {"$inc": {field: 1}, "$setOnInsert": {"business_id": body.business_id, "date": today}},
+        upsert=True)
+    return {"ok": True}
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -100,6 +123,27 @@ async def businesses(request: Request, category: Optional[str] = None,
         items.sort(key=lambda x: (x.get("rating") or 0), reverse=True)
     else:  # featured — sponsored/featured/points-per-dollar boost first
         items.sort(key=ranking_score, reverse=True)
+
+    # Category Spotlight auction — active bidders get the Promoted badge; within
+    # a category they top the list in bid order and are billed per impression.
+    promoted_bid_ids = await active_bid_business_ids(db)
+    for it in items:
+        if it["business_id"] in promoted_bid_ids:
+            it["promoted"] = True
+    if category:
+        cbids = await active_bids_for(db, category)
+        if cbids:
+            order = {b["business_id"]: i for i, b in enumerate(cbids)}
+            bidders = [it for it in items if it["business_id"] in order]
+            rest = [it for it in items if it["business_id"] not in order]
+            bidders.sort(key=lambda it: order[it["business_id"]])
+            for it in bidders:
+                it["promoted"] = True
+                it["spotlight"] = True
+            items = bidders + rest
+            served = {it["business_id"] for it in items[:want]}
+            if user:  # only authenticated shopper views bill the auction budget
+                await bill_impressions(db, [b for b in cbids if b["business_id"] in served])
     items = items[:want]
     return {"items": items, "total": len(items)}
 
@@ -153,6 +197,8 @@ async def business_detail(business_id: str, request: Request,
 async def shop_home(request: Request, market: Optional[str] = None,
                     user: dict = Depends(current_user_optional)):
     db = request.app.state.db
+    from routes.marketplace_promotions import sweep_renewals
+    await sweep_renewals(db)  # lazily auto-renew expired promotions (throttled)
     mk = market or (user or {}).get("market")
     cats = []
     async for c in db.marketplace_categories.find({"active": True}).sort("name", 1).limit(12):
@@ -179,6 +225,16 @@ async def shop_home(request: Request, market: Optional[str] = None,
     # Promoted near you — active paid/comped promotions, highest tier first.
     promoted = await _list({**base_market, "promoted_until": {"$gt": _now_iso()}},
                            lambda x: x.get("promotion_weight", 0) * 1e6 + ranking_score(x), 12)
+    # Category-Spotlight bidders also earn the badge + a spot in the rail.
+    bid_ids = await active_bid_business_ids(db)
+    have = {i["business_id"] for i in promoted}
+    for b in list(bid_ids - have):
+        p = await db.marketplace_profiles.find_one(
+            {"business_id": b, "status": "approved", "subscription_active": True})
+        if p:
+            c = _card(p)
+            c["promoted"] = True
+            promoted.append(c)
 
     from routes.marketplace_specials import get_active_specials
     specials = await get_active_specials(db, mk, 12)

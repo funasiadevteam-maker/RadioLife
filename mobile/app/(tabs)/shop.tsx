@@ -47,6 +47,18 @@ export default function ShopHome() {
     finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Promotion analytics — beacon one impression per promoted shop shown.
+  const trackedRef = React.useRef<Set<string>>(new Set());
+  useEffect(() => {
+    sections.forEach((sec) => (sec.items || []).forEach((b: any) => {
+      if (b.promoted && b.business_id && !trackedRef.current.has(b.business_id)) {
+        trackedRef.current.add(b.business_id);
+        api.post('/shop/track', { business_id: b.business_id, kind: 'impression' }).catch(() => {});
+      }
+    }));
+  }, [sections]);
+
   useEffect(() => {
     // Role-gate merchant tools — only business owners see the dashboard.
     api.get('/merchant/marketplace/profile')

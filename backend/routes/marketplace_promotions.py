@@ -84,14 +84,27 @@ async def tiers(request: Request, user: dict = Depends(current_user)):
 @router.get("")
 async def my_promotion(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
+    await sweep_renewals(db)  # lazily auto-renew anything that just expired
     p = await _my_business(db, user)
     now_iso = _iso(_now())
     active = await db.marketplace_promotions.find_one(
         {"business_id": p["business_id"], "status": "active", "expires_at": {"$gt": now_iso}})
     recent = [_clean(x) async for x in db.marketplace_promotions.find(
         {"business_id": p["business_id"]}).sort("created_at", -1).limit(10)]
+    # Saved cards power auto-renew (off-session charge at expiry).
+    cards: Dict[str, Any] = {"cards": [], "default_id": None}
+    try:
+        from services.saved_cards_service import ensure_stripe_customer, list_cards
+        cust = await ensure_stripe_customer(db, user)
+        if cust:
+            cards = list_cards(cust)
+    except Exception:
+        pass
     return {"business_id": p["business_id"], "public_name": p.get("public_name"),
-            "active": _clean(dict(active)) if active else None, "items": recent}
+            "active": _clean(dict(active)) if active else None, "items": recent,
+            "auto_renew": bool((active or {}).get("auto_renew")),
+            "auto_renew_pm": (active or {}).get("auto_renew_pm"),
+            "saved_cards": cards.get("cards", []), "default_pm": cards.get("default_id")}
 
 
 @router.post("/checkout")
@@ -217,6 +230,150 @@ async def admin_grant(body: GrantBody, request: Request, _a=Depends(require_admi
         "activated_at": activated, "expires_at": expires_iso})
     await _apply_active(db, body.business_id, tier["tier"], tier["weight"], expires_iso)
     return {"ok": True, "promotion_id": pid, "expires_at": expires_iso}
+
+
+def _parse_iso(s: Optional[str]) -> Optional[datetime]:
+    try:
+        return datetime.fromisoformat(s) if s else None
+    except Exception:
+        return None
+
+
+@router.get("/analytics")
+async def analytics(request: Request, user: dict = Depends(current_user)):
+    """Views (rail/search impressions + detail opens), orders & revenue for the
+    current/most-recent promotion window, plus the uplift vs the equal period
+    right before it started."""
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    bid = p["business_id"]
+    now = _now()
+    promo = await db.marketplace_promotions.find_one(
+        {"business_id": bid, "status": "active", "expires_at": {"$gt": _iso(now)}})
+    if not promo:
+        promo = await db.marketplace_promotions.find_one(
+            {"business_id": bid, "status": {"$in": ["active", "expired"]}},
+            sort=[("activated_at", -1)])
+    if not promo or not promo.get("activated_at"):
+        return {"has_data": False}
+    start = promo["activated_at"]
+    if getattr(start, "tzinfo", None) is None:
+        start = start.replace(tzinfo=timezone.utc)
+    exp = promo.get("expires_at")
+    exp_dt = _parse_iso(exp) if isinstance(exp, str) else exp
+    end = min(now, exp_dt) if exp_dt else now
+    span = end - start
+    prior_start = start - span
+
+    async def _views(s, e):
+        agg = {"impressions": 0, "views": 0}
+        async for d in db.promotion_daily.find(
+                {"business_id": bid,
+                 "date": {"$gte": s.date().isoformat(), "$lte": e.date().isoformat()}}):
+            agg["impressions"] += int(d.get("impressions", 0))
+            agg["views"] += int(d.get("views", 0))
+        return agg
+
+    async def _orders(s, e):
+        cnt = rev = 0
+        async for o in db.marketplace_orders.find(
+                {"business_id": bid, "payment_status": "paid", "created_at": {"$gte": s, "$lt": e}}):
+            cnt += 1
+            rev += int(o.get("total_cents", 0))
+        return {"orders": cnt, "revenue_cents": rev}
+
+    win_v = await _views(start, end)
+    pri_v = await _views(prior_start, start)
+    win_o = await _orders(start, end)
+    pri_o = await _orders(prior_start, start)
+
+    def _extra(a, b):
+        return max(0, a - b)
+
+    return {
+        "has_data": True, "tier": promo.get("name"), "status": promo.get("status"),
+        "window": {"start": _iso(start), "end": _iso(end)},
+        "impressions": win_v["impressions"], "views": win_v["views"],
+        "orders": win_o["orders"], "revenue_cents": win_o["revenue_cents"],
+        "extra_impressions": _extra(win_v["impressions"], pri_v["impressions"]),
+        "extra_views": _extra(win_v["views"], pri_v["views"]),
+        "extra_orders": _extra(win_o["orders"], pri_o["orders"]),
+        "extra_revenue_cents": _extra(win_o["revenue_cents"], pri_o["revenue_cents"]),
+        "prior": {"impressions": pri_v["impressions"], "views": pri_v["views"],
+                  "orders": pri_o["orders"], "revenue_cents": pri_o["revenue_cents"]},
+    }
+
+
+class AutoRenewBody(BaseModel):
+    enabled: bool
+    payment_method_id: Optional[str] = None
+
+
+@router.post("/{promotion_id}/auto-renew")
+async def set_auto_renew(promotion_id: str, body: AutoRenewBody, request: Request,
+                         user: dict = Depends(current_user)):
+    db = request.app.state.db
+    promo = await db.marketplace_promotions.find_one({"promotion_id": promotion_id})
+    if not promo or promo.get("owner_user_id") != user.get("user_id"):
+        raise HTTPException(404, {"code": "promotion_not_found"})
+    await db.marketplace_promotions.update_one(
+        {"promotion_id": promotion_id},
+        {"$set": {"auto_renew": bool(body.enabled),
+                  "auto_renew_pm": body.payment_method_id or promo.get("auto_renew_pm")}})
+    return {"ok": True, "auto_renew": bool(body.enabled)}
+
+
+_last_sweep: Dict[str, Any] = {"ts": None}
+
+
+async def sweep_renewals(db, throttle_seconds: int = 45):
+    """Renew promotions that expired with auto_renew on: off-session charge the
+    saved card for the same tier; if that isn't possible, free auto-extend
+    (opted-in fallback). Throttled so read-path callers stay cheap."""
+    now = _now()
+    if _last_sweep["ts"] and (now - _last_sweep["ts"]).total_seconds() < throttle_seconds:
+        return {"skipped": True}
+    _last_sweep["ts"] = now
+    due = [p async for p in db.marketplace_promotions.find(
+        {"status": "active", "auto_renew": True, "expires_at": {"$lte": _iso(now)}})]
+    renewed = 0
+    for promo in due:
+        tier = TIERS_BY_ID.get(promo.get("tier")) or TIERS_BY_ID["spotlight_7"]
+        days = int(tier["days"])
+        charged = False
+        pm = promo.get("auto_renew_pm")
+        if pm:
+            try:
+                from services.saved_cards_service import (ensure_stripe_customer, list_cards,
+                                                          charge_saved_card, owns_payment_method)
+                u = await db.users.find_one({"user_id": promo.get("owner_user_id")})
+                cust = await ensure_stripe_customer(db, u) if u else None
+                if cust and not owns_payment_method(cust, pm):
+                    pm = (list_cards(cust) or {}).get("default_id")
+                if cust and pm and owns_payment_method(cust, pm):
+                    charge_saved_card(amount_cents=tier["price_cents"], cust_id=cust, pm_id=pm,
+                                      description=f"RadioLife promotion auto-renew — {tier['name']}",
+                                      metadata={"kind": "promotion_renewal", "business_id": promo["business_id"]})
+                    charged = True
+            except Exception:
+                charged = False
+        activated = now
+        expires_iso = _iso(activated + timedelta(days=days))
+        pid = f"promo_{uuid.uuid4().hex[:10]}"
+        await db.marketplace_promotions.insert_one({
+            "promotion_id": pid, "business_id": promo["business_id"],
+            "owner_user_id": promo.get("owner_user_id"), "public_name": promo.get("public_name"),
+            "tier": tier["tier"], "name": tier["name"], "days": days,
+            "price_cents": tier["price_cents"] if charged else 0, "weight": tier["weight"],
+            "status": "active", "paid": charged, "comp": not charged, "renewed": True,
+            "auto_renew": True, "auto_renew_pm": pm, "renewed_from": promo["promotion_id"],
+            "created_at": activated, "activated_at": activated, "expires_at": expires_iso})
+        await _apply_active(db, promo["business_id"], tier["tier"], tier["weight"], expires_iso)
+        await db.marketplace_promotions.update_one(
+            {"promotion_id": promo["promotion_id"]}, {"$set": {"status": "expired", "auto_renew": False}})
+        renewed += 1
+    return {"renewed": renewed}
+
 
 
 async def ensure_promotions_seed(db):

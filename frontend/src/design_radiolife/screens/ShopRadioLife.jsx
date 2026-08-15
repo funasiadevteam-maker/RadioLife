@@ -69,6 +69,20 @@ export default function ShopRadioLife() {
       .catch(() => setUsual(null));
   }, []);
 
+  // Promotion analytics — beacon one impression per promoted shop shown.
+  const trackedRef = React.useRef(new Set());
+  useEffect(() => {
+    const shown = [];
+    (home?.sections || []).forEach((s) => (s.items || []).forEach((b) => { if (b.promoted) shown.push(b.business_id); }));
+    (items || []).forEach((b) => { if (b.promoted) shown.push(b.business_id); });
+    shown.forEach((bid) => {
+      if (bid && !trackedRef.current.has(bid)) {
+        trackedRef.current.add(bid);
+        axios.post(`${API}/shop/track`, { business_id: bid, kind: "impression" }).catch(() => {});
+      }
+    });
+  }, [home, items]);
+
   const addUsual = () => {
     if (!usual?.items?.length) return;
     usual.items.forEach((u) => menuCart.addLine(usual.business_id, usual.business_name, {

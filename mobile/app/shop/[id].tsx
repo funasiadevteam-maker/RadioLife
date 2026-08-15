@@ -63,6 +63,7 @@ export default function BusinessDetail() {
         if (!alive) return;
         const b = r.data.business;
         setBiz(b);
+        api.post('/shop/track', { business_id: id, kind: 'view' }).catch(() => {});
         const sells: string[] = b.sells || [];
         if (sells.includes('menu') || b.has_menu) {
           const m = await api.get(`/shop/businesses/${id}/menu`);
