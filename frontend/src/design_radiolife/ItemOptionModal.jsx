@@ -20,6 +20,30 @@ function initialSelection(groups) {
   return sel;
 }
 
+// Default line (selection + unit price + summary) for a one-tap "quick add".
+export function defaultMenuSelection(item) {
+  const groups = item.option_groups || [];
+  const sel = initialSelection(groups);
+  let unit = item.price_cents || 0;
+  const labels = [];
+  groups.forEach((g) => g.options.forEach((o) => {
+    if (sel.has(o.option_id)) { unit += o.price_delta_cents || 0; labels.push(o.label); }
+  }));
+  return { selected_option_ids: [...sel], unit_price_cents: unit, option_summary: labels.join(", ") || null };
+}
+
+// True when the default selection already satisfies every required group, so
+// "+" can add instantly; otherwise the customize sheet must be opened.
+export function menuQuickAddReady(item) {
+  const groups = item.option_groups || [];
+  const sel = initialSelection(groups);
+  return groups.every((g) => {
+    if (!g.required && !(g.min_select > 0)) return true;
+    const n = g.options.filter((o) => sel.has(o.option_id)).length;
+    return n >= Math.max(1, g.min_select || 0);
+  });
+}
+
 export default function ItemOptionModal({ item, entitlement, onClose, onConfirm }) {
   const groups = item.option_groups || [];
   const [selected, setSelected] = useState(() => initialSelection(groups));

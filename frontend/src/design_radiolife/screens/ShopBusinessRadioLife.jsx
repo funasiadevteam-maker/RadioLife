@@ -1,12 +1,22 @@
 // RadioLife Shop — restaurant / business detail (web).
-// Compact earn bar (Order · Check In · Pay), working check-in, a horizontal
-// category filter and a full product/menu grid, with floating Order + Membership.
+// Now a full ordering surface: each card has an instant "+" add and a
+// "Customize" button; a live cart is pinned on the right (desktop) with a
+// floating "View order" bar on mobile. Works for both food menus and retail
+// product stores. Compact earn bar + check-in + category filter preserved.
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { ChevronLeft, Star, ShoppingBag, MapPin, Wallet, Crown, Gift, Package as PackageIcon, CalendarDays, Check, Plus, Coins } from "lucide-react";
+import {
+  ChevronLeft, Star, ShoppingBag, ShoppingCart, MapPin, Wallet, Crown, Gift,
+  Package as PackageIcon, CalendarDays, Check, Plus, Coins, Sliders,
+} from "lucide-react";
 import { API } from "@/AuthContext";
+import { useShopCart } from "../useShopCart";
+import { useProductCart } from "../useProductCart";
+import ItemOptionModal, { defaultMenuSelection, menuQuickAddReady } from "../ItemOptionModal";
+import ProductVariantModal from "../components/ProductVariantModal";
+import StoreCartPanel from "../components/StoreCartPanel";
 
 const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 const EARN_ICONS = { "bag-check": ShoppingBag, location: MapPin, wallet: Wallet };
@@ -15,11 +25,24 @@ export default function ShopBusinessRadioLife() {
   const navigate = useNavigate();
   const id = window.location.pathname.split("/shop/")[1];
   const [b, setB] = useState(null);
-  const [groups, setGroups] = useState([]); // [{key,title,items:[{id,name,price_cents,image_url,kind,hasVariants}]}]
+  const [groups, setGroups] = useState([]); // [{key,title,items:[{id,name,price_cents,image_url,kind,hasVariants,raw}]}]
   const [cat, setCat] = useState("all");
   const [loading, setLoading] = useState(true);
   const [checkedIn, setCheckedIn] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [modalItem, setModalItem] = useState(null);      // menu customize
+  const [variantProduct, setVariantProduct] = useState(null); // product customize
+
+  const menuCart = useShopCart();
+  const productCart = useProductCart();
+
+  const mode = useMemo(() => {
+    if (!b) return "other";
+    const sells = b.sells || [];
+    if (sells.includes("menu") || b.has_menu) return "menu";
+    if (sells.includes("products") || b.has_products) return "product";
+    return "other";
+  }, [b]);
 
   useEffect(() => {
     let alive = true;
@@ -37,7 +60,7 @@ export default function ShopBusinessRadioLife() {
             items: (s.items || []).map((it) => ({
               id: it.item_id, name: it.name, price_cents: it.price_cents,
               image_url: it.image_url, kind: "menu",
-              hasVariants: (it.option_groups || []).length > 0,
+              hasVariants: (it.option_groups || []).length > 0, raw: it,
             })),
           }));
           if (alive) setGroups(secs);
@@ -49,7 +72,7 @@ export default function ShopBusinessRadioLife() {
             (byCat[c] = byCat[c] || []).push({
               id: p.product_id, name: p.name, price_cents: p.price_cents,
               image_url: p.image_url, kind: "product",
-              hasVariants: (p.variants || []).length > 0,
+              hasVariants: (p.variants || []).length > 0, raw: p,
             });
           });
           if (alive) setGroups(Object.keys(byCat).map((c, i) => ({ key: `cat-${i}`, title: c, items: byCat[c] })));
@@ -66,17 +89,45 @@ export default function ShopBusinessRadioLife() {
     return groups.find((g) => g.key === cat)?.items || [];
   }, [cat, groups, allItems]);
 
+  // ---- Ordering ----
+  const quickAddMenu = (raw) => {
+    if (!menuQuickAddReady(raw)) { setModalItem(raw); return; }
+    const sel = defaultMenuSelection(raw);
+    menuCart.addLine(id, b.public_name, {
+      item_id: raw.item_id, name: raw.name, price_cents: sel.unit_price_cents,
+      selected_option_ids: sel.selected_option_ids, option_summary: sel.option_summary,
+      apply_entitlement_id: null,
+    });
+    toast.success(`Added ${raw.name}`);
+  };
+  const quickAddProduct = (raw) => {
+    const variants = raw.variants || [];
+    if (variants.length) {
+      const v = variants.find((x) => x.stock > 0);
+      if (!v) { toast.error("Sold out"); return; }
+      productCart.add(id, b.public_name, raw, v, 1);
+    } else {
+      if (raw.stock <= 0) { toast.error("Sold out"); return; }
+      productCart.add(id, b.public_name, raw, null, 1);
+    }
+    toast.success(`Added ${raw.name}`);
+  };
+  const onPlus = (it) => (it.kind === "product" ? quickAddProduct(it.raw) : quickAddMenu(it.raw));
+  const onCustomize = (it) => (it.kind === "product" ? setVariantProduct(it.raw) : setModalItem(it.raw));
+
+  // ---- Cart totals (for mobile bar) ----
+  const cartCount = mode === "product"
+    ? (productCart.groups[id]?.items || []).reduce((n, i) => n + i.qty, 0)
+    : (menuCart.businessId === id ? menuCart.count() : 0);
+  const cartSubtotal = mode === "product"
+    ? (productCart.groups[id]?.items || []).reduce((n, i) => n + i.price_cents * i.qty, 0)
+    : (menuCart.businessId === id ? menuCart.subtotal() : 0);
+  const reviewPath = mode === "product" ? "/shop/cart" : "/shop/checkout/menu";
+
   const orderPath = () => {
     const sells = b.sells || [];
     if (sells.includes("services") || sells.includes("appointments")) return `/shop/services/${b.business_id}`;
-    if (sells.includes("menu") || b.has_menu) return `/shop/menu/${b.business_id}`;
-    if (sells.includes("products") || b.has_products) return `/shop/products/${b.business_id}`;
     return "/wallet";
-  };
-
-  const openItem = (it) => {
-    if (it.kind === "product") navigate(`/shop/products/${b.business_id}`);
-    else navigate(`/shop/menu/${b.business_id}`);
   };
 
   const doCheckin = async () => {
@@ -94,9 +145,38 @@ export default function ShopBusinessRadioLife() {
   if (!b) return <div className="px-4 pt-10 text-center text-slate-500">Business not found.</div>;
 
   const ways = b.ways_to_earn || [];
+  const orderable = mode === "menu" || mode === "product";
+
+  // Secondary shop extras (inline, wrap — avoids overlapping the right cart).
+  const extras = (
+    <div className="flex flex-wrap gap-2" data-testid="shop-detail-actions">
+      {b.has_giftcards && (
+        <button onClick={() => navigate(`/shop/giftcards/${b.business_id}`)} data-testid="shop-detail-giftcard"
+          className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-full pl-3 pr-4 py-2 shadow-sm text-sm"><Gift size={15} className="text-orange-600" />Gift card</button>
+      )}
+      {b.has_packages && (
+        <button onClick={() => navigate(`/shop/packages/${b.business_id}`)} data-testid="shop-detail-package"
+          className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-full pl-3 pr-4 py-2 shadow-sm text-sm"><PackageIcon size={15} className="text-orange-600" />Packages</button>
+      )}
+      {b.has_events && (
+        <button onClick={() => navigate(`/shop/events/${b.business_id}`)} data-testid="shop-detail-event"
+          className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-full pl-3 pr-4 py-2 shadow-sm text-sm"><CalendarDays size={15} className="text-blue-600" />Events</button>
+      )}
+      {b.has_memberships && (
+        <button onClick={() => navigate(`/shop/memberships/${b.business_id}`)} data-testid="shop-detail-membership"
+          className="flex items-center gap-1.5 bg-white border-2 border-amber-400 text-amber-700 font-black rounded-full pl-3 pr-4 py-2 shadow-sm text-sm"><Crown size={15} />Membership</button>
+      )}
+      {!orderable && (
+        <button onClick={() => navigate(orderPath())} data-testid="shop-detail-cta"
+          className="flex items-center gap-1.5 bg-orange-600 text-white font-black rounded-full pl-4 pr-5 py-2 shadow-sm text-sm">
+          <ShoppingBag size={16} />Order · Earn {b.default_bigpoints}
+        </button>
+      )}
+    </div>
+  );
 
   return (
-    <div className="pb-44 max-w-3xl mx-auto" data-testid="rl-shop-detail-page">
+    <div className="max-w-6xl mx-auto pb-28 lg:pb-10" data-testid="rl-shop-detail-page">
       {/* Cover */}
       <div className="relative h-44 sm:h-52 bg-slate-100">
         {b.cover_url && <img src={b.cover_url} alt={b.public_name} className="w-full h-full object-cover" />}
@@ -106,113 +186,155 @@ export default function ShopBusinessRadioLife() {
         </button>
       </div>
 
-      <div className="px-4 pt-4">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-black text-slate-900">{b.public_name}</h1>
-          {b.rating ? (
-            <span className="flex items-center gap-1 bg-amber-100 text-amber-900 px-3 py-1.5 rounded-full font-black shrink-0">
-              <Star size={13} className="fill-amber-500 text-amber-500" />{b.rating.toFixed(1)}</span>
-          ) : null}
-        </div>
-        <div className="text-slate-500 text-sm font-semibold capitalize mt-0.5">
-          {b.subcategory || b.category}{b.city ? ` · ${b.city}` : ""}</div>
-        {b.description && <p className="text-slate-600 text-sm leading-relaxed mt-2">{b.description}</p>}
+      <div className="lg:flex lg:gap-6 lg:px-4">
+        {/* Main column */}
+        <div className="lg:flex-1 lg:min-w-0">
+          <div className="px-4 lg:px-0 pt-4">
+            <div className="flex items-start justify-between gap-3">
+              <h1 className="text-2xl font-black text-slate-900">{b.public_name}</h1>
+              {b.rating ? (
+                <span className="flex items-center gap-1 bg-amber-100 text-amber-900 px-3 py-1.5 rounded-full font-black shrink-0">
+                  <Star size={13} className="fill-amber-500 text-amber-500" />{b.rating.toFixed(1)}</span>
+              ) : null}
+            </div>
+            <div className="text-slate-500 text-sm font-semibold capitalize mt-0.5">
+              {b.subcategory || b.category}{b.city ? ` · ${b.city}` : ""}</div>
+            {b.description && <p className="text-slate-600 text-sm leading-relaxed mt-2">{b.description}</p>}
 
-        {/* Ways to earn — single top bar, all 3 in one line */}
-        {ways.length > 0 && (
-          <div className="mt-3 flex items-stretch bg-white border border-slate-200 rounded-2xl overflow-hidden" data-testid="shop-earn-bar">
-            {ways.map((w, i) => {
-              const Icon = EARN_ICONS[w.icon] || Coins;
-              const isCheckin = (w.label || "").toLowerCase().includes("check");
-              const inner = (
-                <>
-                  <Icon size={16} className={isCheckin && checkedIn ? "text-green-600" : "text-orange-600"} />
-                  <span className="text-[11px] font-bold text-slate-700 leading-tight text-center mt-1">{w.label}</span>
-                  <span className={`text-xs font-black mt-0.5 ${isCheckin && checkedIn ? "text-green-600" : "text-slate-900"}`}>
-                    {isCheckin && checkedIn ? <span className="inline-flex items-center gap-0.5"><Check size={12} />Done</span> : `+${w.points}`}
-                  </span>
-                </>
-              );
-              const base = `flex-1 flex flex-col items-center justify-center px-2 py-3 ${i > 0 ? "border-l border-slate-200" : ""}`;
-              return isCheckin ? (
-                <button key={i} onClick={doCheckin} disabled={checking} data-testid="shop-checkin-btn"
-                  className={`${base} active:bg-slate-50 ${checkedIn ? "bg-green-50" : "bg-orange-50/40"}`}>{inner}</button>
-              ) : (
-                <div key={i} className={base} data-testid={`shop-earn-${i}`}>{inner}</div>
-              );
-            })}
+            {/* Ways to earn — single top bar */}
+            {ways.length > 0 && (
+              <div className="mt-3 flex items-stretch bg-white border border-slate-200 rounded-2xl overflow-hidden" data-testid="shop-earn-bar">
+                {ways.map((w, i) => {
+                  const Icon = EARN_ICONS[w.icon] || Coins;
+                  const isCheckin = (w.label || "").toLowerCase().includes("check");
+                  const inner = (
+                    <>
+                      <Icon size={16} className={isCheckin && checkedIn ? "text-green-600" : "text-orange-600"} />
+                      <span className="text-[11px] font-bold text-slate-700 leading-tight text-center mt-1">{w.label}</span>
+                      <span className={`text-xs font-black mt-0.5 ${isCheckin && checkedIn ? "text-green-600" : "text-slate-900"}`}>
+                        {isCheckin && checkedIn ? <span className="inline-flex items-center gap-0.5"><Check size={12} />Done</span> : `+${w.points}`}
+                      </span>
+                    </>
+                  );
+                  const base = `flex-1 flex flex-col items-center justify-center px-2 py-3 ${i > 0 ? "border-l border-slate-200" : ""}`;
+                  return isCheckin ? (
+                    <button key={i} onClick={doCheckin} disabled={checking} data-testid="shop-checkin-btn"
+                      className={`${base} active:bg-slate-50 ${checkedIn ? "bg-green-50" : "bg-orange-50/40"}`}>{inner}</button>
+                  ) : (
+                    <div key={i} className={base} data-testid={`shop-earn-${i}`}>{inner}</div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Shop extras */}
+            <div className="mt-3">{extras}</div>
           </div>
+
+          {/* Category filter — horizontal scroll */}
+          {groups.length > 0 && (
+            <div className="mt-4 flex gap-2 overflow-x-auto px-4 lg:px-0 pb-1" data-testid="shop-cat-rail">
+              <button onClick={() => setCat("all")} data-testid="shop-cat-all"
+                className={`shrink-0 px-4 h-9 rounded-full text-sm font-black whitespace-nowrap ${cat === "all" ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-600"}`}>All</button>
+              {groups.map((g) => (
+                <button key={g.key} onClick={() => setCat(g.key)} data-testid={`shop-cat-${g.key}`}
+                  className={`shrink-0 px-4 h-9 rounded-full text-sm font-black whitespace-nowrap ${cat === g.key ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-600"}`}>{g.title}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Product / menu grid */}
+          {groups.length > 0 ? (
+            <div className="px-4 lg:px-0 mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="shop-item-grid">
+              {shown.map((it) => (
+                <div key={it.id} data-testid={`shop-item-${it.id}`}
+                  className="bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-orange-300 transition-colors flex flex-col">
+                  <div className="relative bg-slate-100 overflow-hidden" style={{ aspectRatio: "1 / 1" }}>
+                    {it.image_url && <img src={it.image_url} alt={it.name} className="w-full h-full object-cover" />}
+                    {orderable && (
+                      <button onClick={() => onCustomize(it)} data-testid={`shop-customize-${it.id}`}
+                        className="absolute bottom-2 left-2 inline-flex items-center gap-1 bg-white/95 backdrop-blur text-slate-800 text-[11px] font-black rounded-full pl-2 pr-2.5 py-1.5 shadow border border-slate-200">
+                        <Sliders size={12} className="text-orange-600" />Customize
+                      </button>
+                    )}
+                    <button onClick={() => (orderable ? onPlus(it) : navigate(`/shop/menu/${b.business_id}`))} data-testid={`shop-add-${it.id}`}
+                      className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-orange-600 text-white flex items-center justify-center shadow hover:bg-orange-700 active:scale-95 transition">
+                      <Plus size={18} />
+                    </button>
+                  </div>
+                  <div className="p-2.5">
+                    <div className="text-sm font-bold text-slate-900 line-clamp-1">{it.name}</div>
+                    <div className="text-sm font-black text-slate-900 mt-1">{money(it.price_cents)}{it.hasVariants ? "+" : ""}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-4 lg:px-0 mt-4">
+              <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-950 px-3 py-2 rounded-full font-bold text-sm">
+                <Coins size={16} /> Earn {b.default_bigpoints} BigPoints here
+              </div>
+            </div>
+          )}
+
+          {/* Contact */}
+          {(b.phone || b.website) && (
+            <div className="px-4 lg:px-0 mt-4 flex flex-wrap gap-x-5 gap-y-1">
+              {b.phone && <a href={`tel:${b.phone}`} className="text-orange-600 font-semibold text-sm">{b.phone}</a>}
+              {b.website && <a href={b.website} className="text-orange-600 font-semibold text-sm truncate max-w-[220px]">{b.website}</a>}
+            </div>
+          )}
+        </div>
+
+        {/* Pinned cart (desktop) */}
+        {orderable && (
+          <aside className="hidden lg:block lg:w-[340px] lg:shrink-0 mt-4">
+            <div className="sticky top-4">
+              <StoreCartPanel mode={mode} bizId={id} />
+            </div>
+          </aside>
         )}
       </div>
 
-      {/* Category filter — horizontal scroll */}
-      {groups.length > 0 && (
-        <div className="mt-4 flex gap-2 overflow-x-auto px-4 pb-1" data-testid="shop-cat-rail">
-          <button onClick={() => setCat("all")} data-testid="shop-cat-all"
-            className={`shrink-0 px-4 h-9 rounded-full text-sm font-black whitespace-nowrap ${cat === "all" ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-600"}`}>All</button>
-          {groups.map((g) => (
-            <button key={g.key} onClick={() => setCat(g.key)} data-testid={`shop-cat-${g.key}`}
-              className={`shrink-0 px-4 h-9 rounded-full text-sm font-black whitespace-nowrap ${cat === g.key ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-600"}`}>{g.title}</button>
-          ))}
+      {/* Mobile floating cart bar */}
+      {orderable && cartCount > 0 && (
+        <div className="lg:hidden fixed bottom-24 left-0 right-0 px-4 max-w-md mx-auto z-30">
+          <button onClick={() => navigate(reviewPath)} data-testid="shop-mobile-cart-bar"
+            className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white font-black rounded-full py-3.5 shadow-lg">
+            <ShoppingCart size={16} />View order ({cartCount}) · {money(cartSubtotal)}
+          </button>
         </div>
       )}
 
-      {/* Product / menu grid — multiple rows, mobile friendly */}
-      {groups.length > 0 ? (
-        <div className="px-4 mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="shop-item-grid">
-          {shown.map((it) => (
-            <button key={it.id} onClick={() => openItem(it)} data-testid={`shop-item-${it.id}`}
-              className="text-left bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-orange-300 transition-colors">
-              <div className="relative aspect-square bg-slate-100">
-                {it.image_url && <img src={it.image_url} alt={it.name} className="w-full h-full object-cover" />}
-                <span className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-orange-600 text-white flex items-center justify-center shadow"><Plus size={16} /></span>
-              </div>
-              <div className="p-2.5">
-                <div className="text-sm font-bold text-slate-900 line-clamp-1">{it.name}</div>
-                <div className="text-sm font-black text-slate-900 mt-1">{money(it.price_cents)}{it.hasVariants ? "+" : ""}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="px-4 mt-4">
-          <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-950 px-3 py-2 rounded-full font-bold text-sm">
-            <Coins size={16} /> Earn {b.default_bigpoints} BigPoints here
-          </div>
-        </div>
+      {/* Customize modals */}
+      {modalItem && (
+        <ItemOptionModal
+          item={modalItem}
+          entitlement={null}
+          onClose={() => setModalItem(null)}
+          onConfirm={(sel) => {
+            menuCart.addLine(id, b.public_name, {
+              item_id: modalItem.item_id, name: modalItem.name, price_cents: sel.unit_price_cents,
+              qty: sel.qty, selected_option_ids: sel.selected_option_ids,
+              option_summary: sel.option_summary, apply_entitlement_id: sel.apply_entitlement_id,
+              entitlement_label: sel.entitlement_label,
+            });
+            setModalItem(null);
+            toast.success(`Added ${modalItem.name}`);
+          }}
+        />
       )}
-
-      {/* Contact — inline, no overlap */}
-      {(b.phone || b.website) && (
-        <div className="px-4 mt-4 flex flex-wrap gap-x-5 gap-y-1">
-          {b.phone && <a href={`tel:${b.phone}`} className="text-orange-600 font-semibold text-sm">{b.phone}</a>}
-          {b.website && <a href={b.website} className="text-orange-600 font-semibold text-sm truncate max-w-[220px]">{b.website}</a>}
-        </div>
+      {variantProduct && (
+        <ProductVariantModal
+          product={variantProduct}
+          onClose={() => setVariantProduct(null)}
+          onConfirm={({ variant, qty }) => {
+            productCart.add(id, b.public_name, variantProduct, variant, qty);
+            setVariantProduct(null);
+            toast.success(`Added ${variantProduct.name}`);
+          }}
+        />
       )}
-
-      {/* Floating action stack — bottom-right */}
-      <div className="fixed bottom-24 right-3 z-30 flex flex-col items-end gap-2" data-testid="shop-detail-actions">
-        {b.has_giftcards && (
-          <button onClick={() => navigate(`/shop/giftcards/${b.business_id}`)} data-testid="shop-detail-giftcard"
-            className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-full pl-3 pr-4 py-2 shadow-md text-sm"><Gift size={15} className="text-orange-600" />Gift card</button>
-        )}
-        {b.has_packages && (
-          <button onClick={() => navigate(`/shop/packages/${b.business_id}`)} data-testid="shop-detail-package"
-            className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-full pl-3 pr-4 py-2 shadow-md text-sm"><PackageIcon size={15} className="text-orange-600" />Packages</button>
-        )}
-        {b.has_events && (
-          <button onClick={() => navigate(`/shop/events/${b.business_id}`)} data-testid="shop-detail-event"
-            className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-full pl-3 pr-4 py-2 shadow-md text-sm"><CalendarDays size={15} className="text-blue-600" />Events</button>
-        )}
-        {b.has_memberships && (
-          <button onClick={() => navigate(`/shop/memberships/${b.business_id}`)} data-testid="shop-detail-membership"
-            className="flex items-center gap-1.5 bg-white border-2 border-amber-400 text-amber-700 font-black rounded-full pl-3 pr-4 py-2 shadow-md text-sm"><Crown size={15} />Membership</button>
-        )}
-        <button onClick={() => navigate(orderPath())} data-testid="shop-detail-cta"
-          className="flex items-center gap-1.5 bg-orange-600 text-white font-black rounded-full pl-4 pr-5 py-3 shadow-lg text-sm">
-          <ShoppingBag size={16} />Order · Earn {b.default_bigpoints}
-        </button>
-      </div>
     </div>
   );
 }
