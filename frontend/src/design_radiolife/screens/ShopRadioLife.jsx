@@ -293,7 +293,10 @@ export default function ShopRadioLife() {
           )}
           {sections.map((sec) => (
             <section key={sec.key} data-testid={`shop-section-${sec.key}`}>
-              <h2 className="text-lg font-black text-slate-900 mb-2">{sec.title}</h2>
+              <h2 className="text-lg font-black text-slate-900 mb-0.5">{sec.title}</h2>
+              {sec.subtitle
+                ? <p className="text-xs font-semibold text-orange-600 mb-2" data-testid={`shop-section-sub-${sec.key}`}>{sec.subtitle}</p>
+                : <div className="mb-1.5" />}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {sec.items.slice(0, 6).map((b) => <BizCard key={b.business_id + sec.key} b={b} />)}
               </div>

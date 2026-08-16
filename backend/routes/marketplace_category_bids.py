@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user
-from services.category_bids import bid_standing
+from services.category_bids import bid_standing, active_bids_for
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
 
@@ -64,6 +64,7 @@ async def categories(request: Request, user: dict = Depends(current_user)):
 async def my_bid(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
     await sweep_topups(db)  # refill low budgets before showing status
+    await sweep_autopilot(db)  # keep autopilot bid current before showing status
     p = await _my_business(db, user)
     b = await db.category_bids.find_one({"business_id": p["business_id"]})
     standing = await bid_standing(db, b["category"], p["business_id"]) if b and b.get("category") else None
@@ -251,6 +252,68 @@ async def sweep_topups(db, throttle_seconds: int = 45):
         except Exception:
             continue
     return {"refilled": refilled}
+
+
+class AutopilotBody(BaseModel):
+    enabled: bool
+    target_rank: int = Field(1, ge=1, le=5)
+    max_bid_cents: int = Field(20, ge=1, le=1000)
+
+
+@router.post("/autopilot")
+async def set_autopilot(body: AutopilotBody, request: Request, user: dict = Depends(current_user)):
+    """Auto-adjust the per-impression bid to hold a target category rank, capped at max_bid."""
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    b = await db.category_bids.find_one({"business_id": p["business_id"]})
+    if not b:
+        raise HTTPException(400, {"code": "set_bid_first"})
+    await db.category_bids.update_one(
+        {"business_id": p["business_id"]},
+        {"$set": {"autopilot": bool(body.enabled), "target_rank": int(body.target_rank),
+                  "autopilot_max_bid_cents": int(body.max_bid_cents), "updated_at": _now()}})
+    if body.enabled:
+        await sweep_autopilot(db, throttle_seconds=0)  # apply immediately
+    b = await db.category_bids.find_one({"business_id": p["business_id"]})
+    standing = await bid_standing(db, b["category"], p["business_id"]) if b and b.get("category") else None
+    return {"ok": True, "autopilot": bool(body.enabled),
+            "bid": _clean(dict(b)) if b else None, "standing": standing}
+
+
+_last_autopilot_sweep: Dict[str, Any] = {"ts": None}
+
+
+async def sweep_autopilot(db, throttle_seconds: int = 30):
+    """Nudge each autopilot bid to the minimum ¢ needed to hold its target rank,
+    never exceeding the merchant's max-bid cap (auto-raises AND auto-lowers to save budget)."""
+    now = _now()
+    if throttle_seconds and _last_autopilot_sweep["ts"] and \
+            (now - _last_autopilot_sweep["ts"]).total_seconds() < throttle_seconds:
+        return {"skipped": True}
+    _last_autopilot_sweep["ts"] = now
+    adjusted = 0
+    async for b in db.category_bids.find(
+            {"autopilot": True, "status": {"$in": ["active", "pending_budget", "depleted"]}}):
+        cat = b.get("category")
+        maxbid = int(b.get("autopilot_max_bid_cents", 0) or 0)
+        if not cat or maxbid <= 0:
+            continue
+        target = max(1, min(5, int(b.get("target_rank", 1) or 1)))
+        comps = sorted(
+            [int(x.get("bid_cents", 0)) for x in await active_bids_for(db, cat)
+             if x.get("business_id") != b.get("business_id")], reverse=True)
+        needed = (comps[target - 1] + 1) if len(comps) >= target else 1
+        new_bid = max(1, min(needed, maxbid))
+        if new_bid == int(b.get("bid_cents", 0)):
+            continue
+        budget = int(b.get("budget_cents", 0))
+        status = "active" if budget >= new_bid else "pending_budget"
+        await db.category_bids.update_one(
+            {"bid_id": b["bid_id"]},
+            {"$set": {"bid_cents": new_bid, "autopilot_last_bid_cents": new_bid,
+                      "autopilot_adjusted_at": now, "status": status, "updated_at": now}})
+        adjusted += 1
+    return {"adjusted": adjusted}
 
 
 __all__ = ["router"]

@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronLeft, Rocket, CheckCircle2, Clock, XCircle, TrendingUp, BarChart3, RefreshCw, Target, CreditCard } from "lucide-react";
+import { ChevronLeft, Rocket, CheckCircle2, Clock, XCircle, TrendingUp, BarChart3, RefreshCw, Target, CreditCard, Gauge } from "lucide-react";
 import { toast } from "sonner";
 import { API } from "@/AuthContext";
 
@@ -78,6 +78,9 @@ export default function MerchantPromoteRadioLife() {
   const [dailyCap, setDailyCap] = useState("0");
   const [topupDollars, setTopupDollars] = useState("10");
   const [autoTopupDollars, setAutoTopupDollars] = useState("10");
+  const [autopilot, setAutopilot] = useState(false);
+  const [targetRank, setTargetRank] = useState(1);
+  const [maxBidCents, setMaxBidCents] = useState("20");
 
   const load = useCallback(async () => {
     try {
@@ -98,6 +101,9 @@ export default function MerchantPromoteRadioLife() {
       if (cb.data?.bid?.bid_cents) setBidCents(String(cb.data.bid.bid_cents));
       if (cb.data?.bid?.daily_cap_cents != null) setDailyCap(String(cb.data.bid.daily_cap_cents));
       if (cb.data?.bid?.auto_topup_amount_cents) setAutoTopupDollars(String(cb.data.bid.auto_topup_amount_cents / 100));
+      setAutopilot(!!cb.data?.bid?.autopilot);
+      if (cb.data?.bid?.target_rank) setTargetRank(cb.data.bid.target_rank);
+      if (cb.data?.bid?.autopilot_max_bid_cents) setMaxBidCents(String(cb.data.bid.autopilot_max_bid_cents));
       const pend = (m.data.items || []).find((p) => p.status === "pending_payment");
       if (pend) {
         const st = await axios.get(`${API}/merchant/marketplace/promotion/${pend.promotion_id}/status`);
@@ -177,6 +183,17 @@ export default function MerchantPromoteRadioLife() {
       toast.success(enabled ? "Auto top-up on" : "Auto top-up off");
       load();
     } catch { toast.error("Could not update auto top-up"); }
+  };
+
+  const postAutopilot = async (enabled, rank, cap) => {
+    try {
+      const r = await axios.post(`${API}/merchant/marketplace/category-bid/autopilot`,
+        { enabled, target_rank: rank, max_bid_cents: Math.max(1, parseInt(cap, 10) || 20) });
+      setAutopilot(enabled);
+      setCbid((c) => ({ ...(c || {}), bid: r.data.bid || c?.bid, standing: r.data.standing || c?.standing }));
+      if (enabled !== autopilot) toast.success(enabled ? "Autopilot on" : "Autopilot off");
+      load();
+    } catch (e) { toast.error(e?.response?.data?.detail?.code === "set_bid_first" ? "Set a bid first" : "Could not update autopilot"); }
   };
 
   if (loading) return <div className="px-4 pt-10 text-center text-slate-500">Loading…</div>;
@@ -324,6 +341,48 @@ export default function MerchantPromoteRadioLife() {
             className="mt-2 w-full bg-slate-900 text-white font-black rounded-full py-2.5 text-sm">
             {busy === "bid" ? "Saving…" : bid ? "Update bid" : "Place bid"}
           </button>
+
+          {bid && (
+            <div className="mt-3 pt-3 border-t border-slate-100" data-testid="promote-autopilot">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 pr-2">
+                  <div className="font-black text-slate-800 text-sm flex items-center gap-1.5"><Gauge size={13} className="text-orange-600" />Bid Autopilot</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Auto-adjusts your bid to hold your target rank, up to your max.</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={autopilot}
+                    onChange={(e) => postAutopilot(e.target.checked, targetRank, maxBidCents)} data-testid="promote-autopilot-toggle" />
+                  <div className="w-11 h-6 bg-slate-200 peer-checked:bg-orange-600 rounded-full peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                </label>
+              </div>
+              {autopilot && (
+                <div className="mt-2">
+                  <div className="flex gap-1.5" data-testid="promote-autopilot-rank">
+                    {[[1, "#1"], [3, "Top 3"], [5, "Top 5"]].map(([r, l]) => (
+                      <button key={r} onClick={() => { setTargetRank(r); postAutopilot(true, r, maxBidCents); }}
+                        data-testid={`promote-autopilot-rank-${r}`}
+                        className={`flex-1 py-2 rounded-xl text-xs font-black transition-colors ${targetRank === r ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-600"}`}>{l}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs font-bold text-slate-500 flex-1">Max bid</span>
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2">
+                      <input type="number" min="1" value={maxBidCents} onChange={(e) => setMaxBidCents(e.target.value)}
+                        onBlur={() => postAutopilot(true, targetRank, maxBidCents)} data-testid="promote-autopilot-maxbid"
+                        className="w-14 bg-transparent text-center font-black text-slate-900 py-2" />
+                      <span className="text-xs font-bold text-slate-400 pr-1">¢/imp</span>
+                    </div>
+                  </div>
+                  {standing && (
+                    <div className="text-[11px] font-black text-slate-600 mt-2" data-testid="promote-autopilot-status">
+                      {standing.rank ? `Holding #${standing.rank} · bidding ${cents(bid.bid_cents)}` : `Bidding ${cents(bid.bid_cents)} — building rank`}
+                      {bid.bid_cents >= (parseInt(maxBidCents, 10) || 0) ? " · at max cap" : ""}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {bid && (
             <div className="mt-3 pt-3 border-t border-slate-100">

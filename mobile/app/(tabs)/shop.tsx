@@ -16,7 +16,7 @@ interface Biz {
   cover_url?: string; default_bigpoints: number; rating?: number;
   featured?: boolean; sponsored?: boolean; promoted?: boolean;
 }
-interface Section { key: string; title: string; items: Biz[]; }
+interface Section { key: string; title: string; subtitle?: string; items: Biz[]; }
 interface Cat { key: string; name: string; icon?: string; }
 
 export default function ShopHome() {
@@ -239,6 +239,9 @@ export default function ShopHome() {
         {sections.map((sec) => (
           <View key={sec.key} style={{ marginTop: SPACING.lg }} testID={`shop-section-${sec.key}`}>
             <Text style={s.sectionTitle}>{sec.title}</Text>
+            {sec.subtitle ? (
+              <Text style={{ color: COLORS.primary, fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: SPACING.md, marginTop: -2, marginBottom: 4 }} testID={`shop-section-sub-${sec.key}`}>{sec.subtitle}</Text>
+            ) : null}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 12 }}>
               {sec.items.map((b) => (

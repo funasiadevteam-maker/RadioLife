@@ -793,6 +793,11 @@ User-confirmed order: (1) Merchant Gift Cards, (2) Memberships, (3) Packages, (4
 - Verified: testing agent iteration_91 — ALL GREEN (backend 5/5 pytest; web 11/11 testids with live auto-topup round-trip; mobile 8/8 testids, no red screen). Non-blocking notes: `sweep_topups` throttle is a module-level dict (multi-worker risk); `trend[].capped` lacks a Pydantic response model.
 
 
+### 2026-06 — Personalized Shop Home ("For You") + Bid Autopilot (web + mobile)
+- **Personalized Shop Home**: new "For You" rail on `GET /api/shop/home` ranked by each shopper's own paid orders (weight 3) + browsing history (weight 1). `POST /api/shop/track` (kind=view) now also logs a per-user event into `shop_user_events` (compound index `{user_id:1, ts:-1}`). The rail carries a personalized `subtitle` (e.g. *"Because you order from Fun Pizza Kitchen & you browse restaurant / food"*) rendered on both surfaces (web `ShopRadioLife.jsx`, mobile `(tabs)/shop.tsx`; testids `shop-section-for_you`, `shop-section-sub-for_you`). Graceful fallback: users with no history get no rail (generic "Recommended" only). Helper `_personalized_section` in `routes/shop.py`.
+- **Bid Autopilot** (merchant Category Spotlight): `POST /api/merchant/marketplace/category-bid/autopilot {enabled, target_rank(1..5), max_bid_cents}` + throttled `sweep_autopilot` (wired into the shop read path and `my_bid`). Auto-adjusts the per-impression bid to the minimum ¢ needed to hold the target rank (#1 / Top 3 / Top 5) — auto-raises AND auto-lowers to save budget — never exceeding the merchant's cap. UI toggle + rank chips + max-bid input + live status on web (`MerchantPromoteRadioLife.jsx`) and mobile (`app/merchant/promote.tsx`); testids `promote-autopilot*`.
+- Verified: testing agent iteration_92 — ALL GREEN (backend 8/8 pytest; web + mobile parity for both features incl. live rank taps and For You subtitle; all regressions pass). Non-blocking: read-path sweeps use per-process throttle (multi-worker caveat).
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

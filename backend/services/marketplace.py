@@ -108,6 +108,8 @@ async def ensure_marketplace_indexes(db) -> None:
     await db.marketplace_orders.create_index([("user_id", 1), ("created_at", -1)])
     await db.marketplace_orders.create_index([("business_id", 1), ("created_at", -1)])
     await db.marketplace_orders.create_index("session_id")
+    # Phase F — personalized "For You" browse signal.
+    await db.shop_user_events.create_index([("user_id", 1), ("ts", -1)])
 
 
 async def is_business_sellable(db, business_id: str) -> bool:

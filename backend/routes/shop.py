@@ -38,6 +38,14 @@ async def track(body: TrackBody, request: Request, user: dict = Depends(current_
         {"business_id": body.business_id, "date": today},
         {"$inc": {field: 1}, "$setOnInsert": {"business_id": body.business_id, "date": today}},
         upsert=True)
+    # Per-user browse signal → powers the personalized "For You" rail on Shop home.
+    if body.kind == "view":
+        prof = await db.marketplace_profiles.find_one(
+            {"business_id": body.business_id}, {"category": 1})
+        await db.shop_user_events.insert_one({
+            "user_id": user.get("user_id"), "business_id": body.business_id,
+            "category": (prof or {}).get("category"),
+            "ts": datetime.now(timezone.utc)})
     return {"ok": True}
 
 
@@ -193,14 +201,71 @@ async def business_detail(business_id: str, request: Request,
     return {"business": card}
 
 
+async def _personalized_section(db, user, base_market, limit: int = 10):
+    """A 'For You' rail ranked by the shopper's own paid orders + browsing history.
+    Returns None (so Home falls back to generic 'Recommended') when there's no signal."""
+    uid = (user or {}).get("user_id")
+    if not uid:
+        return None
+    biz_weight: Dict[str, int] = {}
+    async for o in db.marketplace_orders.find(
+            {"user_id": uid, "payment_status": "paid"}).sort("created_at", -1).limit(60):
+        b = o.get("business_id")
+        if b:
+            biz_weight[b] = biz_weight.get(b, 0) + 3  # ordering is a strong signal
+    async for e in db.shop_user_events.find({"user_id": uid}).sort("ts", -1).limit(100):
+        b = e.get("business_id")
+        if b:
+            biz_weight[b] = biz_weight.get(b, 0) + 1  # browsing is a lighter signal
+    if not biz_weight:
+        return None
+    profs: Dict[str, Any] = {}
+    async for p in db.marketplace_profiles.find(
+            {"business_id": {"$in": list(biz_weight)}},
+            {"business_id": 1, "category": 1, "public_name": 1}):
+        profs[p["business_id"]] = p
+    cat_w: Dict[str, int] = {}
+    for b, w in biz_weight.items():
+        c = (profs.get(b) or {}).get("category")
+        if c:
+            cat_w[c] = cat_w.get(c, 0) + w
+    if not cat_w:
+        return None
+    fav_cats = sorted(cat_w, key=lambda k: cat_w[k], reverse=True)[:3]
+    cands = [_card(p) async for p in db.marketplace_profiles.find(
+        {**base_market, "category": {"$in": fav_cats}}).limit(60)]
+    if not cands:
+        return None
+
+    def _score(card: Dict[str, Any]) -> float:
+        s = cat_w.get(card.get("category"), 0) * 10.0          # favored categories
+        s += biz_weight.get(card["business_id"], 0) * 2.0       # places they already know
+        return s + ranking_score(card)
+
+    cands.sort(key=_score, reverse=True)
+    items = cands[:limit]
+    cat_doc = await db.marketplace_categories.find_one({"key": fav_cats[0]}, {"name": 1})
+    catname = (cat_doc or {}).get("name")
+    top_biz = max(biz_weight, key=lambda k: biz_weight[k])
+    fav_name = (profs.get(top_biz) or {}).get("public_name")
+    bits = []
+    if fav_name:
+        bits.append(f"you order from {fav_name}")
+    if catname:
+        bits.append(f"you browse {catname.lower()}")
+    subtitle = ("Because " + " & ".join(bits)) if bits else "Picked for you"
+    return {"key": "for_you", "title": "For You", "subtitle": subtitle, "items": items}
+
+
 @router.get("/home")
 async def shop_home(request: Request, market: Optional[str] = None,
                     user: dict = Depends(current_user_optional)):
     db = request.app.state.db
     from routes.marketplace_promotions import sweep_renewals, maybe_send_weekly_digests
-    from routes.marketplace_category_bids import sweep_topups
+    from routes.marketplace_category_bids import sweep_topups, sweep_autopilot
     await sweep_renewals(db)          # auto-renew expired promotions (throttled)
     await sweep_topups(db)            # auto top-up low spotlight budgets (throttled)
+    await sweep_autopilot(db)         # auto-adjust autopilot bids to hold rank (throttled)
     await maybe_send_weekly_digests(db)  # Monday merchant digests (throttled)
     mk = market or (user or {}).get("market")
     cats = []
@@ -242,9 +307,13 @@ async def shop_home(request: Request, market: Optional[str] = None,
     from routes.marketplace_specials import get_active_specials
     specials = await get_active_specials(db, mk, 12)
 
+    for_you = await _personalized_section(db, user, base_market)
+
     sections = []
     if promoted:
         sections.append({"key": "promoted", "title": "Promoted near you", "items": promoted})
+    if for_you and for_you.get("items"):
+        sections.append(for_you)
     sections += [
         {"key": "recommended", "title": "Recommended for You", "items": recommended},
         {"key": "earn_more", "title": "Earn More BigPoints", "items": most_points},

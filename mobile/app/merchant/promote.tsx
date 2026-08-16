@@ -73,6 +73,9 @@ export default function Promote() {
   const [dailyCap, setDailyCap] = useState('0');
   const [topupDollars, setTopupDollars] = useState('10');
   const [autoTopupDollars, setAutoTopupDollars] = useState('10');
+  const [autopilot, setAutopilot] = useState(false);
+  const [targetRank, setTargetRank] = useState(1);
+  const [maxBidCents, setMaxBidCents] = useState('20');
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +96,9 @@ export default function Promote() {
       if (cb.data?.bid?.bid_cents) setBidCents(String(cb.data.bid.bid_cents));
       if (cb.data?.bid?.daily_cap_cents != null) setDailyCap(String(cb.data.bid.daily_cap_cents));
       if (cb.data?.bid?.auto_topup_amount_cents) setAutoTopupDollars(String(cb.data.bid.auto_topup_amount_cents / 100));
+      setAutopilot(!!cb.data?.bid?.autopilot);
+      if (cb.data?.bid?.target_rank) setTargetRank(cb.data.bid.target_rank);
+      if (cb.data?.bid?.autopilot_max_bid_cents) setMaxBidCents(String(cb.data.bid.autopilot_max_bid_cents));
     } catch { setData({ no_profile: true }); }
     finally { setLoading(false); }
   }, []);
@@ -164,6 +170,16 @@ export default function Promote() {
         { enabled, amount_cents: amt, payment_method_id: cbid?.default_pm });
       load();
     } catch { celebrate({ points: 0, title: 'Could not update auto top-up' }); }
+  };
+
+  const postAutopilot = async (enabled: boolean, rank: number, cap: string) => {
+    try {
+      const r = await api.post('/merchant/marketplace/category-bid/autopilot',
+        { enabled, target_rank: rank, max_bid_cents: Math.max(1, parseInt(cap, 10) || 20) });
+      setAutopilot(enabled);
+      setCbid((c: any) => ({ ...(c || {}), bid: r.data.bid || c?.bid, standing: r.data.standing || c?.standing }));
+      load();
+    } catch { celebrate({ points: 0, title: 'Could not update autopilot' }); }
   };
 
   if (loading) return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -309,6 +325,46 @@ export default function Promote() {
           </View>
 
           {bid && (
+            <View style={s.autopilotBox} testID="promote-autopilot">
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={s.autoTitle}>Bid Autopilot</Text>
+                  <Text style={s.autoHint}>Auto-adjusts your bid to hold your target rank, up to your max.</Text>
+                </View>
+                <Switch value={autopilot} onValueChange={(v) => postAutopilot(v, targetRank, maxBidCents)}
+                  trackColor={{ true: COLORS.primary, false: COLORS.surfaceBorder }} testID="promote-autopilot-toggle" />
+              </View>
+              {autopilot ? (
+                <>
+                  <View style={s.rankRow} testID="promote-autopilot-rank">
+                    {([[1, '#1'], [3, 'Top 3'], [5, 'Top 5']] as [number, string][]).map(([r, l]) => (
+                      <TouchableOpacity key={r} onPress={() => { setTargetRank(r); postAutopilot(true, r, maxBidCents); }}
+                        style={[s.rankChip, targetRank === r && s.rankChipOn]} testID={`promote-autopilot-rank-${r}`}>
+                        <Text style={[s.rankChipText, targetRank === r && { color: '#fff' }]}>{l}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={s.capRow}>
+                    <Text style={s.capLabel}>Max bid</Text>
+                    <View style={s.capInputWrap}>
+                      <TextInput value={maxBidCents} onChangeText={setMaxBidCents} keyboardType="number-pad"
+                        onBlur={() => postAutopilot(true, targetRank, maxBidCents)}
+                        style={s.capInput} testID="promote-autopilot-maxbid" />
+                      <Text style={s.bidUnit}>¢/imp</Text>
+                    </View>
+                  </View>
+                  {standing ? (
+                    <Text style={s.autopilotStatus} testID="promote-autopilot-status">
+                      {standing.rank ? `Holding #${standing.rank} · bidding ${cents(bid.bid_cents)}` : `Bidding ${cents(bid.bid_cents)} — building rank`}
+                      {bid.bid_cents >= (parseInt(maxBidCents, 10) || 0) ? ' · at max cap' : ''}
+                    </Text>
+                  ) : null}
+                </>
+              ) : null}
+            </View>
+          )}
+
+          {bid && (
             <>
             <View style={s.topupRow}>
               <View style={s.topupInputWrap}>
@@ -424,4 +480,10 @@ const s = StyleSheet.create({
   autoTopupRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder },
   autoAmtWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, paddingHorizontal: 8 },
   autoAmtInput: { width: 40, color: COLORS.text, fontSize: FONT.sm, fontWeight: '900', paddingVertical: 8, textAlign: 'center' },
+  autopilotBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder },
+  rankRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  rankChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: RADIUS.md, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder },
+  rankChipOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  rankChipText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '900' },
+  autopilotStatus: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '900', marginTop: 8 },
 });
