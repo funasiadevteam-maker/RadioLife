@@ -1521,8 +1521,11 @@ async def _deferred_bootstrap(app_: FastAPI):
         from routes.marketplace_promotions import ensure_promotions_seed
         promo_seed = await ensure_promotions_seed(db)
         logger.info(f"Promotions seed: {promo_seed}")
-        from routes.marketplace_promotions import sweep_renewals
+        from routes.marketplace_promotions import sweep_renewals, maybe_send_weekly_digests
         await sweep_renewals(db, throttle_seconds=0)
+        await maybe_send_weekly_digests(db, throttle_seconds=0)
+        from routes.marketplace_category_bids import sweep_topups
+        await sweep_topups(db, throttle_seconds=0)
         from services.membership_entitlements import migrate_memberships_v2
         mbr_mig = await migrate_memberships_v2(db)
         logger.info(f"Membership entitlements v2 migration: {mbr_mig}")

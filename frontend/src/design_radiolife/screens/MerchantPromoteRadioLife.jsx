@@ -34,14 +34,26 @@ function TrendChart({ trend }) {
   const pts = (trend || []).filter(Boolean);
   if (!pts.length) return null;
   const max = Math.max(1, ...pts.map((d) => d.views));
+  const anyCapped = pts.some((d) => d.capped);
   return (
     <div className="mt-3" data-testid="promote-trend">
-      <div className="text-[11px] font-bold text-slate-400 mb-1">Daily views · orders</div>
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[11px] font-bold text-slate-400">Daily views · orders</div>
+        {anyCapped && (
+          <div className="flex items-center gap-1 text-[10px] font-black text-red-500" data-testid="promote-trend-cap-legend">
+            <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Daily cap hit
+          </div>
+        )}
+      </div>
       <div className="flex items-end gap-1 h-16">
         {pts.map((d) => (
-          <div key={d.date} className="flex-1 flex flex-col items-center justify-end" title={`${d.date}: ${d.views} views, ${d.orders} orders`}>
-            {d.orders > 0 && <div className="text-[9px] font-black text-orange-600 leading-none mb-0.5">{d.orders}</div>}
-            <div className="w-full bg-orange-400 rounded-t" style={{ height: `${Math.max(4, (d.views / max) * 52)}px` }} />
+          <div key={d.date} className="flex-1 flex flex-col items-center justify-end"
+            title={`${d.date}: ${d.views} views, ${d.orders} orders${d.capped ? " · daily cap hit" : ""}`}
+            data-testid={d.capped ? `promote-trend-capped-${d.date}` : undefined}>
+            {d.capped
+              ? <div className="w-1.5 h-1.5 rounded-full bg-red-500 mb-0.5" />
+              : (d.orders > 0 && <div className="text-[9px] font-black text-orange-600 leading-none mb-0.5">{d.orders}</div>)}
+            <div className={`w-full rounded-t ${d.capped ? "bg-red-400" : "bg-orange-400"}`} style={{ height: `${Math.max(4, (d.views / max) * 52)}px` }} />
           </div>
         ))}
       </div>
@@ -65,6 +77,7 @@ export default function MerchantPromoteRadioLife() {
   const [bidCents, setBidCents] = useState("5");
   const [dailyCap, setDailyCap] = useState("0");
   const [topupDollars, setTopupDollars] = useState("10");
+  const [autoTopupDollars, setAutoTopupDollars] = useState("10");
 
   const load = useCallback(async () => {
     try {
@@ -84,6 +97,7 @@ export default function MerchantPromoteRadioLife() {
       else if ((cc.data.items || [])[0]) setBidCat(cc.data.items[0].key);
       if (cb.data?.bid?.bid_cents) setBidCents(String(cb.data.bid.bid_cents));
       if (cb.data?.bid?.daily_cap_cents != null) setDailyCap(String(cb.data.bid.daily_cap_cents));
+      if (cb.data?.bid?.auto_topup_amount_cents) setAutoTopupDollars(String(cb.data.bid.auto_topup_amount_cents / 100));
       const pend = (m.data.items || []).find((p) => p.status === "pending_payment");
       if (pend) {
         const st = await axios.get(`${API}/merchant/marketplace/promotion/${pend.promotion_id}/status`);
@@ -146,6 +160,23 @@ export default function MerchantPromoteRadioLife() {
     } catch (e) {
       toast.error(e?.response?.data?.detail?.code === "set_bid_first" ? "Set a bid first" : "Could not start top-up");
     } finally { setBusy(null); }
+  };
+
+  const toggleAutoTopup = async (enabled) => {
+    if (enabled && !cbid?.default_pm && !(cbid?.saved_cards || []).length) {
+      try {
+        const r = await axios.post(`${API}/shop/wallet/cards/setup-session`, { origin_url: window.location.origin });
+        if (r.data.checkout_url || r.data.url) { window.location.href = r.data.checkout_url || r.data.url; return; }
+      } catch { toast.error("Could not open card setup"); }
+      return;
+    }
+    try {
+      const amt = Math.max(500, Math.round(parseFloat(autoTopupDollars) * 100) || 1000);
+      await axios.post(`${API}/merchant/marketplace/category-bid/auto-topup`,
+        { enabled, amount_cents: amt, payment_method_id: cbid?.default_pm });
+      toast.success(enabled ? "Auto top-up on" : "Auto top-up off");
+      load();
+    } catch { toast.error("Could not update auto top-up"); }
   };
 
   if (loading) return <div className="px-4 pt-10 text-center text-slate-500">Loading…</div>;
@@ -307,6 +338,29 @@ export default function MerchantPromoteRadioLife() {
                   className="bg-orange-600 text-white font-black rounded-full px-5 text-sm">
                   {busy === "topup" ? "…" : "Top up"}
                 </button>
+              </div>
+              {/* Auto top-up */}
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100" data-testid="promote-autotopup">
+                <div className="flex-1 pr-2">
+                  <div className="font-black text-slate-800 text-sm flex items-center gap-1.5"><RefreshCw size={13} className="text-orange-600" />Auto top-up</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {cbid?.default_pm || (cbid?.saved_cards || []).length
+                      ? `Refills $${autoTopupDollars} from your saved card when budget runs low.`
+                      : "Add a card to keep your spotlight funded automatically."}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2">
+                    <span className="text-sm font-bold text-slate-400">$</span>
+                    <input type="number" min="5" value={autoTopupDollars} onChange={(e) => setAutoTopupDollars(e.target.value)} data-testid="promote-autotopup-amount"
+                      className="w-12 bg-transparent text-center font-black text-slate-900 py-2" />
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={!!bid?.auto_topup}
+                      onChange={(e) => toggleAutoTopup(e.target.checked)} data-testid="promote-autotopup-toggle" />
+                    <div className="w-11 h-6 bg-slate-200 peer-checked:bg-orange-600 rounded-full peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                  </label>
+                </div>
               </div>
             </div>
           )}

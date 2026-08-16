@@ -785,6 +785,14 @@ User-confirmed order: (1) Merchant Gift Cards, (2) Memberships, (3) Packages, (4
 - **Package Gifting UI** (backend already supported `gift_to_email`+`message` on `POST /api/shop/packages/purchase`): added a "Gift this package" toggle on BOTH surfaces revealing recipient email + optional message; Buy CTA switches to "Gift"; purchase sends gift fields. Web `ShopPackagesRadioLife.jsx` (rendered the previously-dead gift state), mobile `app/shop/packages/[id].tsx`. testIDs: `pkg-gift-toggle-{id}`, `pkg-gift-email-{id}`, `pkg-gift-message-{id}`. Verified by testing agent — PASSED with web↔mobile parity (web Gift → Stripe cs_test_ checkout).
 - **Mobile ESLint cleanup** (recurring backlog item): `yarn expo lint` errors 14 → 0 (unescaped-entities fixed; conditional-hook + expo-notifications/device import errors suppressed with scoped eslint-disable), warnings 103 → 67 (remaining are intentional lazy `require()` imports + exhaustive-deps left as-is to avoid behavior change). No behavioral change. Pre-existing strict `tsc` type errors remain (Metro builds via Babel; out of scope).
 
+### 2026-06 — Phase F refinements: Auto Top-Up + Daily-Cap chart marker (web + mobile)
+- **P0 fix**: repaired an `IndentationError` (duplicate `async def ensure_promotions_seed`) in `routes/marketplace_promotions.py` that was blocking backend startup.
+- **Auto Top-Up (Category Spotlight)**: added a toggle + editable $ amount on the merchant "Promote my Shop" screen — web `design_radiolife/screens/MerchantPromoteRadioLife.jsx` (`promote-autotopup*` testids) and mobile `app/merchant/promote.tsx`. Calls `POST /api/merchant/marketplace/category-bid/auto-topup {enabled, amount_cents, payment_method_id}`; backend `sweep_topups` off-session charges the saved card (`charge_saved_card`) when budget drops below ~20 impressions. Web with no card opens the Stripe setup-session; mobile shows an "add a card in Wallet" hint (consistent with the existing mobile auto-renew pattern).
+- **Daily-Cap trend marker**: analytics `trend[]` points carry a `capped` boolean; both charts render a red dot + "Daily cap hit" legend on capped days (`promote-trend-cap-legend`, `promote-trend-capped-<date>`).
+- **Weekly Digest** (backend-only, already wired): Monday summary email to promoted merchants via Mailgun, throttled through the shop read path.
+- Verified: testing agent iteration_91 — ALL GREEN (backend 5/5 pytest; web 11/11 testids with live auto-topup round-trip; mobile 8/8 testids, no red screen). Non-blocking notes: `sweep_topups` throttle is a module-level dict (multi-worker risk); `trend[].capped` lacks a Pydantic response model.
+
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

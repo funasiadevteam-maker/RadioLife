@@ -297,7 +297,8 @@ async def analytics(request: Request, user: dict = Depends(current_user)):
     while day <= end.date() and len(days) < 60:
         days.append(day.isoformat())
         day += timedelta(days=1)
-    tmap = {d: {"date": d, "views": 0, "impressions": 0, "orders": 0, "revenue_cents": 0} for d in days}
+    tmap = {d: {"date": d, "views": 0, "impressions": 0, "orders": 0,
+                "revenue_cents": 0, "spend_cents": 0, "capped": False} for d in days}
     if days:
         async for doc in db.promotion_daily.find(
                 {"business_id": bid, "date": {"$gte": days[0], "$lte": days[-1]}}):
@@ -313,6 +314,14 @@ async def analytics(request: Request, user: dict = Depends(current_user)):
             if t:
                 t["orders"] += 1
                 t["revenue_cents"] += int(o.get("total_cents", 0))
+        # Category Spotlight per-day spend + "cap hit" marker (missed demand).
+        async for d in db.category_bid_daily.find(
+                {"business_id": bid, "date": {"$gte": days[0], "$lte": days[-1]}}):
+            t = tmap.get(d.get("date"))
+            if t:
+                t["spend_cents"] += int(d.get("spent_cents", 0))
+                if d.get("capped"):
+                    t["capped"] = True
     trend = [tmap[d] for d in days]
 
     return {
@@ -430,6 +439,111 @@ async def _email_renewal_receipt(u, shop_name, tier, expires_iso):
     except Exception:
         pass
 
+
+
+async def _window_numbers(db, business_id, start, end):
+    """Views + orders + spotlight spend for a [start, end) window."""
+    views = 0
+    async for d in db.promotion_daily.find(
+            {"business_id": business_id,
+             "date": {"$gte": start.date().isoformat(), "$lt": end.date().isoformat()}}):
+        views += int(d.get("views", 0))
+    orders = rev = 0
+    async for o in db.marketplace_orders.find(
+            {"business_id": business_id, "payment_status": "paid", "created_at": {"$gte": start, "$lt": end}}):
+        orders += 1
+        rev += int(o.get("total_cents", 0))
+    spend = 0
+    async for c in db.category_bid_daily.find(
+            {"business_id": business_id,
+             "date": {"$gte": start.date().isoformat(), "$lt": end.date().isoformat()}}):
+        spend += int(c.get("spent_cents", 0))
+    return {"views": views, "orders": orders, "revenue_cents": rev, "spend_cents": spend}
+
+
+async def _weekly_digest_data(db, business_id):
+    now = _now()
+    week_start = (now - timedelta(days=7))
+    prior_start = week_start - timedelta(days=7)
+    cur = await _window_numbers(db, business_id, week_start, now)
+    prev = await _window_numbers(db, business_id, prior_start, week_start)
+
+    def _extra(a, b):
+        return max(0, a - b)
+    return {"week_of": week_start.date().isoformat(),
+            "views": cur["views"], "orders": cur["orders"],
+            "revenue_cents": cur["revenue_cents"], "spend_cents": cur["spend_cents"],
+            "extra_views": _extra(cur["views"], prev["views"]),
+            "extra_orders": _extra(cur["orders"], prev["orders"])}
+
+
+@router.get("/weekly-digest")
+async def weekly_digest_preview(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    return {"public_name": p.get("public_name"), **await _weekly_digest_data(db, p["business_id"])}
+
+
+async def _send_weekly_digest(db, business_id, owner_user_id, shop_name):
+    try:
+        from services.mailgun_client import send_email, is_live
+        if not is_live():
+            return False
+        u = await db.users.find_one({"user_id": owner_user_id})
+        if not u or not u.get("email"):
+            return False
+        d = await _weekly_digest_data(db, business_id)
+        rev = f"${d['revenue_cents'] / 100:.2f}"
+        spend = f"${d['spend_cents'] / 100:.2f}"
+        html = (
+            f"<div style='font-family:sans-serif;max-width:520px'>"
+            f"<h2 style='color:#ea580c;margin:0 0 8px'>Your week on RadioLife 📈</h2>"
+            f"<p>Hi {u.get('name') or 'there'}, here's how <b>{shop_name}</b> did over the last 7 days:</p>"
+            f"<table style='border-collapse:collapse;margin:12px 0'>"
+            f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Views</td><td style='padding:4px 0'><b>{d['views']}</b> (+{d['extra_views']} vs prior week)</td></tr>"
+            f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Orders</td><td style='padding:4px 0'><b>{d['orders']}</b> (+{d['extra_orders']})</td></tr>"
+            f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Revenue</td><td style='padding:4px 0'><b>{rev}</b></td></tr>"
+            f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Spotlight spend</td><td style='padding:4px 0'><b>{spend}</b></td></tr>"
+            f"</table>"
+            f"<p style='color:#64748b;font-size:13px'>Keep your promotion running from Promote my Shop.</p>"
+            f"</div>")
+        await asyncio.to_thread(send_email, u["email"], f"Your RadioLife week — {shop_name}",
+                                html, tags=["weekly_digest"])
+        return True
+    except Exception:
+        return False
+
+
+_last_digest_check: Dict[str, Any] = {"ts": None}
+
+
+async def maybe_send_weekly_digests(db, throttle_seconds: int = 3600):
+    """On Mondays, email each promoted merchant last week's summary (once/week)."""
+    now = _now()
+    if now.weekday() != 0:  # Monday only
+        return {"skipped": "not_monday"}
+    if _last_digest_check["ts"] and (now - _last_digest_check["ts"]).total_seconds() < throttle_seconds:
+        return {"skipped": True}
+    _last_digest_check["ts"] = now
+    iso = now.isocalendar()
+    week_key = f"{iso[0]}-W{iso[1]:02d}"
+    seen = set()
+    sent = 0
+    since = now - timedelta(days=14)
+    async for promo in db.marketplace_promotions.find(
+            {"activated_at": {"$gte": since}}).sort("activated_at", -1):
+        biz = promo.get("business_id")
+        if not biz or biz in seen:
+            continue
+        seen.add(biz)
+        if await db.promotion_digests.find_one({"business_id": biz, "week": week_key}):
+            continue
+        ok = await _send_weekly_digest(db, biz, promo.get("owner_user_id"), promo.get("public_name"))
+        await db.promotion_digests.insert_one(
+            {"business_id": biz, "week": week_key, "sent": ok, "created_at": now})
+        if ok:
+            sent += 1
+    return {"sent": sent, "week": week_key}
 
 
 async def ensure_promotions_seed(db):

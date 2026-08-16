@@ -46,13 +46,14 @@ async def active_bid_business_ids(db) -> Set[str]:
 async def bill_impressions(db, bids: List[Dict[str, Any]]):
     """Charge one impression per served bidder against its prepaid budget.
     Atomic: the conditional $inc only fires while budget covers the bid AND the
-    daily cap isn't hit, so concurrent reads never double-bill, overspend a
-    day, or drive the budget negative."""
+    daily cap isn't hit. Also records a per-day roll-up (spend + a `capped` flag
+    on days the daily cap blocked demand) for the trend chart + weekly digest."""
     today = _today()
     for b in bids:
         bid = int(b.get("bid_cents", 0))
         if bid <= 0:
             continue
+        biz = b.get("business_id")
         cap = int(b.get("daily_cap_cents", 0) or 0)
         if b.get("spend_date") != today:  # roll the daily counter over
             await db.category_bids.update_one(
@@ -64,9 +65,22 @@ async def bill_impressions(db, bids: List[Dict[str, Any]]):
             {"$inc": {"spent_cents": bid, "impressions": 1, "budget_cents": -bid, "spent_today": bid},
              "$set": {"updated_at": _now(), "spend_date": today}})
         if r.modified_count:
+            await db.category_bid_daily.update_one(
+                {"business_id": biz, "date": today},
+                {"$inc": {"spent_cents": bid, "impressions": 1},
+                 "$setOnInsert": {"business_id": biz, "date": today, "capped": False}}, upsert=True)
             await db.category_bids.update_one(
                 {"bid_id": b["bid_id"], "status": "active", "budget_cents": {"$lt": bid}},
                 {"$set": {"status": "depleted"}})
+        elif cap > 0:
+            # Blocked — flag the day capped only when budget could still cover it.
+            fresh = await db.category_bids.find_one({"bid_id": b["bid_id"]}, {"budget_cents": 1})
+            if fresh and int(fresh.get("budget_cents", 0)) >= bid:
+                await db.category_bid_daily.update_one(
+                    {"business_id": biz, "date": today},
+                    {"$set": {"capped": True},
+                     "$setOnInsert": {"business_id": biz, "date": today, "spent_cents": 0, "impressions": 0}},
+                    upsert=True)
 
 
 async def bid_standing(db, category: str, business_id: str) -> Dict[str, Any]:

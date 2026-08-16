@@ -63,6 +63,7 @@ async def categories(request: Request, user: dict = Depends(current_user)):
 @router.get("")
 async def my_bid(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
+    await sweep_topups(db)  # refill low budgets before showing status
     p = await _my_business(db, user)
     b = await db.category_bids.find_one({"business_id": p["business_id"]})
     standing = await bid_standing(db, b["category"], p["business_id"]) if b and b.get("category") else None
@@ -73,8 +74,17 @@ async def my_bid(request: Request, user: dict = Depends(current_user)):
         left = int(b.get("budget_cents", 0)) // bid_c if bid_c else 0
         low = {"impressions_left": left, "low_budget": b.get("status") == "active" and left < 20,
                "depleted": b.get("status") == "depleted"}
+    cards: Dict[str, Any] = {"cards": [], "default_id": None}
+    try:
+        from services.saved_cards_service import ensure_stripe_customer, list_cards
+        cust = await ensure_stripe_customer(db, user)
+        if cust:
+            cards = list_cards(cust)
+    except Exception:
+        pass
     return {"business_id": p["business_id"], "public_name": p.get("public_name"),
-            "bid": _clean(dict(b)) if b else None, "standing": standing, "budget": low}
+            "bid": _clean(dict(b)) if b else None, "standing": standing, "budget": low,
+            "saved_cards": cards.get("cards", []), "default_pm": cards.get("default_id")}
 
 
 @router.post("/set")
@@ -173,6 +183,74 @@ async def topup_status(session_id: str, request: Request, user: dict = Depends(c
             await db.category_topups.update_one({"session_id": session_id}, {"$set": {"status": "credited"}})
             return {"status": "credited", "budget_cents": new_budget}
     return {"status": t.get("status")}
+
+
+
+class AutoTopupBody(BaseModel):
+    enabled: bool
+    amount_cents: int = Field(1000, ge=500, le=1000000)
+    payment_method_id: Optional[str] = None
+
+
+@router.post("/auto-topup")
+async def set_auto_topup(body: AutoTopupBody, request: Request, user: dict = Depends(current_user)):
+    """Auto-refill the prepaid spotlight budget from a saved card when it runs low."""
+    db = request.app.state.db
+    p = await _my_business(db, user)
+    b = await db.category_bids.find_one({"business_id": p["business_id"]})
+    if not b:
+        raise HTTPException(400, {"code": "set_bid_first"})
+    await db.category_bids.update_one(
+        {"business_id": p["business_id"]},
+        {"$set": {"auto_topup": bool(body.enabled),
+                  "auto_topup_amount_cents": int(body.amount_cents),
+                  "auto_topup_pm": body.payment_method_id or b.get("auto_topup_pm"),
+                  "updated_at": _now()}})
+    return {"ok": True, "auto_topup": bool(body.enabled)}
+
+
+_last_topup_sweep: Dict[str, Any] = {"ts": None}
+
+
+async def sweep_topups(db, throttle_seconds: int = 45):
+    """Off-session refill low/depleted spotlight budgets that have auto-topup on.
+    Throttled so read-path callers stay cheap."""
+    now = _now()
+    if _last_topup_sweep["ts"] and (now - _last_topup_sweep["ts"]).total_seconds() < throttle_seconds:
+        return {"skipped": True}
+    _last_topup_sweep["ts"] = now
+    refilled = 0
+    async for b in db.category_bids.find({"auto_topup": True}):
+        bid = int(b.get("bid_cents", 0) or 0)
+        amt = int(b.get("auto_topup_amount_cents", 0) or 0)
+        if bid <= 0 or amt <= 0:
+            continue
+        if int(b.get("budget_cents", 0)) >= 20 * bid:  # only when < ~20 impressions left
+            continue
+        pm = b.get("auto_topup_pm")
+        try:
+            from services.saved_cards_service import (ensure_stripe_customer, list_cards,
+                                                      charge_saved_card, owns_payment_method)
+            u = await db.users.find_one({"user_id": b.get("owner_user_id")})
+            cust = await ensure_stripe_customer(db, u) if u else None
+            if cust and not owns_payment_method(cust, pm):
+                pm = (list_cards(cust) or {}).get("default_id")
+            if not (cust and pm and owns_payment_method(cust, pm)):
+                continue
+            charge_saved_card(amount_cents=amt, cust_id=cust, pm_id=pm,
+                              description=f"Category Spotlight auto top-up — {b.get('public_name')}",
+                              metadata={"kind": "category_topup_auto", "business_id": b.get("business_id")})
+            await db.category_bids.update_one(
+                {"bid_id": b["bid_id"]},
+                {"$inc": {"budget_cents": amt}, "$set": {"status": "active", "updated_at": now}})
+            await db.category_topups.insert_one({
+                "session_id": f"auto_{uuid.uuid4().hex[:10]}", "bid_id": b["bid_id"],
+                "business_id": b.get("business_id"), "amount_cents": amt,
+                "status": "credited", "auto": True, "created_at": now})
+            refilled += 1
+        except Exception:
+            continue
+    return {"refilled": refilled}
 
 
 __all__ = ["router"]

@@ -197,8 +197,11 @@ async def business_detail(business_id: str, request: Request,
 async def shop_home(request: Request, market: Optional[str] = None,
                     user: dict = Depends(current_user_optional)):
     db = request.app.state.db
-    from routes.marketplace_promotions import sweep_renewals
-    await sweep_renewals(db)  # lazily auto-renew expired promotions (throttled)
+    from routes.marketplace_promotions import sweep_renewals, maybe_send_weekly_digests
+    from routes.marketplace_category_bids import sweep_topups
+    await sweep_renewals(db)          # auto-renew expired promotions (throttled)
+    await sweep_topups(db)            # auto top-up low spotlight budgets (throttled)
+    await maybe_send_weekly_digests(db)  # Monday merchant digests (throttled)
     mk = market or (user or {}).get("market")
     cats = []
     async for c in db.marketplace_categories.find({"active": True}).sort("name", 1).limit(12):

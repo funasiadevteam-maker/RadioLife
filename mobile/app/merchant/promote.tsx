@@ -34,14 +34,23 @@ function TrendChart({ trend }: { trend: any[] }) {
   const pts = (trend || []).filter(Boolean);
   if (!pts.length) return null;
   const max = Math.max(1, ...pts.map((d) => d.views));
+  const anyCapped = pts.some((d) => d.capped);
   return (
     <View style={{ marginTop: 12 }} testID="promote-trend">
-      <Text style={s.trendLabel}>Daily views · orders</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <Text style={s.trendLabel}>Daily views · orders</Text>
+        {anyCapped ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} testID="promote-trend-cap-legend">
+            <View style={s.capDot} />
+            <Text style={s.capLegend}>Daily cap hit</Text>
+          </View>
+        ) : null}
+      </View>
       <View style={s.trendRow}>
         {pts.map((d) => (
-          <View key={d.date} style={s.trendCol}>
-            {d.orders > 0 ? <Text style={s.trendOrders}>{d.orders}</Text> : null}
-            <View style={[s.trendBar, { height: Math.max(4, (d.views / max) * 52) }]} />
+          <View key={d.date} style={s.trendCol} testID={d.capped ? `promote-trend-capped-${d.date}` : undefined}>
+            {d.capped ? <View style={s.capDot} /> : (d.orders > 0 ? <Text style={s.trendOrders}>{d.orders}</Text> : null)}
+            <View style={[s.trendBar, { height: Math.max(4, (d.views / max) * 52) }, d.capped && { backgroundColor: COLORS.red }]} />
           </View>
         ))}
       </View>
@@ -63,6 +72,7 @@ export default function Promote() {
   const [bidCents, setBidCents] = useState('5');
   const [dailyCap, setDailyCap] = useState('0');
   const [topupDollars, setTopupDollars] = useState('10');
+  const [autoTopupDollars, setAutoTopupDollars] = useState('10');
 
   const load = useCallback(async () => {
     try {
@@ -82,6 +92,7 @@ export default function Promote() {
       else if ((cc.data.items || [])[0]) setBidCat(cc.data.items[0].key);
       if (cb.data?.bid?.bid_cents) setBidCents(String(cb.data.bid.bid_cents));
       if (cb.data?.bid?.daily_cap_cents != null) setDailyCap(String(cb.data.bid.daily_cap_cents));
+      if (cb.data?.bid?.auto_topup_amount_cents) setAutoTopupDollars(String(cb.data.bid.auto_topup_amount_cents / 100));
     } catch { setData({ no_profile: true }); }
     finally { setLoading(false); }
   }, []);
@@ -140,6 +151,19 @@ export default function Promote() {
       }
     } catch { celebrate({ points: 0, title: 'Could not start top-up' }); }
     finally { setBusy(null); }
+  };
+
+  const toggleAutoTopup = async (enabled: boolean) => {
+    if (enabled && !cbid?.default_pm && !(cbid?.saved_cards || []).length) {
+      celebrate({ points: 0, title: 'Add a card in Wallet first' });
+      return;
+    }
+    try {
+      const amt = Math.max(500, Math.round(parseFloat(autoTopupDollars) * 100) || 1000);
+      await api.post('/merchant/marketplace/category-bid/auto-topup',
+        { enabled, amount_cents: amt, payment_method_id: cbid?.default_pm });
+      load();
+    } catch { celebrate({ points: 0, title: 'Could not update auto top-up' }); }
   };
 
   if (loading) return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -285,6 +309,7 @@ export default function Promote() {
           </View>
 
           {bid && (
+            <>
             <View style={s.topupRow}>
               <View style={s.topupInputWrap}>
                 <Text style={s.dollar}>$</Text>
@@ -295,6 +320,26 @@ export default function Promote() {
                 <Text style={s.topupBtnText}>{busy === 'topup' ? '…' : 'Add budget'}</Text>
               </TouchableOpacity>
             </View>
+            <View style={s.autoTopupRow} testID="promote-autotopup">
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={s.autoTitle}>Auto top-up</Text>
+                <Text style={s.autoHint}>
+                  {cbid?.default_pm || (cbid?.saved_cards || []).length
+                    ? `Refills $${autoTopupDollars} from your saved card when budget runs low.`
+                    : 'Add a card in Wallet to enable.'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={s.autoAmtWrap}>
+                  <Text style={s.dollar}>$</Text>
+                  <TextInput value={autoTopupDollars} onChangeText={setAutoTopupDollars} keyboardType="decimal-pad"
+                    style={s.autoAmtInput} testID="promote-autotopup-amount" />
+                </View>
+                <Switch value={!!bid?.auto_topup} onValueChange={toggleAutoTopup}
+                  trackColor={{ true: COLORS.primary, false: COLORS.surfaceBorder }} testID="promote-autotopup-toggle" />
+              </View>
+            </View>
+            </>
           )}
         </View>
 
@@ -374,4 +419,9 @@ const s = StyleSheet.create({
   histRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, padding: 12, marginBottom: 8 },
   histName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
   histStatus: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '900' },
+  capDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.red, marginBottom: 2 },
+  capLegend: { color: COLORS.red, fontSize: 10, fontWeight: '900' },
+  autoTopupRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.surfaceBorder },
+  autoAmtWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, paddingHorizontal: 8 },
+  autoAmtInput: { width: 40, color: COLORS.text, fontSize: FONT.sm, fontWeight: '900', paddingVertical: 8, textAlign: 'center' },
 });
