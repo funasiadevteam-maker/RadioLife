@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 98 - Verified the four RadioLife Partner Ads Console enhancements end-to-end on web + shared backend: (1) Spend Dashboard tile (pc-summary with all 9 fields), (2) Console History (pc-history-card + pc-history-list, grows after a new SANDBOX pc-promo-buy + pc-history-refresh), (3) Voice Favourites (pc-rj-fav-<id> stars — click saves via POST /commerce/voice-favourite, GET /commerce/catalog returns favourite_persona_id, and on reload that persona card gets orange border + fill-amber star = pre-selected on the AI-RJ card), (4) Admin Bulk Approve at /admin/promotions (promo-select-all + promo-bulk-approve → 3 pending_review promotions moved to Active in one call, POST /api/admin/marketplace/promotions/bulk-approve returns approved/failed lists). via-partner badges (promo-via-partner-<id>) render on partner-purchased rows ('via API · E2E Test Harness' + 'via API · Test Partner'). Regression: existing SANDBOX promo checkout + persona star toggle still work. Backend suite /app/backend/tests/test_iter98_partner_console_enhancements.py: 9/9 pass (including happy-path bulk approve after seeding a pending_review row).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "PartnerCheckout", "issues": ["Cosmetic React dev-warning: <span> child inside <option> from the dev-tools x-source spans on the pc-promo-tier <select>. Also duplicate 'key' prop spread warning on NavItem. Both are dev-tool artifacts, safe in prod build — carried over from iter97."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter98_partner_console_enhancements.py",
+    "/app/test_reports/pytest/iter98.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/partner_portal.py::portal_commerce_history correctly unions marketplace_promotions (purchased_by_partner), category_bids and sponsorships via services/partner_marketplace.list_partner_history — the environment tag SANDBOX/LIVE is derived from the partner_advertiser_ids map, so if a marketplace_promotion pre-dates the partner advertiser it may show environment='—'. Verified visually.",
+    "routes/marketplace_promotions.py::admin_bulk_approve reuses _approve_one so single + bulk share the same validation. Caps at 100 ids. Non-reviewable statuses (pending_payment / active / rejected) surface as failed with code 'not_reviewable'; unknown ids surface as 'promotion_not_found'. Response shape {approved, approved_count, failed, failed_count} matches PRD.",
+    "PartnerCheckout.jsx voice favourite: optimistic UI update (setFavPersona → immediate re-render) before POST completes; on POST error it toasts but does not revert the local state — minor, low impact.",
+    "PartnerCheckout.jsx history rows key = `${h.kind}-${h.id}` which is unique across kinds; testid pc-history-<id> is correct for the request."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter98_partner_console_enhancements.py"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (4/4 features + regression)"},
+  "test_credentials": "advertiser test@bigfm.dubai / TestUser123! ; admin admin@bigfm.dubai / AdminPass123! ; Partner API keys already in /app/memory/test_credentials.md",
+  "seed_data_creation": "Seeded 3 promotions from status=pending_payment → status=pending_review + paid=true (needed to exercise the admin bulk-approve happy-path since none existed after the payment-first refactor). Bulk approve flipped all 3 to status=active.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All four iter98 enhancements are green on both backend and UI. Backend regression suite at /app/backend/tests/test_iter98_partner_console_enhancements.py (9 tests, one seeds via /commerce/promotion/checkout, admin happy-path auto-skips if no pending_review rows exist — main agent or DB seed can create pending_review rows to exercise it). Admin route lives at /admin/promotions (not /admin/marketplace/promotions). Backend URL: REACT_APP_BACKEND_URL from /app/frontend/.env. Cosmetic dev-tool warnings on the console page are pre-existing (from iter97) and out of scope.",
+  "rca of the issue": "N/A - no defects found. All 4 features (spend dashboard, history, voice favourite, admin bulk approve) and regressions pass."
+}

@@ -313,4 +313,80 @@ __all__ = [
     "promo_tiers", "list_categories", "list_promotable_businesses",
     "promotion_checkout", "promotion_status", "promotion_report",
     "spotlight_checkout", "spotlight_status", "spotlight_get",
+    "list_partner_history", "partner_analytics_summary",
 ]
+
+
+def _isostr(v):
+    return v.isoformat() if hasattr(v, "isoformat") else (v or None)
+
+
+# ── Console history (everything a partner bought) ────────────────────
+async def list_partner_history(db, *, partner_id: str, adv_ids: list,
+                               adv_env: dict) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    async for p in db.marketplace_promotions.find(
+            {"purchased_by_partner": partner_id}).sort("created_at", -1).limit(100):
+        items.append({"kind": "promotion", "id": p.get("promotion_id"),
+                      "name": p.get("public_name") or p.get("business_id"),
+                      "detail": f"{p.get('name')} · {p.get('days')}d",
+                      "status": p.get("status"), "amount_cents": int(p.get("price_cents") or 0),
+                      "paid": bool(p.get("paid")), "environment": p.get("purchased_by_partner_env"),
+                      "created_at": _isostr(p.get("created_at"))})
+    async for b in db.category_bids.find(
+            {"purchased_by_partner": partner_id}).sort("updated_at", -1).limit(100):
+        items.append({"kind": "spotlight", "id": b.get("bid_id"),
+                      "name": b.get("public_name") or b.get("business_id"),
+                      "detail": f"{b.get('category')} · bid {b.get('bid_cents')}¢",
+                      "status": b.get("status"), "amount_cents": int(b.get("budget_cents") or 0),
+                      "paid": b.get("status") == "active", "environment": b.get("purchased_by_partner_env"),
+                      "created_at": _isostr(b.get("created_at"))})
+    if adv_ids:
+        async for t in db.trivia_sponsorships.find(
+                {"advertiser_business_id": {"$in": adv_ids}}).sort("created_at", -1).limit(100):
+            items.append({"kind": "trivia", "id": t.get("id"),
+                          "name": t.get("display_name") or "Trivia sponsorship", "detail": "prize pool",
+                          "status": t.get("status"), "amount_cents": int(t.get("cost_cents") or 0),
+                          "paid": bool(t.get("paid_at")),
+                          "environment": adv_env.get(t.get("advertiser_business_id")),
+                          "created_at": _isostr(t.get("created_at"))})
+        async for r in db.rj_sponsored_reads.find(
+                {"advertiser_business_id": {"$in": adv_ids}}).sort("created_at", -1).limit(100):
+            items.append({"kind": "rj_read", "id": r.get("id"),
+                          "name": r.get("product_name") or r.get("persona_name") or "AI-RJ read",
+                          "detail": f"{r.get('plays_target')} plays",
+                          "status": r.get("status"), "amount_cents": int(r.get("total_cost_cents") or 0),
+                          "paid": bool(r.get("paid_at")),
+                          "environment": adv_env.get(r.get("advertiser_business_id")),
+                          "created_at": _isostr(r.get("created_at"))})
+    items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return items
+
+
+# ── Cross-promotion spend/analytics rollup ───────────────────────────
+async def partner_analytics_summary(db, *, partner_id: str) -> Dict[str, Any]:
+    promos = [p async for p in db.marketplace_promotions.find({"purchased_by_partner": partner_id})]
+    biz = {p["business_id"] for p in promos if p.get("business_id")}
+    spotlight_spend = 0
+    async for b in db.category_bids.find({"purchased_by_partner": partner_id}):
+        if b.get("business_id"):
+            biz.add(b["business_id"])
+        spotlight_spend += int(b.get("spent_cents") or 0)
+    biz_ids = list(biz)
+    impressions = views = orders = revenue = 0
+    if biz_ids:
+        async for d in db.promotion_daily.find({"business_id": {"$in": biz_ids}}):
+            impressions += int(d.get("impressions", 0))
+            views += int(d.get("views", 0))
+        async for o in db.marketplace_orders.find(
+                {"business_id": {"$in": biz_ids}, "payment_status": "paid"}):
+            orders += 1
+            revenue += int(o.get("total_cents", 0))
+    placement_spend = sum(int(p.get("price_cents") or 0) for p in promos if p.get("paid"))
+    return {"businesses": len(biz_ids), "promotions": len(promos),
+            "active_promotions": sum(1 for p in promos if p.get("status") == "active"),
+            "pending_promotions": sum(1 for p in promos if p.get("status") == "pending_review"),
+            "impressions": impressions, "views": views, "orders": orders,
+            "revenue_cents": revenue, "placement_spend_cents": placement_spend,
+            "spotlight_spend_cents": spotlight_spend,
+            "total_spend_cents": placement_spend + spotlight_spend}

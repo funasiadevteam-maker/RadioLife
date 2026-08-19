@@ -9,7 +9,7 @@ import asyncio
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -189,15 +189,15 @@ async def admin_list(request: Request, status: str = "pending_review", _a=Depend
     return {"items": out}
 
 
-@admin_router.post("/{promotion_id}/approve")
-async def admin_approve(promotion_id: str, request: Request, _a=Depends(require_admin)):
-    db = request.app.state.db
+async def _approve_one(db, promotion_id: str) -> Dict[str, Any]:
+    """Approve a single in-review promotion → active. Returns a result dict
+    (never raises) so it can be reused by both single + bulk endpoints."""
     promo = await db.marketplace_promotions.find_one({"promotion_id": promotion_id})
     if not promo:
-        raise HTTPException(404, {"code": "promotion_not_found"})
+        return {"promotion_id": promotion_id, "ok": False, "code": "promotion_not_found"}
     if promo.get("status") != "pending_review":
-        # Only paid, in-review requests are approvable; comps use /grant.
-        raise HTTPException(400, {"code": "not_reviewable", "status": promo.get("status")})
+        return {"promotion_id": promotion_id, "ok": False,
+                "code": "not_reviewable", "status": promo.get("status")}
     days = int(promo.get("days") or 7)
     activated = _now()
     expires_iso = _iso(activated + timedelta(days=days))
@@ -205,8 +205,35 @@ async def admin_approve(promotion_id: str, request: Request, _a=Depends(require_
         {"promotion_id": promotion_id},
         {"$set": {"status": "active", "activated_at": activated, "expires_at": expires_iso}})
     await _apply_active(db, promo["business_id"], promo["tier"], int(promo.get("weight") or 1), expires_iso)
+    return {"promotion_id": promotion_id, "ok": True}
+
+
+@admin_router.post("/{promotion_id}/approve")
+async def admin_approve(promotion_id: str, request: Request, _a=Depends(require_admin)):
+    db = request.app.state.db
+    r = await _approve_one(db, promotion_id)
+    if not r["ok"]:
+        code = r["code"]
+        raise HTTPException(404 if code == "promotion_not_found" else 400,
+                            {"code": code, **({"status": r["status"]} if r.get("status") else {})})
     saved = await db.marketplace_promotions.find_one({"promotion_id": promotion_id})
     return {"ok": True, "promotion": _clean(dict(saved))}
+
+
+class BulkApproveBody(BaseModel):
+    promotion_ids: List[str]
+
+
+@admin_router.post("/bulk-approve")
+async def admin_bulk_approve(body: BulkApproveBody, request: Request, _a=Depends(require_admin)):
+    """Approve many in-review promotions in one call (e.g. clear the partner
+    queue). Returns which succeeded and which were skipped + why."""
+    db = request.app.state.db
+    results = [await _approve_one(db, pid) for pid in (body.promotion_ids or [])[:100]]
+    approved = [r["promotion_id"] for r in results if r["ok"]]
+    failed = [r for r in results if not r["ok"]]
+    return {"approved": approved, "approved_count": len(approved),
+            "failed": failed, "failed_count": len(failed)}
 
 
 @admin_router.post("/{promotion_id}/reject")

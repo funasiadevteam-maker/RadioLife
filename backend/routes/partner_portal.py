@@ -265,11 +265,45 @@ def _mkt_err(e: Exception) -> HTTPException:
 @router.get("/commerce/catalog")
 async def portal_commerce_catalog(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
-    await _require_partner(db, user)
+    p = await _require_partner(db, user)
     return {"tiers": mkt.promo_tiers(),
             "categories": await mkt.list_categories(db),
             "businesses": await mkt.list_promotable_businesses(db, limit=60),
-            "personas": await rjp.list_personas(db, status="active")}
+            "personas": await rjp.list_personas(db, status="active"),
+            "favourite_persona_id": p.get("favourite_persona_id")}
+
+
+class VoiceFavourite(BaseModel):
+    persona_id: Optional[str] = None
+
+
+@router.post("/commerce/voice-favourite")
+async def portal_set_voice_favourite(body: VoiceFavourite, request: Request,
+                                     user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    await db.partner_accounts.update_one(
+        {"partner_id": p["partner_id"]}, {"$set": {"favourite_persona_id": body.persona_id}})
+    return {"favourite_persona_id": body.persona_id}
+
+
+@router.get("/commerce/history")
+async def portal_commerce_history(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    live_ids = await pa._partner_advertiser_ids(db, p["partner_id"], "live")
+    sand_ids = await pa._partner_advertiser_ids(db, p["partner_id"], "sandbox")
+    adv_env = {**{a: "LIVE" for a in live_ids}, **{a: "SANDBOX" for a in sand_ids}}
+    items = await mkt.list_partner_history(
+        db, partner_id=p["partner_id"], adv_ids=live_ids + sand_ids, adv_env=adv_env)
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/commerce/analytics/summary")
+async def portal_commerce_summary(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    return await mkt.partner_analytics_summary(db, partner_id=p["partner_id"])
 
 
 @router.post("/commerce/promotion/checkout")

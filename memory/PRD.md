@@ -1,5 +1,17 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## PARTNER CONSOLE — HISTORY, VOICE FAVOURITES, SPEND DASHBOARD, ADMIN BULK-APPROVE (2026-08 fork, cont.)
+Four more user-approved enhancements. Backend + web (no mobile). Testing agent iter98: 9/9 backend + full UI PASS, no bugs.
+
+1) **Console History** — `GET /api/partner/commerce/history` (`partner_marketplace.list_partner_history`) unifies the partner's buys across `marketplace_promotions` (purchased_by_partner), `category_bids`, and `trivia_sponsorships`/`rj_sponsored_reads` (partner advertisers), each with kind/name/detail/status/amount/env. Shown in a "Purchase history" section (pc-history-*) with a refresh button; auto-refreshes after every buy.
+2) **Voice Favourites** — `POST /api/partner/commerce/voice-favourite {persona_id}` persists `favourite_persona_id` on the partner account; `/commerce/catalog` returns it. Star on each persona card (pc-rj-fav-<id>); the favourite is pre-selected on the AI-RJ booking on load.
+3) **Spend Dashboard** — `GET /api/partner/commerce/analytics/summary` (`partner_marketplace.partner_analytics_summary`) rolls up impressions/views/orders/revenue + placement & spotlight spend + promotion counts across ALL the partner's promotions. Shown as a tile grid (pc-summary) at the top of the console.
+4) **Admin Bulk Approve** — refactored `_approve_one()` + new `POST /api/admin/marketplace/promotions/bulk-approve {promotion_ids}` (returns approved/failed lists, cap 100). Admin Promotions "In review" tab now has per-row checkboxes (promo-select-<id>), Select-all (promo-select-all) and "Approve selected (N)" (promo-bulk-approve).
+
+Files: `services/partner_marketplace.py`, `routes/partner_portal.py`, `routes/marketplace_promotions.py`, `frontend/src/pages/advertiser_v2/PartnerCheckout.jsx`, `frontend/src/admin/Promotions.jsx`.
+
+
+
 ## PARTNER CONSOLE + VOICE PICKER + PROMOTION ANALYTICS + ADMIN QUEUE (2026-08 fork, cont.)
 Four user-approved follow-ups to the Partner Ads API. Backend + web (no mobile). Testing agent iter97: 10/11 pass; the 2 HIGH bugs it found were fixed + re-verified (see end).
 

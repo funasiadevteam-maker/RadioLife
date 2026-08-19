@@ -24,16 +24,31 @@ export default function Promotions() {
   const [actingId, setActingId] = useState(null);
   const [grantBiz, setGrantBiz] = useState("");
   const [grantTier, setGrantTier] = useState("spotlight_7");
+  const [selected, setSelected] = useState([]);
+
+  const toggleSelect = (id) => setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await axios.get(`${API}/admin/marketplace/promotions`, { params: { status } });
       setItems(r.data.items || []);
+      setSelected([]);
     } catch { toast.error("Failed to load — admin only."); }
     finally { setLoading(false); }
   }, [status]);
   useEffect(() => { load(); }, [load]);
+
+  const bulkApprove = async () => {
+    if (selected.length === 0) return;
+    setActingId("bulk");
+    try {
+      const r = await axios.post(`${API}/admin/marketplace/promotions/bulk-approve`, { promotion_ids: selected });
+      toast.success(`Approved ${r.data.approved_count || 0}${r.data.failed_count ? ` · ${r.data.failed_count} skipped` : ""}`);
+      load();
+    } catch { toast.error("Bulk approve failed"); }
+    finally { setActingId(null); }
+  };
 
   const act = async (id, action, body) => {
     setActingId(id);
@@ -82,11 +97,22 @@ export default function Promotions() {
         </div>
       </Card>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4 items-center">
         {TABS.map(([k, l]) => (
           <button key={k} onClick={() => setStatus(k)} data-testid={`promo-tab-${k}`}
             className={`px-3 py-1.5 rounded-full text-sm font-bold ${status === k ? "bg-orange-500 text-white" : "bg-white/[0.05] text-white/60"}`}>{l}</button>
         ))}
+        {status === "pending_review" && items.length > 0 && (
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setSelected(selected.length === items.length ? [] : items.map((p) => p.promotion_id))}
+              data-testid="promo-select-all" className="text-xs font-bold text-white/60 hover:text-white">
+              {selected.length === items.length ? "Clear" : "Select all"}
+            </button>
+            <Button onClick={bulkApprove} disabled={selected.length === 0 || actingId === "bulk"} data-testid="promo-bulk-approve">
+              {actingId === "bulk" ? <Loader2 className="animate-spin" size={15} /> : <Check size={15} />} Approve selected ({selected.length})
+            </Button>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -97,19 +123,26 @@ export default function Promotions() {
         <div className="space-y-2">
           {items.map((p) => (
             <Card key={p.promotion_id} className="p-4 flex items-center justify-between" data-testid={`promo-row-${p.promotion_id}`}>
-              <div>
-                <div className="font-bold flex items-center gap-2">
-                  {p.public_name || p.business_id}
-                  {p.via_partner && (
-                    <span data-testid={`promo-via-partner-${p.promotion_id}`}
-                      className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
-                      via API{p.partner_name ? ` · ${p.partner_name}` : ""}
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-white/50 mt-0.5">
-                  {p.name} · {p.days}d · {p.price_cents ? money(p.price_cents) : "COMP"} · {p.paid ? "paid" : "unpaid"}
-                  {p.admin_note ? ` · ${p.admin_note}` : ""}
+              <div className="flex items-center gap-3 min-w-0">
+                {p.status === "pending_review" && (
+                  <input type="checkbox" checked={selected.includes(p.promotion_id)}
+                    onChange={() => toggleSelect(p.promotion_id)} data-testid={`promo-select-${p.promotion_id}`}
+                    className="w-4 h-4 accent-orange-500 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <div className="font-bold flex items-center gap-2">
+                    {p.public_name || p.business_id}
+                    {p.via_partner && (
+                      <span data-testid={`promo-via-partner-${p.promotion_id}`}
+                        className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
+                        via API{p.partner_name ? ` · ${p.partner_name}` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-white/50 mt-0.5">
+                    {p.name} · {p.days}d · {p.price_cents ? money(p.price_cents) : "COMP"} · {p.paid ? "paid" : "unpaid"}
+                    {p.admin_note ? ` · ${p.admin_note}` : ""}
+                  </div>
                 </div>
               </div>
               {p.status === "pending_review" ? (

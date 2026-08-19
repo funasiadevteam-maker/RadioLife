@@ -7,7 +7,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import {
   Rocket, Sparkles, Radio, Store, Loader2, ExternalLink, RefreshCw,
-  Play, BarChart3, CheckCircle2, KeyRound,
+  Play, BarChart3, CheckCircle2, KeyRound, Star, Clock, Wallet,
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
@@ -89,6 +89,10 @@ export default function PartnerCheckout() {
   const [loading, setLoading] = useState(true);
   const [hasAccount, setHasAccount] = useState(true);
   const [catalog, setCatalog] = useState({ tiers: [], categories: [], businesses: [], personas: [] });
+  const [summary, setSummary] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [favPersona, setFavPersona] = useState(null);
 
   // flow state
   const [promo, setPromo] = useState({ business_id: "", tier: "spotlight_7", busy: false, result: null, checking: false, report: null });
@@ -98,21 +102,44 @@ export default function PartnerCheckout() {
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
+  const loadSummary = useCallback(async () => {
+    try { const r = await axios.get(`${API}/partner/commerce/analytics/summary`); setSummary(r.data); } catch { /* ignore */ }
+  }, []);
+  const loadHistory = useCallback(async () => {
+    setHistoryBusy(true);
+    try { const r = await axios.get(`${API}/partner/commerce/history`); setHistory(r.data.items || []); }
+    catch { /* ignore */ } finally { setHistoryBusy(false); }
+  }, []);
+
   const loadCatalog = useCallback(async () => {
     setLoading(true);
     try {
       const r = await axios.get(`${API}/partner/commerce/catalog`);
       setCatalog(r.data);
       setHasAccount(true);
+      const fav = r.data.favourite_persona_id || null;
+      setFavPersona(fav);
       setPromo((s) => ({ ...s, business_id: s.business_id || r.data.businesses?.[0]?.business_id || "" }));
       setSpot((s) => ({ ...s, business_id: s.business_id || r.data.businesses?.[0]?.business_id || "", category: s.category || r.data.categories?.[0]?.key || "" }));
-      setRjr((s) => ({ ...s, persona_id: s.persona_id || r.data.personas?.[0]?.id || "" }));
+      setRjr((s) => ({ ...s, persona_id: s.persona_id || fav || r.data.personas?.[0]?.id || "" }));
+      loadSummary();
+      loadHistory();
     } catch (e) {
       if (e?.response?.status === 400) setHasAccount(false);
       else toast.error("Could not load catalog");
     } finally { setLoading(false); }
-  }, []);
+  }, [loadSummary, loadHistory]);
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
+
+  const afterBuy = () => { loadSummary(); loadHistory(); };
+
+  const toggleFav = async (personaId) => {
+    const next = favPersona === personaId ? null : personaId;
+    setFavPersona(next);
+    if (next) setRjr((s) => ({ ...s, persona_id: next }));
+    try { await axios.post(`${API}/partner/commerce/voice-favourite`, { persona_id: next }); toast.success(next ? "Favourite voice saved" : "Favourite cleared"); }
+    catch { toast.error("Could not save favourite"); }
+  };
 
   // ── Promotion ──
   const buyPromo = async () => {
@@ -123,7 +150,7 @@ export default function PartnerCheckout() {
       setPromo((s) => ({ ...s, result: r.data }));
       if (r.data.sandbox) toast.success("Promotion live (sandbox)");
     } catch { toast.error("Checkout failed"); }
-    finally { setPromo((s) => ({ ...s, busy: false })); }
+    finally { setPromo((s) => ({ ...s, busy: false })); afterBuy(); }
   };
   const checkPromo = async () => {
     if (!promo.result?.promotion_id) return;
@@ -152,7 +179,7 @@ export default function PartnerCheckout() {
       setSpot((s) => ({ ...s, result: r.data }));
       if (r.data.sandbox) toast.success("Spotlight funded (sandbox)");
     } catch { toast.error("Checkout failed"); }
-    finally { setSpot((s) => ({ ...s, busy: false })); }
+    finally { setSpot((s) => ({ ...s, busy: false })); afterBuy(); }
   };
   const checkSpot = async () => {
     if (!spot.result?.session_id) return;
@@ -180,7 +207,7 @@ export default function PartnerCheckout() {
       const k = await axios.post(`${API}/partner/commerce/sponsorships/${sid}/checkout`, { type: "trivia", advertiser_id: aid, environment: env, origin_url: origin });
       setTriv((s) => ({ ...s, sponsorship_id: sid, advertiser_id: aid, result: k.data }));
     } catch (e) { toast.error(e?.response?.data?.detail?.code || "Booking failed"); }
-    finally { setTriv((s) => ({ ...s, busy: false })); }
+    finally { setTriv((s) => ({ ...s, busy: false })); afterBuy(); }
   };
   const checkTriv = async () => {
     if (!triv.sponsorship_id) return;
@@ -222,7 +249,7 @@ export default function PartnerCheckout() {
       const k = await axios.post(`${API}/partner/commerce/sponsorships/${sid}/checkout`, { type: "rj_read", advertiser_id: aid, environment: env, origin_url: origin });
       setRjr((s) => ({ ...s, sponsorship_id: sid, advertiser_id: aid, result: k.data }));
     } catch (e) { toast.error(e?.response?.data?.detail?.code || "Booking failed"); }
-    finally { setRjr((s) => ({ ...s, busy: false })); }
+    finally { setRjr((s) => ({ ...s, busy: false })); afterBuy(); }
   };
   const checkRjr = async () => {
     if (!rjr.sponsorship_id) return;
@@ -258,6 +285,17 @@ export default function PartnerCheckout() {
         <EnvToggle env={env} setEnv={setEnv} />
       </div>
       <p className="text-sm text-slate-500 mb-5">Buy sponsorships &amp; marketplace promotions programmatically and watch checkout status — no code. Sandbox activates instantly; Live opens a real Stripe checkout.</p>
+
+      {summary && (
+        <section className="rounded-2xl border border-slate-200 p-4 mb-4" data-testid="pc-summary">
+          <div className="flex items-center gap-1.5 mb-2"><Wallet className="w-4 h-4 text-slate-700" /><h2 className="font-black text-slate-900 text-sm">Spend &amp; performance (all promotions)</h2></div>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {[["Promotions", summary.promotions], ["Active", summary.active_promotions], ["Pending", summary.pending_promotions], ["Impressions", summary.impressions], ["Orders", summary.orders], ["Revenue", money(summary.revenue_cents)], ["Placement", money(summary.placement_spend_cents)], ["Spotlight", money(summary.spotlight_spend_cents)], ["Total spend", money(summary.total_spend_cents)]].map(([l, v]) => (
+              <div key={l} className="rounded-lg bg-slate-50 border border-slate-100 p-2"><div className="text-[10px] font-bold text-slate-400">{l}</div><div className="text-sm font-black text-slate-900">{v ?? 0}</div></div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Marketplace Promotion */}
       <SectionCard icon={Store} title="Promoted-rail placement" testid="pc-promo-card"
@@ -341,7 +379,12 @@ export default function PartnerCheckout() {
               <div key={p.id} onClick={() => setRjr((s) => ({ ...s, persona_id: p.id }))} data-testid={`pc-rj-persona-${p.id}`}
                 className={`rounded-xl border p-3 cursor-pointer ${rjr.persona_id === p.id ? "border-orange-500 bg-orange-50" : "border-slate-200"}`}>
                 <div className="flex items-center justify-between">
-                  <div className="font-black text-sm text-slate-900">{p.name}</div>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={(ev) => { ev.stopPropagation(); toggleFav(p.id); }} data-testid={`pc-rj-fav-${p.id}`} title="Favourite voice">
+                      <Star className={`w-4 h-4 ${favPersona === p.id ? "text-amber-500 fill-amber-500" : "text-slate-300"}`} />
+                    </button>
+                    <div className="font-black text-sm text-slate-900">{p.name}</div>
+                  </div>
                   <button onClick={(ev) => { ev.stopPropagation(); previewVoice(p.id); }} data-testid={`pc-rj-preview-${p.id}`}
                     className="p-1.5 rounded-full bg-slate-900 text-white">
                     {rjr.previewId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
@@ -365,6 +408,35 @@ export default function PartnerCheckout() {
           </button>
         </div>
         <CheckoutResult result={rjr.result} onCheck={checkRjr} checking={rjr.checking} testid="pc-rj-result" />
+      </SectionCard>
+
+      {/* Purchase history */}
+      <SectionCard icon={Clock} title="Purchase history" testid="pc-history-card"
+        desc="Everything you've bought through the console. Refresh to re-check live status.">
+        <div className="flex justify-end mb-2">
+          <button onClick={loadHistory} disabled={historyBusy} data-testid="pc-history-refresh"
+            className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-slate-900">
+            <RefreshCw className={`w-4 h-4 ${historyBusy ? "animate-spin" : ""}`} /> Refresh
+          </button>
+        </div>
+        {history.length === 0 ? (
+          <div className="text-sm text-slate-400" data-testid="pc-history-empty">No purchases yet.</div>
+        ) : (
+          <div className="divide-y divide-slate-100" data-testid="pc-history-list">
+            {history.map((h) => (
+              <div key={`${h.kind}-${h.id}`} className="flex items-center justify-between py-2.5" data-testid={`pc-history-${h.id}`}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase">{h.kind}</span>
+                    <span className="font-bold text-sm text-slate-900 truncate">{h.name}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate">{h.detail} · {money(h.amount_cents)} · {h.environment || "—"}</div>
+                </div>
+                <StatusBadge status={h.status} />
+              </div>
+            ))}
+          </div>
+        )}
       </SectionCard>
     </div>
   );
