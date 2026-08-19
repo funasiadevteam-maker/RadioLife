@@ -1,0 +1,55 @@
+{
+  "summary": "Iteration 94 - RadioLife Ads Public API Phase 2 (Sponsorships + Usage + Webhooks). Backend end-to-end tested with the provided SmartReach SANDBOX key via a new pytest file (/app/backend/tests/test_iter94_partner_api_phase2.py) - 20/20 pass. Covered: sponsorships (unified /api/v1/sponsorships) inventory for trivia/rj_read/predict_win, create trivia (auto-active in sandbox), list, get, report, submit; /api/v1/usage full shape; webhooks register/list (no secret leak) / ping (HMAC verified using Stripe-style t=<ts>,v1=<hex> header) / deliveries / delete / events catalog; sweep after campaign create fires campaign.approved + campaign.live to registered webhook; cross-partner sponsorship 404; scope guardrails (reports:read gates /usage, campaigns:write gates POST /webhooks). Regression /me + /products (9 items, 3 bookable) still green. Web dashboard /advertiser/dashboard/api renders new dev-usage-section (7 tiles: API calls/Campaigns/Active/Spend/Impressions/Clicks/CTR) and dev-webhooks-section (list rows + ping/delete buttons per row + dev-webhook-url/dev-webhook-env/dev-webhook-create form). Existing API keys + OAuth2 sections still work.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {
+          "component": "DeveloperApi.jsx - SecretReveal after webhook create",
+          "issue": "After clicking [data-testid=dev-webhook-create] with a valid URL, the webhook IS created (row appears in the list; portal endpoint returns secret in the payload) but the [data-testid=dev-secret-reveal] panel does not appear reliably in the UI under automation. Verified twice via Playwright (0.5s and 2s waits). Suspected race between setReveal(...) and the subsequent load() -> setState() re-render, or a conditional path where {reveal && ...} block is not reached. It works for API key creation (per iter 93). Please repro manually and/or move setReveal() to happen AFTER load() completes.",
+          "selector": "[data-testid=\"dev-secret-reveal\"]",
+          "priority": "MEDIUM"
+        }
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {
+          "screen": "/advertiser/dashboard/api",
+          "issues": [
+            "'API calls: 4' tile counts partner-portal /api/partner/usage requests as v1 calls even though usage requirement is 'log every /api/v1 call'. In this session I made ~2 /api/v1 calls total from the browser but the tile shows 4, so it's likely including /api/partner/* internal calls. Non-blocking but worth clarifying whether the tile should show v1-only or all partner activity.",
+            "The Webhooks section shows 'last: never' initially. After ping/delivery it correctly updates - OK."
+          ]
+        }
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter94_partner_api_phase2.py",
+    "/app/test_reports/pytest/iter94.xml"
+  ],
+  "action_items": [
+    "Investigate why the [data-testid=dev-secret-reveal] panel does not render after successful POST /api/partner/webhooks. The API returns 'secret' in the body but the UI does not show the reveal card. Likely fix: call setReveal(...) once, and either drop the subsequent load() or ensure load() does not race the reveal state. Manually verify in browser - if the reveal shows visually but not in Playwright, it's OK.",
+    "(Optional) Clarify whether Usage tile 'API calls' should count only /api/v1/* (per PRD) or include internal /api/partner/* portal calls too. If only v1, filter the counter accordingly."
+  ],
+  "critical_code_review_comments": [
+    "webhooks/{id}/deliveries endpoint DOES include the event name/type in each record (test asserts campaign.approved + campaign.live are both present after sweep). Good.",
+    "HMAC signature format is Stripe-style 't=<ts>,v1=<hex hmac>' with signed_payload = f'{ts}.{body}'. This is a solid, replay-resistant scheme. Consider documenting explicitly in /app/docs/PARTNER_API.md so integrators do not use raw HMAC(body) like my first test did.",
+    "SecretReveal path for webhook creation: DeveloperApi.jsx line 129 uses `if (r.data?.secret) setReveal(...)`. The optional-chain is defensive but the API always returns a secret on create; consider always setting reveal to catch shape drift.",
+    "The webhook LIST endpoint correctly does NOT return the 'secret' field (verified in test_list_webhooks).",
+    "Sweep is per-partner throttled ~10s (as noted by main agent). Test waits 12s + one authed call + 3s. Reliable in this run.",
+    "Cross-partner isolation: /api/v1/sponsorships/{id} correctly returns 404 when another partner owns the sponsorship (test_cross_partner_sponsorship_404 pass).",
+    "Scope guardrails: /api/v1/usage requires reports:read (403 without), POST /api/v1/webhooks requires campaigns:write (403 without) - both verified."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter94_partner_api_phase2.py"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "~95% (all testids present + Usage tiles render + webhook create/ping/delete round-trip work; secret-reveal panel not visible under automation - needs manual repro)"},
+  "test_credentials": "SmartReach SANDBOX key: rlk_test_MTkClmovYPc_.cdkjGLsT9SveRl543RCiI_FCFqyPRlAi-So2QPrL2jE. Admin: admin@bigfm.dubai / AdminPass123!",
+  "seed_data_creation": "Test pytest run created: 3 TEST_ partners + sandbox keys, 3 TEST_ advertisers (auto-active in sandbox), 2 TEST_ campaigns, 2 TEST_ trivia sponsorships, 1 OAuth client with narrow scope. UI run created 2 extra webhooks (127.0.0.1 URLs) on admin partner. All prefixed for easy cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend Phase 2 100% green. New pytest file /app/backend/tests/test_iter94_partner_api_phase2.py is the canonical Phase 2 regression suite - has local HTTP receiver for HMAC + deliveries verification. Only open item: dev-secret-reveal not visible in Playwright after webhook create (may still work in a real browser). All other UI selectors (dev-usage-section, dev-webhooks-section, dev-webhook-url/env/create, dev-webhook-ping-*, dev-webhook-delete-*) are present and functional.",
+  "rca of the issue": "The only issue observed is the reveal-panel visibility after webhook create in the web UI. Repro: log in as admin -> /advertiser/dashboard/api -> fill dev-webhook-url + click dev-webhook-create. Expected: dev-secret-reveal box shows the whsec_ secret once. Observed: webhook is created server-side (row appears with ping/delete buttons; API returns secret) but the reveal panel does not become visible under Playwright automation. Likely a state-timing race between synchronous setReveal(...) inside createWebhook() and the async load() setState calls that follow. Suggested fix in DeveloperApi.jsx createWebhook: call setReveal BEFORE load(), which is already the case - but consider awaiting load() and then re-asserting reveal, or removing load() call and instead push the new webhook into local state directly."
+}

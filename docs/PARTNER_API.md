@@ -94,8 +94,33 @@ Fixed window per credential (default **120 req/min**). Exceeding it returns `429
 - `POST /campaigns/{id}/stop?advertiser_id=…` — end a campaign. (`campaigns:write`)
 - `GET /campaigns/{id}/report?advertiser_id=…` — impressions, clicks, spend, CTR, remaining budget. (`reports:read`)
 
-#### Campaign create body
-```json
+### Sponsorships
+Unified resource for Predict&Win, Trivia, and AI-RJ sponsored reads (`type` = `predict_win` | `trivia` | `rj_read`).
+- `GET /sponsorships/inventory?type=…` — what's sponsorable (open Predict&Win events / trivia target types + categories / RJ personas). (`catalog:read`)
+- `POST /sponsorships` — book a sponsorship (`type` + `advertiser_id` + type-specific fields). Sandbox → auto-active. (`campaigns:write`)
+- `GET /sponsorships?type=…&advertiser_id=…` — list. (`campaigns:read`)
+- `GET /sponsorships/{id}?type=…&advertiser_id=…` — fetch. (`campaigns:read`)
+- `POST /sponsorships/{id}/submit?type=…&advertiser_id=…` — submit/confirm (live: Predict&Win publishes for review; Trivia charges the prize pool; RJ enters moderation). (`campaigns:write`)
+- `GET /sponsorships/{id}/report?type=…&advertiser_id=…` — counters. (`reports:read`)
+
+Type-specific create fields:
+- **predict_win**: `parent_campaign_id`, `brand_name`, `brand_asset_url`, `pricing_model` (`per_entry`|`per_correct_impression`), `cpe_cents`/`cpi_cents`, `budget_cents`.
+- **trivia**: `sponsor_target_type` (`any`|`category`|`question_set`), `target_id`, `prize_pool` (`[{rank,points_reward,quantity,currency}]`), `winner_selection` (`top_n`|`score_threshold`), `display_name`, `start_at`, `end_at`.
+- **rj_read**: `persona_id`, `any_station` or `station_ids`, `disclosure_prefix`, `plays_target`, `cost_per_play_cents`, `script_body` (literal, or `"auto"` to AI-draft), `start_at`, `end_at`.
+
+### Usage analytics
+- `GET /usage?days=30` — total calls, calls by day/endpoint/status, campaign count, spend, impressions, clicks, CTR. (`reports:read`)
+
+### Webhooks
+- `GET /webhooks/events` — subscribable event types. (`catalog:read`)
+- `POST /webhooks` — register `{url, events?}`; returns a signing `secret` **once**. (`campaigns:write`)
+- `GET /webhooks` / `DELETE /webhooks/{id}` / `POST /webhooks/{id}/ping` / `GET /webhooks/{id}/deliveries`.
+
+Events: `campaign.approved`, `campaign.live`, `campaign.budget_exhausted`, `campaign.completed`, `sponsorship.approved` (+ `ping`). Each delivery carries headers `X-RadioLife-Event`, `X-RadioLife-Delivery`, and `X-RadioLife-Signature: t=<unix>,v1=<hex>`. Verify by computing `HMAC-SHA256(secret, "<t>.<raw_body>")` and comparing to `v1` (reject if `t` is stale). Body: `{ "id", "type", "created", "environment", "data" }`.
+
+---
+
+#### Campaign create body```json
 {
   "advertiser_id": "advv2_…",
   "product": "audio_preroll",

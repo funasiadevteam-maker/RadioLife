@@ -12,12 +12,16 @@ campaigns are auto-approved and never serve/bill real inventory.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from services import ad1_advertiser_service as ad
+from services import ad3_sponsorship_service as pw
+from services import trivia_sponsorship_service as tr
+from services import rj_sponsored_read_service as rj
 from services import partner_api as pa
 from services.partner_api import Caller, require_scopes
 
@@ -35,6 +39,25 @@ partner_app = FastAPI(
     ),
     docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json",
 )
+
+
+@partner_app.middleware("http")
+async def _usage_mw(request: Request, call_next):
+    """Log each authenticated call for usage analytics + fire webhook events."""
+    t0 = time.time()
+    response = await call_next(request)
+    try:
+        caller = getattr(request.state, "caller", None)
+        if caller is not None:
+            db = request.app.state.db
+            await pa.log_api_call(db, partner_id=caller.partner_id, environment=caller.environment,
+                                  credential_id=caller.credential_id, method=request.method,
+                                  path=request.url.path, status=response.status_code,
+                                  duration_ms=int((time.time() - t0) * 1000))
+            await pa.sweep_webhook_events(db, caller.partner_id, caller.environment)
+    except Exception:
+        pass
+    return response
 
 
 # ── error mapping ───────────────────────────────────────────────────
@@ -372,6 +395,256 @@ async def campaign_report(campaign_id: str, request: Request, advertiser_id: str
     if not camp:
         raise HTTPException(404, {"code": "campaign_not_found"})
     return await ad.campaign_analytics(db, campaign_id=campaign_id)
+
+
+# ══════════════════════════ sponsorships ════════════════════════════
+# type -> (collection, id field, owner field, active status)
+_SP = {
+    "predict_win": ("predict_win_sponsorships", "sponsorship_id", "advertiser_id", "live"),
+    "trivia": ("trivia_sponsorships", "id", "advertiser_business_id", "active"),
+    "rj_read": ("rj_sponsored_reads", "id", "advertiser_business_id", "active"),
+}
+
+
+def _sp_clean(d: Optional[dict]) -> Optional[dict]:
+    if not d:
+        return d
+    return {k: (v.isoformat() if hasattr(v, "isoformat") else v)
+            for k, v in d.items() if k != "_id"}
+
+
+async def _sandbox_activate(db, t: str, sid: str) -> None:
+    coll, idf, _owner, active = _SP[t]
+    sets = {"status": active, "updated_at": pa._now()}
+    if t == "predict_win":
+        sets["approval_status"] = "approved"
+    else:
+        sets["activated_at"] = pa._now()
+    await db[coll].update_one({idf: sid}, {"$set": sets})
+
+
+async def _sp_fetch(db, t: str, sid: str) -> Optional[dict]:
+    coll, idf, _o, _a = _SP[t]
+    return _sp_clean(await db[coll].find_one({idf: sid}))
+
+
+async def _assert_sp(db, caller: Caller, t: str, sid: str) -> dict:
+    if t not in _SP:
+        raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+    coll, idf, owner, _a = _SP[t]
+    d = await db[coll].find_one({idf: sid})
+    if not d:
+        raise HTTPException(404, {"code": "sponsorship_not_found"})
+    await _assert_adv(db, caller, d.get(owner))  # 404 unless owned by caller
+    return d
+
+
+class SponsorshipCreate(BaseModel):
+    type: str = Field(..., description="predict_win | trivia | rj_read")
+    advertiser_id: str
+    display_name: Optional[str] = None
+    tagline: Optional[str] = None
+    logo_url: Optional[str] = None
+    budget_cents: Optional[int] = None
+    start_at: Optional[str] = None
+    end_at: Optional[str] = None
+    # predict_win
+    parent_campaign_id: Optional[str] = None
+    brand_name: Optional[str] = None
+    brand_asset_url: Optional[str] = None
+    pricing_model: Optional[str] = None
+    cpe_cents: Optional[int] = None
+    cpi_cents: Optional[int] = None
+    daily_cap_cents: Optional[int] = None
+    # trivia
+    sponsor_target_type: Optional[str] = None
+    target_id: Optional[str] = None
+    prize_pool: Optional[list] = None
+    winner_selection: Optional[str] = None
+    score_threshold: Optional[int] = None
+    # rj_read
+    persona_id: Optional[str] = None
+    station_ids: Optional[list] = None
+    any_station: Optional[bool] = None
+    disclosure_prefix: Optional[str] = None
+    plays_target: Optional[int] = None
+    cost_per_play_cents: Optional[int] = None
+    script_body: Optional[str] = None
+    product_name: Optional[str] = None
+    key_message: Optional[str] = None
+    cta: Optional[str] = None
+
+
+@partner_app.get("/sponsorships/inventory", tags=["sponsorships"])
+async def sponsorship_inventory(request: Request, type: str,
+                                caller: Caller = Depends(require_scopes("catalog:read"))):
+    db = request.app.state.db
+    if type == "predict_win":
+        return await pw.available_parent_campaigns(db, limit=50)
+    if type == "trivia":
+        cats = [{"id": c.get("id"), "name": c.get("name")}
+                async for c in db.trivia_categories.find({}, {"id": 1, "name": 1}).limit(100)]
+        return {"target_types": list(tr.TARGET_TYPES), "selection_modes": list(tr.SELECTION_MODES),
+                "categories": cats, "platform_fee_pct": tr.PLATFORM_FEE_PCT}
+    if type == "rj_read":
+        personas = [{"id": p.get("id"), "name": p.get("name")}
+                    async for p in db.rj_personas.find({"status": "active"}, {"id": 1, "name": 1}).limit(50)]
+        return {"personas": personas, "disclosure_prefixes": list(rj.DISCLOSURE_PREFIXES),
+                "any_station_supported": True}
+    raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+
+
+@partner_app.post("/sponsorships", tags=["sponsorships"], status_code=201)
+async def create_sponsorship(body: SponsorshipCreate, request: Request,
+                             caller: Caller = Depends(require_scopes("campaigns:write"))):
+    db = request.app.state.db
+    await _assert_adv(db, caller, body.advertiser_id)
+    t, owner = body.type, caller.owner_id
+    try:
+        if t == "predict_win":
+            payload = {"parent_campaign_id": body.parent_campaign_id, "brand_name": body.brand_name,
+                       "brand_asset_url": body.brand_asset_url, "tagline": body.tagline,
+                       "pricing_model": body.pricing_model, "cpe_cents": body.cpe_cents,
+                       "cpi_cents": body.cpi_cents, "budget_cents": body.budget_cents,
+                       "daily_cap_cents": body.daily_cap_cents,
+                       "start_time": body.start_at, "end_time": body.end_at}
+            res = await pw.create_sponsorship(db, advertiser_id=body.advertiser_id, submitted_by=owner, payload=payload)
+            sid = res.get("sponsorship_id")
+        elif t == "trivia":
+            tbody = {"sponsor_target_type": body.sponsor_target_type or "any", "target_id": body.target_id,
+                     "prize_pool": body.prize_pool or [], "winner_selection": body.winner_selection or "top_n",
+                     "score_threshold": body.score_threshold, "display_name": body.display_name,
+                     "tagline": body.tagline, "logo_url": body.logo_url,
+                     "start_at": body.start_at, "end_at": body.end_at}
+            res = await tr.create_sponsorship(db, advertiser_business_id=body.advertiser_id, body=tbody, user_id=owner)
+            sid = res.get("id") or res.get("sponsorship_id")
+        elif t == "rj_read":
+            rbody = {"persona_id": body.persona_id, "station_ids": body.station_ids or [],
+                     "any_station": bool(body.any_station), "disclosure_prefix": body.disclosure_prefix,
+                     "plays_target": body.plays_target, "cost_per_play_cents": body.cost_per_play_cents,
+                     "script_body": body.script_body or "", "product_name": body.product_name,
+                     "key_message": body.key_message, "cta": body.cta,
+                     "start_at": body.start_at, "end_at": body.end_at}
+            res = await rj.create_sponsored_read(db, advertiser_business_id=body.advertiser_id, body=rbody, user_id=owner)
+            sid = res.get("id")
+        else:
+            raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _map_error(e)
+    if caller.is_sandbox and sid:
+        await _sandbox_activate(db, t, sid)
+        res = await _sp_fetch(db, t, sid)
+    return {"sponsorship": res, "type": t, "environment": caller.environment}
+
+
+@partner_app.get("/sponsorships", tags=["sponsorships"])
+async def list_sponsorships(request: Request, type: str, advertiser_id: str,
+                            caller: Caller = Depends(require_scopes("campaigns:read"))):
+    db = request.app.state.db
+    await _assert_adv(db, caller, advertiser_id)
+    if type not in _SP:
+        raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+    coll, _idf, owner, _a = _SP[type]
+    items = [_sp_clean(x) async for x in db[coll].find({owner: advertiser_id}).sort("created_at", -1).limit(100)]
+    return {"items": items, "count": len(items)}
+
+
+@partner_app.get("/sponsorships/{sponsorship_id}", tags=["sponsorships"])
+async def get_sponsorship_ep(sponsorship_id: str, request: Request, type: str, advertiser_id: str,
+                             caller: Caller = Depends(require_scopes("campaigns:read"))):
+    db = request.app.state.db
+    await _assert_adv(db, caller, advertiser_id)
+    d = await _assert_sp(db, caller, type, sponsorship_id)
+    return {"sponsorship": _sp_clean(d)}
+
+
+@partner_app.post("/sponsorships/{sponsorship_id}/submit", tags=["sponsorships"])
+async def submit_sponsorship(sponsorship_id: str, request: Request, type: str, advertiser_id: str,
+                             caller: Caller = Depends(require_scopes("campaigns:write"))):
+    db = request.app.state.db
+    await _assert_adv(db, caller, advertiser_id)
+    await _assert_sp(db, caller, type, sponsorship_id)
+    if caller.is_sandbox:
+        return {"sponsorship_id": sponsorship_id, "status": "active", "sandbox": True}
+    try:
+        if type == "predict_win":
+            return await pw.publish_sponsorship(db, sponsorship_id=sponsorship_id)
+        if type == "trivia":
+            return await tr.confirm_payment(db, sponsorship_id=sponsorship_id, advertiser_business_id=advertiser_id)
+        if type == "rj_read":
+            return await rj.submit_sponsored_read(db, sponsored_read_id=sponsorship_id, advertiser_business_id=advertiser_id)
+    except Exception as e:
+        raise _map_error(e)
+    raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+
+
+@partner_app.get("/sponsorships/{sponsorship_id}/report", tags=["reporting"])
+async def sponsorship_report(sponsorship_id: str, request: Request, type: str, advertiser_id: str,
+                             caller: Caller = Depends(require_scopes("reports:read"))):
+    db = request.app.state.db
+    await _assert_adv(db, caller, advertiser_id)
+    d = await _assert_sp(db, caller, type, sponsorship_id)
+    return {"sponsorship_id": sponsorship_id, "type": type, "status": d.get("status"),
+            "spent_cents": int(d.get("spent_cents") or 0),
+            "impressions": int(d.get("impressions_count") or 0),
+            "entries": int(d.get("entries_count") or 0),
+            "plays_delivered": int(d.get("plays_delivered") or 0),
+            "awarded_count": int(d.get("awarded_count") or 0)}
+
+
+# ══════════════════════════ usage analytics ═════════════════════════
+@partner_app.get("/usage", tags=["reporting"])
+async def usage_ep(request: Request, days: int = 30,
+                   caller: Caller = Depends(require_scopes("reports:read"))):
+    return await pa.compute_usage(request.app.state.db, partner_id=caller.partner_id, days=days)
+
+
+# ══════════════════════════ webhooks ════════════════════════════════
+class WebhookCreate(BaseModel):
+    url: str
+    events: Optional[list[str]] = None
+
+
+@partner_app.get("/webhooks/events", tags=["webhooks"])
+async def webhook_event_types(caller: Caller = Depends(require_scopes("catalog:read"))):
+    return {"events": pa.WEBHOOK_EVENTS}
+
+
+@partner_app.post("/webhooks", tags=["webhooks"], status_code=201)
+async def create_webhook_ep(body: WebhookCreate, request: Request,
+                            caller: Caller = Depends(require_scopes("campaigns:write"))):
+    return await pa.create_webhook(request.app.state.db, partner_id=caller.partner_id,
+                                   environment=caller.environment, url=body.url, events=body.events)
+
+
+@partner_app.get("/webhooks", tags=["webhooks"])
+async def list_webhooks_ep(request: Request, caller: Caller = Depends(require_scopes("campaigns:read"))):
+    return {"items": await pa.list_webhooks(request.app.state.db, partner_id=caller.partner_id)}
+
+
+@partner_app.delete("/webhooks/{webhook_id}", tags=["webhooks"])
+async def delete_webhook_ep(webhook_id: str, request: Request,
+                            caller: Caller = Depends(require_scopes("campaigns:write"))):
+    if not await pa.delete_webhook(request.app.state.db, partner_id=caller.partner_id, webhook_id=webhook_id):
+        raise HTTPException(404, {"code": "webhook_not_found"})
+    return {"deleted": True, "webhook_id": webhook_id}
+
+
+@partner_app.post("/webhooks/{webhook_id}/ping", tags=["webhooks"])
+async def ping_webhook_ep(webhook_id: str, request: Request,
+                          caller: Caller = Depends(require_scopes("campaigns:write"))):
+    r = await pa.ping_webhook(request.app.state.db, partner_id=caller.partner_id, webhook_id=webhook_id)
+    if r is None:
+        raise HTTPException(404, {"code": "webhook_not_found"})
+    return r
+
+
+@partner_app.get("/webhooks/{webhook_id}/deliveries", tags=["webhooks"])
+async def deliveries_ep(webhook_id: str, request: Request,
+                        caller: Caller = Depends(require_scopes("campaigns:read"))):
+    return {"items": await pa.list_deliveries(request.app.state.db, partner_id=caller.partner_id, webhook_id=webhook_id)}
 
 
 __all__ = ["partner_app"]

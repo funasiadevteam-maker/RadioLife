@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { KeyRound, Plus, Copy, Trash2, ShieldCheck, ExternalLink, Loader2 } from "lucide-react";
+import { KeyRound, Plus, Copy, Trash2, ShieldCheck, ExternalLink, Loader2, Activity, Send } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const V1_BASE = `${process.env.REACT_APP_BACKEND_URL || ""}/api/v1`;
@@ -67,14 +67,27 @@ export default function DeveloperApi() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [reveal, setReveal] = useState(null);
+  const [usage, setUsage] = useState(null);
+  const [webhooks, setWebhooks] = useState([]);
+  const [whUrl, setWhUrl] = useState("");
+  const [whEnv, setWhEnv] = useState("sandbox");
 
   const load = useCallback(async () => {
     try {
       const r = await axios.get(`${API}/partner/account`);
       setState({ loading: false, ...r.data });
+      if (r.data?.exists) {
+        const [u, w] = await Promise.all([
+          axios.get(`${API}/partner/usage?days=30`).catch(() => ({ data: null })),
+          axios.get(`${API}/partner/webhooks`).catch(() => ({ data: { items: [] } })),
+        ]);
+        setUsage(u.data);
+        setWebhooks(w.data?.items || []);
+      }
     } catch { setState({ loading: false, exists: false }); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (reveal) window.scrollTo({ top: 0, behavior: "smooth" }); }, [reveal]);
 
   const createAccount = async () => {
     if (!name.trim() || !email.trim()) { toast.error("Name and email required"); return; }
@@ -108,6 +121,26 @@ export default function DeveloperApi() {
   const revokeClient = async (id) => {
     try { await axios.post(`${API}/partner/oauth-clients/${id}/revoke`); toast.success("Client revoked"); load(); }
     catch { toast.error("Could not revoke"); }
+  };
+  const createWebhook = async () => {
+    if (!whUrl.trim()) { toast.error("Endpoint URL required"); return; }
+    try {
+      const r = await axios.post(`${API}/partner/webhooks`, { url: whUrl, environment: whEnv });
+      setWhUrl("");
+      if (r.data?.secret) setReveal({ title: "Webhook signing secret", value: r.data.secret });
+      toast.success("Webhook added");
+      load();
+    } catch { toast.error("Could not add webhook"); }
+  };
+  const pingWebhook = async (id) => {
+    try {
+      const r = await axios.post(`${API}/partner/webhooks/${id}/ping`);
+      toast[r.data?.delivered ? "success" : "error"](r.data?.delivered ? "Ping delivered" : "Ping failed");
+    } catch { toast.error("Ping failed"); }
+  };
+  const deleteWebhook = async (id) => {
+    try { await axios.delete(`${API}/partner/webhooks/${id}`); toast.success("Webhook removed"); load(); }
+    catch { toast.error("Could not remove"); }
   };
 
   if (state.loading) return <div className="p-8 text-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin inline" /></div>;
@@ -195,6 +228,55 @@ export default function DeveloperApi() {
               ))}
             </div>
             <CredCreator kind="client" onCreate={createClient} />
+          </section>
+
+          {/* Usage */}
+          <section className="rounded-2xl border border-slate-200 p-5 mt-4" data-testid="dev-usage-section">
+            <div className="flex items-center gap-1.5"><Activity className="w-4 h-4 text-slate-700" /><h2 className="font-black text-slate-900">Usage (last 30 days)</h2></div>
+            {usage ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                {[["API calls", usage.total_calls], ["Campaigns", usage.campaigns], ["Active", usage.active_campaigns], ["Spend", `$${((usage.spend_cents || 0) / 100).toFixed(2)}`], ["Impressions", usage.impressions], ["Clicks", usage.clicks], ["CTR", `${((usage.ctr || 0) * 100).toFixed(2)}%`]].map(([l, v]) => (
+                  <div key={l} className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                    <div className="text-[11px] font-bold text-slate-400">{l}</div>
+                    <div className="text-lg font-black text-slate-900">{v ?? 0}</div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-sm text-slate-400 mt-2">No usage yet.</div>}
+          </section>
+
+          {/* Webhooks */}
+          <section className="rounded-2xl border border-slate-200 p-5 mt-4" data-testid="dev-webhooks-section">
+            <h2 className="font-black text-slate-900">Webhooks</h2>
+            <p className="text-xs text-slate-500 mt-0.5">We POST signed events (campaign approved/live/budget, sponsorship approved). Verify with <code className="bg-slate-100 px-1 rounded">X-RadioLife-Signature</code>.</p>
+            <div className="mt-3 divide-y divide-slate-100">
+              {webhooks.length === 0 && <div className="text-sm text-slate-400 py-2">No webhooks yet.</div>}
+              {webhooks.map((w) => (
+                <div key={w.webhook_id} className="flex items-center justify-between py-2.5" data-testid={`dev-webhook-${w.webhook_id}`}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2"><code className="text-xs font-bold text-slate-800 truncate">{w.url}</code><EnvBadge env={w.environment} /></div>
+                    <div className="text-[11px] text-slate-400 truncate">{(w.events || []).length} events · last: {w.last_delivery_at ? new Date(w.last_delivery_at).toLocaleString() : "never"}</div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => pingWebhook(w.webhook_id)} data-testid={`dev-webhook-ping-${w.webhook_id}`} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100"><Send className="w-4 h-4" /></button>
+                    <button onClick={() => deleteWebhook(w.webhook_id)} data-testid={`dev-webhook-delete-${w.webhook_id}`} className="p-2 rounded-lg text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-2 mt-3">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-[11px] font-bold text-slate-400 mb-1">Endpoint URL</label>
+                <input value={whUrl} onChange={(e) => setWhUrl(e.target.value)} placeholder="https://your-app.com/webhooks/radiolife" data-testid="dev-webhook-url" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1">Environment</label>
+                <select value={whEnv} onChange={(e) => setWhEnv(e.target.value)} data-testid="dev-webhook-env" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">
+                  <option value="sandbox">Sandbox</option><option value="live">Live</option>
+                </select>
+              </div>
+              <button onClick={createWebhook} data-testid="dev-webhook-create" className="inline-flex items-center gap-1.5 bg-slate-900 text-white font-black rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" />Add webhook</button>
+            </div>
           </section>
         </>
       )}

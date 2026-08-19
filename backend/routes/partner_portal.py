@@ -103,6 +103,63 @@ async def revoke_oauth_client(client_id: str, request: Request,
     return {"ok": True, "client_id": client_id, "revoked": True}
 
 
+class WebhookBody(BaseModel):
+    url: str
+    events: Optional[list[str]] = None
+    environment: str = "live"
+
+
+@router.get("/usage")
+async def my_usage(request: Request, days: int = 30, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        return {"exists": False}
+    return await pa.compute_usage(db, partner_id=p["partner_id"], days=days)
+
+
+@router.get("/webhooks")
+async def my_webhooks(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        return {"items": [], "events": pa.WEBHOOK_EVENTS}
+    return {"items": await pa.list_webhooks(db, partner_id=p["partner_id"]), "events": pa.WEBHOOK_EVENTS}
+
+
+@router.post("/webhooks")
+async def my_create_webhook(body: WebhookBody, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        raise HTTPException(400, {"code": "no_partner_account"})
+    return await pa.create_webhook(db, partner_id=p["partner_id"], environment=body.environment,
+                                   url=body.url, events=body.events)
+
+
+@router.post("/webhooks/{webhook_id}/ping")
+async def my_ping_webhook(webhook_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        raise HTTPException(400, {"code": "no_partner_account"})
+    r = await pa.ping_webhook(db, partner_id=p["partner_id"], webhook_id=webhook_id)
+    if r is None:
+        raise HTTPException(404, {"code": "webhook_not_found"})
+    return r
+
+
+@router.delete("/webhooks/{webhook_id}")
+async def my_delete_webhook(webhook_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        raise HTTPException(400, {"code": "no_partner_account"})
+    if not await pa.delete_webhook(db, partner_id=p["partner_id"], webhook_id=webhook_id):
+        raise HTTPException(404, {"code": "webhook_not_found"})
+    return {"deleted": True}
+
+
 # ── admin ───────────────────────────────────────────────────────────
 @admin_router.get("/partners")
 async def admin_list_partners(request: Request, _a=Depends(require_admin)):

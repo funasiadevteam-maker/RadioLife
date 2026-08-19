@@ -24,11 +24,15 @@ from `services.ad1_advertiser_service` (the existing ad platform).
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
+import json
 import logging
 import os
 import secrets
+import time
+import httpx
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -54,6 +58,12 @@ SCOPES = [
     "funding:write",      # top-up campaign budget
 ]
 DEFAULT_SCOPES = list(SCOPES)
+
+# Webhook event types partners can subscribe to.
+WEBHOOK_EVENTS = [
+    "campaign.approved", "campaign.live", "campaign.budget_exhausted",
+    "campaign.completed", "sponsorship.approved",
+]
 
 # ── Marketing product catalog (facade over the internal ad engine) ──
 # `campaign_type` maps to services.ad1_advertiser_service.CAMPAIGN_TYPES for
@@ -151,6 +161,10 @@ async def ensure_partner_api(db) -> dict:
     await db.partner_oauth_clients.create_index("client_id", unique=True)
     await db.partner_oauth_clients.create_index([("partner_id", 1), ("environment", 1)])
     await db.partner_rate_windows.create_index("expires_at", expireAfterSeconds=0)
+    await db.partner_api_calls.create_index([("partner_id", 1), ("ts", -1)])
+    await db.partner_api_calls.create_index("ts", expireAfterSeconds=90 * 86400)
+    await db.partner_webhooks.create_index([("partner_id", 1), ("environment", 1)])
+    await db.partner_webhook_deliveries.create_index([("webhook_id", 1), ("ts", -1)])
     await _load_secrets(db)
     log.info("[partner_api] ready — indexes + secrets ensured")
     return {"ok": True}
@@ -357,6 +371,7 @@ def require_scopes(*needed: str):
     async def _dep(request: Request) -> Caller:
         caller = await resolve_caller(request)
         await enforce_rate_limit(request.app.state.db, caller)
+        request.state.caller = caller
         missing = set(needed) - caller.scopes
         if missing:
             raise HTTPException(status_code=403,
@@ -366,11 +381,210 @@ def require_scopes(*needed: str):
     return _dep
 
 
+# ══════════════════════════ usage analytics ═════════════════════════
+async def log_api_call(db, *, partner_id, environment, credential_id,
+                       method, path, status, duration_ms) -> None:
+    try:
+        await db.partner_api_calls.insert_one({
+            "partner_id": partner_id, "environment": environment,
+            "credential_id": credential_id, "method": method, "path": path,
+            "status": int(status), "duration_ms": int(duration_ms),
+            "day": _now().date().isoformat(), "ts": _now()})
+    except Exception:
+        pass
+
+
+async def _partner_advertiser_ids(db, partner_id, environment=None) -> list[str]:
+    if environment:
+        owners = [f"partner:{partner_id}:{_norm_env(environment).lower()}"]
+    else:
+        owners = [f"partner:{partner_id}:live", f"partner:{partner_id}:sandbox"]
+    return [a["advertiser_id"] async for a in
+            db.advertisers_v2.find({"owner_user_id": {"$in": owners}}, {"advertiser_id": 1})]
+
+
+async def compute_usage(db, *, partner_id: str, days: int = 30) -> dict:
+    since = _now() - timedelta(days=max(1, min(days, 365)))
+    total = await db.partner_api_calls.count_documents({"partner_id": partner_id, "ts": {"$gte": since}})
+    by_day, by_endpoint, by_status = {}, {}, {}
+    async for c in db.partner_api_calls.find(
+            {"partner_id": partner_id, "ts": {"$gte": since}},
+            {"day": 1, "path": 1, "status": 1}):
+        by_day[c.get("day")] = by_day.get(c.get("day"), 0) + 1
+        by_endpoint[c.get("path")] = by_endpoint.get(c.get("path"), 0) + 1
+        st = str(c.get("status"))
+        by_status[st] = by_status.get(st, 0) + 1
+    adv_ids = await _partner_advertiser_ids(db, partner_id)
+    camps = []
+    if adv_ids:
+        camps = [c async for c in db.ad_campaigns_v2.find(
+            {"advertiser_id": {"$in": adv_ids}},
+            {"campaign_id": 1, "budget_spent_cents": 1, "status": 1})]
+    camp_ids = [c["campaign_id"] for c in camps]
+    spend = sum(int(c.get("budget_spent_cents") or 0) for c in camps)
+    impressions = await db.ad_impressions_v2.count_documents({"campaign_id": {"$in": camp_ids}}) if camp_ids else 0
+    clicks = await db.ad_impressions_v2.count_documents(
+        {"campaign_id": {"$in": camp_ids}, "placement": {"$regex": "_click$"}}) if camp_ids else 0
+    return {"days": days, "total_calls": total, "calls_by_day": by_day,
+            "calls_by_endpoint": by_endpoint, "calls_by_status": by_status,
+            "campaigns": len(camps),
+            "active_campaigns": sum(1 for c in camps if c.get("status") == "active"),
+            "spend_cents": spend, "impressions": impressions, "clicks": clicks,
+            "ctr": round(clicks / impressions, 4) if impressions else 0.0}
+
+
+# ══════════════════════════ webhooks ════════════════════════════════
+def _wh_public(doc: Optional[dict]) -> Optional[dict]:
+    d = _clean(doc)
+    if d:
+        d.pop("secret", None)
+    return d
+
+
+async def create_webhook(db, *, partner_id: str, environment: str,
+                         url: str, events: Optional[list[str]] = None) -> dict:
+    env = _norm_env(environment)
+    evs = [e for e in (events or []) if e in WEBHOOK_EVENTS] or list(WEBHOOK_EVENTS)
+    secret = "whsec_" + secrets.token_urlsafe(24)
+    wid = _gen("whk")
+    await db.partner_webhooks.insert_one({
+        "webhook_id": wid, "partner_id": partner_id, "environment": env,
+        "url": url, "events": evs, "secret": secret, "status": "active",
+        "created_at": _now(), "last_delivery_at": None})
+    return {"webhook_id": wid, "url": url, "events": evs, "environment": env,
+            "secret": secret, "created_at": _now().isoformat()}
+
+
+async def list_webhooks(db, *, partner_id: str) -> list[dict]:
+    return [_wh_public(w) async for w in
+            db.partner_webhooks.find({"partner_id": partner_id}).sort("created_at", -1)]
+
+
+async def delete_webhook(db, *, partner_id: str, webhook_id: str) -> bool:
+    r = await db.partner_webhooks.delete_one({"webhook_id": webhook_id, "partner_id": partner_id})
+    return r.deleted_count > 0
+
+
+async def list_deliveries(db, *, partner_id: str, webhook_id: str, limit: int = 20) -> list[dict]:
+    out = []
+    async for d in db.partner_webhook_deliveries.find(
+            {"partner_id": partner_id, "webhook_id": webhook_id}).sort("ts", -1).limit(limit):
+        out.append({k: (v.isoformat() if isinstance(v, datetime) else v)
+                    for k, v in d.items() if k != "_id"})
+    return out
+
+
+async def _deliver(db, wh: dict, event: dict) -> bool:
+    body = json.dumps(event, separators=(",", ":"), default=str)
+    ts = str(int(time.time()))
+    sig = hmac.new(wh["secret"].encode(), f"{ts}.{body}".encode(), hashlib.sha256).hexdigest()
+    headers = {"Content-Type": "application/json", "X-RadioLife-Event": event["type"],
+               "X-RadioLife-Delivery": event["id"],
+               "X-RadioLife-Signature": f"t={ts},v1={sig}"}
+    status, ok, err = None, False, None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=6) as c:
+                r = await c.post(wh["url"], content=body, headers=headers)
+            status, ok = r.status_code, 200 <= r.status_code < 300
+            if ok:
+                break
+        except Exception as e:
+            err = str(e)[:200]
+        await asyncio.sleep(0.5 * (attempt + 1))
+    try:
+        await db.partner_webhook_deliveries.insert_one({
+            "webhook_id": wh["webhook_id"], "partner_id": wh["partner_id"],
+            "event_type": event["type"], "event_id": event["id"], "url": wh["url"],
+            "status_code": status, "ok": ok, "error": err, "ts": _now()})
+        await db.partner_webhooks.update_one({"webhook_id": wh["webhook_id"]},
+                                             {"$set": {"last_delivery_at": _now()}})
+    except Exception:
+        pass
+    return ok
+
+
+async def emit_event(db, *, partner_id: str, environment: str,
+                     event_type: str, data: dict) -> int:
+    env = _norm_env(environment)
+    whs = [w async for w in db.partner_webhooks.find(
+        {"partner_id": partner_id, "environment": env, "status": "active", "events": event_type})]
+    if not whs:
+        return 0
+    ev = {"id": _gen("evt"), "type": event_type, "created": _now().isoformat(),
+          "environment": env, "data": data}
+    for w in whs:
+        asyncio.create_task(_deliver(db, w, ev))
+    return len(whs)
+
+
+async def ping_webhook(db, *, partner_id: str, webhook_id: str) -> Optional[dict]:
+    w = await db.partner_webhooks.find_one({"webhook_id": webhook_id, "partner_id": partner_id})
+    if not w:
+        return None
+    ev = {"id": _gen("evt"), "type": "ping", "created": _now().isoformat(),
+          "environment": w["environment"], "data": {"message": "pong"}}
+    return {"delivered": await _deliver(db, w, ev)}
+
+
+_last_wh_sweep: dict = {}
+
+
+async def sweep_webhook_events(db, partner_id: str, environment: str,
+                               throttle_seconds: int = 10) -> None:
+    """Detect state changes on a partner's campaigns/sponsorships and fire
+    webhooks. Idempotent via per-doc `partner_evt_*_sent` flags. Throttled
+    per (partner, env)."""
+    env = _norm_env(environment)
+    key = f"{partner_id}:{env}"
+    now = _now()
+    last = _last_wh_sweep.get(key)
+    if last and (now - last).total_seconds() < throttle_seconds:
+        return
+    _last_wh_sweep[key] = now
+    if not await db.partner_webhooks.count_documents(
+            {"partner_id": partner_id, "environment": env, "status": "active"}):
+        return
+    adv_ids = await _partner_advertiser_ids(db, partner_id, env)
+    if not adv_ids:
+        return
+    async for c in db.ad_campaigns_v2.find({"advertiser_id": {"$in": adv_ids}}):
+        cid, st = c["campaign_id"], c.get("status")
+        total = int(c.get("budget_total_cents") or 0)
+        spent = int(c.get("budget_spent_cents") or 0)
+        base = {"campaign_id": cid, "name": c.get("name"), "status": st,
+                "budget_total_cents": total, "budget_spent_cents": spent}
+        if st == "active" and not c.get("partner_evt_live_sent"):
+            await emit_event(db, partner_id=partner_id, environment=env, event_type="campaign.approved", data=base)
+            await emit_event(db, partner_id=partner_id, environment=env, event_type="campaign.live", data=base)
+            await db.ad_campaigns_v2.update_one({"campaign_id": cid}, {"$set": {"partner_evt_live_sent": True}})
+        if total > 0 and spent >= total and not c.get("partner_evt_exhausted_sent"):
+            await emit_event(db, partner_id=partner_id, environment=env, event_type="campaign.budget_exhausted", data=base)
+            await db.ad_campaigns_v2.update_one({"campaign_id": cid}, {"$set": {"partner_evt_exhausted_sent": True}})
+        if st in ("ended", "completed", "stopped") and not c.get("partner_evt_completed_sent"):
+            await emit_event(db, partner_id=partner_id, environment=env, event_type="campaign.completed", data=base)
+            await db.ad_campaigns_v2.update_one({"campaign_id": cid}, {"$set": {"partner_evt_completed_sent": True}})
+    for coll, idf, ownerf, active_states in [
+        ("predict_win_sponsorships", "sponsorship_id", "advertiser_id", ("live", "active")),
+        ("trivia_sponsorships", "id", "advertiser_business_id", ("active",)),
+        ("rj_sponsored_reads", "id", "advertiser_business_id", ("active", "posted")),
+    ]:
+        async for s in db[coll].find({ownerf: {"$in": adv_ids}}):
+            if s.get("status") in active_states and not s.get("partner_evt_appr_sent"):
+                await emit_event(db, partner_id=partner_id, environment=env,
+                                 event_type="sponsorship.approved",
+                                 data={"sponsorship_id": s.get(idf), "type": coll, "status": s.get("status")})
+                await db[coll].update_one({idf: s.get(idf)}, {"$set": {"partner_evt_appr_sent": True}})
+
+
 __all__ = [
-    "PRODUCTS", "SCOPES", "DEFAULT_SCOPES", "product_by_key",
+    "PRODUCTS", "SCOPES", "DEFAULT_SCOPES", "WEBHOOK_EVENTS", "product_by_key",
     "ensure_partner_api", "get_or_create_partner", "get_partner",
     "issue_api_key", "issue_oauth_client", "list_credentials",
     "revoke_api_key", "revoke_oauth_client",
     "mint_access_token", "verify_client_credentials",
     "Caller", "resolve_caller", "enforce_rate_limit", "require_scopes",
+    "log_api_call", "compute_usage",
+    "create_webhook", "list_webhooks", "delete_webhook", "list_deliveries",
+    "emit_event", "ping_webhook", "sweep_webhook_events",
 ]
