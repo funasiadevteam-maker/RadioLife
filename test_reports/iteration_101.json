@@ -1,0 +1,31 @@
+{
+  "summary": "Iter101 — WEB Tube: (1) live shopping subchip filtering + (2) Quick-Buy sheet. Logged in as demo@bigfm.dubai, forced tube+radiolife via localStorage, hit /home?layout=tube&design=radiolife, browse-tube rendered. Sub-chips row (browse-shop-subchips) appears the moment 'Shopping' is active and 'Restaurant' is correctly relabeled 'Eat' (browse-shop-subchip-restaurant text='Eat'). Live filtering verified: Eat=12 shop tiles, Retail=6, Salon=6, Cafe=0 → browse-shop-empty rendered with 'No shops in this category yet' copy. Quick-Buy sheet opens on tapping a shop card (Iced Caramel Latte / Brew & Bean Café / $5.00 / description shown); qty stepper works (browse-quickbuy-inc 1→3, browse-quickbuy-dec →2) and the Add button (with running total 'Add · $10.00') pushes the line into the shared shop cart, opens browse-cart-drawer, sets browse-cart-count=2, and shows 1 cart-item under 'Brew & Bean Café'. Backend parity for /api/browse/feed?cat=shopping&subcat=<x> reconfirmed for restaurant/retail/salon (grid) and cafe (empty).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Tube shopping grid (fresh Eat filter)", "issues": ["A few restaurant tiles (The Grill House, Spice Route Kitchen, TEST_iter57_pickup, Fun Pizza Kitchen) fall back to the gradient placeholder because those seed rows have no image_url — same pre-existing seed condition noted in iter100, not a regression from the live-filter/quick-buy features."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TubeBrowse.jsx L486: `useEffect(() => { fetchPage(0, cat, shopSub, true); }, [cat, shopSub, fetchPage])` runs every time either changes — with `chooseCat` calling `setShopSub('all')` before `setCat(k)` this triggers TWO fetches when leaving 'shopping' (once for subcat reset, once for cat change). Not a bug users see, but wasted request. Consider batching or gating the first effect until state settles.",
+    "TubeBrowse.jsx L344: `variants[0]?.label` is used to seed the selected variant, but the running unit price uses `sel && sel.price_cents > 0 ? sel.price_cents : item.price_cents` — if a variant is priced at 0 explicitly, the sheet silently falls back to the base price. Low-impact but worth documenting.",
+    "TubeBrowse.jsx L539-542: `chooseSub` resets blocks+page but relies on the useEffect to refetch — fine, but on rapid clicks the previous request can resolve after the new one and overwrite. Since axios promises don't attach an AbortController, a slow network could show stale category data briefly. Consider adding a cancel token or a request-id guard.",
+    "TubeBrowse.jsx L18: same `${REACT_APP_BACKEND_URL || ''}/api` silent-relative-fallback flagged in iter100 remains."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (parity curl)", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (cookie login via POST /api/auth/login).",
+  "seed_data_creation": "None — used existing biz_demo_grill (Eat), biz_demo_spice (Eat), biz_demo_brew (Eat — cafe items yet cat is Restaurant per biz), biz_demo_glow (Salon), retail seeds already present.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To reach Tube: (a) POST /api/auth/login demo creds for cookie, (b) goto '/', (c) localStorage.setItem('bigfm_browse_layout','tube') + ('bigfm_design_variant','radiolife'), (d) goto /home?layout=tube&design=radiolife, (e) wait for [data-testid='browse-tube']. Use wait_until='domcontentloaded' (NOT networkidle — endless-scroll keeps traffic going). Sub-chip testIDs are browse-shop-subchip-<id> with ids: all, restaurant, cafe, fast_food, bar, salon, retail, grocery, medical_dental, fitness, entertainment, movie_theater, event_promoter, concert_promoter, club_lounge, radio_station, podcast_creator, service_business, other. Quick-buy testIDs: browse-quickbuy, browse-quickbuy-title, browse-quickbuy-price, browse-quickbuy-inc/dec/qty, browse-quickbuy-add, browse-quickbuy-close, browse-quickbuy-visit (non-buyable fallback), browse-quickbuy-variant-<label> when variants exist. Backend already-curl-verified for the 4 sub-cat filters; parity re-checked in this pass.",
+  "rca of the issue": "N/A — no bugs found. All 7 requested checks pass."
+}

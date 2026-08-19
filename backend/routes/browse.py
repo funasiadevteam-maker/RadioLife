@@ -101,12 +101,14 @@ async def _deals(db, n: int) -> list[dict]:
     try:
         async for m in db.marketplace_profiles.find({}).limit(n):
             slug = m.get("slug")
-            out.append(_card(
+            card = _card(
                 m.get("business_id"), "deal",
                 m.get("public_name") or m.get("name") or "Local spot",
                 m.get("category") or "Nearby deal",
                 _img(m, "logo_url", "cover_url", "cover_image_url", "image_url"),
-                f"/business/{slug}" if slug else "/shop", "DEAL", slug))
+                f"/business/{slug}" if slug else "/shop", "DEAL", slug)
+            card["category"] = m.get("category")
+            out.append(card)
     except Exception as e:
         log.warning("browse._deals: %s", e)
     return out
@@ -124,17 +126,28 @@ async def _shop_products(db, n: int) -> list[dict]:
     """Prefer checkout-eligible marketplace products (approved + subscribed
     business, with a real image_url when the owner uploaded one). Enriches
     each card with business_id/business_name/price_cents/in_stock so the feed
-    can add it straight to the shop cart."""
+    can add it straight to the shop cart, plus category/description/variants
+    for the sub-filter chips and the quick-buy sheet."""
     out = []
+
+    def _extra(card, p, bi):
+        card["category"] = bi.get("category")
+        card["description"] = p.get("description")
+        card["variants"] = p.get("variants") or []
+        card["option_groups"] = p.get("option_groups") or []
+        card["currency"] = p.get("currency")
+        return card
+
     try:
         elig: dict = {}
         async for b in db.marketplace_profiles.find(
                 {"status": "approved", "subscription_active": True},
                 {"business_id": 1, "public_name": 1, "name": 1, "slug": 1,
-                 "cover_urls": 1, "logo_url": 1}):
+                 "cover_urls": 1, "logo_url": 1, "category": 1}):
             cov = b.get("cover_urls") or []
             elig[b["business_id"]] = {
                 "name": b.get("public_name") or b.get("name"), "slug": b.get("slug"),
+                "category": b.get("category"),
                 "img": (cov[0] if isinstance(cov, list) and cov else None) or b.get("logo_url")}
 
         async def _emit(query, limit):
@@ -151,6 +164,7 @@ async def _shop_products(db, n: int) -> list[dict]:
                 card["business_name"] = bi.get("name") or "RadioLife Shop"
                 card["in_stock"] = int(p.get("stock", 0)) > 0 or bool(p.get("variants"))
                 card["buyable"] = bid in elig and card["in_stock"] and card["price_cents"] > 0
+                _extra(card, p, bi)
                 out.append(card)
 
         # 1) eligible products with an uploaded image first (best-looking, buyable)
@@ -175,6 +189,7 @@ async def _shop_products(db, n: int) -> list[dict]:
                 card["business_name"] = bi.get("name") or "RadioLife Shop"
                 card["in_stock"] = int(p.get("stock", 0)) > 0 or bool(p.get("variants"))
                 card["buyable"] = card["in_stock"] and card["price_cents"] > 0
+                _extra(card, p, bi)
                 out.append(card)
                 seen.add(card["id"])
     except Exception as e:
@@ -278,6 +293,29 @@ def _rot(lst: list, offset: int, count: int) -> list:
     return [lst[(offset + i) % len(lst)] for i in range(count)]
 
 
+def _norm_cat(c) -> str:
+    return (c or "").strip().lower().replace(" ", "_").replace("&", "and")
+
+
+# Maps a Shopping sub-filter chip id -> the business-category tokens it matches.
+# Bridges legacy Discover labels (salon/bar/fast_food) to the canonical data.
+_SUBCAT_TOKENS = {
+    "restaurant": {"restaurant", "food"},          # "Eat"
+    "cafe": {"cafe"},
+    "fast_food": {"fast_food", "fastfood"},
+    "bar": {"bar", "club_lounge"},
+    "salon": {"salon", "salon_spa", "beauty"},
+    "retail": {"retail", "shop", "store"},
+    "grocery": {"grocery"},
+    "fitness": {"fitness"},
+}
+
+
+def _filter_shop(pool: list[dict], subcat: str) -> list[dict]:
+    toks = _SUBCAT_TOKENS.get(subcat, {subcat})
+    return [c for c in pool if _norm_cat(c.get("category")) in toks]
+
+
 async def _feed_pools(db, user: Optional[dict]) -> dict:
     originals = await _originals(db, 12)
     stations = await _stations(db, 24)
@@ -299,10 +337,12 @@ async def _feed_pools(db, user: Optional[dict]) -> dict:
 
 
 @router.get("/feed")
-async def browse_feed(request: Request, page: int = 0, cat: str = "all"):
+async def browse_feed(request: Request, page: int = 0, cat: str = "all", subcat: str = "all"):
     """Endless YouTube-style feed: mixed grid + rotating shelves (shorts,
     playables/games, shop) with shop products sprinkled through the grid.
-    Recycles a finite catalog so it never ends (has_more stays true)."""
+    Recycles a finite catalog so it never ends (has_more stays true).
+    When cat=shopping and subcat != all, the shop grid is filtered to that
+    business category (real filtering, no recycling for a clean category view)."""
     db = request.app.state.db
     try:
         from auth import current_user_optional
@@ -315,11 +355,21 @@ async def browse_feed(request: Request, page: int = 0, cat: str = "all"):
     blocks: list[dict] = []
 
     if cat == "shopping":
-        blocks.append({"kind": "grid", "items": _rot(shop, page * 12, 12)})
-        if page % 2 == 0 and shop:
-            blocks.append({"kind": "shelf", "variant": "shop",
-                           "title": "Trending in Shop", "items": _rot(shop, page * 6 + 3, 10)})
-        has_more = bool(shop)
+        if subcat and subcat != "all":
+            pool = _filter_shop(shop, subcat)
+            start = page * 12
+            page_items = pool[start:start + 12]
+            if page_items:
+                blocks.append({"kind": "grid", "items": page_items})
+            elif page == 0:
+                blocks.append({"kind": "empty"})
+            has_more = (start + 12) < len(pool)
+        else:
+            blocks.append({"kind": "grid", "items": _rot(shop, page * 12, 12)})
+            if page % 2 == 0 and shop:
+                blocks.append({"kind": "shelf", "variant": "shop",
+                               "title": "Trending in Shop", "items": _rot(shop, page * 6 + 3, 10)})
+            has_more = bool(shop)
     elif cat == "games":
         blocks.append({"kind": "shelf", "variant": "playables",
                        "title": "Play & Win — instant games", "items": _rot(games, page * 8, min(10, max(1, len(games))))})

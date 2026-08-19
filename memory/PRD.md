@@ -1,5 +1,27 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## TUBE SKIN — LIVE SHOPPING FILTERS + QUICK-BUY SHEET (2026-08 fork) — testing agent iter101 ALL PASS (web)
+Upgrades the Shopping sub-chips (previously visual-only) to REAL filters, plus a Quick-Buy sheet.
+- **Live filtering:** `TubeBrowse.jsx` sub-chips now call `chooseSub()` → refetch `/api/browse/feed`
+  with a new `subcat` param. Backend `browse.py` `_filter_shop()` + `_SUBCAT_TOKENS` maps chip id →
+  business-category tokens (legacy aliases: salon→{salon,salon_spa,beauty}, bar→{bar,club_lounge},
+  fast_food→{fast_food}, retail→{retail,shop,store}, restaurant/"Eat"→{restaurant,food}). Filtered
+  view paginates the real matches (no recycling); empty categories return a `{"kind":"empty"}` block →
+  frontend `EmptyShop` ("No shops in this category yet"). Verified isolation: restaurant→11 restaurant,
+  retail→6 retail, salon→6 beauty, fitness→1, cafe→empty.
+- **Quick-Buy sheet:** shop cards (grid + shelf + featured, incl. sprinkled shop cards) now open
+  `QuickBuySheet` (`data-testid=browse-quickbuy`) instead of navigating — image, business, title, price,
+  description, variant selector (when `variants` present; required by checkout), qty stepper, Add-to-cart.
+  Non-buyable business/deal cards show a "Visit shop" CTA instead.
+- **Card payload:** `_shop_products` now enriches each card with `category`, `description`, `variants`,
+  `option_groups`, `currency`; `_deals` attaches `category`.
+- **Cart/checkout:** `useShopCart` lineKey now includes `variant_label` (distinct lines per variant);
+  Tube `checkout()` sends `variant_label` per item to `/api/shop/product-orders/checkout`.
+- **Robustness:** `fetchPage` uses a request-generation guard so a fresh category/subcat load supersedes
+  any in-flight request and stale responses are dropped (fixes rapid sub-chip switching).
+- Web-only, frontend + shared backend. Reach: logged-in `/` or `/home` + `?design=radiolife&layout=tube`.
+
+
 ## TUBE SKIN — SHOPPING TAB LEGACY SUBFILTERS (2026-08 fork) — self-verified (web screenshot)
 When the "Shopping" tab/chip is active in `TubeBrowse.jsx`, a secondary row of legacy-style
 rounded pill category sub-chips appears below the main chips (`data-testid="browse-shop-subchips"`).

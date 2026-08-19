@@ -318,6 +318,94 @@ function FeaturedBlock({ item, cta, onOpen, onAdd }) {
   );
 }
 
+// Quick-buy sheet: description + options (variants) + qty before add-to-cart.
+const CUR_SYM = { usd: "$", aed: "AED ", inr: "₹", eur: "€", gbp: "£" };
+function fmtMoney(cents, currency) {
+  const c = (currency || "usd").toLowerCase();
+  const sym = CUR_SYM[c] || (currency || "").toUpperCase() + " ";
+  return `${sym}${((cents || 0) / 100).toFixed(2)}`;
+}
+
+function EmptyShop() {
+  return (
+    <div data-testid="browse-shop-empty" className="py-20 text-center">
+      <div className="mx-auto h-14 w-14 rounded-full bg-orange-50 flex items-center justify-center mb-3">
+        <ShoppingBag size={26} className="text-orange-500" />
+      </div>
+      <div className="font-black text-[#0f0f0f]">No shops in this category yet</div>
+      <div className="text-sm text-slate-500 mt-1">Try another category — more sellers are coming soon.</div>
+    </div>
+  );
+}
+
+function QuickBuySheet({ item, onClose, onAdd, onOpen }) {
+  const variants = item.variants || [];
+  const [variant, setVariant] = useState(variants[0]?.label || null);
+  const [qty, setQty] = useState(1);
+  const buyable = !!item.buyable;
+  const sel = variants.find((v) => v.label === variant);
+  const unit = sel && sel.price_cents > 0 ? sel.price_cents : item.price_cents;
+  const add = () => {
+    const name = sel ? `${item.title} — ${sel.label}` : item.title;
+    onAdd(item, { variant_label: variant, price_cents: unit, name, qty });
+    onClose();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-[110] bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-[115] flex items-end sm:items-center justify-center p-0 sm:p-6 pointer-events-none">
+        <div data-testid="browse-quickbuy" className="pointer-events-auto w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto">
+          <div className="relative w-full aspect-[16/10] bg-slate-100">
+            <Art item={item} rounded="rounded-none" />
+            <button onClick={onClose} data-testid="browse-quickbuy-close"
+              className="absolute top-3 right-3 h-9 w-9 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow"><X size={18} /></button>
+            <span className="absolute top-3 left-3 inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-orange-500 text-white"><ShoppingBag size={12} /> SHOP</span>
+          </div>
+          <div className="p-5">
+            <div className="text-[13px] font-bold text-orange-600 line-clamp-1">{item.subtitle}</div>
+            <h3 data-testid="browse-quickbuy-title" className="text-xl font-black text-[#0f0f0f] leading-snug mt-0.5">{item.title}</h3>
+            <div data-testid="browse-quickbuy-price" className="text-lg font-black text-[#0f0f0f] mt-1">{fmtMoney(unit, item.currency)}</div>
+            {item.description && <p className="text-sm text-slate-600 mt-2 leading-relaxed">{item.description}</p>}
+            {variants.length > 0 && (
+              <div className="mt-4">
+                <div className="text-[11px] font-black text-slate-400 uppercase tracking-wide mb-1.5">Options</div>
+                <div className="flex flex-wrap gap-2" data-testid="browse-quickbuy-variants">
+                  {variants.map((v) => (
+                    <button key={v.label} onClick={() => setVariant(v.label)} data-testid={`browse-quickbuy-variant-${v.label}`}
+                      className={`px-3 py-1.5 rounded-full text-sm font-bold border transition-colors ${variant === v.label ? "bg-[#0f0f0f] text-white border-[#0f0f0f]" : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"}`}>
+                      {v.label}{v.price_cents > 0 ? ` · ${fmtMoney(v.price_cents, item.currency)}` : ""}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {buyable ? (
+              <div className="mt-5 flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setQty((n) => Math.max(1, n - 1))} data-testid="browse-quickbuy-dec"
+                    className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center"><Minus size={15} /></button>
+                  <span data-testid="browse-quickbuy-qty" className="w-6 text-center font-black">{qty}</span>
+                  <button onClick={() => setQty((n) => n + 1)} data-testid="browse-quickbuy-inc"
+                    className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center"><Plus size={15} /></button>
+                </div>
+                <button onClick={add} data-testid="browse-quickbuy-add"
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-full py-3">
+                  <ShoppingCart size={18} /> Add · {fmtMoney(unit * qty, item.currency)}
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => { onClose(); onOpen(item); }} data-testid="browse-quickbuy-visit"
+                className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-[#0f0f0f] text-white font-black rounded-full py-3">
+                Visit shop <ChevronRight size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── sidebar ───────────────────────────────────────────────────────────
 const YOU_LINKS = [
   [User, "Your channel", "/profile"], [History, "History", "/history"],
@@ -368,13 +456,13 @@ function Sidebar({ cat, setCat, subs }) {
 }
 
 // ── grid renderer ─────────────────────────────────────────────────────
-function Grid({ items, onOpen, q, onAdd }) {
+function Grid({ items, onOpen, onOpenShop, q, onAdd }) {
   const list = q ? items.filter((i) => (i.title || "").toLowerCase().includes(q.toLowerCase())) : items;
   if (!list.length) return null;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-7 py-2">
       {list.map((it, i) => it.type === "shop"
-        ? <ShopGridCard key={(it.id || "") + it.title + i} item={it} onOpen={onOpen} onAdd={onAdd} />
+        ? <ShopGridCard key={(it.id || "") + it.title + i} item={it} onOpen={onOpenShop} onAdd={onAdd} />
         : <VideoCard key={(it.id || "") + it.title + i} item={it} onOpen={onOpen} />)}
     </div>
   );
@@ -385,6 +473,7 @@ export default function TubeBrowse({ onOpen }) {
   const setVariant = useDesignVariantStore((s) => s.setVariant);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
+  const [shopSub, setShopSub] = useState("all");
   const [chips, setChips] = useState([{ key: "all", title: "All" }, { key: "shopping", title: "Shopping" }]);
   const [subs, setSubs] = useState([]);
   const [blocks, setBlocks] = useState([]);
@@ -392,35 +481,39 @@ export default function TubeBrowse({ onOpen }) {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(false);
+  const reqIdRef = useRef(0);
   const sentinelRef = useRef(null);
-  const stateRef = useRef({ page: 0, hasMore: true, cat: "all" });
-  useEffect(() => { stateRef.current = { page, hasMore, cat }; }, [page, hasMore, cat]);
+  const stateRef = useRef({ page: 0, hasMore: true, cat: "all", subcat: "all" });
+  useEffect(() => { stateRef.current = { page, hasMore, cat, subcat: shopSub }; }, [page, hasMore, cat, shopSub]);
 
-  const fetchPage = useCallback(async (p, category, replace) => {
-    if (loadingRef.current) return;
+  const fetchPage = useCallback(async (p, category, subcategory, replace) => {
+    // A "replace" (fresh category/subcat load) always supersedes an in-flight
+    // request; pagination ("append") waits so it never duplicates rows.
+    if (loadingRef.current && !replace) return;
+    const myId = ++reqIdRef.current;
     loadingRef.current = true;
     if (replace) setLoading(true);
     try {
-      const r = await axios.get(`${API}/browse/feed`, { params: { page: p, cat: category } });
+      const r = await axios.get(`${API}/browse/feed`, { params: { page: p, cat: category, subcat: subcategory } });
+      if (myId !== reqIdRef.current) return; // a newer request started — drop this stale response
       if (p === 0 && r.data.chips) setChips(r.data.chips);
       if (p === 0 && r.data.subs) setSubs(r.data.subs);
       setBlocks((prev) => (replace ? r.data.blocks : [...prev, ...r.data.blocks]));
       setHasMore(!!r.data.has_more);
       setPage(p);
     } catch (_e) {
-      setHasMore(false);
+      if (myId === reqIdRef.current) setHasMore(false);
     } finally {
-      loadingRef.current = false;
-      setLoading(false);
+      if (myId === reqIdRef.current) { loadingRef.current = false; setLoading(false); }
     }
   }, []);
 
   const loadMore = useCallback(() => {
     const st = stateRef.current;
-    if (st.hasMore && !loadingRef.current) fetchPage(st.page + 1, st.cat, false);
+    if (st.hasMore && !loadingRef.current) fetchPage(st.page + 1, st.cat, st.subcat, false);
   }, [fetchPage]);
 
-  useEffect(() => { fetchPage(0, cat, true); }, [cat, fetchPage]);
+  useEffect(() => { fetchPage(0, cat, shopSub, true); }, [cat, shopSub, fetchPage]);
 
   // Scroll-driven endless load (stable listener; reads latest state via ref).
   useEffect(() => {
@@ -441,10 +534,14 @@ export default function TubeBrowse({ onOpen }) {
     }
   }, [blocks, loading, loadMore]);
 
-  const [shopSub, setShopSub] = useState("all");
   const chooseCat = (k) => {
+    if (k === cat) return;
     if (k !== "shopping") setShopSub("all");
-    if (k !== cat) { setBlocks([]); setPage(0); setCat(k); }
+    setBlocks([]); setPage(0); setCat(k);
+  };
+  const chooseSub = (k) => {
+    if (k === shopSub) return;
+    setBlocks([]); setPage(0); setShopSub(k);
   };
 
   // Shop cart + Shorts player state
@@ -452,17 +549,27 @@ export default function TubeBrowse({ onOpen }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [shorts, setShorts] = useState(null); // {items, index}
+  const [quick, setQuick] = useState(null);   // shop item for quick-buy sheet
+  const openQuick = (it) => setQuick(it);
 
-  const addToCart = (it) => {
-    if (!it.business_id || !it.price_cents) { toast.error("This item isn't purchasable yet"); return; }
+  const addResolved = (it, { variant_label = null, price_cents, name, qty = 1 } = {}) => {
+    const unit = price_cents ?? it.price_cents;
+    if (!it.business_id || !unit) { toast.error("This item isn't purchasable yet"); return; }
     const cur = useShopCart.getState();
     if (cur.businessId && cur.businessId !== it.business_id && cur.items.length) {
       toast(`Started a new cart for ${it.business_name}`);
     }
-    useShopCart.getState().add(it.business_id, it.business_name,
-      { item_id: it.id, name: it.title, price_cents: it.price_cents });
+    useShopCart.getState().addLine(it.business_id, it.business_name, {
+      item_id: it.id, name: name || it.title, price_cents: unit,
+      qty, variant_label, selected_option_ids: [],
+    });
     toast.success("Added to cart");
     setCartOpen(true);
+  };
+
+  const addToCart = (it) => {
+    if ((it.variants || []).length) { openQuick(it); return; }
+    addResolved(it, { price_cents: it.price_cents, name: it.title, qty: 1 });
   };
 
   const checkout = async () => {
@@ -472,7 +579,7 @@ export default function TubeBrowse({ onOpen }) {
     try {
       const r = await axios.post(`${API}/shop/product-orders/checkout`, {
         business_id: st.businessId,
-        items: st.items.map((i) => ({ product_id: i.item_id, qty: i.qty })),
+        items: st.items.map((i) => ({ product_id: i.item_id, qty: i.qty, variant_label: i.variant_label || null })),
         fulfillment: "pickup",
         origin_url: window.location.origin,
       });
@@ -496,12 +603,13 @@ export default function TubeBrowse({ onOpen }) {
   const openShorts = (items, index) => setShorts({ items, index });
 
   const renderBlock = (b, i) => {
-    if (b.kind === "grid") return <Grid key={`g${i}`} items={b.items || []} onOpen={onOpen} q={q} onAdd={addToCart} />;
-    if (b.kind === "featured") return <FeaturedBlock key={`f${i}`} item={b.item} cta={b.cta} onOpen={onOpen} onAdd={addToCart} />;
+    if (b.kind === "empty") return <EmptyShop key={`e${i}`} />;
+    if (b.kind === "grid") return <Grid key={`g${i}`} items={b.items || []} onOpen={onOpen} onOpenShop={openQuick} q={q} onAdd={addToCart} />;
+    if (b.kind === "featured") return <FeaturedBlock key={`f${i}`} item={b.item} cta={b.cta} onOpen={b.item?.type === "shop" ? openQuick : onOpen} onAdd={addToCart} />;
     if (b.kind === "shelf") {
       if (b.variant === "shorts") return <ShortsShelf key={`s${i}`} title={b.title} items={b.items || []} onOpenShorts={openShorts} />;
       if (b.variant === "playables") return <PlayablesShelf key={`s${i}`} title={b.title} items={b.items || []} onOpen={onOpen} />;
-      if (b.variant === "shop") return <ShopShelf key={`s${i}`} title={b.title} items={b.items || []} onOpen={onOpen} onAdd={addToCart} />;
+      if (b.variant === "shop") return <ShopShelf key={`s${i}`} title={b.title} items={b.items || []} onOpen={openQuick} onAdd={addToCart} />;
     }
     return null;
   };
@@ -559,7 +667,7 @@ export default function TubeBrowse({ onOpen }) {
           <div data-testid="browse-shop-subchips"
             className="sticky top-[6.75rem] z-20 bg-white/95 backdrop-blur flex gap-2 overflow-x-auto no-scrollbar px-4 lg:px-6 py-2.5 border-b border-slate-100">
             {SHOP_SUBCATS.map((s) => (
-              <button key={s.id} onClick={() => setShopSub(s.id)} data-testid={`browse-shop-subchip-${s.id}`}
+              <button key={s.id} onClick={() => chooseSub(s.id)} data-testid={`browse-shop-subchip-${s.id}`}
                 className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-bold border transition-colors ${shopSub === s.id ? "bg-orange-500 text-white border-orange-500" : "bg-white text-slate-700 border-slate-200 hover:bg-orange-50 hover:border-orange-200"}`}>
                 {s.label}
               </button>
@@ -581,6 +689,7 @@ export default function TubeBrowse({ onOpen }) {
 
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} onCheckout={checkout} checkingOut={checkingOut} />
       {shorts && <ShortsPlayer items={shorts.items} index={shorts.index} onClose={() => setShorts(null)} onOpen={onOpen} />}
+      {quick && <QuickBuySheet item={quick} onClose={() => setQuick(null)} onAdd={addResolved} onOpen={onOpen} />}
     </div>
   );
 }
