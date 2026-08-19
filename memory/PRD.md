@@ -1,5 +1,28 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## PARTNER CONSOLE + VOICE PICKER + PROMOTION ANALYTICS + ADMIN QUEUE (2026-08 fork, cont.)
+Four user-approved follow-ups to the Partner Ads API. Backend + web (no mobile). Testing agent iter97: 10/11 pass; the 2 HIGH bugs it found were fixed + re-verified (see end).
+
+### 1) Partner Console "API Checkout" (web)
+New page `frontend/src/pages/advertiser_v2/PartnerCheckout.jsx` at `/advertiser/dashboard/api-checkout` (nav item added to `AdvertiserShell`, route in `App.js`). Partners buy — Promoted-rail placement, Category Spotlight, Trivia sponsorship, AI-RJ read — and watch checkout status flip to paid/active, no curl. A Sandbox/Live toggle: Sandbox activates instantly; Live opens a real Stripe hosted Checkout link inline + a "check status" poll.
+- Driven by NEW cookie-authed wrappers `/api/partner/commerce/*` in `routes/partner_portal.py` (reuse the SAME services as `/api/v1`; no raw API key in the browser). One reusable advertiser is auto-created per (partner, env). Endpoints: `/commerce/catalog`, `/promotion/checkout|/{id}/status|/{id}/report`, `/spotlight/checkout|/{id}/status`, `/personas`, `/personas/{id}/preview`, `/sponsorships` (+`/submit`,`/checkout`,`/checkout/status`).
+
+### 2) AI-RJ Read Voice Picker (real audio)
+Console lists host personas with a play button that fetches a REAL spoken sample (`POST /commerce/personas/{id}/preview` → `rj_persona_service.generate_preview`). Seeded 3 demo personas (Ava/Leo/Maya) via `scripts/seed_demo_rj_persona.py`. IMPORTANT: the env `ELEVENLABS_API_KEY` is an invalid *key ID* (400s), so the personas use `voice_provider=openai_tts` with the real `OPENAI_API_KEY` — preview + LIVE rj_read paid TTS render both work (~8s). Preview errors degrade to a clean 503, never 500.
+
+### 3) Promotion Analytics API
+NEW `partner_marketplace.promotion_report()` + `GET /api/v1/marketplace/promotion/{id}/report` (scope reports:read, + portal mirror). Returns impressions, views, orders, revenue, placement + spotlight spend over the promotion's active window. Shown per bought promotion in the console ("View analytics").
+
+### 4) Admin Partner Queue
+`routes/marketplace_promotions.py` admin list now enriches each promotion with `via_partner` + `partner_name` (looked up from `partner_accounts`). `admin/Promotions.jsx` shows a "via API · <partner>" badge on partner-purchased promotions so admins fast-track them.
+
+### Bug fixes in this round (found by iter97, fixed + re-verified)
+- Sandbox rj_read created via console/portal returned no id (`res.get("id")` vs shaped `sponsored_read_id`) so `_sandbox_activate` no-op'd → stayed `draft`. Fixed in `partner_portal.py` AND `partner_api_v1.py` (`res.get("id") or res.get("sponsored_read_id")`). Re-verified → `active`.
+- Console `buyTriv`/`buyRjr` sent `start_at=now` → backend `invalid_time_window`. Now `start_at = now + 2min`. Re-verified sandbox trivia/rj → `active`.
+- NOT bugs (env limits): Stripe hosted card page can't be auto-driven (Live checkout link + status verified instead); S3 presigned audio rejects HEAD (GET works).
+
+
+
 ## PRO WEB BROWSE LAYOUTS + PARTNER ADS API — LIVE SPONSORSHIPS & MARKETPLACE PROMOTION (2026-08 fork)
 Three deliverables, user-approved (layouts first, then API), all verified by the testing agent (iter95 web layouts PASS; iter96 backend 28/28 PASS).
 

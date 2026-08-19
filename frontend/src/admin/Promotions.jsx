@@ -98,7 +98,15 @@ export default function Promotions() {
           {items.map((p) => (
             <Card key={p.promotion_id} className="p-4 flex items-center justify-between" data-testid={`promo-row-${p.promotion_id}`}>
               <div>
-                <div className="font-bold">{p.public_name || p.business_id}</div>
+                <div className="font-bold flex items-center gap-2">
+                  {p.public_name || p.business_id}
+                  {p.via_partner && (
+                    <span data-testid={`promo-via-partner-${p.promotion_id}`}
+                      className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
+                      via API{p.partner_name ? ` · ${p.partner_name}` : ""}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-white/50 mt-0.5">
                   {p.name} · {p.days}d · {p.price_cents ? money(p.price_cents) : "COMP"} · {p.paid ? "paid" : "unpaid"}
                   {p.admin_note ? ` · ${p.admin_note}` : ""}

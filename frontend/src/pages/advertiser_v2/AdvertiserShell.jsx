@@ -10,7 +10,7 @@ import {
   ChevronRight, Loader2, Menu, X, AlertTriangle, Gamepad2,
   Users, ScanLine, Ticket, Image as ImageIcon, BellRing, Trophy, Flame, Headphones,
   Sparkles, Radio, MapPin, Store, Target,
-  Search, KeyRound,
+  Search, KeyRound, Rocket,
 } from "lucide-react";
 
 import { useAuth } from "@/AuthContext";
@@ -44,6 +44,7 @@ const NAV = [
   { path: "/advertiser/dashboard/analytics",              label: "Analytics",              Icon: BarChart3 },
   { path: "/advertiser/dashboard/profile",                    label: "Profile",                    Icon: Settings },
   { path: "/advertiser/dashboard/api",                        label: "API & Keys",            Icon: KeyRound, testid: "advertiser-nav-api" },
+  { path: "/advertiser/dashboard/api-checkout",              label: "API Checkout",          Icon: Rocket, testid: "advertiser-nav-api-checkout" },
 ];
 
 export default function AdvertiserShell() {

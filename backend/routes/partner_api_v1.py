@@ -527,7 +527,7 @@ async def create_sponsorship(body: SponsorshipCreate, request: Request,
                      "key_message": body.key_message, "cta": body.cta,
                      "start_at": body.start_at, "end_at": body.end_at}
             res = await rj.create_sponsored_read(db, advertiser_business_id=body.advertiser_id, body=rbody, user_id=owner)
-            sid = res.get("id")
+            sid = res.get("id") or res.get("sponsored_read_id")
         else:
             raise HTTPException(400, {"code": "unknown_sponsorship_type"})
     except HTTPException:
@@ -726,6 +726,19 @@ async def mkt_promotion_status(promotion_id: str, request: Request,
                                caller: Caller = Depends(require_scopes("campaigns:read"))):
     try:
         return await mkt.promotion_status(request.app.state.db,
+                                          promotion_id=promotion_id, partner_id=caller.partner_id,
+                                          environment=caller.environment)
+    except Exception as e:
+        raise _map_error(e)
+
+
+@partner_app.get("/marketplace/promotion/{promotion_id}/report", tags=["marketplace", "reporting"])
+async def mkt_promotion_report(promotion_id: str, request: Request,
+                               caller: Caller = Depends(require_scopes("reports:read"))):
+    """Impressions, views, orders, revenue and total spend for a promotion the
+    partner purchased (over its active window)."""
+    try:
+        return await mkt.promotion_report(request.app.state.db,
                                           promotion_id=promotion_id, partner_id=caller.partner_id,
                                           environment=caller.environment)
     except Exception as e:

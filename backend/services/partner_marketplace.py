@@ -255,8 +255,62 @@ async def spotlight_get(db, *, business_id: str) -> Dict[str, Any]:
     return {"bid": _clean(dict(b)) if b else None, "standing": standing}
 
 
+# ── Promotion analytics report ───────────────────────────────────────
+async def promotion_report(db, *, promotion_id: str, partner_id: str,
+                           environment: str = "LIVE") -> Dict[str, Any]:
+    """Impressions/views (promotion_daily) + orders/revenue (marketplace_orders)
+    over the promotion's active window, plus total spend (placement fee +
+    any Category Spotlight spend for the same business)."""
+    promo = await db.marketplace_promotions.find_one(
+        {"promotion_id": promotion_id, "purchased_by_partner": partner_id,
+         "purchased_by_partner_env": environment})
+    if not promo:
+        raise LookupError("promotion_not_found")
+    bid = promo["business_id"]
+    start = promo.get("activated_at") or promo.get("created_at") or _now()
+    if getattr(start, "tzinfo", None) is None and hasattr(start, "replace"):
+        start = start.replace(tzinfo=timezone.utc)
+    exp = promo.get("expires_at")
+    if isinstance(exp, str):
+        try:
+            exp = datetime.fromisoformat(exp)
+        except Exception:
+            exp = None
+    now = _now()
+    end = min(now, exp) if exp else now
+    imp = views = 0
+    async for d in db.promotion_daily.find(
+            {"business_id": bid,
+             "date": {"$gte": start.date().isoformat(), "$lte": end.date().isoformat()}}):
+        imp += int(d.get("impressions", 0))
+        views += int(d.get("views", 0))
+    orders = revenue = 0
+    async for o in db.marketplace_orders.find(
+            {"business_id": bid, "payment_status": "paid",
+             "created_at": {"$gte": start, "$lt": end}}):
+        orders += 1
+        revenue += int(o.get("total_cents", 0))
+    spotlight = await db.category_bids.find_one({"business_id": bid})
+    spotlight_spend = int((spotlight or {}).get("spent_cents", 0))
+    spotlight_impr = int((spotlight or {}).get("impressions", 0))
+    placement_spend = int(promo.get("price_cents") or 0)
+    return {
+        "promotion_id": promotion_id, "business_id": bid,
+        "public_name": promo.get("public_name"), "tier": promo.get("tier"),
+        "status": promo.get("status"),
+        "window": {"start": start.isoformat() if hasattr(start, "isoformat") else start,
+                   "end": end.isoformat() if hasattr(end, "isoformat") else end},
+        "impressions": imp, "views": views,
+        "orders": orders, "revenue_cents": revenue,
+        "placement_spend_cents": placement_spend,
+        "spotlight_spend_cents": spotlight_spend,
+        "spotlight_impressions": spotlight_impr,
+        "total_spend_cents": placement_spend + spotlight_spend,
+    }
+
+
 __all__ = [
     "promo_tiers", "list_categories", "list_promotable_businesses",
-    "promotion_checkout", "promotion_status",
+    "promotion_checkout", "promotion_status", "promotion_report",
     "spotlight_checkout", "spotlight_status", "spotlight_get",
 ]

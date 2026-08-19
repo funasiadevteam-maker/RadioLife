@@ -176,6 +176,16 @@ async def admin_list(request: Request, status: str = "pending_review", _a=Depend
     q: Dict[str, Any] = {} if status == "all" else {"status": status}
     out = [_clean(x) async for x in
            db.marketplace_promotions.find(q).sort("created_at", -1).limit(200)]
+    # Flag + name promotions purchased programmatically via the Partner API.
+    pids = {x.get("purchased_by_partner") for x in out if x.get("purchased_by_partner")}
+    names: Dict[str, Any] = {}
+    if pids:
+        async for pa in db.partner_accounts.find({"partner_id": {"$in": list(pids)}}, {"partner_id": 1, "name": 1}):
+            names[pa["partner_id"]] = pa.get("name")
+    for x in out:
+        pp = x.get("purchased_by_partner")
+        x["via_partner"] = bool(pp)
+        x["partner_name"] = names.get(pp) if pp else None
     return {"items": out}
 
 

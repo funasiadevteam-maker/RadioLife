@@ -13,6 +13,11 @@ from pydantic import BaseModel, Field
 
 from auth import current_user, require_admin
 from services import partner_api as pa
+from services import partner_marketplace as mkt
+from services import trivia_sponsorship_service as tr
+from services import rj_sponsored_read_service as rj
+from services import ad1_advertiser_service as ad
+from services import rj_persona_service as rjp
 
 router = APIRouter(prefix="/api/partner", tags=["partner-portal"])
 admin_router = APIRouter(prefix="/api/admin/partner-api", tags=["admin-partner-api"])
@@ -158,6 +163,349 @@ async def my_delete_webhook(webhook_id: str, request: Request, user: dict = Depe
     if not await pa.delete_webhook(db, partner_id=p["partner_id"], webhook_id=webhook_id):
         raise HTTPException(404, {"code": "webhook_not_found"})
     return {"deleted": True}
+
+
+# ── console "buy & promote" (cookie-auth wrappers over /api/v1) ──────
+# The Advertiser Dashboard "API Checkout" page drives the SAME Partner-API
+# services as /api/v1, but authenticated by the logged-in user's cookie so
+# the browser never handles a raw API key. Environment ("live"|"sandbox")
+# is chosen per request; sandbox activates instantly with no Stripe.
+from routes import partner_api_v1 as v1  # noqa: E402  (no cycle: v1 never imports this module)
+
+
+class PortalPromoCheckout(BaseModel):
+    business_id: str
+    tier: str
+    environment: str = "sandbox"
+    origin_url: Optional[str] = None
+
+
+class PortalSpotlightCheckout(BaseModel):
+    business_id: str
+    category: str
+    bid_cents: int = Field(..., ge=1, le=1000)
+    amount_cents: int = Field(..., ge=500, le=1000000)
+    daily_cap_cents: int = 0
+    environment: str = "sandbox"
+    origin_url: Optional[str] = None
+
+
+class PortalSponsorship(BaseModel):
+    type: str                         # trivia | rj_read
+    environment: str = "sandbox"
+    display_name: Optional[str] = None
+    tagline: Optional[str] = None
+    logo_url: Optional[str] = None
+    sponsor_target_type: Optional[str] = "any"
+    target_id: Optional[str] = None
+    prize_pool: Optional[list] = None
+    winner_selection: Optional[str] = "top_n"
+    score_threshold: Optional[int] = None
+    start_at: Optional[str] = None
+    end_at: Optional[str] = None
+    persona_id: Optional[str] = None
+    station_ids: Optional[list] = None
+    any_station: Optional[bool] = True
+    disclosure_prefix: Optional[str] = None
+    plays_target: Optional[int] = None
+    cost_per_play_cents: Optional[int] = None
+    script_body: Optional[str] = None
+    product_name: Optional[str] = None
+    key_message: Optional[str] = None
+    cta: Optional[str] = None
+
+
+class PortalSpAction(BaseModel):      # submit / checkout
+    type: str
+    advertiser_id: str
+    environment: str = "sandbox"
+    final_script: Optional[str] = None
+    origin_url: Optional[str] = None
+
+
+async def _require_partner(db, user):
+    p = await _my_partner(db, user)
+    if not p:
+        raise HTTPException(400, {"code": "no_partner_account"})
+    return p
+
+
+async def _ensure_partner_adv(db, p, env):
+    """One reusable advertiser per (partner, env), force-activated so console
+    sponsorships aren't blocked on approval."""
+    owner = f"partner:{p['partner_id']}:{env.lower()}"
+    adv = await db.advertisers_v2.find_one({"owner_user_id": owner})
+    if adv:
+        return adv["advertiser_id"]
+    created = await ad.create_advertiser(
+        db, owner_user_id=owner, name=p.get("name") or "Partner Console",
+        contact_email=p.get("contact_email") or "partner@radiolife.app")
+    aid = created["advertiser_id"]
+    await db.advertisers_v2.update_one(
+        {"advertiser_id": aid},
+        {"$set": {"status": "active", "approved_at": pa._now(),
+                  "approved_by": "portal", "updated_at": pa._now()}})
+    return aid
+
+
+def _return_urls(origin_url):
+    if origin_url:
+        base = origin_url.rstrip("/")
+        return (f"{base}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+                f"{base}/payment/cancel")
+    return None, None                 # services fall back to BIGFM_PUBLIC_BASE_URL
+
+
+def _mkt_err(e: Exception) -> HTTPException:
+    if isinstance(e, LookupError):
+        return HTTPException(404, {"code": str(e) or "not_found"})
+    return HTTPException(400, {"code": str(e) or "bad_request"})
+
+
+@router.get("/commerce/catalog")
+async def portal_commerce_catalog(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _require_partner(db, user)
+    return {"tiers": mkt.promo_tiers(),
+            "categories": await mkt.list_categories(db),
+            "businesses": await mkt.list_promotable_businesses(db, limit=60),
+            "personas": await rjp.list_personas(db, status="active")}
+
+
+@router.post("/commerce/promotion/checkout")
+async def portal_promotion_checkout(body: PortalPromoCheckout, request: Request,
+                                    user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    env = pa._norm_env(body.environment)
+    s_url, c_url = _return_urls(body.origin_url)
+    try:
+        return await mkt.promotion_checkout(
+            db, business_id=body.business_id, tier_key=body.tier,
+            partner_id=p["partner_id"], sandbox=(env == "SANDBOX"), environment=env,
+            success_url=s_url, cancel_url=c_url)
+    except Exception as e:
+        raise _mkt_err(e)
+
+
+@router.get("/commerce/promotion/{promotion_id}/status")
+async def portal_promotion_status(promotion_id: str, request: Request,
+                                  environment: str = "sandbox",
+                                  user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    try:
+        return await mkt.promotion_status(db, promotion_id=promotion_id,
+                                          partner_id=p["partner_id"],
+                                          environment=pa._norm_env(environment))
+    except Exception as e:
+        raise _mkt_err(e)
+
+
+@router.get("/commerce/promotion/{promotion_id}/report")
+async def portal_promotion_report(promotion_id: str, request: Request,
+                                  environment: str = "sandbox",
+                                  user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    try:
+        return await mkt.promotion_report(db, promotion_id=promotion_id,
+                                          partner_id=p["partner_id"],
+                                          environment=pa._norm_env(environment))
+    except Exception as e:
+        raise _mkt_err(e)
+
+
+@router.post("/commerce/spotlight/checkout")
+async def portal_spotlight_checkout(body: PortalSpotlightCheckout, request: Request,
+                                    user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    env = pa._norm_env(body.environment)
+    s_url, c_url = _return_urls(body.origin_url)
+    try:
+        return await mkt.spotlight_checkout(
+            db, business_id=body.business_id, category=body.category,
+            bid_cents=body.bid_cents, amount_cents=body.amount_cents,
+            daily_cap_cents=body.daily_cap_cents, partner_id=p["partner_id"],
+            sandbox=(env == "SANDBOX"), environment=env,
+            success_url=s_url, cancel_url=c_url)
+    except Exception as e:
+        raise _mkt_err(e)
+
+
+@router.get("/commerce/spotlight/{session_id}/status")
+async def portal_spotlight_status(session_id: str, request: Request,
+                                  environment: str = "sandbox",
+                                  user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    try:
+        return await mkt.spotlight_status(db, session_id=session_id,
+                                          partner_id=p["partner_id"],
+                                          environment=pa._norm_env(environment))
+    except Exception as e:
+        raise _mkt_err(e)
+
+
+@router.get("/commerce/spotlight")
+async def portal_spotlight_get(request: Request, business_id: str,
+                               user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _require_partner(db, user)
+    return await mkt.spotlight_get(db, business_id=business_id)
+
+
+@router.get("/commerce/personas")
+async def portal_personas(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _require_partner(db, user)
+    return {"items": await rjp.list_personas(db, status="active")}
+
+
+@router.post("/commerce/personas/{persona_id}/preview")
+async def portal_persona_preview(persona_id: str, request: Request,
+                                 user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _require_partner(db, user)
+    per = await db.rj_personas.find_one({"id": persona_id})
+    if not per:
+        raise HTTPException(404, {"code": "persona_not_found"})
+    if per.get("sample_audio_url"):
+        return {"audio_url": per["sample_audio_url"], "cached": True,
+                "persona_id": persona_id}
+    try:
+        r = await rjp.generate_preview(
+            db, persona_id=persona_id, actor_user_id=user.get("user_id"),
+            context={"product_name": "Acme Cola", "key_message": "crisp and refreshing",
+                     "cta": "Try one today", "disclosure_prefix": "Sponsored by"})
+    except RuntimeError as e:
+        raise HTTPException(503, {"code": str(e)})
+    except ValueError as e:
+        raise HTTPException(404, {"code": str(e)})
+    except Exception as e:
+        raise HTTPException(503, {"code": "voice_preview_failed", "detail": str(e)[:200]})
+    return {"audio_url": r.get("audio_url"), "script": r.get("script_text"),
+            "cached": False, "persona_id": persona_id}
+
+
+@router.post("/commerce/sponsorships")
+async def portal_create_sponsorship(body: PortalSponsorship, request: Request,
+                                    user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _require_partner(db, user)
+    env = pa._norm_env(body.environment)
+    aid = await _ensure_partner_adv(db, p, env)
+    owner = f"partner:{p['partner_id']}:{env.lower()}"
+    t = body.type
+    try:
+        if t == "trivia":
+            tbody = {"sponsor_target_type": body.sponsor_target_type or "any",
+                     "target_id": body.target_id, "prize_pool": body.prize_pool or [],
+                     "winner_selection": body.winner_selection or "top_n",
+                     "score_threshold": body.score_threshold, "display_name": body.display_name,
+                     "tagline": body.tagline, "logo_url": body.logo_url,
+                     "start_at": body.start_at, "end_at": body.end_at}
+            res = await tr.create_sponsorship(db, advertiser_business_id=aid, body=tbody, user_id=owner)
+            sid = res.get("id") or res.get("sponsorship_id")
+        elif t == "rj_read":
+            rbody = {"persona_id": body.persona_id, "station_ids": body.station_ids or [],
+                     "any_station": bool(body.any_station), "disclosure_prefix": body.disclosure_prefix,
+                     "plays_target": body.plays_target, "cost_per_play_cents": body.cost_per_play_cents,
+                     "script_body": body.script_body or "", "product_name": body.product_name,
+                     "key_message": body.key_message, "cta": body.cta,
+                     "start_at": body.start_at, "end_at": body.end_at}
+            res = await rj.create_sponsored_read(db, advertiser_business_id=aid, body=rbody, user_id=owner)
+            sid = res.get("id") or res.get("sponsored_read_id")
+        else:
+            raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, {"code": str(e)})
+    if env == "SANDBOX" and sid:
+        await v1._sandbox_activate(db, t, sid)
+        res = await v1._sp_fetch(db, t, sid)
+    return {"sponsorship": res, "sponsorship_id": sid, "type": t,
+            "advertiser_id": aid, "environment": env}
+
+
+@router.post("/commerce/sponsorships/{sponsorship_id}/submit")
+async def portal_submit_sponsorship(sponsorship_id: str, body: PortalSpAction,
+                                    request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _require_partner(db, user)
+    if body.type == "trivia":
+        raise HTTPException(409, {"code": "use_checkout_endpoint"})
+    if body.type == "rj_read":
+        final = (body.final_script or "").strip()
+        if not final:
+            doc = await db.rj_sponsored_reads.find_one({"id": sponsorship_id})
+            final = (doc or {}).get("script_body") or ""
+        try:
+            return await rj.submit_sponsored_read(
+                db, sponsored_read_id=sponsorship_id,
+                advertiser_business_id=body.advertiser_id, final_script=final)
+        except Exception as e:
+            raise HTTPException(400, {"code": str(e)})
+    raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+
+
+@router.post("/commerce/sponsorships/{sponsorship_id}/checkout")
+async def portal_sponsorship_checkout(sponsorship_id: str, body: PortalSpAction,
+                                      request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _require_partner(db, user)
+    env = pa._norm_env(body.environment)
+    if env == "SANDBOX":
+        return {"sandbox": True, "checkout_required": False, "status": "active",
+                "type": body.type, "sponsorship_id": sponsorship_id}
+    s_url, c_url = _return_urls(body.origin_url)
+    try:
+        if body.type == "trivia":
+            r = await tr.create_checkout(db, sponsorship_id=sponsorship_id,
+                                         advertiser_business_id=body.advertiser_id,
+                                         success_url=s_url, cancel_url=c_url)
+        elif body.type == "rj_read":
+            r = await rj.create_checkout(db, sponsored_read_id=sponsorship_id,
+                                         advertiser_business_id=body.advertiser_id,
+                                         success_url=s_url, cancel_url=c_url)
+        else:
+            raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, {"code": str(e)})
+    return {**r, "type": body.type, "sponsorship_id": sponsorship_id}
+
+
+@router.get("/commerce/sponsorships/{sponsorship_id}/checkout/status")
+async def portal_sponsorship_status(sponsorship_id: str, request: Request,
+                                    type: str, advertiser_id: str,
+                                    environment: str = "sandbox",
+                                    user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _require_partner(db, user)
+    env = pa._norm_env(environment)
+    if env == "SANDBOX":
+        d = await v1._sp_fetch(db, type, sponsorship_id)
+        return {"paid": True, "sandbox": True, "status": (d or {}).get("status"),
+                "type": type, "sponsorship": d}
+    try:
+        if type == "trivia":
+            r = await tr.sync_checkout(db, sponsorship_id=sponsorship_id,
+                                       advertiser_business_id=advertiser_id)
+        elif type == "rj_read":
+            r = await rj.sync_checkout(db, sponsored_read_id=sponsorship_id,
+                                       advertiser_business_id=advertiser_id)
+        else:
+            raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, {"code": str(e)})
+    return {**r, "type": type}
+
 
 
 # ── admin ───────────────────────────────────────────────────────────

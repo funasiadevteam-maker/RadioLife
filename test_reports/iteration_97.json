@@ -1,0 +1,48 @@
+{
+  "summary": "Tested Partner Console (API Checkout) end-to-end: cookie-authed /api/partner/commerce/* endpoints, /api/v1 promotion report, and admin Promotions via_partner badge. UI page loads at /advertiser/dashboard/api-checkout for test@bigfm.dubai. Sandbox promotion + spotlight + rj_read flows and LIVE promotion/spotlight (cs_test_ Stripe URL) work. AI-RJ voice picker renders 3 personas and REAL audio preview returns a working audio_url. Admin /api/admin/marketplace/promotions returns via_partner+partner_name for API-purchased promos. TWO real bugs found: (a) SANDBOX Trivia + RJ-Read from the UI fail because the client sends start_at=now which backend rejects as invalid_time_window; and (b) portal_create_sponsorship for rj_read returns sponsorship_id=null (uses res.get('id'), but rj_sponsored_read_service._shape emits 'sponsored_read_id') — so the sandbox _sandbox_activate is called with None and the read stays in status='draft' instead of 'active'.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/partner/commerce/sponsorships (type=rj_read)", "issue": "Response returns sponsorship_id=null and status='draft' in sandbox. Cause: routes/partner_portal.py ~L419 does `sid = res.get('id')` but rj_sponsored_read_service._shape returns key `sponsored_read_id` (not `id`). Effect: `_sandbox_activate(db, 'rj_read', None)` is a no-op, sponsorship stays draft, and the sponsorship_id passed to the client is unusable (frontend can't call submit/checkout/status by id). Fix: `sid = res.get('sponsored_read_id') or res.get('id')`.", "priority": "HIGH"},
+      {"endpoint": "POST /api/partner/commerce/sponsorships (trivia, rj_read)", "issue": "Backend validates start_at must be strictly in the future ('invalid_time_window'). The UI (PartnerCheckout.jsx buyTriv/buyRjr) sends `start_at: new Date().toISOString()` i.e. NOW, which fails 400 (visible as a silent `Booking failed` toast). Either relax the service validator to allow start_at<=now (backfill to now+small buffer) or fix the frontend to send `now + 60s`. Repro confirmed: SANDBOX trivia UI click produced no pc-trivia-result-sandbox in the DOM in this run.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/partner/commerce/personas/{id}/preview", "issue": "Returned audio_url (S3 presigned) rejects HEAD with 403; GET (with Range) works. Not a bug per se, but consumer docs should note only GET is supported."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "PartnerCheckout (Trivia + AI-RJ Read)", "issue": "start_at is set to `new Date().toISOString()` (now) which triggers backend 'invalid_time_window' on both the sandbox Trivia buy (button pc-trivia-buy) and Live rj_read book. Send `new Date(Date.now() + 60_000).toISOString()` instead.", "selector": "[data-testid='pc-trivia-buy'], [data-testid='pc-rj-buy']", "priority": "HIGH"}
+      ],
+      "integration_issues": [
+        {"flow": "Sandbox Trivia booking", "issue": "Click on pc-trivia-buy shows toast 'Booking failed / invalid_time_window'; pc-trivia-result-sandbox never appears.", "affected_selectors": ["pc-trivia-buy", "pc-trivia-result-sandbox"]},
+        {"flow": "Sandbox AI-RJ Read booking", "issue": "UI shows green 'Activated (sandbox)' but the underlying rj_sponsored_read stays in status='draft' because sponsorship_id is null in the portal response (see backend bug above).", "affected_selectors": ["pc-rj-buy", "pc-rj-result-sandbox"]}
+      ],
+      "design_issues": [
+        {"screen": "PartnerCheckout", "issues": ["React hydration warning: <span> child inside <option> (from dev-tool x-source spans wrapping option text) — cosmetic dev-server warning, safe to ignore in prod build.", "Duplicate React key warning for NavItem — spread includes `key` — cosmetic."]}
+      ]
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": ["/app/backend/tests/test_partner_console.py", "/app/test_reports/pytest/iter97_console.xml"],
+  "action_items": [
+    "Fix routes/partner_portal.py portal_create_sponsorship: for rj_read use `sid = res.get('sponsored_read_id') or res.get('id')` so sandbox activation + client bookkeeping work.",
+    "Fix PartnerCheckout.jsx: in buyTriv() and buyRjr() send `start_at: new Date(Date.now() + 60000).toISOString()` (or drop start_at and let the backend default) so backend 'invalid_time_window' guard doesn't fire on immediate submissions.",
+    "(Optional) Loosen trivia/rj_read invalid_time_window guard to accept start_at within a small past-window (e.g. 5 min) to reduce clock-skew flakes."
+  ],
+  "critical_code_review_comments": [
+    "partner_portal.py L419: fragile assumption that all sponsorship services return `id` — inconsistent with rj_sponsored_read_service._shape which emits `sponsored_read_id`. Use a helper `_extract_sid(res, type)` to keep it type-aware.",
+    "PartnerCheckout.jsx: buyRjr silently swallows the /submit call failure path; wrap in try and surface the real reason. Also rjr preview UI never resets `previewUrl` when switching persona.",
+    "portal_persona_preview returns 503 on preview_failed which is fine; the client currently only checks for 'elevenlabs_api_key_missing' — generalise the error toast."
+  ],
+  "updated_files": ["/app/backend/tests/test_partner_console.py"],
+  "success_rate": {"backend": "91% (10/11 tests pass after bug repro)", "frontend": "83% (5/6 sandbox+live flows; trivia sandbox UI fails)"},
+  "test_credentials": "advertiser test@bigfm.dubai / TestUser123! ; admin admin@bigfm.dubai / AdminPass123! ; keys already listed in /app/memory/test_credentials.md",
+  "seed_data_creation": "Sandbox test created promotions via test@ (via portal) + one via SANDBOX bearer key. Prefix TEST_ used where applicable.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "After main agent fixes the two HIGH bugs, re-run pytest backend/tests/test_partner_console.py (all 11 should pass) and re-verify the UI: pc-trivia-result-sandbox must appear after clicking pc-trivia-buy, and pc-rj-result-sandbox in the response should map to a real rj_sponsored_read with status='active' (curl `db.rj_sponsored_reads.find_one({id: sid})`). LIVE Stripe UI must not be auto-completed — only verify checkout_url + pending status endpoints.",
+  "rca of the issue": "(1) rj_read sandbox: partner_portal.portal_create_sponsorship reads `res.get('id')` from `rj.create_sponsored_read` → but rj service's `_shape()` returns `sponsored_read_id`, not `id`. So sid=None → v1._sandbox_activate(None) does nothing → doc keeps default status='draft'. (2) trivia/rj_read invalid_time_window: create_sponsorship validators require `start_at > now`. Frontend sends `new Date().toISOString()` (which is now or a few ms in the past by the time it lands) → 400."
+}

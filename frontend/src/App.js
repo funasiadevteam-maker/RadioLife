@@ -91,6 +91,7 @@ import PlayDiscover from "@/pages/play/PlayDiscover";
 import AdvertiserApply from "@/pages/advertiser_v2/AdvertiserApply";
 import AdvertiserShell from "@/pages/advertiser_v2/AdvertiserShell";
 import DeveloperApi from "@/pages/advertiser_v2/DeveloperApi";
+import PartnerCheckout from "@/pages/advertiser_v2/PartnerCheckout";
 import AdvertiserOverview from "@/pages/advertiser_v2/AdvertiserOverview";
 import AdvertiserCampaigns from "@/pages/advertiser_v2/AdvertiserCampaigns";
 import AdvertiserBudget from "@/pages/advertiser_v2/AdvertiserBudget";
@@ -770,6 +771,7 @@ function AppRouter() {
         <Route path="analytics" element={<AdvertiserAnalyticsAD1 />} />
         <Route path="profile" element={<AdvertiserProfile />} />
         <Route path="api" element={<DeveloperApi />} />
+        <Route path="api-checkout" element={<PartnerCheckout />} />
       </Route>
       <Route path="/admin/advertisers" element={
         <ProtectedRoute requireAdmin><AdminAdvertisersAD1 /></ProtectedRoute>
