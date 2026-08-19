@@ -1,5 +1,23 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## TUBE SKIN → FULL YOUTUBE-STYLE ENDLESS FEED + SHOPPING (2026-08 fork, phase 1 of 3)
+User is sending references across 3 phases to evolve the WEB "Tube" browse skin into a real YouTube experience. Phase 1 (this) — web only; Cinematic/Studio untouched. Testing agent iter99: backend 10/10 pass; frontend verified; the 1 HIGH bug it found (endless scroll not appending) was fixed + re-verified by main agent (tiles 11→22, shelves 1→2 on scroll).
+
+**Backend (`routes/browse.py`)**
+- NEW `GET /api/browse/feed?page=&cat=` — paginated MIXED feed of blocks: a video `grid` (with shop product cards sprinkled every 6th item), plus rotating `shelf` blocks by page (`shorts` portrait / `playables` games-with-Play / `shop`) and occasional `featured` promo. Recycles the finite catalog via modular offsets so `has_more` stays true (endless). `cat` filters: `all` (mixed), `shopping` (all-shop grid), `games` (playables + grid), or a rail key. Page 0 also returns `chips` + `subs`.
+- NEW `_shop_products()` joins `products` (price) → `marketplace_profiles` for the image (products have no own image → business cover/logo, gradient fallback). Added a `shop` rail to `/home`.
+
+**Frontend (`design_radiolife/browse/TubeBrowse.jsx`, full rewrite)**
+- Left YouTube sidebar (`browse-sidebar`): Home / Shorts / **Shopping** / Play & Win + Subscriptions avatars + You links. Top chip bar (`browse-chips`) incl. a **🛍 Shopping** chip. Shopping is in BOTH places (per user).
+- Endless scroll via a stable window-scroll loader + a "fill viewport" effect (reads latest state via a ref — replaced a fragile IntersectionObserver that recreated per page and stopped firing).
+- Varied row sizes: 3-col video grid, tall Shorts shelf, square Playables shelf (each card a **Play** button `browse-game-play`), Shop shelf, and a 2-col featured promo.
+- Shop woven in: inline `browse-shop-tile` cards (SHOP badge + price) sprinkled through the grid; Shopping chip/sidebar → all-shop grid.
+- Preserved testids: browse-tube, browse-search, browse-chips, browse-chip-<key>, browse-tile, browse-exit-legacy. New: browse-sidebar, browse-side-<label>, browse-shop-tile, browse-shelf-<variant>, browse-game-play, browse-feed-sentinel.
+
+Note: several products/businesses lack cover images → gradient-letter fallback (by design); products named "Product" are placeholder seed data. Awaiting phases 2–3 assets.
+
+
+
 ## PARTNER CONSOLE — HISTORY, VOICE FAVOURITES, SPEND DASHBOARD, ADMIN BULK-APPROVE (2026-08 fork, cont.)
 Four more user-approved enhancements. Backend + web (no mobile). Testing agent iter98: 9/9 backend + full UI PASS, no bugs.
 

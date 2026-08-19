@@ -1,0 +1,48 @@
+{
+  "summary": "Tested new Tube browse skin end-to-end (web only, per platforms_to_test). Backend /api/browse/feed pagination, filters (all/shopping/games/originals), sprinkled shop cards, home 'shop' rail all pass (10/10 pytest). Frontend: sidebar, chips (All/Shopping/Originals/Live Stations/Podcasts/Play & Win), sticky top bar, search, legacy exit, sentinel, Shopping filter (chip + sidebar), Games play buttons, Originals filter, shop tiles with SHOP badge + price tags, mobile 390px responsiveness (sidebar hidden, chips scroll horizontally) — all visually verified. One real bug: endless scroll does not append additional pages beyond page 0 in the browser despite the backend correctly returning them.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {
+          "component": "TubeBrowse endless-scroll (IntersectionObserver)",
+          "issue": "Scrolling to document bottom does NOT trigger fetch of page 1+. After 6 scrollTo(scrollHeight) with 1s waits, block count stayed at 1 shelf and video tile count stayed at 10. Playables/shop shelves that would rotate in on page 1+ never appeared in the 'all' cat. Backend /api/browse/feed?page=1..20&cat=all confirmed to return distinct block sigs and has_more=true (10/10 pytest pass), so the regression is client-side. Reference: /app/frontend/src/design_radiolife/browse/TubeBrowse.jsx:262-270 (IntersectionObserver useEffect). Likely cause: sentinel useEffect depends on [page,hasMore,cat,fetchPage]; on first observation the callback fires and increments page which re-runs the effect and destroys/re-observes the sentinel, but the newly-observed sentinel may not re-trigger while it's still intersecting the viewport. rootMargin:'600px' + a static sentinel that stays in view after the first append can leave the observer in a 'satisfied' state.",
+          "selector": "[data-testid='browse-feed-sentinel']",
+          "priority": "HIGH"
+        }
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {
+          "screen": "Tube feed (all cat)",
+          "issues": [
+            "Console error: 'A props object containing a key prop is being spread into JSX' from NavItem — outside the Tube skin but pollutes logs. Not blocking.",
+            "Multiple 401/404 network errors from unrelated endpoints (analytics/me polls). Not blocking Tube."
+          ]
+        }
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_browse_feed.py",
+    "/app/test_reports/pytest/iter99_tube_feed.xml"
+  ],
+  "action_items": [
+    "Fix endless-scroll pagination in /app/frontend/src/design_radiolife/browse/TubeBrowse.jsx: the IntersectionObserver never appends page 1+. Suggestion: after each append, briefly unobserve then observe the sentinel (or use a mutation-triggered re-check), or set observer with `threshold:0` and re-attach in a stable way that survives page-state changes. Simplest fix: keep observer in a ref (not re-created on state change) and pull latest page/hasMore/cat from refs inside the callback, so the observer isn't torn down every fetch."
+  ],
+  "critical_code_review_comments": [
+    "TubeBrowse.jsx L262-270: recreating the IntersectionObserver on every page/cat change likely causes the observed 'stops after page 0' bug — prefer stable observer + ref-based state read.",
+    "Search filter is client-side and only searches the currently loaded pages — that is by design but will feel broken when endless-scroll works (since only titles on-screen are matched). Acceptable per spec.",
+    "browseShared Art fallback (gradient letters) is used heavily because many products lack cover_urls — flagged by main agent as by-design; no action."
+  ],
+  "updated_files": ["/app/backend/tests/test_browse_feed.py"],
+  "success_rate": {"backend": "100%", "frontend": "~90%"},
+  "test_credentials": "test@bigfm.dubai / TestUser123! (used for logged-in tube skin activation via /?design=radiolife&layout=tube on the / route).",
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Tube skin only renders when variant=radiolife (?design=radiolife) AND pathname is / or /home AND user is logged in AND browseLayout=tube (?layout=tube). Direct URL /radio/browse renders a different legacy screen (RadioBrowse). Login via POST /api/auth/login with test creds first, then goto /?design=radiolife&layout=tube. Backend feed API is public. Endless-scroll IntersectionObserver bug needs to be re-tested after main agent fix: scroll page down repeatedly and confirm block count grows past initial (page 0 returns 2 blocks - grid + shorts shelf; page 1 should add grid + playables shelf, etc.).",
+  "rca of the issue": "IntersectionObserver useEffect in TubeBrowse depends on [page, hasMore, cat, fetchPage]. When the observer fires and increments page, the effect cleanup disconnects the old observer and creates a new one. The new observer.observe(sentinel) is called while the sentinel is (still) inside the viewport — but IntersectionObserver only invokes the callback on the NEXT change in intersection state. Because the sentinel never leaves the viewport (rootMargin 600px + a 10px sentinel + typical content shorter than 4000px viewport), the new observer's callback is never invoked again. Result: exactly one extra page can ever load, and in some layouts even that first extra page fails to fetch before the observer is torn down. Fix: move the observer creation OUT of the state-dependent effect (make it stable), and read the latest page/hasMore/cat via refs inside the callback."
+}

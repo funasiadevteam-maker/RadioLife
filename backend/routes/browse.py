@@ -112,6 +112,42 @@ async def _deals(db, n: int) -> list[dict]:
     return out
 
 
+def _price(cents, currency) -> Optional[str]:
+    if not cents:
+        return None
+    sym = {"usd": "$", "aed": "AED ", "inr": "₹", "eur": "€", "gbp": "£"}.get(
+        (currency or "usd").lower(), (currency or "").upper() + " ")
+    return f"{sym}{int(cents) / 100:.2f}"
+
+
+async def _shop_products(db, n: int) -> list[dict]:
+    out = []
+    try:
+        prods = [p async for p in db.products.find({"active": True}).limit(n * 2)]
+        if not prods:
+            prods = [p async for p in db.products.find({}).limit(n * 2)]
+        biz_ids = list({p.get("business_id") for p in prods if p.get("business_id")})
+        binfo: dict = {}
+        if biz_ids:
+            async for b in db.marketplace_profiles.find({"business_id": {"$in": biz_ids}}):
+                cov = b.get("cover_urls") or []
+                img = ((cov[0] if isinstance(cov, list) and cov else None)
+                       or b.get("logo_url") or b.get("cover_url") or b.get("cover_image_url"))
+                binfo[b.get("business_id")] = {"img": img, "slug": b.get("slug"),
+                                               "name": b.get("public_name") or b.get("name")}
+        for p in prods[:n]:
+            bi = binfo.get(p.get("business_id"), {})
+            slug = bi.get("slug")
+            card = _card(p.get("product_id") or p.get("id"), "shop",
+                         p.get("title") or "Product", bi.get("name") or "RadioLife Shop",
+                         bi.get("img"), f"/business/{slug}" if slug else "/shop", "SHOP", slug)
+            card["price"] = _price(p.get("price_cents"), p.get("currency"))
+            out.append(card)
+    except Exception as e:
+        log.warning("browse._shop_products: %s", e)
+    return out
+
+
 async def _recommended(db, user: Optional[dict], n: int) -> list[dict]:
     ids: list[str] = []
     if user:
@@ -168,6 +204,7 @@ async def browse_home(request: Request):
     podcasts = await _podcasts(db, 18)
     games = await _games(db, 12)
     deals = await _deals(db, 12)
+    shop = await _shop_products(db, 12)
 
     hero_src = originals or stations or recommended
     hero = None
@@ -181,11 +218,122 @@ async def browse_home(request: Request):
         {"key": "stations", "title": "Live Stations", "items": stations},
         {"key": "podcasts", "title": "Podcasts & Shows", "items": podcasts},
         {"key": "games", "title": "Play & Win", "items": games},
+        {"key": "shop", "title": "Shop on RadioLife", "items": shop},
         {"key": "deals", "title": "Deals Near You", "items": deals},
     ]
     rails = [r for r in rails if r["items"]]
     return {"hero": hero, "rails": rails,
             "user": {"name": (user or {}).get("display_name") or (user or {}).get("name")} if user else None}
+
+
+def _dedup(cards: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for c in cards:
+        k = (c.get("type"), c.get("id") or c.get("title"))
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(c)
+    return out
+
+
+def _rot(lst: list, offset: int, count: int) -> list:
+    if not lst:
+        return []
+    return [lst[(offset + i) % len(lst)] for i in range(count)]
+
+
+async def _feed_pools(db, user: Optional[dict]) -> dict:
+    originals = await _originals(db, 12)
+    stations = await _stations(db, 24)
+    recommended = await _recommended(db, user, 12)
+    podcasts = await _podcasts(db, 24)
+    games = await _games(db, 16)
+    shop = await _shop_products(db, 20)
+    deals = await _deals(db, 16)
+    shoppool = list(shop)
+    for d in deals:  # top up the shop pool with local businesses as shop cards
+        d = dict(d)
+        d["type"] = "shop"
+        d["badge"] = "SHOP"
+        shoppool.append(d)
+    videos = _dedup(originals + recommended + stations + podcasts)
+    shorts = [{**v, "type": "short", "badge": None}
+              for v in _dedup(recommended + stations + originals + podcasts)][:18]
+    return {"videos": videos, "games": games, "shop": _dedup(shoppool), "shorts": shorts}
+
+
+@router.get("/feed")
+async def browse_feed(request: Request, page: int = 0, cat: str = "all"):
+    """Endless YouTube-style feed: mixed grid + rotating shelves (shorts,
+    playables/games, shop) with shop products sprinkled through the grid.
+    Recycles a finite catalog so it never ends (has_more stays true)."""
+    db = request.app.state.db
+    try:
+        from auth import current_user_optional
+        user = await current_user_optional(request)
+    except Exception:
+        user = None
+    pools = await _feed_pools(db, user)
+    videos, games = pools["videos"], pools["games"]
+    shop, shorts = pools["shop"], pools["shorts"]
+    blocks: list[dict] = []
+
+    if cat == "shopping":
+        blocks.append({"kind": "grid", "items": _rot(shop, page * 12, 12)})
+        if page % 2 == 0 and shop:
+            blocks.append({"kind": "shelf", "variant": "shop",
+                           "title": "Trending in Shop", "items": _rot(shop, page * 6 + 3, 10)})
+        has_more = bool(shop)
+    elif cat == "games":
+        blocks.append({"kind": "shelf", "variant": "playables",
+                       "title": "Play & Win — instant games", "items": _rot(games, page * 8, min(10, max(1, len(games))))})
+        blocks.append({"kind": "grid", "items": _rot(games, page * 8, 8)})
+        has_more = bool(games)
+    elif cat != "all":
+        typ = {"originals": "original", "stations": "station",
+               "podcasts": "podcast"}.get(cat)
+        pool = [v for v in videos if (typ is None or v.get("type") == typ)] or videos
+        blocks.append({"kind": "grid", "items": _rot(pool, page * 12, 12)})
+        has_more = bool(pool)
+    else:
+        grid = _rot(videos, page * 10, 10)
+        mixed = []
+        si = page * 3
+        for i, v in enumerate(grid):
+            mixed.append(v)
+            if shop and (i + 1) % 6 == 0:
+                mixed.append(shop[si % len(shop)])
+                si += 1
+        blocks.append({"kind": "grid", "items": mixed})
+        variant = page % 4
+        if variant == 0 and shorts:
+            blocks.append({"kind": "shelf", "variant": "shorts", "title": "Shorts",
+                           "items": _rot(shorts, page * 5, min(14, len(shorts)))})
+        elif variant == 1 and games:
+            blocks.append({"kind": "shelf", "variant": "playables",
+                           "title": "Play & Win — instant games", "items": _rot(games, page * 6, min(10, len(games)))})
+        elif variant == 2 and shop:
+            blocks.append({"kind": "shelf", "variant": "shop", "title": "Shop on RadioLife",
+                           "items": _rot(shop, page * 6, min(10, len(shop)))})
+        else:
+            feat = (shop[page % len(shop)] if shop else (videos[page % len(videos)] if videos else None))
+            if feat:
+                blocks.append({"kind": "featured", "item": feat,
+                               "cta": "Shop now" if feat.get("type") == "shop" else "Watch now"})
+        has_more = bool(videos)
+
+    resp: dict[str, Any] = {"page": page, "has_more": has_more, "blocks": blocks}
+    if page == 0:
+        chips = [{"key": "all", "title": "All"}, {"key": "shopping", "title": "Shopping"}]
+        for key, title in [("originals", "Originals"), ("stations", "Live Stations"),
+                           ("podcasts", "Podcasts"), ("games", "Play & Win")]:
+            chips.append({"key": key, "title": title})
+        resp["chips"] = chips
+        resp["subs"] = _rot(pools["videos"], 0, min(8, len(pools["videos"])))
+        resp["user"] = {"name": (user or {}).get("display_name") or (user or {}).get("name")} if user else None
+    return resp
 
 
 __all__ = ["router"]
