@@ -1,5 +1,17 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## TUBE SKIN — SHOPPING TAB LEGACY SUBFILTERS (2026-08 fork) — self-verified (web screenshot)
+When the "Shopping" tab/chip is active in `TubeBrowse.jsx`, a secondary row of legacy-style
+rounded pill category sub-chips appears below the main chips (`data-testid="browse-shop-subchips"`).
+List = legacy Discover quick set first (All, **Eat** [Restaurant relabeled], Cafe, Fast Food, Bar,
+Salon, Retail) + the remaining canonical business categories (Grocery, Medical & Dental, Fitness,
+Entertainment, Movie Theater, Event Promoter, Concert Promoter, Club & Lounge, Radio Station,
+Podcast Creator, Service Business, Other). Horizontally scrollable, single row, no wrap.
+VISUAL ONLY per user (`shopSub` local state highlights the selected chip; does NOT filter the feed).
+Hidden when leaving the Shopping tab (`shopSub` resets to "all"). Web-only, frontend-only change —
+no backend edits. To reach: logged-in user at `/` or `/home` with `?design=radiolife&layout=tube`.
+
+
 ## TUBE SKIN — REAL PRODUCT IMAGES + IN-FEED CART + SHORTS PLAYER (2026-08 fork, phase 1 cont.)
 Three user-approved enhancements to the web Tube skin. Web only. Testing agent iter100: backend 8/8 + frontend all PASS, no blocking issues.
 

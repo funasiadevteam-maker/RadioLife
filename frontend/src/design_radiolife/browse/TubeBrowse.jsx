@@ -18,6 +18,31 @@ import { useShopCart } from "../useShopCart";
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 
+// Legacy-style shopping subfilters shown when the "Shopping" tab is active.
+// Legacy Discover quick set first, then the remaining canonical business
+// categories. "Restaurant" is relabeled to "Eat".
+const SHOP_SUBCATS = [
+  { id: "all", label: "All" },
+  { id: "restaurant", label: "Eat" },
+  { id: "cafe", label: "Cafe" },
+  { id: "fast_food", label: "Fast Food" },
+  { id: "bar", label: "Bar" },
+  { id: "salon", label: "Salon" },
+  { id: "retail", label: "Retail" },
+  { id: "grocery", label: "Grocery" },
+  { id: "medical_dental", label: "Medical & Dental" },
+  { id: "fitness", label: "Fitness" },
+  { id: "entertainment", label: "Entertainment" },
+  { id: "movie_theater", label: "Movie Theater" },
+  { id: "event_promoter", label: "Event Promoter" },
+  { id: "concert_promoter", label: "Concert Promoter" },
+  { id: "club_lounge", label: "Club & Lounge" },
+  { id: "radio_station", label: "Radio Station" },
+  { id: "podcast_creator", label: "Podcast Creator" },
+  { id: "service_business", label: "Service Business" },
+  { id: "other", label: "Other" },
+];
+
 // ── cards ────────────────────────────────────────────────────────────
 function VideoCard({ item, onOpen }) {
   const isGame = item.type === "game";
@@ -416,7 +441,11 @@ export default function TubeBrowse({ onOpen }) {
     }
   }, [blocks, loading, loadMore]);
 
-  const chooseCat = (k) => { if (k !== cat) { setBlocks([]); setPage(0); setCat(k); } };
+  const [shopSub, setShopSub] = useState("all");
+  const chooseCat = (k) => {
+    if (k !== "shopping") setShopSub("all");
+    if (k !== cat) { setBlocks([]); setPage(0); setCat(k); }
+  };
 
   // Shop cart + Shorts player state
   const cartCount = useShopCart((s) => s.items.reduce((n, i) => n + i.qty, 0));
@@ -524,6 +553,19 @@ export default function TubeBrowse({ onOpen }) {
             </button>
           ))}
         </div>
+
+        {/* Shopping subfilters (legacy-style categories) */}
+        {cat === "shopping" && (
+          <div data-testid="browse-shop-subchips"
+            className="sticky top-[6.75rem] z-20 bg-white/95 backdrop-blur flex gap-2 overflow-x-auto no-scrollbar px-4 lg:px-6 py-2.5 border-b border-slate-100">
+            {SHOP_SUBCATS.map((s) => (
+              <button key={s.id} onClick={() => setShopSub(s.id)} data-testid={`browse-shop-subchip-${s.id}`}
+                className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-bold border transition-colors ${shopSub === s.id ? "bg-orange-500 text-white border-orange-500" : "bg-white text-slate-700 border-slate-200 hover:bg-orange-50 hover:border-orange-200"}`}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Feed */}
         <div className="px-4 lg:px-6 py-4">
