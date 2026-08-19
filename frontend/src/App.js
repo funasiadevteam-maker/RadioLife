@@ -90,6 +90,7 @@ import PlayDiscover from "@/pages/play/PlayDiscover";
 // Phase AD.1 — Advertiser self-service dashboard MVP (parallel to Phase 18a).
 import AdvertiserApply from "@/pages/advertiser_v2/AdvertiserApply";
 import AdvertiserShell from "@/pages/advertiser_v2/AdvertiserShell";
+import DeveloperApi from "@/pages/advertiser_v2/DeveloperApi";
 import AdvertiserOverview from "@/pages/advertiser_v2/AdvertiserOverview";
 import AdvertiserCampaigns from "@/pages/advertiser_v2/AdvertiserCampaigns";
 import AdvertiserBudget from "@/pages/advertiser_v2/AdvertiserBudget";
@@ -768,6 +769,7 @@ function AppRouter() {
         <Route path="budget" element={<AdvertiserBudget />} />
         <Route path="analytics" element={<AdvertiserAnalyticsAD1 />} />
         <Route path="profile" element={<AdvertiserProfile />} />
+        <Route path="api" element={<DeveloperApi />} />
       </Route>
       <Route path="/admin/advertisers" element={
         <ProtectedRoute requireAdmin><AdminAdvertisersAD1 /></ProtectedRoute>

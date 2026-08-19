@@ -10,7 +10,7 @@ import {
   ChevronRight, Loader2, Menu, X, AlertTriangle, Gamepad2,
   Users, ScanLine, Ticket, Image as ImageIcon, BellRing, Trophy, Flame, Headphones,
   Sparkles, Radio, MapPin, Store, Target,
-  Search,
+  Search, KeyRound,
 } from "lucide-react";
 
 import { useAuth } from "@/AuthContext";
@@ -43,6 +43,7 @@ const NAV = [
   { path: "/advertiser/dashboard/auction-insights", label: "Auction Insights", Icon: Search },
   { path: "/advertiser/dashboard/analytics",              label: "Analytics",              Icon: BarChart3 },
   { path: "/advertiser/dashboard/profile",                    label: "Profile",                    Icon: Settings },
+  { path: "/advertiser/dashboard/api",                        label: "API & Keys",            Icon: KeyRound, testid: "advertiser-nav-api" },
 ];
 
 export default function AdvertiserShell() {
@@ -165,9 +166,9 @@ export default function AdvertiserShell() {
               <StatusPill status={active.status} />
             </div>
             <nav className="flex-1 py-3 px-2">
-              {visibleNav.map(({ path, label, Icon }) => (
+              {visibleNav.map(({ path, label, Icon, testid }) => (
                 <NavLink key={path} to={path}
-                                data-testid={`advertiser-nav-${label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`}
+                                data-testid={testid || `advertiser-nav-${label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`}
                                 className={({ isActive }) => `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium mb-0.5 transition
                                   focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${light ? "focus-visible:ring-offset-white" : "focus-visible:ring-offset-slate-900"} ${
                                   isActive
@@ -207,9 +208,9 @@ export default function AdvertiserShell() {
           {mobileOpen && (
             <div className={`lg:hidden ${light ? "bg-white" : "bg-slate-900"} px-4 py-3`}
                         data-testid="advertiser-shell-mobile-nav">
-              {visibleNav.map(({ path, label, Icon }) => (
+              {visibleNav.map(({ path, label, Icon, testid }) => (
                 <NavLink key={path} to={path} onClick={() => setMobileOpen(false)}
-                                data-testid={`advertiser-nav-mobile-${label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`}
+                                data-testid={testid ? `${testid}-mobile` : `advertiser-nav-mobile-${label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`}
                                 className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
                                   isActive ? "bg-amber-500/15 text-amber-500" :
                                                         (light ? "text-slate-700" : "text-slate-300")

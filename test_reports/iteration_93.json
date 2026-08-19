@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 93 — RadioLife Ads Public API (/api/v1) tested end-to-end on web. Backend: 17/17 pytest passed (meta+auth, admin+partner+sandbox key, sandbox lifecycle create/topup/campaign/report, guardrails 409/404, OAuth2 client_credentials + scope 403 + bad-secret 401, self-serve portal). Frontend: /advertiser/dashboard/api renders correctly for a user with an advertiser (admin@); onboarding form -> keys/oauth sections -> secret reveal all work; docs link -> /api/v1/docs. Fixed a small selector mismatch so advertiser-nav-api testid now matches the spec (was auto-computed to advertiser-nav-api-keys).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/advertiser/dashboard/api", "issues": ["When on onboarding form (no partner account yet), page has no visible ‘API & Keys’ H1 header — user sees just the ‘Create your developer account’ card. Minor: title is still rendered but very low-emphasis while onboarding. Non-blocking."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter93_partner_api.py",
+    "/app/test_reports/pytest/iter93.xml"
+  ],
+  "action_items": [
+    "Consider gating the /advertiser/dashboard/api route so users without an advertiser (test@) don't get redirected to /advertiser/apply — the underlying /api/partner/* endpoints are current_user-gated and don't need an advertiser. Users with only a merchant business currently cannot reach the Developer API page. Alternative: mount the page under a route that only requires login (e.g. /developer/api) and just also expose it in the advertiser shell.",
+    "(Optional polish) The DeveloperApi page renders both the API keys and OAuth client sections but not the header ‘API & Keys’ when the user is on the onboarding step. Consider showing the header there too for clarity."
+  ],
+  "critical_code_review_comments": [
+    "AdvertiserShell.jsx set a `testid` field on some NAV entries (api, banner-campaigns, takeover-hours, retargeting) but the sidebar render always auto-computed data-testid from label; the explicit `testid` prop was silently ignored. Fixed both desktop + mobile renders to honour the explicit testid so `advertiser-nav-api` (as spec’d) is now present.",
+    "partner_api.py: `_load_secrets` caches globally in a module-level dict — fine for a single-process worker but state persists across DB switches (e.g. tests using a different DB_NAME). Non-blocking today.",
+    "partner_api_v1.py `oauth_token` catches HTTP Basic parse errors with bare `except Exception: pass` — if Basic auth is malformed AND form body has no client_id, the endpoint responds 401 client_authentication_required which is correct but the parse-error is silently swallowed (no log). Consider `log.debug` for observability.",
+    "partner_api_v1.py `create_campaign` mutates the caller-supplied `creative` dict when product is `audio_preroll_stub` — safe here (pydantic model_dump returns a new dict) but worth a comment.",
+    "partner_portal.py revoke endpoints return 200 with `{ok:true,...}` — fine, but the OpenAPI generated for /api/v1 won't include them since they're on the app-level router; that's intentional (portal is internal)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter93_partner_api.py",
+    "/app/frontend/src/pages/advertiser_v2/AdvertiserShell.jsx"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% of testids present after fix; all flows work"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! reaches /advertiser/dashboard/api (has an advertiser). test@bigfm.dubai has no advertiser so gets redirected to /advertiser/apply.",
+  "seed_data_creation": "Test partners + sandbox keys + oauth clients created under prefix TEST_ during pytest run; cleanup not implemented (mongo isolation via unique ids). Also created a live/sandbox OAuth client + sandbox API key on the admin@ partner via the web UI during manual verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend already 100% green. Web Developer API page has been fixed: `advertiser-nav-api` testid now resolves in both desktop and mobile navs. Only remaining product decision: users without an advertiser can't reach /advertiser/dashboard/api because the shell requires an advertiser doc; if desired, split the route out. New pytest file: /app/backend/tests/test_iter93_partner_api.py.",
+  "rca of the issue": "Nav item testid mismatch — /app/frontend/src/pages/advertiser_v2/AdvertiserShell.jsx line 46 declared `testid: 'advertiser-nav-api'` on the API NAV entry, but the render (lines 171 & 213) always auto-computed data-testid from the label (`advertiser-nav-api-keys`), silently dropping the explicit `testid` prop. Fixed by destructuring `testid` in the map and using it when present."
+}

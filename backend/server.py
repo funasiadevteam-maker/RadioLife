@@ -5855,6 +5855,28 @@ try:
 except Exception as _e:
     logger.warning("category-bid router not loaded: %s", _e)
 
+# RadioLife Ads Public API (v1) — partner/programmatic marketing.
+# Mounts a dedicated sub-app at /api/v1 (docs at /api/v1/docs) that facades the
+# internal ad platform, plus the self-serve portal + admin management routers.
+try:
+    from routes.partner_api_v1 import partner_app as _partner_v1_app
+    from routes.partner_portal import router as _partner_portal_router
+    from routes.partner_portal import admin_router as _partner_admin_router
+    from services.partner_api import ensure_partner_api as _ensure_partner_api
+    _partner_v1_app.state.db = db
+    app.mount("/api/v1", _partner_v1_app)
+    app.include_router(_partner_portal_router)
+    app.include_router(_partner_admin_router)
+    try:
+        import asyncio as _aio_pa
+        _aio_pa.get_event_loop().create_task(_ensure_partner_api(db))
+    except RuntimeError:
+        pass
+    logger.info("RadioLife Ads API v1 wired: /api/v1 (+ /api/v1/docs), "
+                "/api/partner, /api/admin/partner-api")
+except Exception as _e:
+    logger.warning("partner API v1 not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router
