@@ -4,15 +4,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
+import { toast } from "sonner";
 import {
   Search, Play, Sparkles, Home, Film, ShoppingBag, Gamepad2, Flame,
   User, History, ListVideo, ThumbsUp, ChevronRight, Loader2,
+  ShoppingCart, X, Plus, Minus, Trash2, ChevronUp,
 } from "lucide-react";
 import { Art } from "./browseShared";
 import LayoutSwitcher from "./LayoutSwitcher";
 import { useDesignVariantStore } from "@/hooks/useDesignVariant";
+import { useShopCart } from "../useShopCart";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
+const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 
 // ── cards ────────────────────────────────────────────────────────────
 function VideoCard({ item, onOpen }) {
@@ -46,23 +50,33 @@ function VideoCard({ item, onOpen }) {
   );
 }
 
-function ShopGridCard({ item, onOpen }) {
+function ShopGridCard({ item, onOpen, onAdd }) {
   return (
-    <button onClick={() => onOpen(item)} data-testid="browse-shop-tile" className="group text-left w-full">
-      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-100 ring-1 ring-orange-100">
-        <Art item={item} rounded="rounded-xl" />
-        <span className="absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-500 text-white">
-          <ShoppingBag size={11} /> SHOP
-        </span>
-        {item.price && (
-          <span className="absolute bottom-2 left-2 text-xs font-black px-2 py-1 rounded-lg bg-white/95 text-[#0f0f0f] shadow">{item.price}</span>
+    <div data-testid="browse-shop-tile" className="group text-left w-full">
+      <button onClick={() => onOpen(item)} className="block w-full text-left">
+        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-100 ring-1 ring-orange-100">
+          <Art item={item} rounded="rounded-xl" />
+          <span className="absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-500 text-white">
+            <ShoppingBag size={11} /> SHOP
+          </span>
+          {item.price && (
+            <span className="absolute bottom-2 left-2 text-xs font-black px-2 py-1 rounded-lg bg-white/95 text-[#0f0f0f] shadow">{item.price}</span>
+          )}
+        </div>
+      </button>
+      <div className="mt-2.5 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-bold text-[15px] leading-snug text-[#0f0f0f] line-clamp-2">{item.title}</div>
+          <div className="text-[13px] text-orange-600 font-semibold line-clamp-1 mt-0.5">{item.subtitle}</div>
+        </div>
+        {item.buyable && (
+          <button onClick={() => onAdd(item)} data-testid="browse-add-to-cart" title="Add to cart"
+            className="shrink-0 mt-0.5 inline-flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white font-black text-xs rounded-full px-3 py-1.5">
+            <Plus size={13} /> Add
+          </button>
         )}
       </div>
-      <div className="mt-2.5">
-        <div className="font-bold text-[15px] leading-snug text-[#0f0f0f] line-clamp-2">{item.title}</div>
-        <div className="text-[13px] text-orange-600 font-semibold line-clamp-1 mt-0.5">{item.subtitle} · Shop now</div>
-      </div>
-    </button>
+    </div>
   );
 }
 
@@ -75,22 +89,123 @@ function ShelfHeader({ icon: Icon, title, color }) {
   );
 }
 
-function ShortsShelf({ title, items, onOpen }) {
+function ShortsShelf({ title, items, onOpenShorts }) {
   return (
     <section className="py-4" data-testid="browse-shelf-shorts">
       <ShelfHeader icon={Flame} title={title} color="#FF0000" />
       <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
         {items.map((it, i) => (
-          <button key={(it.id || "") + i} onClick={() => onOpen(it)} className="shrink-0 w-[150px] group text-left">
+          <button key={(it.id || "") + i} onClick={() => onOpenShorts(items, i)} data-testid="browse-short-card" className="shrink-0 w-[150px] group text-left">
             <div className="relative w-full rounded-xl overflow-hidden bg-slate-100" style={{ aspectRatio: "9/16" }}>
               <Art item={it} rounded="rounded-xl" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+              <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Play size={30} className="text-white drop-shadow" fill="currentColor" />
+              </span>
             </div>
             <div className="font-bold text-[13px] leading-snug text-[#0f0f0f] line-clamp-2 mt-1.5">{it.title}</div>
           </button>
         ))}
       </div>
     </section>
+  );
+}
+
+// Full-screen vertical, swipeable Shorts player (scroll-snap = flick up/down).
+function ShortsPlayer({ items, index, onClose, onOpen }) {
+  const scrollerRef = useRef(null);
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (el) el.scrollTo({ top: index * el.clientHeight });
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return (
+    <div className="fixed inset-0 z-[120] bg-black" data-testid="browse-shorts-player">
+      <button onClick={onClose} data-testid="browse-shorts-close"
+        className="absolute top-4 right-4 z-10 h-10 w-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center">
+        <X size={22} />
+      </button>
+      <div ref={scrollerRef} className="h-full overflow-y-auto snap-y snap-mandatory no-scrollbar">
+        {items.map((it, i) => (
+          <div key={(it.id || "") + i} className="h-full w-full snap-start flex items-center justify-center relative" data-testid="browse-short-slide">
+            <div className="relative h-full w-full max-w-[440px] mx-auto">
+              <Art item={it} rounded="rounded-none" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
+              <div className="absolute left-4 right-16 bottom-8 text-white">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="h-9 w-9 rounded-full flex items-center justify-center bg-white/20 font-black">{(it.subtitle || it.title || "?").slice(0, 1)}</span>
+                  <span className="font-bold text-sm">{it.subtitle}</span>
+                </div>
+                <div className="font-black text-lg leading-snug line-clamp-3">{it.title}</div>
+                <button onClick={() => onOpen(it)} data-testid="browse-short-play"
+                  className="mt-3 inline-flex items-center gap-1.5 bg-white text-black font-black rounded-full px-5 py-2 text-sm">
+                  <Play size={14} fill="currentColor" /> Play
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// In-feed shopping cart drawer (reuses the shared single-merchant cart).
+function CartDrawer({ open, onClose, onCheckout, checkingOut }) {
+  const items = useShopCart((s) => s.items);
+  const businessName = useShopCart((s) => s.businessName);
+  const inc = useShopCart((s) => s.inc);
+  const dec = useShopCart((s) => s.dec);
+  const clear = useShopCart((s) => s.clear);
+  const subtotal = items.reduce((n, i) => n + i.price_cents * i.qty, 0);
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-[95] bg-black/40" onClick={onClose} />
+      <aside data-testid="browse-cart-drawer" className="fixed right-0 top-0 z-[100] h-full w-full max-w-sm bg-white shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between px-4 h-14 border-b border-slate-100">
+          <div className="font-black text-[#0f0f0f] flex items-center gap-2"><ShoppingCart size={18} /> Your cart</div>
+          <button onClick={onClose} data-testid="browse-cart-close" className="h-9 w-9 rounded-full hover:bg-slate-100 flex items-center justify-center"><X size={18} /></button>
+        </div>
+        {items.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
+            <ShoppingCart size={32} /> <span className="text-sm">Your cart is empty</span>
+          </div>
+        ) : (
+          <>
+            <div className="px-4 py-2 text-xs font-bold text-slate-400">{businessName}</div>
+            <div className="flex-1 overflow-y-auto px-4 divide-y divide-slate-100">
+              {items.map((i) => (
+                <div key={i.line_id} className="flex items-center gap-3 py-3" data-testid="browse-cart-item">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-sm text-[#0f0f0f] line-clamp-1">{i.name}</div>
+                    <div className="text-xs text-slate-500">{money(i.price_cents)}</div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => dec(i.line_id)} className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center"><Minus size={13} /></button>
+                    <span className="w-6 text-center font-black text-sm">{i.qty}</span>
+                    <button onClick={() => inc(i.line_id)} data-testid="browse-cart-inc" className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center"><Plus size={13} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-slate-100 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-500 font-bold text-sm">Subtotal</span>
+                <span className="font-black text-lg text-[#0f0f0f]" data-testid="browse-cart-subtotal">{money(subtotal)}</span>
+              </div>
+              <button onClick={onCheckout} disabled={checkingOut} data-testid="browse-cart-checkout"
+                className="w-full inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-full py-3 disabled:opacity-50">
+                {checkingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShoppingBag size={18} />} Checkout
+              </button>
+              <button onClick={clear} className="w-full text-center text-xs font-bold text-slate-400 mt-2 flex items-center justify-center gap-1"><Trash2 size={12} /> Clear cart</button>
+            </div>
+          </>
+        )}
+      </aside>
+    </>
   );
 }
 
@@ -117,27 +232,35 @@ function PlayablesShelf({ title, items, onOpen }) {
   );
 }
 
-function ShopShelf({ title, items, onOpen }) {
+function ShopShelf({ title, items, onOpen, onAdd }) {
   return (
     <section className="py-4" data-testid="browse-shelf-shop">
       <ShelfHeader icon={ShoppingBag} title={title} color="#f97316" />
       <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
         {items.map((it, i) => (
-          <button key={(it.id || "") + i} onClick={() => onOpen(it)} className="shrink-0 w-[190px] text-left">
-            <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-slate-100 ring-1 ring-orange-100">
-              <Art item={it} rounded="rounded-2xl" />
-              {it.price && <span className="absolute bottom-2 left-2 text-xs font-black px-2 py-1 rounded-lg bg-white/95 text-[#0f0f0f] shadow">{it.price}</span>}
-            </div>
-            <div className="font-bold text-sm text-[#0f0f0f] line-clamp-2 mt-1.5">{it.title}</div>
-            <div className="text-[12px] text-orange-600 font-semibold line-clamp-1">{it.subtitle}</div>
-          </button>
+          <div key={(it.id || "") + i} className="shrink-0 w-[190px]">
+            <button onClick={() => onOpen(it)} className="block w-full text-left">
+              <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-slate-100 ring-1 ring-orange-100">
+                <Art item={it} rounded="rounded-2xl" />
+                {it.price && <span className="absolute bottom-2 left-2 text-xs font-black px-2 py-1 rounded-lg bg-white/95 text-[#0f0f0f] shadow">{it.price}</span>}
+              </div>
+              <div className="font-bold text-sm text-[#0f0f0f] line-clamp-2 mt-1.5">{it.title}</div>
+              <div className="text-[12px] text-orange-600 font-semibold line-clamp-1">{it.subtitle}</div>
+            </button>
+            {it.buyable && (
+              <button onClick={() => onAdd(it)} data-testid="browse-add-to-cart"
+                className="mt-1.5 w-full inline-flex items-center justify-center gap-1 bg-orange-500 hover:bg-orange-600 text-white font-black text-xs rounded-full py-1.5">
+                <Plus size={13} /> Add to cart
+              </button>
+            )}
+          </div>
         ))}
       </div>
     </section>
   );
 }
 
-function FeaturedBlock({ item, cta, onOpen }) {
+function FeaturedBlock({ item, cta, onOpen, onAdd }) {
   const shop = item.type === "shop";
   return (
     <section className="py-5" data-testid="browse-featured">
@@ -152,10 +275,18 @@ function FeaturedBlock({ item, cta, onOpen }) {
           </span>
           <h2 className="text-2xl lg:text-3xl font-black text-[#0f0f0f] mt-2 leading-tight">{item.title}</h2>
           <p className="text-slate-500 mt-1">{item.subtitle}</p>
-          <button onClick={() => onOpen(item)}
-            className="mt-4 inline-flex items-center gap-1.5 bg-[#0f0f0f] text-white font-black rounded-full px-5 py-2.5 text-sm">
-            {cta} <ChevronRight size={16} />
-          </button>
+          <div className="flex items-center gap-2 mt-4">
+            <button onClick={() => onOpen(item)}
+              className="inline-flex items-center gap-1.5 bg-[#0f0f0f] text-white font-black rounded-full px-5 py-2.5 text-sm">
+              {cta} <ChevronRight size={16} />
+            </button>
+            {shop && item.buyable && (
+              <button onClick={() => onAdd(item)} data-testid="browse-add-to-cart"
+                className="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-full px-5 py-2.5 text-sm">
+                <Plus size={15} /> Add to cart
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </section>
@@ -212,13 +343,13 @@ function Sidebar({ cat, setCat, subs }) {
 }
 
 // ── grid renderer ─────────────────────────────────────────────────────
-function Grid({ items, onOpen, q }) {
+function Grid({ items, onOpen, q, onAdd }) {
   const list = q ? items.filter((i) => (i.title || "").toLowerCase().includes(q.toLowerCase())) : items;
   if (!list.length) return null;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-7 py-2">
       {list.map((it, i) => it.type === "shop"
-        ? <ShopGridCard key={(it.id || "") + it.title + i} item={it} onOpen={onOpen} />
+        ? <ShopGridCard key={(it.id || "") + it.title + i} item={it} onOpen={onOpen} onAdd={onAdd} />
         : <VideoCard key={(it.id || "") + it.title + i} item={it} onOpen={onOpen} />)}
     </div>
   );
@@ -287,13 +418,61 @@ export default function TubeBrowse({ onOpen }) {
 
   const chooseCat = (k) => { if (k !== cat) { setBlocks([]); setPage(0); setCat(k); } };
 
+  // Shop cart + Shorts player state
+  const cartCount = useShopCart((s) => s.items.reduce((n, i) => n + i.qty, 0));
+  const [cartOpen, setCartOpen] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [shorts, setShorts] = useState(null); // {items, index}
+
+  const addToCart = (it) => {
+    if (!it.business_id || !it.price_cents) { toast.error("This item isn't purchasable yet"); return; }
+    const cur = useShopCart.getState();
+    if (cur.businessId && cur.businessId !== it.business_id && cur.items.length) {
+      toast(`Started a new cart for ${it.business_name}`);
+    }
+    useShopCart.getState().add(it.business_id, it.business_name,
+      { item_id: it.id, name: it.title, price_cents: it.price_cents });
+    toast.success("Added to cart");
+    setCartOpen(true);
+  };
+
+  const checkout = async () => {
+    const st = useShopCart.getState();
+    if (!st.items.length) return;
+    setCheckingOut(true);
+    try {
+      const r = await axios.post(`${API}/shop/product-orders/checkout`, {
+        business_id: st.businessId,
+        items: st.items.map((i) => ({ product_id: i.item_id, qty: i.qty })),
+        fulfillment: "pickup",
+        origin_url: window.location.origin,
+      });
+      if (r.data.checkout_url) {
+        window.open(r.data.checkout_url, "_blank", "noopener");
+        toast.success("Opening secure checkout…");
+      } else if (r.data.status === "paid" || r.data.order_id) {
+        toast.success("Order placed!");
+        st.clear();
+        setCartOpen(false);
+      } else {
+        toast.success("Order created");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail?.code || e?.response?.data?.detail || "Checkout failed");
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
+  const openShorts = (items, index) => setShorts({ items, index });
+
   const renderBlock = (b, i) => {
-    if (b.kind === "grid") return <Grid key={`g${i}`} items={b.items || []} onOpen={onOpen} q={q} />;
-    if (b.kind === "featured") return <FeaturedBlock key={`f${i}`} item={b.item} cta={b.cta} onOpen={onOpen} />;
+    if (b.kind === "grid") return <Grid key={`g${i}`} items={b.items || []} onOpen={onOpen} q={q} onAdd={addToCart} />;
+    if (b.kind === "featured") return <FeaturedBlock key={`f${i}`} item={b.item} cta={b.cta} onOpen={onOpen} onAdd={addToCart} />;
     if (b.kind === "shelf") {
-      if (b.variant === "shorts") return <ShortsShelf key={`s${i}`} title={b.title} items={b.items || []} onOpen={onOpen} />;
+      if (b.variant === "shorts") return <ShortsShelf key={`s${i}`} title={b.title} items={b.items || []} onOpenShorts={openShorts} />;
       if (b.variant === "playables") return <PlayablesShelf key={`s${i}`} title={b.title} items={b.items || []} onOpen={onOpen} />;
-      if (b.variant === "shop") return <ShopShelf key={`s${i}`} title={b.title} items={b.items || []} onOpen={onOpen} />;
+      if (b.variant === "shop") return <ShopShelf key={`s${i}`} title={b.title} items={b.items || []} onOpen={onOpen} onAdd={addToCart} />;
     }
     return null;
   };
@@ -318,6 +497,13 @@ export default function TubeBrowse({ onOpen }) {
           <button className="px-5 py-2 bg-slate-100 border border-l-0 border-slate-200 rounded-r-full"><Search size={18} className="text-slate-600" /></button>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setCartOpen(true)} data-testid="browse-cart-btn"
+            className="relative h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center">
+            <ShoppingCart size={20} className="text-[#0f0f0f]" />
+            {cartCount > 0 && (
+              <span data-testid="browse-cart-count" className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-500 text-white text-[10px] font-black flex items-center justify-center">{cartCount}</span>
+            )}
+          </button>
           <LayoutSwitcher tone="light" />
           <button onClick={() => setVariant("legacy")} data-testid="browse-exit-legacy"
             className="hidden lg:inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800">
@@ -350,6 +536,9 @@ export default function TubeBrowse({ onOpen }) {
           )}
         </div>
       </main>
+
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} onCheckout={checkout} checkingOut={checkingOut} />
+      {shorts && <ShortsPlayer items={shorts.items} index={shorts.index} onClose={() => setShorts(null)} onOpen={onOpen} />}
     </div>
   );
 }

@@ -121,31 +121,65 @@ def _price(cents, currency) -> Optional[str]:
 
 
 async def _shop_products(db, n: int) -> list[dict]:
+    """Prefer checkout-eligible marketplace products (approved + subscribed
+    business, with a real image_url when the owner uploaded one). Enriches
+    each card with business_id/business_name/price_cents/in_stock so the feed
+    can add it straight to the shop cart."""
     out = []
     try:
-        prods = [p async for p in db.products.find({"active": True}).limit(n * 2)]
-        if not prods:
-            prods = [p async for p in db.products.find({}).limit(n * 2)]
-        biz_ids = list({p.get("business_id") for p in prods if p.get("business_id")})
-        binfo: dict = {}
-        if biz_ids:
-            async for b in db.marketplace_profiles.find({"business_id": {"$in": biz_ids}}):
-                cov = b.get("cover_urls") or []
-                img = ((cov[0] if isinstance(cov, list) and cov else None)
-                       or b.get("logo_url") or b.get("cover_url") or b.get("cover_image_url"))
-                binfo[b.get("business_id")] = {"img": img, "slug": b.get("slug"),
-                                               "name": b.get("public_name") or b.get("name")}
-        for p in prods[:n]:
-            bi = binfo.get(p.get("business_id"), {})
-            slug = bi.get("slug")
-            card = _card(p.get("product_id") or p.get("id"), "shop",
-                         p.get("title") or "Product", bi.get("name") or "RadioLife Shop",
-                         bi.get("img"), f"/business/{slug}" if slug else "/shop", "SHOP", slug)
-            card["price"] = _price(p.get("price_cents"), p.get("currency"))
-            out.append(card)
+        elig: dict = {}
+        async for b in db.marketplace_profiles.find(
+                {"status": "approved", "subscription_active": True},
+                {"business_id": 1, "public_name": 1, "name": 1, "slug": 1,
+                 "cover_urls": 1, "logo_url": 1}):
+            cov = b.get("cover_urls") or []
+            elig[b["business_id"]] = {
+                "name": b.get("public_name") or b.get("name"), "slug": b.get("slug"),
+                "img": (cov[0] if isinstance(cov, list) and cov else None) or b.get("logo_url")}
+
+        async def _emit(query, limit):
+            async for p in db.products.find(query).limit(limit):
+                bid = p.get("business_id")
+                bi = elig.get(bid, {})
+                title = p.get("name") or p.get("title") or "Product"
+                img = p.get("image_url") or bi.get("img")
+                card = _card(p.get("product_id") or p.get("id"), "shop", title,
+                             bi.get("name") or "RadioLife Shop", img, "/shop", "SHOP", bi.get("slug"))
+                card["price"] = _price(p.get("price_cents"), p.get("currency"))
+                card["price_cents"] = int(p.get("price_cents") or 0)
+                card["business_id"] = bid
+                card["business_name"] = bi.get("name") or "RadioLife Shop"
+                card["in_stock"] = int(p.get("stock", 0)) > 0 or bool(p.get("variants"))
+                card["buyable"] = bid in elig and card["in_stock"] and card["price_cents"] > 0
+                out.append(card)
+
+        # 1) eligible products with an uploaded image first (best-looking, buyable)
+        if elig:
+            await _emit({"active": True, "business_id": {"$in": list(elig)},
+                         "image_url": {"$nin": [None, ""]}}, n * 2)
+        seen = {c["id"] for c in out}
+        # 2) top up with any remaining eligible products
+        if len(out) < n and elig:
+            async for p in db.products.find(
+                    {"active": True, "business_id": {"$in": list(elig)}}).limit(n * 2):
+                if (p.get("product_id") or p.get("id")) in seen:
+                    continue
+                bi = elig.get(p.get("business_id"), {})
+                title = p.get("name") or p.get("title") or "Product"
+                card = _card(p.get("product_id") or p.get("id"), "shop", title,
+                             bi.get("name") or "RadioLife Shop",
+                             p.get("image_url") or bi.get("img"), "/shop", "SHOP", bi.get("slug"))
+                card["price"] = _price(p.get("price_cents"), p.get("currency"))
+                card["price_cents"] = int(p.get("price_cents") or 0)
+                card["business_id"] = p.get("business_id")
+                card["business_name"] = bi.get("name") or "RadioLife Shop"
+                card["in_stock"] = int(p.get("stock", 0)) > 0 or bool(p.get("variants"))
+                card["buyable"] = card["in_stock"] and card["price_cents"] > 0
+                out.append(card)
+                seen.add(card["id"])
     except Exception as e:
         log.warning("browse._shop_products: %s", e)
-    return out
+    return out[:n]
 
 
 async def _recommended(db, user: Optional[dict], n: int) -> list[dict]:

@@ -1,5 +1,16 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## TUBE SKIN — REAL PRODUCT IMAGES + IN-FEED CART + SHORTS PLAYER (2026-08 fork, phase 1 cont.)
+Three user-approved enhancements to the web Tube skin. Web only. Testing agent iter100: backend 8/8 + frontend all PASS, no blocking issues.
+
+1) **Real product images** — `browse._shop_products` rewritten to surface checkout-eligible marketplace products (approved+subscribed business, in-stock), preferring the owner-uploaded `product.image_url` (falls back to business cover, then gradient). Cards now carry `business_id/business_name/price_cents/in_stock/buyable`. Shop owners already upload photos via the existing `POST /api/merchant/marketplace/products/items/{id}/photo`. Seeded 8 demo products with real photos + stock on eligible businesses (`scripts/seed_demo_shop_products.py`).
+2) **In-feed shopping cart** — reuses the existing `useShopCart` (single-merchant) + existing `POST /api/shop/product-orders/checkout` (returns a real Stripe `checkout_url`). New in TubeBrowse: `browse-add-to-cart` on shop cards/shelf/featured, a header cart button + count badge (`browse-cart-btn`/`browse-cart-count`), and a slide-in `browse-cart-drawer` (qty steppers, subtotal, Checkout → opens Stripe in a new tab so the user stays in the feed).
+3) **Shorts player** — tapping a `browse-short-card` opens a full-screen vertical, scroll-snap swipeable overlay (`browse-shorts-player`) with per-slide Play + close/Escape.
+
+Files: `routes/browse.py`, `scripts/seed_demo_shop_products.py`, `frontend/src/design_radiolife/browse/TubeBrowse.jsx` (reuses `useShopCart.js`). Note: a couple of older seed products lack images → gradient fallback (by design). Awaiting phases 2–3 assets.
+
+
+
 ## TUBE SKIN → FULL YOUTUBE-STYLE ENDLESS FEED + SHOPPING (2026-08 fork, phase 1 of 3)
 User is sending references across 3 phases to evolve the WEB "Tube" browse skin into a real YouTube experience. Phase 1 (this) — web only; Cinematic/Studio untouched. Testing agent iter99: backend 10/10 pass; frontend verified; the 1 HIGH bug it found (endless scroll not appending) was fixed + re-verified by main agent (tiles 11→22, shelves 1→2 on scroll).
 

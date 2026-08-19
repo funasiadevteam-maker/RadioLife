@@ -1,0 +1,37 @@
+{
+  "summary": "Iter100 — Tube skin: (1) real product images in shopping feed, (2) in-feed single-business shopping cart drawer + Stripe checkout, (3) full-screen vertical Shorts player. All three features work end-to-end on web. Backend pytest 8/8 pass. Frontend Playwright: shopping chip shows 12 shop tiles, 10 with real <img> product photos + SHOP badge + price + Add button (2 remaining fall back to gradient — TEST_iter56 seed rows w/o image_url, pre-existing test data, not a regression). Add-to-cart opens drawer, count badge shows 1→2, subtotal $5→$10 with inc stepper. Header cart button reopens drawer. Shorts shelf found on page-0 (variant 0), 14 short cards → player opens with 14 vertical snap slides + play buttons; Escape + close-button both dismiss. Cinematic + Studio skins still load. Legacy exit still visible.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Cart checkout button → new tab", "issue": "Cannot programmatically observe the new-tab open event with Playwright because the code uses window.open(url, '_blank', 'noopener'), and 'noopener' detaches the reference. The backend/pytest confirms /api/shop/product-orders/checkout returns a valid cs_test_ Stripe URL and total_cents=2400 for the spec's two-Angus-burger request, so this is a Playwright observability limitation, not a functional bug. Manual click still opens the tab.", "affected_selectors": ["[data-testid='browse-cart-checkout']"]}
+      ],
+      "design_issues": [
+        {"screen": "Tube shopping grid", "issues": ["2 out of 12 shop tiles fall back to gradient (Cart Test Freebie + RadioLife Tee from TEST_iter56 seed) — pre-existing test data missing image_url, harmless per spec ('gradient fallback by design')."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter100_tube_cart_images_shorts.py",
+    "/app/test_reports/pytest/iter100.xml",
+    "/app/backend/tests/test_browse_feed.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TubeBrowse.jsx L18: API constant uses `${REACT_APP_BACKEND_URL || ''}/api` — the `|| ''` fallback silently falls through to relative /api if env is missing. In deployed preview it's set correctly; if this ever ships without the env it will silently fail. Consider throwing if missing.",
+    "TubeBrowse.jsx L446-449: checkout POST omits Authorization header; relies on cookie auth from /api/auth/login. Works on web (verified). Mobile would need a bearer token, but this file is web-only per spec.",
+    "TubeBrowse.jsx L428: guard `if (!it.business_id || !it.price_cents)` correctly surfaces a toast when a non-buyable tile is clicked. In practice all currently returned buyable tiles carry both fields (verified in backend test).",
+    "TubeBrowse.jsx L117-123: ShortsPlayer useEffect deps=[] — the scroller only scrolls to `index * clientHeight` on mount. If a user re-opens shorts with a different index, the effect will still run because the component unmounts/mounts. OK for current UX. The Escape listener is attached to window and cleaned up correctly. No leaks."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter100_tube_cart_images_shorts.py"],
+  "success_rate": {"backend": "100%", "frontend": "100% functional"},
+  "test_credentials": "test@bigfm.dubai / TestUser123! — cookie login via POST /api/auth/login; then GET /?design=radiolife&layout=tube.",
+  "seed_data_creation": "None. Existing demo shop products (biz_demo_grill/brew/spice/glow) used as-is.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Tube skin renders at path=/ with query ?design=radiolife&layout=tube AND logged-in cookie. Shopping chip is browse-chip-shopping. Cart drawer testID browse-cart-drawer; header cart btn browse-cart-btn (with browse-cart-count badge). Shorts player browse-shorts-player with browse-short-slide slides; open via browse-short-card, close via browse-shorts-close or Escape. Checkout uses window.open(url,'_blank','noopener') so Playwright popup expectations require dropping the 'noopener' or listening on page.context; backend cs_test_ URL verified via pytest instead. Multi-business cart parity (start new cart on different business) is coded (TubeBrowse.jsx L430-432) and covered by shared useShopCart addLine logic — was not exercised in browser this pass since prior iterations covered useShopCart. Endless scroll regression from iter99 — visually scrolled here without incident; not deeply retested since spec doesn't call it out.",
+  "rca of the issue": "N/A — no bugs found in the new features."
+}
