@@ -11,6 +11,7 @@ import { extractTier, RLCard } from "../DesignSystem";
 import PointsBalanceCard from "../components/PointsBalanceCard";
 import NearbyDealCard from "../components/NearbyDealCard";
 import { coordsForMarket } from "../utils/market_coords";
+import LayoutSwitcher from "../browse/LayoutSwitcher";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 
@@ -82,14 +83,17 @@ export default function HomeRadioLife() {
   return (
     <div className="px-4 pt-6 pb-6 space-y-5" data-testid="rl-home-page">
       {/* Greeting */}
-      <header>
-        <h1 className="text-2xl font-black tracking-tight text-slate-900">
-          Hey, {user?.display_name || user?.email?.split("@")[0] || "friend"} 👋
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Around <span className="text-purple-700 font-semibold">{city || "you"}</span>
-          {" — "}here&apos;s your afternoon.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">
+            Hey, {user?.display_name || user?.email?.split("@")[0] || "friend"} 👋
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            Around <span className="text-purple-700 font-semibold">{city || "you"}</span>
+            {" — "}here&apos;s your afternoon.
+          </p>
+        </div>
+        <div className="shrink-0"><LayoutSwitcher tone="light" /></div>
       </header>
 
       <PointsBalanceCard balance={balance} tier={tier} />

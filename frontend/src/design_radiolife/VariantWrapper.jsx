@@ -10,6 +10,8 @@ import { useDesignVariant } from "@/hooks/useDesignVariant";
 import { useAuth } from "@/AuthContext";
 import AppShellRadioLife from "./layout/AppShellRadioLife";
 import HomeRadioLife from "./screens/HomeRadioLife";
+import BrowseHome from "./browse/BrowseHome";
+import { useBrowseLayout } from "./browse/useBrowseLayout";
 import ListenRadioLife from "./screens/ListenRadioLife";
 import NowPlayingRadioLife from "./screens/NowPlayingRadioLife";
 import DiscoverRadioLife from "./screens/DiscoverRadioLife";
@@ -59,9 +61,16 @@ export default function RadioLifeVariantWrapper({ children }) {
   const variant = useDesignVariant();
   const { user } = useAuth();
   const { pathname } = useLocation();
+  const browseLayout = useBrowseLayout();
 
   // Legacy path — pass children straight through.
   if (variant !== "radiolife") return children;
+
+  // Switchable pro browse layouts (Cinematic / Studio / Tube) on the home
+  // landing — full-bleed, they own their own chrome.
+  if ((pathname === "/" || pathname === "/home") && user && browseLayout !== "classic") {
+    return <BrowseHome />;
+  }
 
   // For anon users on marketing / non-listener routes: still render legacy.
   const Screen = screenFor(pathname);

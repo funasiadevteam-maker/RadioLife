@@ -353,6 +353,117 @@ async def confirm_payment(db, *, sponsorship_id: str,
                     "transaction_id": tx_id}
 
 
+# ── Hosted Stripe Checkout (Partner API "go live") ──────────────────
+# Partners pay the prize pool + platform fee via a Stripe HOSTED Checkout
+# link (mode=payment). On payment we activate the sponsorship WITHOUT
+# re-charging (the money already moved through Checkout). Mirrors the
+# proven pattern in routes/marketplace_promotions.py.
+def _checkout_stripe():
+    import stripe as _s
+    _s.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
+    return _s
+
+
+async def create_checkout(db, *, sponsorship_id: str,
+                          advertiser_business_id: str,
+                          success_url: Optional[str] = None,
+                          cancel_url: Optional[str] = None) -> Dict[str, Any]:
+    s = await db.trivia_sponsorships.find_one({"id": sponsorship_id})
+    if not s:
+        raise ValueError("sponsorship_not_found")
+    if s["advertiser_business_id"] != advertiser_business_id:
+        raise ValueError("not_owner")
+    if s["status"] not in ("draft", "pending_payment"):
+        raise ValueError(f"sponsorship_{s['status']}")
+    amount = int(s.get("cost_cents") or 0)
+    if amount <= 0:
+        raise ValueError("invalid_amount")
+    st = _checkout_stripe()
+    if not st.api_key:
+        raise ValueError("stripe_unconfigured")
+    base = (os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    s_url = success_url or (f"{base}/payment/success?session_id={{CHECKOUT_SESSION_ID}}" if base else None)
+    c_url = cancel_url or (f"{base}/payment/cancel" if base else None)
+    if not s_url or not c_url:
+        raise ValueError("return_urls_required")
+    sess = st.checkout.Session.create(
+        mode="payment",
+        line_items=[{"price_data": {
+            "currency": "usd", "unit_amount": amount,
+            "product_data": {
+                "name": f"RadioLife Trivia Sponsorship — {s.get('display_name') or sponsorship_id}"[:120],
+                "description": "Prize pool + platform fee"}},
+            "quantity": 1}],
+        success_url=s_url, cancel_url=c_url,
+        metadata={"bigfm_flow": "ad5_trivia_sponsorship_checkout",
+                  "bigfm_sponsorship_id": sponsorship_id,
+                  "bigfm_advertiser_id": advertiser_business_id})
+    await db.trivia_sponsorships.update_one(
+        {"id": sponsorship_id},
+        {"$set": {"status": "pending_payment",
+                  "stripe_checkout_session_id": sess["id"],
+                  "checkout_created_at": _now()}})
+    return {"checkout_url": sess["url"], "session_id": sess["id"],
+            "amount_cents": amount, "currency": "usd"}
+
+
+async def sync_checkout(db, *, sponsorship_id: str,
+                        advertiser_business_id: str) -> Dict[str, Any]:
+    s = await db.trivia_sponsorships.find_one({"id": sponsorship_id})
+    if not s:
+        raise ValueError("sponsorship_not_found")
+    if s["advertiser_business_id"] != advertiser_business_id:
+        raise ValueError("not_owner")
+    if s["status"] in ("active", "pending_admin", "completed", "cancelled"):
+        return {"paid": bool(s.get("paid_at")), "status": s["status"],
+                "sponsorship": _shape_sponsorship(s)}
+    sid = s.get("stripe_checkout_session_id")
+    if not sid:
+        raise ValueError("no_checkout_session")
+    st = _checkout_stripe()
+    try:
+        sess = st.checkout.Session.retrieve(sid)
+    except Exception as e:
+        raise ValueError(f"stripe_error:{e}")
+    if not sess or sess.get("payment_status") != "paid":
+        return {"paid": False, "status": s["status"],
+                "sponsorship": _shape_sponsorship(s)}
+    pi = sess.get("payment_intent")
+    tx_id = f"tx_ts_ck_{sponsorship_id}"
+    try:
+        await db.payment_transactions_v2.update_one(
+            {"_id": tx_id},
+            {"$setOnInsert": {
+                "transaction_id": tx_id,
+                "stripe_payment_intent_id": pi,
+                "stripe_checkout_session_id": sid,
+                "flow": "ad5_trivia_sponsorship_checkout",
+                "event_source": "trivia_sponsorship_checkout",
+                "advertiser_id": advertiser_business_id,
+                "bigfm_sponsorship_id": sponsorship_id,
+                "amount_cents": int(s.get("cost_cents") or 0),
+                "application_fee_cents": int(s.get("platform_fee_cents") or 0),
+                "merchant_net_cents": 0, "currency": "usd",
+                "status": "posted", "created_at": _now()}},
+            upsert=True)
+    except Exception:
+        pass
+    new_status = "pending_admin" if s.get("admin_approval_required") else "active"
+    now = _now()
+    upd: Dict[str, Any] = {"status": new_status,
+                           "stripe_payment_intent_id": pi,
+                           "stripe_prepayment_transaction_id": tx_id,
+                           "paid_at": now}
+    if new_status == "active":
+        upd["activated_at"] = now
+    await db.trivia_sponsorships.update_one(
+        {"id": sponsorship_id, "status": {"$in": ["pending_payment", "draft"]}},
+        {"$set": upd})
+    row = await db.trivia_sponsorships.find_one({"id": sponsorship_id})
+    return {"paid": True, "status": row["status"],
+            "sponsorship": _shape_sponsorship(row)}
+
+
 async def list_sponsorships(db, *,
                                                         advertiser_business_id: Optional[str] = None,
                                                         status: Optional[str] = None,
@@ -576,6 +687,7 @@ async def mark_award_claimed(db, *, award_id: str,
 __all__ = [
     "ensure_trivia_sponsorship_indexes",
     "create_sponsorship", "confirm_payment",
+    "create_checkout", "sync_checkout",
     "list_sponsorships", "get_sponsorship", "cancel_sponsorship",
     "admin_approve", "admin_reject",
     "resolve_and_validate_sponsorship",

@@ -5877,6 +5877,14 @@ try:
 except Exception as _e:
     logger.warning("partner API v1 not loaded: %s", _e)
 
+# Unified Browse aggregator — powers the switchable web layouts.
+try:
+    from routes.browse import router as _browse_router
+    app.include_router(_browse_router)
+    logger.info("Browse aggregator wired: /api/browse/home")
+except Exception as _e:
+    logger.warning("browse router not loaded: %s", _e)
+
 # Phase 42-E1 — banner ads (persistent) + Predict & Win self-serve.
 try:
     from routes.banner_ads_persistent import router as _banner_persist_router

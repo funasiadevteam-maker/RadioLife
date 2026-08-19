@@ -25,6 +25,9 @@ import RestaurantDetailRadioLife from "./screens/RestaurantDetailRadioLife";
 // was deleted.
 import ScanEntry from "@/pages/scan/ScanEntry";
 import OnboardingRadioLife from "./screens/OnboardingRadioLife";
+// Pro full-bleed web browse layouts (Cinematic / Studio / Tube) + switcher.
+import BrowseHome from "./browse/BrowseHome";
+import { useBrowseLayout } from "./browse/useBrowseLayout";
 // Phase B — Podcast listener screens.
 import PodcastsRadioLife from "./screens/PodcastsRadioLife";
 import PodcastDetailRadioLife from "./screens/PodcastDetailRadioLife";
@@ -165,12 +168,24 @@ export default function RadioLifeOverlay() {
   const variant = useDesignVariant();
   const { user } = useAuth();
   const { pathname } = useLocation();
+  const browseLayout = useBrowseLayout();
 
   // Shop now renders IN-SHELL (inside the legacy AppShell, keeping the left
   // sidebar + top bar) via <ShopInShell> routes in App.js. So the overlay
   // only takes over when the user has explicitly switched to the RadioLife
   // "new look".  In legacy mode the shop lives inside the classic shell.
   if (variant !== "radiolife") return null;
+
+  // Pro full-bleed browse layouts on the home landing. When the user picks
+  // Cinematic / Studio / Tube, BrowseHome owns the whole screen (its own
+  // chrome + switcher). "classic" keeps the original HomeRadioLife screen.
+  if ((pathname === "/" || pathname === "/home") && user && browseLayout !== "classic") {
+    return (
+      <div className="fixed inset-0 z-[80] overflow-y-auto" data-testid="rl-overlay">
+        <BrowseHome />
+      </div>
+    );
+  }
   const shopRoute = pathname === "/shop" || pathname.startsWith("/shop/") || pathname === "/sell";
   const Screen = screenFor(pathname);
   if (!Screen) return null;

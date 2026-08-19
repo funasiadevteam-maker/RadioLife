@@ -23,6 +23,7 @@ from services import ad3_sponsorship_service as pw
 from services import trivia_sponsorship_service as tr
 from services import rj_sponsored_read_service as rj
 from services import partner_api as pa
+from services import partner_marketplace as mkt
 from services.partner_api import Caller, require_scopes
 
 log = logging.getLogger("bigfm.partner_api.v1")
@@ -560,24 +561,100 @@ async def get_sponsorship_ep(sponsorship_id: str, request: Request, type: str, a
     return {"sponsorship": _sp_clean(d)}
 
 
+class SponsorshipSubmitBody(BaseModel):
+    final_script: Optional[str] = None
+
+
+class SponsorshipCheckoutBody(BaseModel):
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
+
+
 @partner_app.post("/sponsorships/{sponsorship_id}/submit", tags=["sponsorships"])
 async def submit_sponsorship(sponsorship_id: str, request: Request, type: str, advertiser_id: str,
+                             body: SponsorshipSubmitBody = SponsorshipSubmitBody(),
                              caller: Caller = Depends(require_scopes("campaigns:write"))):
     db = request.app.state.db
     await _assert_adv(db, caller, advertiser_id)
-    await _assert_sp(db, caller, type, sponsorship_id)
+    d = await _assert_sp(db, caller, type, sponsorship_id)
     if caller.is_sandbox:
         return {"sponsorship_id": sponsorship_id, "status": "active", "sandbox": True}
     try:
         if type == "predict_win":
             return await pw.publish_sponsorship(db, sponsorship_id=sponsorship_id)
         if type == "trivia":
-            return await tr.confirm_payment(db, sponsorship_id=sponsorship_id, advertiser_business_id=advertiser_id)
+            # Trivia goes live via hosted Checkout (prize-pool payment).
+            raise HTTPException(409, {"code": "use_checkout_endpoint",
+                                      "hint": f"POST /api/v1/sponsorships/{sponsorship_id}/checkout?type=trivia&advertiser_id={advertiser_id}"})
         if type == "rj_read":
-            return await rj.submit_sponsored_read(db, sponsored_read_id=sponsorship_id, advertiser_business_id=advertiser_id)
+            # Finalize the copy (disclosure + moderation). Payment happens
+            # next via POST /sponsorships/{id}/checkout.
+            final_script = (body.final_script or d.get("script_body") or "").strip()
+            return await rj.submit_sponsored_read(
+                db, sponsored_read_id=sponsorship_id,
+                advertiser_business_id=advertiser_id, final_script=final_script)
+    except HTTPException:
+        raise
     except Exception as e:
         raise _map_error(e)
     raise HTTPException(400, {"code": "unknown_sponsorship_type"})
+
+
+@partner_app.post("/sponsorships/{sponsorship_id}/checkout", tags=["sponsorships"])
+async def sponsorship_checkout(sponsorship_id: str, request: Request, type: str, advertiser_id: str,
+                               body: SponsorshipCheckoutBody = SponsorshipCheckoutBody(),
+                               caller: Caller = Depends(require_scopes("campaigns:write"))):
+    """Create a Stripe HOSTED Checkout session to fund a LIVE sponsorship
+    (trivia prize pool / AI-RJ read booking). Returns `checkout_url` for the
+    partner to open. Poll `/checkout/status` to confirm payment + activation.
+    Sandbox sponsorships activate on create — no payment needed."""
+    db = request.app.state.db
+    await _assert_adv(db, caller, advertiser_id)
+    await _assert_sp(db, caller, type, sponsorship_id)
+    if type not in ("trivia", "rj_read"):
+        raise HTTPException(400, {"code": "checkout_not_supported_for_type",
+                                  "hint": "Hosted Checkout is available for trivia and rj_read."})
+    if caller.is_sandbox:
+        return {"sandbox": True, "checkout_required": False, "status": "active",
+                "type": type, "sponsorship_id": sponsorship_id,
+                "message": "Sandbox sponsorships activate on create — no payment needed."}
+    try:
+        if type == "trivia":
+            r = await tr.create_checkout(db, sponsorship_id=sponsorship_id,
+                                         advertiser_business_id=advertiser_id,
+                                         success_url=body.success_url, cancel_url=body.cancel_url)
+        else:
+            r = await rj.create_checkout(db, sponsored_read_id=sponsorship_id,
+                                         advertiser_business_id=advertiser_id,
+                                         success_url=body.success_url, cancel_url=body.cancel_url)
+    except Exception as e:
+        raise _map_error(e)
+    return {**r, "type": type, "sponsorship_id": sponsorship_id}
+
+
+@partner_app.get("/sponsorships/{sponsorship_id}/checkout/status", tags=["sponsorships"])
+async def sponsorship_checkout_status(sponsorship_id: str, request: Request, type: str, advertiser_id: str,
+                                      caller: Caller = Depends(require_scopes("campaigns:read"))):
+    """Sync the Stripe Checkout payment and activate the sponsorship when
+    paid. Idempotent — safe to poll. For rj_read this also TTS-renders the
+    read after payment clears (may briefly return `processing: true`)."""
+    db = request.app.state.db
+    await _assert_adv(db, caller, advertiser_id)
+    await _assert_sp(db, caller, type, sponsorship_id)
+    if type not in ("trivia", "rj_read"):
+        raise HTTPException(400, {"code": "checkout_not_supported_for_type"})
+    if caller.is_sandbox:
+        d = await _sp_fetch(db, type, sponsorship_id)
+        return {"paid": True, "sandbox": True, "status": (d or {}).get("status"),
+                "type": type, "sponsorship": d}
+    try:
+        if type == "trivia":
+            r = await tr.sync_checkout(db, sponsorship_id=sponsorship_id, advertiser_business_id=advertiser_id)
+        else:
+            r = await rj.sync_checkout(db, sponsored_read_id=sponsorship_id, advertiser_business_id=advertiser_id)
+    except Exception as e:
+        raise _map_error(e)
+    return {**r, "type": type}
 
 
 @partner_app.get("/sponsorships/{sponsorship_id}/report", tags=["reporting"])
@@ -592,6 +669,105 @@ async def sponsorship_report(sponsorship_id: str, request: Request, type: str, a
             "entries": int(d.get("entries_count") or 0),
             "plays_delivered": int(d.get("plays_delivered") or 0),
             "awarded_count": int(d.get("awarded_count") or 0)}
+
+
+# ══════════════════════════ marketplace promotion ═══════════════════
+class PromotionCheckoutBody(BaseModel):
+    business_id: str
+    tier: str = Field(..., description="Promo tier key from GET /marketplace/promotion/tiers")
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
+
+
+class SpotlightCheckoutBody(BaseModel):
+    business_id: str
+    category: str = Field(..., description="Category key from GET /marketplace/categories")
+    bid_cents: int = Field(..., ge=1, le=1000, description="Per-impression bid")
+    amount_cents: int = Field(..., ge=500, le=1000000, description="Prepaid budget to fund")
+    daily_cap_cents: int = Field(0, ge=0, le=10000000)
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
+
+
+@partner_app.get("/marketplace/promotion/tiers", tags=["marketplace"])
+async def mkt_tiers(caller: Caller = Depends(require_scopes("catalog:read"))):
+    return {"tiers": mkt.promo_tiers()}
+
+
+@partner_app.get("/marketplace/categories", tags=["marketplace"])
+async def mkt_categories(request: Request, caller: Caller = Depends(require_scopes("catalog:read"))):
+    return {"items": await mkt.list_categories(request.app.state.db)}
+
+
+@partner_app.get("/marketplace/businesses", tags=["marketplace"])
+async def mkt_businesses(request: Request, q: Optional[str] = None, limit: int = 50,
+                         caller: Caller = Depends(require_scopes("catalog:read"))):
+    items = await mkt.list_promotable_businesses(request.app.state.db, q=q, limit=limit)
+    return {"items": items, "count": len(items)}
+
+
+@partner_app.post("/marketplace/promotion/checkout", tags=["marketplace"])
+async def mkt_promotion_checkout(body: PromotionCheckoutBody, request: Request,
+                                 caller: Caller = Depends(require_scopes("campaigns:write"))):
+    """Buy a Promoted-rail placement for a listed business. LIVE returns a
+    hosted Checkout `checkout_url`; after payment it enters admin review.
+    Sandbox activates instantly (comp, no payment)."""
+    try:
+        return await mkt.promotion_checkout(
+            request.app.state.db, business_id=body.business_id, tier_key=body.tier,
+            partner_id=caller.partner_id, sandbox=caller.is_sandbox, environment=caller.environment,
+            success_url=body.success_url, cancel_url=body.cancel_url)
+    except Exception as e:
+        raise _map_error(e)
+
+
+@partner_app.get("/marketplace/promotion/{promotion_id}/status", tags=["marketplace"])
+async def mkt_promotion_status(promotion_id: str, request: Request,
+                               caller: Caller = Depends(require_scopes("campaigns:read"))):
+    try:
+        return await mkt.promotion_status(request.app.state.db,
+                                          promotion_id=promotion_id, partner_id=caller.partner_id,
+                                          environment=caller.environment)
+    except Exception as e:
+        raise _map_error(e)
+
+
+@partner_app.post("/marketplace/spotlight/checkout", tags=["marketplace"])
+async def mkt_spotlight_checkout(body: SpotlightCheckoutBody, request: Request,
+                                 caller: Caller = Depends(require_scopes("campaigns:write"))):
+    """Set a Category Spotlight bid for a listed business and fund its prepaid
+    budget. LIVE returns a hosted Checkout `checkout_url`; the budget is
+    credited (and the bid activates) once payment clears. Sandbox funds
+    instantly."""
+    try:
+        return await mkt.spotlight_checkout(
+            request.app.state.db, business_id=body.business_id, category=body.category,
+            bid_cents=body.bid_cents, amount_cents=body.amount_cents,
+            daily_cap_cents=body.daily_cap_cents, partner_id=caller.partner_id,
+            sandbox=caller.is_sandbox, environment=caller.environment,
+            success_url=body.success_url, cancel_url=body.cancel_url)
+    except Exception as e:
+        raise _map_error(e)
+
+
+@partner_app.get("/marketplace/spotlight/{session_id}/status", tags=["marketplace"])
+async def mkt_spotlight_status(session_id: str, request: Request,
+                               caller: Caller = Depends(require_scopes("campaigns:read"))):
+    try:
+        return await mkt.spotlight_status(request.app.state.db,
+                                          session_id=session_id, partner_id=caller.partner_id,
+                                          environment=caller.environment)
+    except Exception as e:
+        raise _map_error(e)
+
+
+@partner_app.get("/marketplace/spotlight", tags=["marketplace"])
+async def mkt_spotlight_get(request: Request, business_id: str,
+                            caller: Caller = Depends(require_scopes("campaigns:read"))):
+    try:
+        return await mkt.spotlight_get(request.app.state.db, business_id=business_id)
+    except Exception as e:
+        raise _map_error(e)
 
 
 # ══════════════════════════ usage analytics ═════════════════════════

@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 96 - Backend-only e2e of Partner API v1 Stripe hosted-Checkout for Sponsorships (trivia + rj_read) and Marketplace Promotions (Promoted-rail + Category Spotlight). New pytest file /app/backend/tests/test_iter96_partner_api_payments.py - 28/28 pass. Verified: (a) LIVE trivia/rj_read/promotion/spotlight all return real checkout.stripe.com URLs + cs_test_ session_ids; owning object flips to pending_payment; (b) trivia /submit correctly returns 409 use_checkout_endpoint; (c) rj_read /submit moves to pending_moderation; (d) marketplace catalog (tiers=3, categories>0, businesses list); (e) ownership scoping (unknown promotion_id -> 404 promotion_not_found); (f) error handling (bad_tier, business_not_found, bad_category, bid/amount out_of_range); (g) SANDBOX path: advertiser/trivia/promotion/spotlight all instantly active, sponsorship /checkout returns checkout_required:false; (h) auth: 401 without bearer, 401 with bad key, LIVE key has all scopes. Idempotent status polls verified for spotlight. The Stripe-hosted PAID->ACTIVE browser round-trip was attempted 3x via Playwright but the Stripe checkout UI now uses an accordion layout in 'Sandbox' mode and the Card accordion click resolved 'outside of viewport'; API-side proof of URL generation + state transitions is complete. Backend logs clean; supervisor OK.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/v1/marketplace/promotion/{id}/status", "issue": "Ownership filter is by partner_id only (not by environment). LIVE and SANDBOX keys of the same partner therefore share visibility. Consider adding an environment scope on the query so a SANDBOX key cannot poll a LIVE promotion. Not exploitable across partners."}
+    ]
+  },
+  "frontend_issues": {"web": {"ui_bugs": [], "integration_issues": [], "design_issues": []}},
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter96_partner_api_payments.py",
+    "/app/test_reports/pytest/iter96.xml"
+  ],
+  "action_items": [
+    "OPTIONAL manual verification: open the trivia checkout URL that was returned in this run (see updated_files test file - a fresh URL is generated per POST /sponsorships/{id}/checkout), pay with 4242 4242 4242 4242 in a real browser, then GET /sponsorships/{id}/checkout/status?type=trivia&advertiser_id=... to observe paid:true and status='active' (or 'pending_admin' if total >= $500). Same for promotion (expected status=pending_review post-payment) and spotlight (expected status=credited, budget_cents credited).",
+    "OPTIONAL: consider tightening marketplace_promotions ownership filter to include partner + environment (currently only partner_id).",
+    "OPTIONAL: normalize environment casing in /me and create_advertiser responses (currently 'LIVE'/'SANDBOX' uppercase from Caller model). Tests handle both cases but PRD wording used lowercase."
+  ],
+  "critical_code_review_comments": [
+    "partner_api_v1.sponsorship_checkout correctly routes trivia -> tr.create_checkout and rj_read -> rj.create_checkout with a Stripe hosted mode. Sandbox path short-circuits with checkout_required:false as documented.",
+    "partner_marketplace.promotion_checkout: sandbox writes a status=active row with paid:true and applies the tier immediately via _apply_active (single source of truth reused from routes.marketplace_promotions). Good.",
+    "partner_marketplace.spotlight_status is properly idempotent - if a topup is already 'credited', it returns the current budget without re-crediting. Verified by double-polling.",
+    "Trivia submit guard (409 use_checkout_endpoint) is enforced at the route layer for LIVE (correctly bypassed for sandbox which is a no-op success).",
+    "All create_checkout endpoints propagate ValueError('stripe_unconfigured') via _map_error(400); STRIPE_MODE=live with a sk_test_ Stripe key produces real cs_test_ Checkout Sessions as expected."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter96_partner_api_payments.py"],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "n/a (backend-only)"},
+  "test_credentials": "LIVE key: rlk_live_RI7fonLpLAzW.pL6e_b7Ok-f5FsNmSkyxwtLeWYWStHTCZsP0Kmqf6SM  |  SANDBOX key: rlk_test_m55nJ-GmIviJ.0cKrGo5T3AKq_FLmZcqPvePDkLzhMdGIlQIB8T5an2Q  |  Businesses: biz_demo_grill, biz_demo_spice  |  Persona: persona_demo_rj_ava  |  Stripe test card: 4242 4242 4242 4242 12/34 CVC 123",
+  "seed_data_creation": "Each pytest run creates a fresh TEST_iter96_live_* and TEST_iter96_sbx_* advertiser under the LIVE and SANDBOX keys, one trivia draft, one rj_read draft moved to pending_moderation, one LIVE promotion in pending_payment, one LIVE category_bid in pending_budget. All are prefixed for easy cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend Partner API v1 hosted-Checkout paths are fully verified up to the Stripe redirect. New regression suite lives at /app/backend/tests/test_iter96_partner_api_payments.py (28 tests). The only remaining un-mechanized verification is the actual Stripe UI card entry + redirect to BIGFM_PUBLIC_BASE_URL/payment/success - Playwright against checkout.stripe.com is finicky under this env because Stripe now renders an accordion 'Sandbox' UI. If needed, main agent (or a human) can open the returned checkout_url in a real browser, pay with 4242, and then poll /api/v1/sponsorships/{id}/checkout/status (or /marketplace/promotion/{id}/status, /marketplace/spotlight/{session_id}/status) to confirm paid:true + activated. For rj_read, ELEVENLABS_API_KEY IS SET in /app/backend/.env (contrary to the problem statement which said empty) - so post-payment TTS render should actually succeed, not gracefully fail with tts_render_failed. If the review-request assumption was that ELEVENLABS is empty, please double-check.",
+  "rca of the issue": "N/A - no defects. One MINOR observation: marketplace promotion_status ownership scoping filters by partner_id only; because a partner has both a LIVE and a SANDBOX credential, a SANDBOX key can poll a LIVE promotion of the same partner. Cross-partner isolation is intact."
+}

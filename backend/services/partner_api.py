@@ -92,22 +92,38 @@ PRODUCTS: list[dict] = [
      "campaign_type": None, "pricing_models": ["per_entry", "per_impression"],
      "bookable": False, "status": "coming_soon"},
     {"key": "sponsorship_trivia", "name": "Trivia Sponsorship", "category": "sponsorship",
-     "description": "Sponsor a trivia room / question set.",
-     "campaign_type": None, "pricing_models": ["flat", "cpm"], "bookable": False,
-     "status": "coming_soon"},
+     "description": "Sponsor a trivia room / category and fund a winner prize pool. "
+                    "Create via POST /sponsorships (type=trivia), then pay the prize pool "
+                    "with a hosted Checkout link via POST /sponsorships/{id}/checkout.",
+     "campaign_type": None, "pricing_models": ["prize_pool"], "bookable": False,
+     "status": "available", "endpoints": {"create": "/api/v1/sponsorships",
+                                           "checkout": "/api/v1/sponsorships/{id}/checkout"}},
     {"key": "sponsorship_rj_read", "name": "AI-RJ Sponsored Read", "category": "audio",
-     "description": "A host-read (AI-RJ) audio mention inserted between songs.",
-     "campaign_type": None, "pricing_models": ["flat"], "bookable": False,
-     "status": "coming_soon"},
+     "description": "A host-read (AI-RJ) audio mention inserted between songs. Create via "
+                    "POST /sponsorships (type=rj_read), finalize the script via "
+                    "POST /sponsorships/{id}/submit, then pay the booking with a hosted "
+                    "Checkout link via POST /sponsorships/{id}/checkout.",
+     "campaign_type": None, "pricing_models": ["cost_per_play"], "bookable": False,
+     "status": "available", "endpoints": {"create": "/api/v1/sponsorships",
+                                           "submit": "/api/v1/sponsorships/{id}/submit",
+                                           "checkout": "/api/v1/sponsorships/{id}/checkout"}},
     {"key": "programmatic_openrtb", "name": "Programmatic (OpenRTB)", "category": "programmatic",
      "description": "Real-time bidding seat for DSPs. Bid on audio/display impressions "
                     "via the OpenRTB 2.x endpoint; creatives served over VAST for audio.",
      "campaign_type": None, "pricing_models": ["cpm"], "bookable": False,
      "status": "beta", "endpoints": {"bid": "/api/openrtb", "vast": "/api/vast"}},
     {"key": "marketplace_promotion", "name": "Marketplace Promotion", "category": "commerce",
-     "description": "Promote a shop on the Marketplace (Promoted rail + Category Spotlight auction).",
+     "description": "Promote a listed shop on the Marketplace: a Promoted-rail placement "
+                    "(tiered flat fee, admin-reviewed) or a Category Spotlight bid (prepaid, "
+                    "billed per impression). Discover businesses via GET /marketplace/businesses, "
+                    "then buy via POST /marketplace/promotion/checkout or "
+                    "POST /marketplace/spotlight/checkout.",
      "campaign_type": None, "pricing_models": ["flat", "cpm"], "bookable": False,
-     "status": "coming_soon"},
+     "status": "available", "endpoints": {"tiers": "/api/v1/marketplace/promotion/tiers",
+                                           "categories": "/api/v1/marketplace/categories",
+                                           "businesses": "/api/v1/marketplace/businesses",
+                                           "promotion_checkout": "/api/v1/marketplace/promotion/checkout",
+                                           "spotlight_checkout": "/api/v1/marketplace/spotlight/checkout"}},
 ]
 
 

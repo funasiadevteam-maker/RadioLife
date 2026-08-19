@@ -549,6 +549,166 @@ async def confirm_payment(db, *, sponsored_read_id: str,
                     "transaction_id": tx_id}
 
 
+# ── Hosted Stripe Checkout (Partner API "go live") ────────────────
+# Partners pay the read booking (plays x cost-per-play + platform fee)
+# via a Stripe HOSTED Checkout link. On payment we TTS-render + activate
+# WITHOUT re-charging. Mirrors the trivia checkout + confirm_payment.
+def _checkout_stripe():
+    import stripe as _s
+    _s.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
+    return _s
+
+
+async def create_checkout(db, *, sponsored_read_id: str,
+                          advertiser_business_id: str,
+                          success_url: Optional[str] = None,
+                          cancel_url: Optional[str] = None) -> Dict[str, Any]:
+    s = await db.rj_sponsored_reads.find_one({"id": sponsored_read_id})
+    if not s:
+        raise ValueError("sponsored_read_not_found")
+    if s["advertiser_business_id"] != advertiser_business_id:
+        raise ValueError("not_owner")
+    # Copy must be submitted (moderation passed) before payment.
+    if s["status"] not in ("pending_moderation", "pending_payment"):
+        raise ValueError(f"sponsored_read_{s['status']}")
+    amount = int(s.get("total_cost_cents") or 0)
+    if amount <= 0:
+        raise ValueError("invalid_amount")
+    st = _checkout_stripe()
+    if not st.api_key:
+        raise ValueError("stripe_unconfigured")
+    base = (os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    s_url = success_url or (f"{base}/payment/success?session_id={{CHECKOUT_SESSION_ID}}" if base else None)
+    c_url = cancel_url or (f"{base}/payment/cancel" if base else None)
+    if not s_url or not c_url:
+        raise ValueError("return_urls_required")
+    sess = st.checkout.Session.create(
+        mode="payment",
+        line_items=[{"price_data": {
+            "currency": "usd", "unit_amount": amount,
+            "product_data": {
+                "name": f"RadioLife AI-RJ Sponsored Read — {s.get('persona_name') or sponsored_read_id}"[:120],
+                "description": f"{int(s.get('plays_target') or 0)} plays + platform fee"}},
+            "quantity": 1}],
+        success_url=s_url, cancel_url=c_url,
+        metadata={"bigfm_flow": "m1_rj_sponsored_read_checkout",
+                  "bigfm_sponsored_read_id": sponsored_read_id,
+                  "bigfm_advertiser_id": advertiser_business_id})
+    await db.rj_sponsored_reads.update_one(
+        {"id": sponsored_read_id},
+        {"$set": {"status": "pending_payment",
+                  "stripe_checkout_session_id": sess["id"],
+                  "checkout_created_at": _now()}})
+    return {"checkout_url": sess["url"], "session_id": sess["id"],
+            "amount_cents": amount, "currency": "usd"}
+
+
+async def sync_checkout(db, *, sponsored_read_id: str,
+                        advertiser_business_id: str) -> Dict[str, Any]:
+    s = await db.rj_sponsored_reads.find_one({"id": sponsored_read_id})
+    if not s:
+        raise ValueError("sponsored_read_not_found")
+    if s["advertiser_business_id"] != advertiser_business_id:
+        raise ValueError("not_owner")
+    if s["status"] in ("active", "pending_admin", "completed",
+                        "cancelled", "rejected"):
+        return {"paid": bool(s.get("paid_at")), "status": s["status"],
+                "sponsored_read": _shape(s)}
+    if s["status"] == "rendering":
+        return {"paid": True, "processing": True, "status": s["status"],
+                "sponsored_read": _shape(s)}
+    sid = s.get("stripe_checkout_session_id")
+    if not sid:
+        raise ValueError("no_checkout_session")
+    st = _checkout_stripe()
+    try:
+        sess = st.checkout.Session.retrieve(sid)
+    except Exception as e:
+        raise ValueError(f"stripe_error:{e}")
+    if not sess or sess.get("payment_status") != "paid":
+        return {"paid": False, "status": s["status"], "sponsored_read": _shape(s)}
+    pi = sess.get("payment_intent")
+    # Atomically claim the render so concurrent polls don't double-render.
+    claim = await db.rj_sponsored_reads.find_one_and_update(
+        {"id": sponsored_read_id, "status": "pending_payment"},
+        {"$set": {"status": "rendering", "stripe_payment_intent_id": pi,
+                  "paid_at": _now()}},
+        return_document=True)
+    if not claim:
+        row = await db.rj_sponsored_reads.find_one({"id": sponsored_read_id})
+        return {"paid": True, "processing": row.get("status") == "rendering",
+                "status": row.get("status"), "sponsored_read": _shape(row)}
+    tx_id = f"tx_rjsr_ck_{sponsored_read_id}"
+    try:
+        await db.payment_transactions_v2.update_one(
+            {"_id": tx_id},
+            {"$setOnInsert": {
+                "transaction_id": tx_id, "stripe_payment_intent_id": pi,
+                "stripe_checkout_session_id": sid,
+                "flow": "m1_rj_sponsored_read_checkout",
+                "event_source": "rj_sponsored_read_checkout",
+                "advertiser_id": advertiser_business_id,
+                "bigfm_sponsored_read_id": sponsored_read_id,
+                "amount_cents": int(s.get("total_cost_cents") or 0),
+                "application_fee_cents": int(s.get("platform_fee_cents") or 0),
+                "merchant_net_cents": 0, "currency": "usd",
+                "status": "posted", "created_at": _now()}},
+            upsert=True)
+    except Exception:
+        pass
+    persona = await db.rj_personas.find_one({"id": s["persona_id"]})
+    if not persona:
+        raise ValueError("persona_gone_missing")
+    try:
+        tts = await _tts_render_upload(persona=persona,
+                                       final_script=s["final_script"])
+    except Exception as e:
+        # Refund the Checkout payment and reject so the partner isn't
+        # billed for a read we couldn't render.
+        try:
+            r = await _refund(payment_intent_id=pi,
+                              refund_cents=int(s["total_cost_cents"]),
+                              sponsored_read_id=sponsored_read_id)
+            await db.rj_sponsored_reads.update_one(
+                {"id": sponsored_read_id},
+                {"$set": {"status": "rejected",
+                          "cancel_reason": "tts_render_failed",
+                          "stripe_refund_id": r["refund_id"],
+                          "refunded_amount_cents": r["amount_cents"],
+                          "rejected_at": _now()}})
+        except Exception:
+            await db.rj_sponsored_reads.update_one(
+                {"id": sponsored_read_id},
+                {"$set": {"status": "rejected",
+                          "cancel_reason": "tts_render_failed",
+                          "rejected_at": _now()}})
+        raise ValueError(f"tts_render_failed:{e}")
+    new_status = "pending_admin" if s.get("admin_approval_required") else "active"
+    now = _now()
+    upd = {"status": new_status, "audio_url": tts["audio_url"],
+           "storage_key": tts.get("storage_key"),
+           "duration_seconds": tts.get("duration_seconds"),
+           "voice_provider_used": tts.get("voice_provider"),
+           "stripe_prepayment_transaction_id": tx_id, "rendered_at": now}
+    if new_status == "active":
+        upd["activated_at"] = now
+    await db.rj_sponsored_reads.update_one(
+        {"id": sponsored_read_id}, {"$set": upd})
+    row = await db.rj_sponsored_reads.find_one({"id": sponsored_read_id})
+    if new_status == "active":
+        try:
+            from services.notification_trigger_dispatcher import dispatch_event
+            await dispatch_event(
+                db, event_name="rj_sponsored_read_approved",
+                user_id=s.get("created_by_user_id"),
+                payload={"sponsored_read_id": sponsored_read_id,
+                         "advertiser_business_id": advertiser_business_id,
+                         "auto_approved": True})
+        except Exception as e:
+            logger.warning("[m1_rjsr] dispatch_event failed: %s", e)
+    return {"paid": True, "status": row["status"], "sponsored_read": _shape(row)}
+
+
 async def list_reads(db, *, advertiser_business_id: Optional[str] = None,
                                     status: Optional[str] = None,
                                     limit: int = 100) -> List[Dict[str, Any]]:
@@ -824,7 +984,8 @@ async def record_play(db, *, sponsored_read_id: str,
 __all__ = [
     "ensure_rj_sponsored_read_indexes",
     "create_sponsored_read", "submit_sponsored_read",
-    "confirm_payment", "list_reads", "get_read", "cancel_read",
+    "confirm_payment", "create_checkout", "sync_checkout",
+    "list_reads", "get_read", "cancel_read",
     "admin_list", "admin_approve", "admin_reject",
     "select_next_sponsored", "record_play",
     "DISCLOSURE_PREFIXES", "PLATFORM_FEE_PCT",
