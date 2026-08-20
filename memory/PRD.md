@@ -1,5 +1,26 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## REDESIGN CONT. — SLIM PLAYER + ON-AIR OFFER + LIGHT-THEME PRIMITIVES (2026-08 fork) — testing agent iter104 ALL PASS (web, 6/6)
+- **Slim player (§9)**: `primitives.jsx` MiniPlayer trimmed to art (tap = toggle) · title · subtitle
+  ("{City} · earning +1/min" while an AI/live session plays, else artist) · play/pause · spacer · city pill ·
+  BigPoints widget · favorites heart. REMOVED rotating promos (PersistentBannerSlot + BannerZoneSlot), station
+  rail, channel strip, share button, source badge, persona chip. Now `rl-card` themed. Dead code/imports deleted
+  (BottomBarStationRail, ShareButton, useRjPersonaForStation, etc.). Audio wiring (bigfm:player:toggle) intact.
+- **On-air offer card (§6.6)**: new `shell/OnAirOfferCard.jsx` — docked ABOVE the player, shown ONLY while
+  `usePlayerStore.playing`; reads `/api/offers/nearby` (city-aware) → "On {station} — {merchant} · {deal} near you"
+  + "Claim offer" + dismiss. Docked in AppShell desktop PersistentPlayer + mobile player stack. Kept for Premium.
+  Verified live: "On Beat 97.8 — 20% off any karak chai · … near you".
+- **Light-theme polish (systemic)**: root cause of washout was shared primitives using `border-white/[0.06]`
+  and `text-white` (invisible in light). Fixed `Card` (border → `var(--line)`), `Chip` (tones → tokens), ghost
+  `Button` (→ tokens). Wallet.js/Radio.js use ZERO hardcoded colors (fully token/primitive-driven) so they now
+  render correctly in light. NOTE: deep pages with their OWN hardcoded white/opacity (e.g. Trivia, PlayAndWin)
+  still need a light-theme pass — not audited this run.
+- **Still remaining (redesign)**: D Shop & Eat data-driven categories (/shop overlay); E remainder — sponsored
+  listing + sponsored clip + presenting-sponsor chip (contextual on-air card now DONE); G — single geo-source
+  audit, curated Predict&Win questions, time-window promos, empty-state sweep, and the light-theme audit of the
+  remaining hardcoded-color deep pages.
+
+
 ## REDESIGN CONT. — CURRENCY + FLAGSHIP ART + AD SLOTS (2026-08 fork) — testing agent iter103 ALL PASS (web + backend)
 - **F · Currency unification**: bulk case-sensitive rename `BigCoin/BigCoins → BigPoints` across 26 consumer
   frontend files; bare ` BC ` currency labels → BigPoints in Wallet.js / Trivia.jsx / PublicPassport.js

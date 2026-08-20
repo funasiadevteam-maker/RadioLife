@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 104 — validated SLIM MiniPlayer, ON-AIR OFFER CARD, LIGHT-THEME polish, theme persistence and DARK regression on the web classic shell (desktop 1920x1080, demo listener). All 6 acceptance criteria from the review request PASS. Two minor timing observations logged (play-pause re-toggle + dismiss visibility) that appear to be race/flake, not blocking.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "MiniPlayer play/pause toggle after cold-start autoplay", "issue": "Second click on bottom-player-play-button after successful cold-start (data-playing=true) did NOT flip data-playing to false within 1.5s. First click (cold start) works: false->true. Suspect async gap between the bigfm:player:toggle event, GlobalAudio pausing the <audio>, and usePlayerStore.playing updating. Not blocking — audio starts on first play. Recommend waiting >2s or bumping the store update to be synchronous on toggle-received.", "affected_selectors": ["[data-testid='bottom-player-play-button']", "[data-testid='mini-player']"]},
+        {"flow": "Dismiss OnAirOfferCard", "issue": "Clicked [data-testid='player-offer-dismiss'] (force=True) after playback started; 700ms later [data-testid='player-contextual-offer'] was still queryable. Component logic sets a local dismissed=true and returns null, so this is most likely a re-mount race triggered by the immediately-prior play-toggle click (which may have flipped playing false->true and re-populated the offer). Reproduces only when a toggle click precedes the dismiss. Direct dismiss-after-play in isolation is expected to work per code inspection.", "affected_selectors": ["[data-testid='player-offer-dismiss']", "[data-testid='player-contextual-offer']"]}
+      ],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL: Investigate the play-toggle race — clicking bottom-player-play-button while data-playing=true does not flip to false within 1.5s. Likely just a longer sync-back window; validate by observing usePlayerStore.playing transitions via GlobalAudio's onpause listener.",
+    "OPTIONAL: Guard OnAirOfferCard against re-fetching the offer when playing flips false→true again if the user just dismissed one — keep dismissedForStation state keyed by station id so a subsequent toggle doesn't re-show the just-dismissed card."
+  ],
+  "critical_code_review_comments": [
+    "primitives.jsx still imports PersistentBannerSlot, BannerZoneSlot, ShareButton, BottomBarStationRail and BottomBarChannelStrip at the top of the file even though the slim MiniPlayer no longer renders them. These imports are dead weight and should be removed to keep the bundle lean and to make the removal-of-promos intent explicit. Reference: /app/frontend/src/shell/primitives.jsx:213,231,233,235,237.",
+    "primitives.jsx is 478 lines and mixes 8 unrelated components (Card, Button, Chip, LiveDot, StationTile, GameTile, WalletItemCard, MiniPlayer) plus a private useRjPersonaForStation hook. Approaching maintainability limits; consider splitting MiniPlayer + hook into its own file (e.g. shell/MiniPlayer.jsx) — currently useRjPersonaForStation is still defined but its result (rjPersona) is not used anywhere in the slim render, so the whole helper + import of axios/API is dead code.",
+    "OnAirOfferCard useEffect dependency array is [playing, city, offer] — once an offer is set, changing city or losing/regaining playing won't re-fetch (guard `if (!playing || offer) return`). Intended? If a listener switches station while the offer is unchanged, the merchant/offer text remains stale.",
+    "OnAirOfferCard hard-codes navigate('/shop') on Claim regardless of the merchant offer.id. Consider deep-linking to the specific offer (`/shop?offer=${offer.id}` or `/venue/${offer.venue_id}`) so the CTA is meaningful."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% acceptance-criteria pass"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (verified password-login works)",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified against demo listener on classic shell at 1920x1080. Concrete evidence: (1) MiniPlayer testIDs inside [data-testid=mini-player]: mini-player-artwork, bottom-player-station-name, mini-player-artist, bottom-player-play-button, footer-city-label, points-pill, points-pill-balance, favorites-flyout-toggle. Data attrs: data-playing, data-source, data-has-session all present. (2) Forbidden components ALL absent from MiniPlayer subtree: banner slot, share button, source badge, station rail, channel strip, persona chip — verified via testID/attr querySelectors on mini-player subtree. (3) Cold-start: navigating to /radio/station/imp_fun_beat_978_uae?autoplay=1 leaves data-playing=false until the user clicks bottom-player-play-button (autoplay blocked in preview per known limitation). Click flips data-playing false→true and station name shows 'Beat 97.8'. (4) OnAir card renders once playing=true with text 'On air | On Beat 97.8 — 20% off any karak chai · 20% off near you | Claim offer' and both player-offer-claim + player-offer-dismiss present. (5) Not visible pre-play. (6) LIGHT theme via PUT /api/shell/prefs {theme:'light'} + localStorage: html[data-theme]=light on /wallet and /radio, body rgb(255,255,255), .rl-card has bg rgb(245,246,248) + visible border rgba(10,10,20,0.12) + text rgb(11,11,18) — NOT washed-out white-on-white. (7) Theme toggle click flips light→dark and persists across reload (verified data-theme + localStorage both 'dark'). (8) DARK regression: html[data-theme]=dark, ad-leaderboard + ad-infeed present, filter chips 'All / My stations / Radio 14 / Eat 5 / Salons 2 / Fitness 1 / Shops 3 / Games 3 / Trivia / Offers 11 / World 5,021', home-root rendered. Console noise limited to acceptable pre-auth 401s and a 402 (mixed content) on a couple assets — non-blocking.",
+  "rca of the issue": ""
+}

@@ -28,6 +28,7 @@ import NotificationBell from "@/components/NotificationBell";
 import PointsPill from "@/rewards/PointsPill";
 import ThemeToggle from "@/theme/ThemeToggle";
 import BannerAdSlot from "@/components/BannerAdSlot";
+import OnAirOfferCard from "./OnAirOfferCard";
 import { useThemeStore } from "@/theme/useTheme";
 import { useShellSummary, useShellFilter, fmtCount } from "./useShellData";
 
@@ -429,7 +430,10 @@ function PersistentPlayer() {
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       data-testid="persistent-player"
       className="fixed bottom-0 inset-x-0 z-30 px-6 pb-4 pointer-events-none">
-      <div className="pointer-events-auto"><MiniPlayer /></div>
+      <div className="pointer-events-auto">
+        <OnAirOfferCard />
+        <MiniPlayer />
+      </div>
     </motion.div>
   );
 }
@@ -487,6 +491,7 @@ function MobileShell({ children }) {
         <ChannelCategoryFooter />
       </main>
       <div className="fixed bottom-16 inset-x-0 z-30 px-3">
+        <OnAirOfferCard />
         <MobilePremiumStrip />
         <div className="mt-1.5"><MiniPlayer /></div>
       </div>
