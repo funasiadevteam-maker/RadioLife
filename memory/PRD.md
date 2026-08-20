@@ -1,5 +1,29 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## YOUTUBE-STYLE REDESIGN — CLASSIC SHELL (Phases A/B/C) (2026-08 fork) — testing agent iter102 ALL PASS (web + backend 11/11)
+Redesign of the DEFAULT consumer shell (variant 'legacy'): `frontend/src/shell/AppShell.jsx`,
+`frontend/src/Home.jsx`, `frontend/src/index.css`. NOT the "Try new look" RadioLife variant (kept as-is).
+- **Phase A — Dual theme**: `index.css` split into `:root/[data-theme=dark]` + `[data-theme=light]` token
+  sets (spec palettes). `src/theme/useTheme.js` (zustand) applies `data-theme` on <html>, persists to
+  localStorage + `PUT /api/shell/prefs`; `src/theme/ThemeToggle.jsx` in top bar + avatar menu. Dark default.
+  `.rl-card` + `.no-scrollbar` helpers added. tailwind radii → 12/16/24.
+- **Phase B — App shell**: new left menu (Primary: Home/Radio/Shop & Eat/Games/Wallet; Discover:
+  News/Podcasts[hidden when count 0]/Community/Map; Rewards: Trivia/Predict & Win/Passport; Your stations =
+  flagship list w/ live dots). Sticky filter-chips row w/ LIVE counts (config-driven from backend). Avatar
+  dropdown w/ role-gated Tools (Creator/Advertiser/Ad Review/Admin) + Settings + theme + logout. Collapse rail
+  (72px). Mobile: hamburger drawer + 5 bottom tabs. Admin routes render their own minimal shell (no consumer sidebar).
+- **Phase C — Card grammar + Home**: `src/shell/cards.jsx` (ShowCard16x9, ClipCard9x16, VenueCard, NewsRow,
+  ShelfHeader, HScroll). Home reordered: greeting+resume → Live shows (3× ShowCard) → Clips → Your stations
+  (4× StationTile) → Eat & earn (VenueCards from /api/offers/nearby) → News (NewsRow from /api/news/headlines)
+  → Games strip → Ways to earn. Filter chips re-scope the feed client-side.
+- **Backend additive**: `routes/shell.py` — `GET /api/shell/summary` (station_count 5035, chips w/ live counts,
+  12 flagships, badges games/shop), `GET+PUT /api/shell/prefs` (per-user theme; users.prefs.theme).
+- **Deferred / next (Phases D–G, awaiting user review)**: D Shop & Eat data-driven categories; E full 7-slot ad
+  system (AdLeaderboard currently renders null); F currency unification → "BigPoints" everywhere; G trust/content
+  fixes (single geo source, flagship AI art, delete mock feeds, empty-state doctrine) + full light-theme audit of
+  deep legacy pages (only shell+Home audited for light) + player-bar slim (§9, not yet done).
+
+
 ## TUBE SKIN — LIVE SHOPPING FILTERS + QUICK-BUY SHEET (2026-08 fork) — testing agent iter101 ALL PASS (web)
 Upgrades the Shopping sub-chips (previously visual-only) to REAL filters, plus a Quick-Buy sheet.
 - **Live filtering:** `TubeBrowse.jsx` sub-chips now call `chooseSub()` → refetch `/api/browse/feed`

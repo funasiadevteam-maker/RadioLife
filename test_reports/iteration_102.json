@@ -1,0 +1,46 @@
+{
+  "summary": "E2E tested redesigned classic consumer shell (Phase A dual theme + Phase B nav/chips/avatar + Phase C card grammar + shell backend). Backend: 11/11 pytest tests pass for /api/shell/summary + /api/shell/prefs. Web: shell-desktop loads on demo login with correct sidebar sections (Primary/Discover/Rewards/Your stations - 8 flagships), Podcasts hidden (count=0), badges shown for Shop & Eat + Games, filter chips render with LIVE counts (Radio 14, Eat 5, Salons 2, Fitness 1, Shops 3, Games 3, Offers 11, World 5,021), chip filtering re-scopes home feed correctly (chip-offers → only venues, chip-radio → only shows+stations), theme toggle flips html[data-theme] dark↔light and persists after reload via PUT /api/shell/prefs, search-input placeholder includes '5,035+', topbar-cart + PointsPill + NotificationBell present, home-root feed shows greeting with user's name (Demo), stations/clips/your-stations/venues/news/games-strip in correct order. Avatar menu: demo (listener) sees only Settings+Logout (no Tools); admin sees Tools with menu-admin/menu-creator/menu-advertiser. /admin route: data-admin-route='true', shell-sidebar & filter-chips hidden. Mobile 390x844: shell-mobile with 5 bottom tabs (tab-home/tab-radio/tab-shop-eat/tab-games/tab-wallet), mobile-hamburger opens mobile-drawer with badges, filter chips visible.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Home / DesktopShell", "issues": ["Cookie banner (bottom-right) overlaps top of the persistent player and floats above content; may block avatar-menu interactions until dismissed. Only observed on first visit."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "spec_vs_impl_mismatches": [
+    {"area": "sidebar testIDs", "spec": "nav-shop-eat, nav-predict-win, nav-badge-shop-eat", "actual": "nav-shop, nav-predict, nav-badge-shop", "impact": "cosmetic — visual + behavior are correct; only the testID string differs from the PRD list. Either update spec or rename in AppShell.jsx PRIMARY_NAV keys ('shop'→'shop-eat', 'predict'→'predict-win') if downstream automation depends on the PRD names."},
+    {"area": "menu-ad-review", "spec": "not in this PRD; role-gated Tools = Admin/Creator/Advertiser/Ad Review", "actual": "menu-ad-review is HIDDEN for admin users because code renders it only when canAdReview && !canAdmin (AppShell.jsx:330). Admins never see it.", "impact": "Confirm intended behavior — if Admins should also see 'Ad Review' as a shortcut, remove the !canAdmin guard."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_shell_endpoints.py",
+    "/app/test_reports/pytest/iter102_shell.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Align sidebar testID names to PRD (nav-shop-eat / nav-predict-win / nav-badge-shop-eat) OR update spec — currently nav-shop / nav-predict / nav-badge-shop.",
+    "OPTIONAL: Confirm whether menu-ad-review should also appear for full admins (currently hidden because of !canAdmin guard in AppShell.jsx:330)."
+  ],
+  "critical_code_review_comments": [
+    "AppShell.jsx is 546 lines — approaches the 700-line threshold; consider splitting DesktopShell / MobileShell / Sidebar / TopBar / FilterChips / AvatarMenu into their own files.",
+    "Two React console warnings observed: 'A props object containing a key prop is being spread into JSX' (likely from a NavItem/MenuRow spread). Non-blocking but easy fix — pull `key` out of the spread and pass it explicitly.",
+    "Chip 'trivia' has no count field but other category chips do — consistent with spec (Trivia is a route, not a count), but consider hiding the numeric absence with a fallback style for visual parity.",
+    "Backend routes/shell.py uses estimated_document_count() for world stations — acceptable for a summary endpoint but note that this is not always exact; the 5,021+14 total (5,035) matched the PRD."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_shell_endpoints.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (listener); admin@bigfm.dubai / AdminPass123! (admin)",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The classic redesigned shell is verified end-to-end for BOTH desktop (1920x1080) and mobile (390x844). Backend pytest at /app/backend/tests/test_shell_endpoints.py runs against the live preview and covers summary + prefs. If retesting after further changes, dismiss the cookie banner first before interacting with avatar menu (it overlays bottom-right and can intercept clicks). Persistent Player at the bottom has NOT been slimmed yet — deferred per PRD. Deep legacy pages (Radio/Wallet/etc.) light-theme audit is out of scope this iteration.",
+  "rca of the issue": ""
+}

@@ -69,8 +69,8 @@ module.exports = {
       borderRadius: {
         // Phase 15a — specific radii from the spec.
         "token-md":   "12px",
-        "token-card": "20px",
-        "token-hero": "28px",
+        "token-card": "16px",
+        "token-hero": "24px",
         // Legacy mappings.
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

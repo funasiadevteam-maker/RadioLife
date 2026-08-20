@@ -6648,6 +6648,10 @@ async def _phase_ad12_bootstrap() -> None:
 from routes.flagship_stations import router as _flagship_router
 app.include_router(_flagship_router)
 
+# YouTube-style shell — live nav/chip summary + per-user theme preference.
+from routes.shell import router as _shell_router
+app.include_router(_shell_router)
+
 
 @app.on_event("startup")
 async def _phase_fun1_bootstrap() -> None:
