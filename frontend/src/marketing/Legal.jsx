@@ -9,7 +9,7 @@ const SECTIONS_TERMS = [
   ["The service",           "RadioLife provides a non-interactive personalized internet radio service, AI-hosted segments, games, and a rewards wallet."],
   ["Eligibility",           "You must be at least 13 years old, or the minimum age required in your country, to use RadioLife. Some features require 18+."],
   ["Content & licenses",   "Music is licensed for non-interactive streaming via partnered rights bodies. You may not download, copy, or rebroadcast without permission."],
-  ["Wallet & rewards",     "BigCoin is a non-transferable in-product reward unit. It has no cash value, cannot be sold, and may expire per the Wallet Terms."],
+  ["Wallet & rewards",     "BigPoints is a non-transferable in-product reward unit. It has no cash value, cannot be sold, and may expire per the Wallet Terms."],
   ["Termination",           "We may suspend or terminate accounts that violate these Terms or applicable law."],
   ["Disclaimers",           "The service is provided on an as-is basis without warranties of any kind, express or implied."],
   ["Contact",                "Questions? Reach us at legal@bigfm.example."],

@@ -182,7 +182,7 @@ function CampaignCard({ c, light, business_id, onChanged }) {
             </span>
             <span className={`text-[10px] font-mono uppercase tracking-widest ${muted}`}>
               · {c.currency === "bc"
-                    ? <><Coins size={9} className="inline mr-0.5" />BigCoin</>
+                    ? <><Coins size={9} className="inline mr-0.5" />BigPoints</>
                     : <><Ticket size={9} className="inline mr-0.5" />USD voucher</>}
             </span>
           </div>
@@ -364,7 +364,7 @@ function CreateCampaignModal({ light, business_id, onClose, onCreated }) {
                               onChange={(e) => setF({ ...f, currency: e.target.value })}
                               data-testid="advertiser-pc-create-currency"
                               className={`w-full px-3 py-2 rounded-lg ${input}`}>
-                <option value="bc">BigCoin points</option>
+                <option value="bc">BigPoints points</option>
                 <option value="usd">Dollar-off voucher (cents)</option>
               </select>
             </Field>

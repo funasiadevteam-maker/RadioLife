@@ -1,7 +1,7 @@
 // Phase I — Business Redemption Portal: redeem screen.
 // Counter operator pastes the customer's coupon code, clicks Validate
 // (no PIN required for validation), then enters the 4-digit PIN to
-// commit the redemption.  The customer earns +20 BigCoin (PointsService
+// commit the redemption.  The customer earns +20 BigPoints (PointsService
 // award) on success.
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
@@ -188,7 +188,7 @@ export default function BusinessRedeem() {
             </div>
             {done.reward_awarded?.awarded && (
               <Chip tone="gold" data-testid="business-redeem-reward-chip">
-                Customer earned +{done.reward_awarded.delta || 20} BigCoin
+                Customer earned +{done.reward_awarded.delta || 20} BigPoints
               </Chip>
             )}
             <Button variant="outline" onClick={reset} className="mx-auto"

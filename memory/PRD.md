@@ -1,5 +1,26 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## REDESIGN CONT. — CURRENCY + FLAGSHIP ART + AD SLOTS (2026-08 fork) — testing agent iter103 ALL PASS (web + backend)
+- **F · Currency unification**: bulk case-sensitive rename `BigCoin/BigCoins → BigPoints` across 26 consumer
+  frontend files; bare ` BC ` currency labels → BigPoints in Wallet.js / Trivia.jsx / PublicPassport.js
+  (data currency-codes in Predict/Admin + code comments left untouched). Backend house-ad creatives
+  (`banner_ads_v2.py` HOUSE_CREATIVES, `banner_ad_provider.py`) also renamed. Wallet title = "BigPoints Wallet".
+  Verified: no user-facing BigCoin/BC remains; API paths/fields (`/api/bigcoin`, `bigcoin_*`) unchanged.
+- **Flagship art**: generated 12 on-brand cinematic covers (Gemini) hosted at static.prod-images…; persisted to
+  `imported_radio_stations.flagship_art` via `scripts/set_flagship_art.py`. `shell.py` summary serves
+  `flagship_art || favicon`. `StationTile` now shows the brand gradient while art loads (no black flash).
+  Verified: 12/12 art URLs (200), tiles paint at naturalWidth 1024, 0 purple placeholders.
+- **E · Ad system (core)**: reused `BannerAdSlot` + `/api/ads/banner/decision` (direct→adsense→house waterfall,
+  house-creative fallback). Wired 3 real slots: leaderboard (`top_leaderboard`) in AppShell under the top bar
+  + two in-feed on Home (`featured_horizontal`, `mid_horizontal`). Labeled "AD", hidden client-side for Premium
+  (`summary.is_premium`) and auto-hidden when decision is empty. `banner_ad_slots` seeds on startup via
+  `ensure_banner_v2_indexes` (idempotent; also seeded manually for the current instance).
+- **Still remaining (redesign D–G)**: D Shop & Eat data-driven categories (the /shop RadioLife overlay);
+  E remainder — 4 bespoke slots (sponsored listing, sponsored clip, presenting-sponsor chip, contextual on-air card
+  + audio sync); G — single geo-source audit, Predict&Win curated questions, time-window promos, empty-state
+  doctrine sweep, full light-theme audit of deep legacy pages, and the player-bar slim (§9).
+
+
 ## YOUTUBE-STYLE REDESIGN — CLASSIC SHELL (Phases A/B/C) (2026-08 fork) — testing agent iter102 ALL PASS (web + backend 11/11)
 Redesign of the DEFAULT consumer shell (variant 'legacy'): `frontend/src/shell/AppShell.jsx`,
 `frontend/src/Home.jsx`, `frontend/src/index.css`. NOT the "Try new look" RadioLife variant (kept as-is).

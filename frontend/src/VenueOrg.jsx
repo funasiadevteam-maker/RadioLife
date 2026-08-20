@@ -213,7 +213,7 @@ export function VenuePayouts() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Card className="p-4">
             <div className="text-[10px] uppercase tracking-[0.25em] text-text-secondary font-mono">
-              BigCoin liability
+              BigPoints liability
             </div>
             <div className="font-display font-bold text-3xl tracking-display-tight mt-1">
               ${data.bigcoin_liability_usd}

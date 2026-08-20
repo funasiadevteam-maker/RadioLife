@@ -189,7 +189,7 @@ export default function Billing() {
                   : <li>{p.features.max_skips_per_hour} skips / hour</li>}
                 {p.features.premium_channels > 0 && <li>{p.features.premium_channels} VIP channels</li>}
                 {p.family_seats > 1 && <li><b>{p.family_seats} family seats</b></li>}
-                {p.features.bigcoin_2x_weekends && <li>2× BigCoin weekends</li>}
+                {p.features.bigcoin_2x_weekends && <li>2× BigPoints weekends</li>}
               </ul>
               <button className="reward-btn"
                 onClick={() => isCurrent ? null : changePlan(p.slug)}

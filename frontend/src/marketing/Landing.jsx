@@ -22,7 +22,7 @@ export default function Landing() {
   return (
     <MarketingShell>
       <SEO title="AI Radio · Live Trivia · Real Rewards"
-              description="RadioLife is a non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigCoin rewards, and a wallet of real coupons." />
+              description="RadioLife is a non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigPoints rewards, and a wallet of real coupons." />
       <Hero />
       {/* Phase FUN.1-v2 — Flagship strip on the landing hero for cross-promo. */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8"
@@ -213,7 +213,7 @@ function ForBusinessCTA({ urlFor }) {
         { icon: Gamepad2, title: "Game campaigns",   imageKey: "game_campaigns",
               body: "Spin-the-wheel, lucky draws, lyric hunts — branded, measured." },
         { icon: Wallet,      title: "Coupon wallet",      imageKey: "coupon_wallet",
-              body: "Drop offers into BigCoin wallets near you. Redeem in-store via QR." },
+              body: "Drop offers into BigPoints wallets near you. Redeem in-store via QR." },
       ]}
       urlFor={urlFor}
     />

@@ -163,9 +163,9 @@ def _ssp_mock_fill() -> Optional[dict]:
         {"image_url": "/api/static/ad_creatives/house_premium_320x60.png",
           "click_url": "/billing", "cta_text": "Go Premium · skip ads"},
         {"image_url": "/api/static/ad_creatives/house_predict_win_320x60.png",
-          "click_url": "/predict-win", "cta_text": "Predict to win BC"},
+          "click_url": "/predict-win", "cta_text": "Predict to win BigPoints"},
         {"image_url": "/api/static/ad_creatives/house_referral_320x60.png",
-          "click_url": "/wallet", "cta_text": "Earn 100 BC per friend"},
+          "click_url": "/wallet", "cta_text": "Earn 100 BigPoints per friend"},
     ]
     pick = random.choice(creatives)
     return {

@@ -136,7 +136,7 @@ function CampaignRow({ c, onClick }) {
             </span>
             <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">
               · {c.currency === "bc"
-                  ? <><Coins size={9} className="inline mr-0.5" />BigCoin</>
+                  ? <><Coins size={9} className="inline mr-0.5" />BigPoints</>
                   : <><Ticket size={9} className="inline mr-0.5" />USD voucher</>}
             </span>
             {c.admin_approval_required && (

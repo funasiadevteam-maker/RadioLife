@@ -50,7 +50,7 @@ export function PrivacyPolicy() {
       <h2>2. How we use it</h2>
       <ul>
         <li>Personalise station picks, trivia topics, predict-and-win events, and local offers.</li>
-        <li>Run rewards (BigCoin balance, badges, city stamps, leaderboards).</li>
+        <li>Run rewards (BigPoints balance, badges, city stamps, leaderboards).</li>
         <li>Process payments for Premium subscriptions, ad campaigns, and Predict & Win entries.</li>
         <li>Send transactional emails (welcome, invite, receipts) and, with consent, promotional emails.</li>
         <li>Detect and prevent fraud, abuse, and policy violations.</li>
@@ -81,8 +81,8 @@ export function TermsOfService() {
       <p>RadioLife streams (a) licensed music via direct partnerships and DMCA-compliant performance rights; (b) community-uploaded tracks under the RadioLife Community Upload License (the uploader represents they have rights to the audio); (c) third-party radio streams via public Radio Browser indexes.</p>
       <h2>4. Voice cloning</h2>
       <p>AI host voices on RadioLife are derived from voice talent who consented in writing. You may not request voice clones of any third party without their written consent.</p>
-      <h2>5. Rewards + BigCoin</h2>
-      <p>BigCoin is a closed-loop loyalty unit, not currency. It has no cash value and cannot be sold or transferred outside the Service. Voucher coupons are issued by participating businesses and honoured at their discretion.</p>
+      <h2>5. Rewards + BigPoints</h2>
+      <p>BigPoints is a closed-loop loyalty unit, not currency. It has no cash value and cannot be sold or transferred outside the Service. Voucher coupons are issued by participating businesses and honoured at their discretion.</p>
       <h2>6. Payments</h2>
       <p>Premium subscriptions and ad campaign purchases are processed by Stripe. Refunds: subscription cancellations take effect at the end of the current billing period; ad campaign refunds are available only for unspent budget within 7 days of purchase.</p>
       <h2>7. Termination</h2>

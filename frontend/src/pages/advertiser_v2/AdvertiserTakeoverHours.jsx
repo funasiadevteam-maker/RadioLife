@@ -487,7 +487,7 @@ function CreateWizard({ onClose, business_id, light }) {
                         onChange={(e) => setBonusType(e.target.value)}
                         data-testid="advertiser-th-create-bonus-type"
                         className={inputCls(light) + " w-1/2"}>
-                  <option value="bc">BigCoin</option>
+                  <option value="bc">BigPoints</option>
                   <option value="usd_voucher">USD voucher (cents)</option>
                 </select>
                 <input type="number" min={1}

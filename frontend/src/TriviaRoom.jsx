@@ -560,7 +560,7 @@ function MySponsorPrizes({ prizes, navigate, myUserId }) {
               <div className="text-sm font-black">
                 Rank #{p.rank} — {p.currency === "usd"
                   ? `$${(p.points_awarded / 100).toFixed(2)} voucher`
-                  : `+${p.points_awarded} BigCoin`}
+                  : `+${p.points_awarded} BigPoints`}
               </div>
               <div className="text-[11px] text-text-secondary truncate">
                 From {p.sponsor_display_name}

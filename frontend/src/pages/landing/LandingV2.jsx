@@ -347,7 +347,7 @@ function Hero({ onSeeHow }) {
                                     px-4 py-2 shadow-lg flex items-center gap-2"
                         style={{ border: `1px solid ${PALETTE.hairline}` }}>
             <Coins size={16} style={{ color: PALETTE.gold }} />
-            <span className="text-xs font-bold">+ 24 BigCoins</span>
+            <span className="text-xs font-bold">+ 24 BigPoints</span>
           </div>
         </div>
       </div>
@@ -367,7 +367,7 @@ const STORY = [
       tint:      PALETTE.coral },
   { id: "earn",      Icon: Sparkles, label: "EARN",
       title: "Every song earns you something.",
-      body:    "Play trivia, spin the wheel, predict along — collect BigCoins " +
+      body:    "Play trivia, spin the wheel, predict along — collect BigPoints " +
                       "just by listening.",
       art:      null,
       tint:      PALETTE.gold },
@@ -532,7 +532,7 @@ function UniqueSection() {
 const FLOW = [
   { Icon: Headphones, title: "Listen",    caption: "Tune in" },
   { Icon: Trophy,        title: "Play",      caption: "Trivia, spin, predict" },
-  { Icon: Coins,          title: "Earn",      caption: "BigCoins pile up" },
+  { Icon: Coins,          title: "Earn",      caption: "BigPoints pile up" },
   { Icon: Coffee,        title: "Redeem",  caption: "At real restaurants, cinemas, cafés" },
 ];
 

@@ -27,6 +27,7 @@ import ChannelCategoryFooter from "@/components/ChannelCategoryFooter";
 import NotificationBell from "@/components/NotificationBell";
 import PointsPill from "@/rewards/PointsPill";
 import ThemeToggle from "@/theme/ThemeToggle";
+import BannerAdSlot from "@/components/BannerAdSlot";
 import { useThemeStore } from "@/theme/useTheme";
 import { useShellSummary, useShellFilter, fmtCount } from "./useShellData";
 
@@ -356,11 +357,19 @@ function MenuDivider({ label }) {
   );
 }
 
-// ── Ad Slot 1 — leaderboard strip. Renders a live sponsor or nothing.
-// Wired to real campaign data in Phase E; hidden (null) until then and
-// for Premium users, so the slot never shows a broken/empty unit.
+// ── Ad Slot 1 — leaderboard strip (real campaigns via /api/ads/banner/
+// decision; house-creative fallback). Hidden for Premium and when the
+// decision returns nothing (BannerAdSlot renders null → empty wrapper
+// collapses).
 function AdLeaderboard() {
-  return null;
+  const { pathname } = useLocation();
+  const summary = useShellSummary();
+  if (summary?.is_premium) return null;
+  return (
+    <div data-testid="ad-leaderboard" className="flex justify-center px-4">
+      <BannerAdSlot slotKey="top_leaderboard" pageRoute={pathname} />
+    </div>
+  );
 }
 
 // ── Filter chips (YouTube signature) ───────────────────────────────────

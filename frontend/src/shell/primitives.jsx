@@ -104,7 +104,8 @@ export function StationTile({ name, dj, artwork, live = false,
     <Card hoverable className={["group p-3 flex flex-col gap-3 w-full",
                                           className].join(" ")}
             data-testid={`station-tile-${name}`}>
-      <div className="relative aspect-square rounded-token-md overflow-hidden bg-bg-base">
+      <div className="relative aspect-square rounded-token-md overflow-hidden"
+        style={{ background: "linear-gradient(135deg, var(--accent-electric) 0%, var(--accent-magenta) 100%)" }}>
         {artwork ? (
           <img
             src={artwork}

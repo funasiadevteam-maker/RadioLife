@@ -363,7 +363,7 @@ export default function TriviaRoomRadioLife() {
                   <div className="text-sm font-black text-slate-900">
                     Rank #{p.rank} — {p.currency === "usd"
                       ? `$${(p.points_awarded / 100).toFixed(2)} voucher`
-                      : `+${p.points_awarded} BigCoin`}
+                      : `+${p.points_awarded} BigPoints`}
                   </div>
                   <div className="text-[11px] text-slate-500 truncate">
                     From {p.sponsor_display_name}

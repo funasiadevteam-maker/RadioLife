@@ -1,7 +1,7 @@
 // Phase 16a — Single-player trivia gameplay.
 //   Start ⇒ /api/trivia/sessions/start with category_id query param.
 //   Loops through 10 questions, posts /answer per click, shows reveal,
-//   then /finish on the last one + animates BigCoin reward.
+//   then /finish on the last one + animates BigPoints reward.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import axios from "axios";
@@ -134,7 +134,7 @@ export default function TriviaPlay() {
                                   font-mono text-lg"
                 data-testid="trivia-final-bc">
             <Coins size={18} />
-            +{finished.bigcoin_awarded} BigCoin awarded
+            +{finished.bigcoin_awarded} BigPoints awarded
           </div>
           <div className="flex gap-3 justify-center pt-4">
             <Button variant="primary" onClick={() => navigate("/trivia")}

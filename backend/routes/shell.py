@@ -42,7 +42,7 @@ async def shell_summary(request: Request, city: str = ""):
             "slug": s.get("flagship_slug"),
             "name": s.get("name"),
             "city": s.get("country"),
-            "art": s.get("favicon"),
+            "art": s.get("flagship_art") or s.get("favicon"),
             "live": bool(s.get("is_live")),
             "listeners": int(s.get("listeners") or 0),
         })

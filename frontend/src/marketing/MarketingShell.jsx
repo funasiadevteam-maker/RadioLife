@@ -15,7 +15,7 @@ const NAV = [
 
 export function SEO({ title, description, image }) {
   const fullTitle = title ? `${title} · RadioLife` : "RadioLife · AI Radio · Rewards · Local Commerce";
-  const desc = description || "Non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigCoin rewards, and a wallet of real coupons.";
+  const desc = description || "Non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigPoints rewards, and a wallet of real coupons.";
   return (
     <Helmet>
       <title>{fullTitle}</title>
@@ -117,7 +117,7 @@ function Footer() {
       links: [
         ["Stations",         "/about"],
         ["Live trivia",      "/about"],
-        ["BigCoin wallet",   "/about"],
+        ["BigPoints wallet",   "/about"],
         ["Mobile app",       "/about"],
       ],
     },

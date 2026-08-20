@@ -169,7 +169,7 @@ export default function Radio() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [menuOpen]);
 
-  // Phase 5 — BigCoin heartbeat: server-side 1 BC/min while playing
+  // Phase 5 — BigPoints heartbeat: server-side 1 BC/min while playing
   const lastTrackId = useRef(null);
   useEffect(() => {
     if (!user) return;
@@ -603,7 +603,7 @@ export default function Radio() {
                 </Link>
                 <Link to="/wallet" className="menu-item" data-testid="menu-wallet-link"
                       onClick={() => setMenuOpen(false)}>
-                  <Coins size={14} /> BigCoin wallet
+                  <Coins size={14} /> BigPoints wallet
                 </Link>
                 <Link to="/passport" className="menu-item" data-testid="menu-passport-link"
                       onClick={() => setMenuOpen(false)}>

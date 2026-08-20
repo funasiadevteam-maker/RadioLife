@@ -92,7 +92,7 @@ export default function TakeoverOverlay() {
               toast.success(
                 `+${r.bonus_minted.prize_amount}` +
                 ` ${r.bonus_minted.prize_type === "bc"
-                    ? "BigCoin" : "USD (cents) voucher"}` +
+                    ? "BigPoints" : "USD (cents) voucher"}` +
                 ` for staying tuned!`,
                 { duration: 6000 });
             }

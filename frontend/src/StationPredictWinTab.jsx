@@ -432,12 +432,12 @@ function WizardModal({ slug, onClose, onCreated }) {
           <Field label="Prize title">
             <input data-testid="wizard-prize-title" value={prizeTitle}
                           onChange={(e) => setPrizeTitle(e.target.value)}
-                          placeholder="100 BigCoin reward" style={inp}/>
+                          placeholder="100 BigPoints reward" style={inp}/>
           </Field>
           <Field label="Prize kind">
             <select data-testid="wizard-prize-kind" value={prizeKind}
                           onChange={(e) => setPrizeKind(e.target.value)} style={inp}>
-              <option value="bigcoin">BigCoin (auto-credit)</option>
+              <option value="bigcoin">BigPoints (auto-credit)</option>
               <option value="points">Points</option>
               <option value="experience">Experience</option>
               <option value="merchandise">Merchandise</option>
@@ -584,7 +584,7 @@ function ResolveModal({ campaign, onClose, onResolved }) {
         <div style={{ display: "grid", gap: 14 }}>
           <div style={muted}>
             Resolving will lock entry statuses (winner / loser) and trigger the
-            award pipeline (BigCoin credit, badges, wallet items).  This is
+            award pipeline (BigPoints credit, badges, wallet items).  This is
             irreversible.
           </div>
           <Field label="Winning option">

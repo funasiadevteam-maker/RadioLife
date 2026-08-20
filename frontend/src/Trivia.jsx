@@ -59,7 +59,7 @@ export default function Trivia() {
           </h1>
           <p className="text-text-secondary text-sm max-w-lg">
             10 questions, server-timed, AI-generated for your city.  Earn
-            BigCoin on every session.  Host a live room and beat your crew.
+            BigPoints on every session.  Host a live room and beat your crew.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
             <Button variant="primary" onClick={() => navigate("/trivia/rooms/create")}
@@ -140,7 +140,7 @@ export default function Trivia() {
                       {h.final_score}
                     </span>
                     <span className="text-accent-gold font-mono text-xs">
-                      +{h.bigcoin_awarded} BC
+                      +{h.bigcoin_awarded} BigPoints
                     </span>
                   </div>
                 </div>
@@ -163,7 +163,7 @@ export default function Trivia() {
             <li>• 10 questions per session.</li>
             <li>• 30s server-timed window per question.</li>
             <li>• 100 pts correct · +50 if &lt; 3s · +25 if &lt; 6s.</li>
-            <li>• Score ÷ 10 = BigCoin reward.</li>
+            <li>• Score ÷ 10 = BigPoints reward.</li>
             <li>• No repeats within 90 days.</li>
           </ul>
         </Card>
@@ -177,7 +177,7 @@ export default function Trivia() {
           <p className="text-xs text-text-secondary mb-3">
             Host a private trivia room.  Share a 10-char code, race
             your friends, climb the live leaderboard.  Top 3 earn
-            BigCoin multipliers.
+            BigPoints multipliers.
           </p>
           <Button variant="ghost" size="sm"
                       onClick={() => navigate("/trivia/rooms/create")}

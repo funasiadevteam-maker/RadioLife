@@ -40,7 +40,7 @@ function BCToast({ amount, label, onDone }) {
   }, [onDone]);
   return (
     <div className="bc-toast" data-testid="bc-toast">
-      <Sparkles size={16} /> +{amount} BigCoin {label && `· ${label}`}
+      <Sparkles size={16} /> +{amount} BigPoints {label && `· ${label}`}
     </div>
   );
 }
@@ -82,7 +82,7 @@ export default function Wallet() {
           <Link to="/" style={{ color: "#888", fontSize: 12, textDecoration: "none" }} data-testid="back-to-radio">
             <ChevronLeft size={11} /> back to radio
           </Link>
-          <h1>BigCoin Wallet</h1>
+          <h1>BigPoints Wallet</h1>
           <p className="sub">Earn by listening · Spend on rewards · Refer friends · Play games</p>
         </div>
       </header>
@@ -169,7 +169,7 @@ function BalanceCard({ me }) {
         </div>
         <div style={{ fontSize: 10, color: "#888", marginTop: 6 }}>
           {me?.next_milestone
-            ? `${me.next_milestone - me.lifetime_earned} BC to milestone`
+            ? `${me.next_milestone - me.lifetime_earned} BigPoints to milestone`
             : "Max milestone reached!"}
         </div>
       </div>
@@ -198,7 +198,7 @@ function BalanceTab({ me }) {
       {loading && <Loader2 className="spin" size={22} />}
       {!loading && txns.length === 0 && (
         <p style={{ color: "#888", padding: 24, textAlign: "center" }}>
-          No transactions yet. Start listening to earn BigCoin!
+          No transactions yet. Start listening to earn BigPoints!
         </p>
       )}
       <div className="txn-list">
@@ -210,7 +210,7 @@ function BalanceTab({ me }) {
             </div>
             <div style={{ textAlign: "right" }}>
               <div className={`txn-amount ${t.amount > 0 ? "earn" : "spend"}`}>
-                {t.amount > 0 ? "+" : ""}{t.amount} BC
+                {t.amount > 0 ? "+" : ""}{t.amount} BigPoints
               </div>
               <div className="txn-sub">→ {t.balance_after}</div>
             </div>
@@ -253,8 +253,8 @@ function RewardsTab({ me, onRedeemed }) {
   useEffect(() => { load(); }, [load]);
 
   const redeem = async (id, name, cost) => {
-    if ((me?.balance || 0) < cost) return toast.error("Not enough BigCoin");
-    if (!window.confirm(`Redeem "${name}" for ${cost} BC?`)) return;
+    if ((me?.balance || 0) < cost) return toast.error("Not enough BigPoints");
+    if (!window.confirm(`Redeem "${name}" for ${cost} BigPoints?`)) return;
     setRedeeming(id);
     try {
       const r = await axios.post(`${API}/bigcoin/redeem/${id}`);
@@ -275,7 +275,7 @@ function RewardsTab({ me, onRedeemed }) {
           const soldOut = r.stock_left !== null && r.stock_left <= 0;
           return (
             <div key={r.reward_id} className="reward-card" data-testid={`reward-${r.reward_id}`}>
-              <div className="reward-cost"><Coins size={11} /> {r.cost_bigcoin} BC</div>
+              <div className="reward-cost"><Coins size={11} /> {r.cost_bigcoin} BigPoints</div>
               <div className="reward-name" style={{ marginTop: 12 }}>{r.name}</div>
               <div className="reward-desc">{r.description}</div>
               {r.stock_left !== null && (
@@ -288,7 +288,7 @@ function RewardsTab({ me, onRedeemed }) {
                 disabled={!canAfford || soldOut || redeeming === r.reward_id}
                 data-testid={`redeem-${r.reward_id}`}>
                 {redeeming === r.reward_id ? <Loader2 className="spin" size={14} /> :
-                  canAfford ? "Redeem" : `Need ${r.cost_bigcoin - (me?.balance || 0)} more BC`}
+                  canAfford ? "Redeem" : `Need ${r.cost_bigcoin - (me?.balance || 0)} more BigPoints`}
               </button>
             </div>
           );
@@ -331,7 +331,7 @@ function GamesTab() {
         </div>
         <p className="text-text-secondary text-sm max-w-md mx-auto mb-5">
           Check back soon — fresh games drop every week. Meanwhile, try
-          tonight's trivia for live BigCoin earnings.
+          tonight's trivia for live BigPoints earnings.
         </p>
         <button
           type="button"
@@ -385,9 +385,9 @@ function SpinModal({ onClose }) {
   const [result, setResult] = useState(null);
   const [rotation, setRotation] = useState(0);
   const SLICES = [
-    { label: "5 BC", color: "#ff2d95" }, { label: "20 BC", color: "#7BD3F7" },
-    { label: "50 BC", color: "#fdb756" }, { label: "100 BC", color: "#a78bfa" },
-    { label: "200 BC", color: "#4ade80" }, { label: "Coupon", color: "#fb7185" },
+    { label: "5 BigPoints", color: "#ff2d95" }, { label: "20 BigPoints", color: "#7BD3F7" },
+    { label: "50 BigPoints", color: "#fdb756" }, { label: "100 BigPoints", color: "#a78bfa" },
+    { label: "200 BigPoints", color: "#4ade80" }, { label: "Coupon", color: "#fb7185" },
   ];
   const handleSpin = async () => {
     setSpinning(true);
@@ -539,7 +539,7 @@ function TriviaModal({ onClose }) {
               <div style={{ marginTop: 20, textAlign: "center" }}>
                 {result.correct ? (
                   <div style={{ color: "var(--bc-green)" }}>
-                    <CheckCircle2 size={20} /> +{result.bigcoin_earned} BigCoin!
+                    <CheckCircle2 size={20} /> +{result.bigcoin_earned} BigPoints!
                   </div>
                 ) : (
                   <div style={{ color: "#fb7185" }}>
@@ -623,7 +623,7 @@ function LyricModal({ onClose }) {
               <div style={{ marginTop: 18, textAlign: "center" }}>
                 {result.correct ? (
                   <div style={{ color: "var(--bc-green)" }}>
-                    <CheckCircle2 size={20} /> +{result.bigcoin_earned} BigCoin!
+                    <CheckCircle2 size={20} /> +{result.bigcoin_earned} BigPoints!
                   </div>
                 ) : (
                   <div style={{ color: "#fb7185" }}>
@@ -826,7 +826,7 @@ function ReferTab({ me }) {
     if (navigator.share) {
       try { await navigator.share({
         title: "Join me on RadioLife",
-        text: "Listen to AI-curated radio with me. Sign up via my link and we both earn BigCoin:",
+        text: "Listen to AI-curated radio with me. Sign up via my link and we both earn BigPoints:",
         url: inviteUrl,
       }); } catch {}
     } else copy();
@@ -842,7 +842,7 @@ function ReferTab({ me }) {
       <div className="refer-card">
         <p style={{ color: "#aaa", fontSize: 13 }}>Share this link. When a friend signs up + completes onboarding:</p>
         <p style={{ color: "var(--bc-gold)", fontWeight: 800, fontSize: 18, margin: "8px 0" }}>
-          You earn <Coins size={16} /> +100 BigCoin
+          You earn <Coins size={16} /> +100 BigPoints
         </p>
         <div className="refer-code" data-testid="referrer-code">{code}</div>
         <p style={{ color: "#888", fontSize: 11, fontFamily: "monospace", wordBreak: "break-all" }}>
@@ -869,12 +869,12 @@ function ReferTab({ me }) {
             </div>
             <div data-testid="refer-stat-earned">
               <div style={{ fontSize: 22, color: "var(--bc-gold)", fontWeight: 700 }}>{data.bigcoin_earned}</div>
-              <div className="bc-meta-label">BC EARNED</div>
+              <div className="bc-meta-label">BigPoints EARNED</div>
             </div>
           </div>
         )}
         <p style={{ color: "#666", fontSize: 10, marginTop: 18 }}>
-          Monthly cap: 1000 BC (10 successful invites)
+          Monthly cap: 1000 BigPoints (10 successful invites)
         </p>
       </div>
     </section>

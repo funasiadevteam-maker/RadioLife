@@ -580,7 +580,7 @@ function PrizesStep({ draft, setDraft, weightSum, tpl }) {
           <select value={p.prize_type}
                     onChange={(e) => set(i, "prize_type", e.target.value)}
                     data-testid={`prize-${i}-type`}>
-            <option value="bigcoin">BigCoin</option>
+            <option value="bigcoin">BigPoints</option>
             <option value="coupon">Coupon</option>
             <option value="gift_card">Gift card</option>
             <option value="free_item">Free item</option>

@@ -1,7 +1,7 @@
 // Phase H — AD.5 Trivia Sponsorship · Advertiser page.
 // Dual-design (Legacy dark + RadioLife light).  Advertisers fund a
 // prize pool for a trivia room, category, or "any room" fan-out.
-// Winners get BigCoin points or dollar-off vouchers.
+// Winners get BigPoints points or dollar-off vouchers.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
@@ -305,7 +305,7 @@ function CreateSponsorshipModal({ light, business_id, onClose, onCreated }) {
   const [created, setCreated] = useState(null);
 
   // Live budget preview — mirrors _compute_costs in the backend.
-  //   prize_cost += reward * quantity (BigCoin: 1 pt = 1¢; USD: reward already cents)
+  //   prize_cost += reward * quantity (BigPoints: 1 pt = 1¢; USD: reward already cents)
   //   fee = 25% platform take
   const budget = useMemo(() => {
     let prizeCost = 0;
@@ -513,7 +513,7 @@ function CreateSponsorshipModal({ light, business_id, onClose, onCreated }) {
                                     data-testid={`advertiser-ts-create-tier-${i}-currency`}
                                     aria-label="currency"
                                     className={`col-span-3 px-1 py-1.5 text-xs rounded ${input}`}>
-                      <option value="bc">BigCoin</option>
+                      <option value="bc">BigPoints</option>
                       <option value="usd">USD¢</option>
                     </select>
                     <input type="number" min="1" max="1000" value={p.quantity}

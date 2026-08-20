@@ -14,6 +14,7 @@ import {
 } from "@/shell/cards";
 import WaysToEarnCard from "@/rewards/WaysToEarnCard";
 import LocalHighlightsStrip from "@/components/LocalHighlightsStrip";
+import BannerAdSlot from "@/components/BannerAdSlot";
 import OGMeta from "@/components/OGMeta";
 
 export default function Home() {
@@ -56,6 +57,7 @@ export default function Home() {
   const flagships = summary?.flagships || [];
   const offerItems = offers?.items || [];
   const gamesLive = summary?.badges?.games || 0;
+  const isPremium = !!summary?.is_premium;
 
   // Filter chips re-scope the feed.
   const group = chip === "all" ? "all"
@@ -131,6 +133,13 @@ export default function Home() {
         </section>
       )}
 
+      {/* Ad Slot 2 — in-feed banner (real campaigns; hidden for Premium). */}
+      {group === "all" && !isPremium && (
+        <div data-testid="ad-infeed" className="flex justify-center">
+          <BannerAdSlot slotKey="featured_horizontal" pageRoute="/home" />
+        </div>
+      )}
+
       {/* 4 — Eat & earn near you */}
       {show("venues") && (
         <section data-testid="home-venues">
@@ -195,6 +204,13 @@ export default function Home() {
 
       {/* 7 — Ways to earn */}
       {show("earn") && <WaysToEarnCard />}
+
+      {/* Ad Slot 2b — second in-feed banner (≥ several shelves after the first). */}
+      {group === "all" && !isPremium && (
+        <div data-testid="ad-infeed-2" className="flex justify-center">
+          <BannerAdSlot slotKey="mid_horizontal" pageRoute="/home" />
+        </div>
+      )}
 
       <div className="h-24" />
     </div>

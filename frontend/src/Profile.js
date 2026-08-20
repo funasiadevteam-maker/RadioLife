@@ -372,7 +372,7 @@ export default function Profile() {
             <div className="ac-icon"><Share2 size={18} /></div>
             <div className="ac-body">
               <div className="ac-eyebrow mono">REFER A FRIEND</div>
-              <div className="ac-title">Share RadioLife, earn BigCoin</div>
+              <div className="ac-title">Share RadioLife, earn BigPoints</div>
               <div className="ac-meta">Both of you get bonus coins on signup.</div>
             </div>
             <ChevronRight size={16} className="ac-chev" />

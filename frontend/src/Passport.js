@@ -564,7 +564,7 @@ export default function Passport() {
                     <li key={`${c.to_level}-${k}`}
                           data-testid={`psp-celeb-reward-${k}`}>
                       {k === "bigcoin" && (
-                        <span><Star size={12}/> +{v} BigCoin</span>
+                        <span><Star size={12}/> +{v} BigPoints</span>
                       )}
                       {k === "premium_days" && v > 0 && (
                         <span>👑 {v} days of Premium</span>

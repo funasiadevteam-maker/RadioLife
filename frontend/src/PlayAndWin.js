@@ -72,7 +72,7 @@ export default function PlayAndWin() {
           </Link>
           <h1>Play &amp; Win</h1>
           <p className="sub">
-            Spin · scratch · quiz · mystery box. Prizes from BigCoin, sponsor coupons, exclusive unlocks.
+            Spin · scratch · quiz · mystery box. Prizes from BigPoints, sponsor coupons, exclusive unlocks.
           </p>
         </div>
         <button

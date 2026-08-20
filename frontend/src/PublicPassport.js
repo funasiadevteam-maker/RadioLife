@@ -210,10 +210,10 @@ export default function PublicPassport() {
           <div className="psp-funnel" style={{justifyContent: "space-between"}}>
             <div>
               <div className="psp-feed-name">
-                Refer &amp; earn <strong style={{color: "#ffd75e"}}>100 BigCoin</strong>
+                Refer &amp; earn <strong style={{color: "#ffd75e"}}>100 BigPoints</strong>
               </div>
               <div className="psp-feed-date">
-                Sign up via {data.display_name}&apos;s link — they get 100 BC when you complete onboarding.
+                Sign up via {data.display_name}&apos;s link — they get 100 BigPoints when you complete onboarding.
               </div>
             </div>
             <div className="psp-actions">

@@ -51,7 +51,7 @@ export default function ForBusiness() {
                     { icon: Gamepad2,    title: "Game campaigns",   imageKey: "game_campaigns",
                         body: "Spin-the-wheel, lyric hunts, mystery boxes — yours to brand and time." },
                     { icon: Wallet,          title: "Coupon wallet",      imageKey: "coupon_wallet",
-                        body: "Push offers into nearby BigCoin wallets. Redeem with a QR." },
+                        body: "Push offers into nearby BigPoints wallets. Redeem with a QR." },
                     { icon: BarChart3,   title: "Live analytics",
                         body: "Listens, plays, walk-ins, redeems — all in one dashboard." },
                 ]}
