@@ -111,6 +111,26 @@ def _normalize_market(value: Optional[str]) -> Optional[str]:
     return v if v in SUPPORTED_MARKETS else None
 
 
+async def _enrich(db, items: List[dict]) -> List[dict]:
+    """Attach the business `category` (for Shop & Eat category filtering) and
+    a `sponsored` flag (business has an active marketplace promotion) so the
+    consumer rail can filter by category + surface a real sponsored listing."""
+    ids = [i.get("business_id") for i in items if i.get("business_id")]
+    if not ids:
+        return items
+    cats: Dict[str, Any] = {}
+    async for b in db.marketplace_profiles.find(
+            {"business_id": {"$in": ids}}, {"business_id": 1, "category": 1}):
+        cats[b["business_id"]] = b.get("category")
+    promoted = set(await db.marketplace_promotions.distinct(
+        "business_id", {"status": "active"}))
+    for i in items:
+        bid = i.get("business_id")
+        i["category"] = cats.get(bid)
+        i["sponsored"] = bid in promoted
+    return items
+
+
 @router.get("/nearby",
                           description=(
                               "Public geo-aware offer rail.  Resolves the user's "
@@ -171,6 +191,7 @@ async def offers_nearby(
                                 .sort("created_at", -1).limit(limit)
         items = [_public_card(o) async for o in cur]
         if items:
+            items = await _enrich(db, items)
             return _resp(items, "market", effective_market, effective_city_label,
                               effective_country, requested=market)
 
@@ -180,6 +201,7 @@ async def offers_nearby(
                                 .sort("created_at", -1).limit(limit)
         items = [_public_card(o) async for o in cur]
         if items:
+            items = await _enrich(db, items)
             return _resp(items, "country", effective_market, effective_city_label,
                               effective_country, requested=market)
 
