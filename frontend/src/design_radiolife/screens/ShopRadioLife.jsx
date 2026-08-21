@@ -184,38 +184,6 @@ export default function ShopRadioLife() {
         ))}
       </div>
 
-      {isMerchant ? (
-        <Link to="/shop/merchant" data-testid="shop-merchant-banner"
-          className="flex items-center gap-3 bg-slate-900 text-white rounded-2xl p-4 hover:bg-slate-800 transition-colors">
-          <LayoutDashboard size={22} />
-          <div className="flex-1">
-            <div className="font-black">Merchant Dashboard</div>
-            <div className="text-xs opacity-80">Manage your menu, products, orders, memberships & more.</div>
-          </div>
-          <ArrowRight size={22} />
-        </Link>
-      ) : (
-        <Link to="/sell" data-testid="shop-sell-cta"
-          className="flex items-center gap-3 bg-orange-600 text-white rounded-2xl p-4 hover:bg-orange-700 transition-colors">
-          <Store size={22} />
-          <div className="flex-1">
-            <div className="font-black">Sell on RadioLife</div>
-            <div className="text-xs opacity-90">List your business & reward local customers with BigPoints.</div>
-          </div>
-          <ArrowRight size={22} />
-        </Link>
-      )}
-
-      <Link to="/shop/concierge" data-testid="shop-concierge-banner"
-        className="flex items-center gap-3 bg-gradient-to-br from-orange-600 to-amber-500 text-white rounded-2xl p-4 hover:opacity-95 transition-opacity">
-        <Sparkles size={22} />
-        <div className="flex-1">
-          <div className="font-black">Order by chat ✨</div>
-          <div className="text-xs opacity-90">Tell our AI concierge what you want — it applies your memberships automatically.</div>
-        </div>
-        <ArrowRight size={22} />
-      </Link>
-
       {browsing ? (
         <>
           <div className="flex items-center gap-2">
@@ -304,6 +272,36 @@ export default function ShopRadioLife() {
           ))}
         </>
       )}
+
+      {/* Merchant / Sell CTA — moved to the bottom of the page. */}
+      {isMerchant ? (
+        <Link to="/shop/merchant" data-testid="shop-merchant-banner"
+          className="flex items-center gap-3 bg-slate-900 text-white rounded-2xl p-4 hover:bg-slate-800 transition-colors">
+          <LayoutDashboard size={22} />
+          <div className="flex-1">
+            <div className="font-black">Merchant Dashboard</div>
+            <div className="text-xs opacity-80">Manage your menu, products, orders, memberships &amp; more.</div>
+          </div>
+          <ArrowRight size={22} />
+        </Link>
+      ) : (
+        <Link to="/sell" data-testid="shop-sell-cta"
+          className="flex items-center gap-3 bg-orange-600 text-white rounded-2xl p-4 hover:bg-orange-700 transition-colors">
+          <Store size={22} />
+          <div className="flex-1">
+            <div className="font-black">Sell on RadioLife</div>
+            <div className="text-xs opacity-90">List your business &amp; reward local customers with BigPoints.</div>
+          </div>
+          <ArrowRight size={22} />
+        </Link>
+      )}
+
+      {/* Order by chat — floating capsule pinned to the right. */}
+      <Link to="/shop/concierge" data-testid="shop-concierge-fab" title="Order by chat"
+        className="fixed right-4 bottom-28 z-40 flex items-center gap-2 bg-gradient-to-br from-orange-600 to-amber-500 text-white rounded-full pl-4 pr-5 py-3 shadow-xl hover:shadow-2xl hover:scale-105 transition-all">
+        <Sparkles size={20} />
+        <span className="font-black text-sm whitespace-nowrap">Order by chat ✨</span>
+      </Link>
     </div>
   );
 }

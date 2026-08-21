@@ -220,6 +220,7 @@ async def offers_nearby(
     async for o in db.offers.aggregate(pipeline):
         items.append(_public_card(o))
     if items:
+        items = await _enrich(db, items)
         return _resp(items, "global", effective_market, effective_city_label,
                           effective_country, requested=market)
 

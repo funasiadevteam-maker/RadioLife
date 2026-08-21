@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 105 — Home feed Shop-category chip FILTERING + real venues from marketplace_profiles via new GET /api/shell/venues + Shop page bottom-banner/floating-FAB relayout. All 8 acceptance criteria PASS on both backend (pytest 8/8) and web frontend (demo@bigfm.dubai). Backend counts: chip_restaurant=4, beauty=2, fitness=1, retail=1, offers/shop=8 — exactly as specified. Sponsored-first ordering verified. Home chips filter the venue shelf (Eat 4 / Salons 2 / Fitness 1 / Shops 1), first card of the filtered row shows a SPONSORED pill (verified on Eat: 'Fun Pizza Kitchen'). Radio 14 chip switches feed to a 14-tile station grid. VenueCard onOpen navigates to /shop/{business_id}. On /shop the merchant banner sits AFTER the last venue section (y=3435 vs last-section y=2981) and the Order-by-chat FAB is position:fixed, pinned right, links to /shop/concierge.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/shop", "issues": ["Minor: floating 'Order by chat' FAB (bottom:112px, right:16px) sits close to the MiniPlayer's right-side controls (points-pill / favorites). On narrow desktop widths (<=1280) and mobile it may visually crowd the MiniPlayer. Not a blocker — worth checking bottom offset once MiniPlayer variants are considered."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_shell_venues_iter105.py",
+    "/app/test_reports/pytest/iter105_shell_venues.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/shell.py:19 — _NON_TEST is defined at module load with the regex inline; a shared pattern (_TEST_NAME already exists on line 16) is defined but unused. Minor: use _TEST_NAME.pattern to avoid duplicated regex string and keep drift-free.",
+    "backend/routes/shell.py:150 shell_venues — no `status=approved` filter documented but the code applies it (line 160). Confirm the frontend expects only approved shops (it does). Also, `limit` param is uncapped — recommend clamping to <=100 to avoid abuse (currently the .find(...).limit(200) hard-caps upstream, so effectively safe, but explicit min/max via Query would be cleaner).",
+    "frontend/src/Home.jsx:62 — `orderVenues` re-sorts client-side (b.sponsored - a.sponsored) even though the backend already returns sponsored-first. Not incorrect but duplicated work; consider trusting backend order to keep the client stable and reduce dead code.",
+    "frontend/src/Home.jsx:145 — venuesGrid path uses `.filter(o => (o.category||'').toLowerCase() === catToken)`. Since the backend already supports `category=` param, hitting /api/shell/venues?category=cat_x would let you skip the client-side filter and always show up to 8 per category (currently limited to 24 default + client filter, which for Fitness/Shops still fits). No user-facing bug today (only 8 total venues) — but if data grows, some categories could show fewer than expected because they were filtered out AFTER the top-24 slice. Recommend re-querying the endpoint with the chip category param on chip change.",
+    "frontend/src/design_radiolife/screens/ShopRadioLife.jsx:300 — shop-concierge-fab uses `bottom-28` (7rem = 112px). MiniPlayer height is ~64–72px; FAB sits ~40px above it. On very short viewports the FAB may cover the bottom of the last content section. Acceptable for now.",
+    "frontend/src/design_radiolife/screens/ShopRadioLife.jsx is 308 lines and rolls up header/menu/search/near-me/categories/sort/browse/usual/specials/sections/banner/FAB in one component. Approaching maintainability threshold; consider splitting the account-menu popover and the specials/sections rows into sub-components."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_shell_venues_iter105.py"
+  ],
+  "success_rate": {"backend": "100% (8/8 pytest)", "frontend": "100% (all 8 acceptance criteria)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (verified — is a merchant, so /shop shows shop-merchant-banner at the bottom, not shop-sell-cta).",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Concrete evidence captured 2026-08-21: (Backend) GET /api/shell/venues -> count=8; sponsored-first order: Ambreens Salon (beauty, s=T), Fun Pizza Kitchen (restaurant, s=T), The Grill House (restaurant, s=T), Urban Threads (retail, s=T), Glow Hair & Beauty (beauty, s=F), Brew & Bean Cafe (restaurant, s=F), Spice Route Kitchen (restaurant, s=F), Pulse Fitness Studio (fitness, s=F). Filters return cat_restaurant=4, cat_beauty=2, cat_fitness=1, cat_retail=1. Raw `category=restaurant` also works (both forms accepted). No TEST_/Iter/Test Shop/QA Demo names in payload. Summary chip counts exactly parity-match: Eat 4 / Salons 2 / Fitness 1 / Shops 1 / Offers 8. (Frontend) Home nav chips rendered with correct labels+counts (Eat 4, Salons 2, Fitness 1, Shops 1, Radio 14, Games 3, Offers 8, World 5,021). Clicking chip-cat_restaurant renders home-filter-shop section with 4 VenueCards, first card's <span>Sponsored</span> pill visible (text-transform:uppercase renders as 'SPONSORED'). chip-cat_beauty->2 cards, chip-cat_fitness->1, chip-cat_retail->1, chip-radio->home-station-grid with 14 direct children tiles. On /shop: shop-concierge-fab position=fixed, href=/shop/concierge, bounding box right-edge=1384 within 1400px viewport (pinned right), click navigates to /shop/concierge. shop-merchant-banner (Merchant Dashboard) rendered at y=3435 which is > last shop-section-* at y=2981 > shop-categories at y=469 => banner is at BOTTOM after venue sections, NOT sandwiched between categories and content. shop-sell-cta is absent (demo user IS a merchant, so the merchant variant renders — matches problem statement). VenueCard onOpen navigates: clicked home-venue-biz_sample_ambreens -> /shop/biz_sample_ambreens.",
+  "rca of the issue": ""
+}
