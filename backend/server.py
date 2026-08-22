@@ -5322,6 +5322,13 @@ try:
 except Exception as _e_art_router:
     logger.warning(f"Phase C: station_artwork router not loaded: {_e_art_router}")
 
+try:
+    from routes.imported_station_artwork import router as _imported_art_router
+    app.include_router(_imported_art_router)
+    logger.info("Imported-station artwork routes: /api/imported-stations/{sid}/artwork/* wired")
+except Exception as _e_imp_art:
+    logger.warning(f"imported_station_artwork router not loaded: {_e_imp_art}")
+
 # Phase 36d Turn 2 — shoppable card images (Tigris-first, local fallback).
 try:
     import os as _os

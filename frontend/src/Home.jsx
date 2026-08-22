@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Gamepad2, ChevronRight, Radio as RadioIcon, Trophy } from "lucide-react";
+import { Gamepad2, ChevronRight, Radio as RadioIcon, Trophy, Ticket, X, CheckCircle2 } from "lucide-react";
 import { useAuth, API } from "@/AuthContext";
 import { StationTile } from "@/shell/primitives";
 import { useGeoStore } from "@/store/useGeoStore";
@@ -30,6 +30,10 @@ export default function Home() {
   const [venues, setVenues] = useState([]);
   const [clips, setClips] = useState([]);
   const [news, setNews] = useState([]);
+  const [claimClip, setClaimClip] = useState(null);
+  const [claiming, setClaiming] = useState(false);
+  const [claimResult, setClaimResult] = useState(null);
+  const [flagshipsOverride, setFlagshipsOverride] = useState(null);
 
   useEffect(() => {
     if (loading) return;
@@ -53,18 +57,37 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return;
-    axios.get(`${API}/shell/venues`, { params: { limit: 24 }, withCredentials: true })
+    axios.get(`${API}/shell/venues`, { params: { limit: 24, market, city }, withCredentials: true })
       .then((r) => setVenues(r.data?.items || [])).catch(() => setVenues([]));
+  }, [user, market, city]);
+
+  useEffect(() => {
+    if (!user) return;
     axios.get(`${API}/shell/clips`, { params: { limit: 10 }, withCredentials: true })
       .then((r) => setClips(r.data?.items || [])).catch(() => setClips([]));
   }, [user]);
+
+  // Self-heal flagship art: if any flagship only has a placeholder (e.g. a
+  // fresh deploy with no seeded covers), kick off AI generation and refresh.
+  const flCount = summary?.flagship_count || 0;
+  useEffect(() => {
+    const fl = summary?.flagships || [];
+    if (!user || !fl.length) return;
+    if (!fl.some((f) => f.art_source === "placeholder")) return;
+    axios.post(`${API}/imported-stations/ensure-flagship-art`).catch(() => {});
+    const t = setTimeout(() => {
+      axios.get(`${API}/shell/summary`, { withCredentials: true })
+        .then((r) => setFlagshipsOverride(r.data?.flagships || null)).catch(() => {});
+    }, 18000);
+    return () => clearTimeout(t);
+  }, [user, flCount]);
 
   if (!user) return null;
 
   const firstName = user?.first_name || user?.name?.split(" ")?.[0] || "there";
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const flagships = summary?.flagships || [];
+  const flagships = flagshipsOverride || summary?.flagships || [];
   const gamesLive = summary?.badges?.games || 0;
   const isPremium = !!summary?.is_premium;
 
@@ -76,6 +99,25 @@ export default function Home() {
   const catToken = chip.startsWith("cat_") ? chip.slice(4) : null;
 
   const openStation = (slug) => navigate(`/radio?ch=${encodeURIComponent(slug)}&autoplay=1`);
+
+  // Sponsored clips open the claim sheet; station clips open the station.
+  const openClip = (c) => {
+    if (c.sponsored && c.campaign_id) { setClaimResult(null); setClaimClip(c); return; }
+    if (c.business_id) { navigate(`/shop/${c.business_id}`); return; }
+    if (c.slug) { openStation(c.slug); return; }
+    navigate("/radio");
+  };
+  const doClaim = async () => {
+    if (!claimClip) return;
+    setClaiming(true);
+    try {
+      const r = await axios.post(`${API}/shell/clips/claim`,
+        { campaign_id: claimClip.campaign_id }, { withCredentials: true });
+      setClaimResult(r.data);
+    } catch (_e) {
+      setClaimResult({ ok: false, error: "Couldn't claim right now — please try again." });
+    } finally { setClaiming(false); }
+  };
 
   const stationGrid = (items, kind) => (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
@@ -213,8 +255,7 @@ export default function Home() {
             {clips.map((c) => (
               <ClipCard9x16 key={c.id} testId={`home-clip-${c.id}`}
                 title={c.title} channel={c.channel} image={c.image} sponsored={c.sponsored}
-                onOpen={() => (c.business_id ? navigate(`/shop/${c.business_id}`)
-                  : c.slug ? openStation(c.slug) : navigate("/radio"))} />
+                onOpen={() => openClip(c)} />
             ))}
           </HScroll>
         </section>
@@ -265,6 +306,59 @@ export default function Home() {
       {!isPremium && (
         <div data-testid="ad-infeed-2" className="flex justify-center">
           <BannerAdSlot slotKey="mid_horizontal" pageRoute="/home" />
+        </div>
+      )}
+
+      {claimClip && (
+        <div data-testid="clip-claim-overlay" className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setClaimClip(null)}>
+          <div data-testid="clip-claim-sheet" onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rl-card overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+            <div className="relative h-40 w-full overflow-hidden bg-bg-elevated">
+              {claimClip.image
+                ? <img src={claimClip.image} alt={claimClip.channel} className="w-full h-full object-cover" />
+                : <div className="w-full h-full" style={{ background: "linear-gradient(135deg,var(--accent-electric),var(--accent-magenta))" }} />}
+              <span className="absolute top-3 left-3 text-[10px] font-black tracking-wide px-2 py-1 rounded-full"
+                style={{ background: "var(--accent-gold)", color: "#0a0a0c" }}>SPONSORED</span>
+              <button type="button" data-testid="clip-claim-close" onClick={() => setClaimClip(null)}
+                aria-label="Close" className="absolute top-3 right-3 w-8 h-8 grid place-items-center rounded-full"
+                style={{ background: "rgba(0,0,0,0.5)", color: "#fff" }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <div className="text-xs font-bold text-accent-electric">{claimClip.channel}</div>
+                <div className="font-display font-bold text-lg tracking-display-tight text-text-primary">{claimClip.offer || claimClip.title}</div>
+              </div>
+              {claimResult?.ok ? (
+                <div data-testid="clip-claim-success" className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--accent-green,#22c55e)" }}>
+                    <CheckCircle2 size={18} /> {claimResult.already ? "Already claimed" : "Offer claimed!"}
+                  </div>
+                  <div className="rl-card p-4 text-center">
+                    <div className="text-xs text-text-secondary mb-1">Show this code in-store</div>
+                    <div data-testid="clip-claim-code" className="font-display font-black text-2xl tracking-widest text-text-primary">{claimResult.code}</div>
+                  </div>
+                  <button type="button" data-testid="clip-claim-done" onClick={() => setClaimClip(null)}
+                    className="w-full py-3 rounded-token-md font-bold" style={{ background: "var(--text-primary)", color: "var(--bg-base)" }}>
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <button type="button" data-testid="clip-claim-btn" onClick={doClaim} disabled={claiming}
+                  className="w-full py-3 rounded-token-md font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={{ background: "var(--accent-gold)", color: "#0a0a0c" }}>
+                  <Ticket size={18} /> {claiming ? "Claiming…" : "Claim this offer"}
+                </button>
+              )}
+              {claimResult && !claimResult.ok && (
+                <div data-testid="clip-claim-error" className="text-sm text-center" style={{ color: "var(--accent-live,#ef4444)" }}>
+                  {claimResult.error || "Something went wrong."}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

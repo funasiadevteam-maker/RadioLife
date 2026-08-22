@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import {
   Play, Pause, ArrowLeft, ExternalLink, Globe2, Radio as RadioIcon,
   Sparkles, MapPin, Languages, Tag, Award, AlertCircle, ShieldCheck,
+  Image as ImageIcon, Upload, Trash2,
 } from "lucide-react";
 import { API } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -61,6 +62,7 @@ export default function LiveRadioStation() {
   const [err, setErr] = useState(null);
   const [streamErr, setStreamErr] = useState(null);
   const [toggling, setToggling] = useState(false);
+  const [artBusy, setArtBusy] = useState(false);
 
   // Phase 42-B2 hotfix — route Play through the unified player store so
   // the global ImportedStreamBridge can drive playback AND fire the
@@ -84,6 +86,19 @@ export default function LiveRadioStation() {
         const r = await axios.get(`${API}/live-radio/stations/${id}`);
         if (cancelled) return;
         setData(r.data);
+        // On-demand: generate AI art the first time an imported station
+        // with only a placeholder is opened, then refresh to show it.
+        const st = r.data?.station;
+        if (id.startsWith("imp_") && st && !st.has_custom_art) {
+          axios.post(`${API}/imported-stations/${id}/artwork/ensure`).catch(() => {});
+          setTimeout(async () => {
+            if (cancelled) return;
+            try {
+              const r2 = await axios.get(`${API}/live-radio/stations/${id}`);
+              if (!cancelled) setData(r2.data);
+            } catch (_e) { /* ignore */ }
+          }, 16000);
+        }
       } catch (e) {
         if (cancelled) return;
         setErr(e.response?.data?.detail?.code || "load_failed");
@@ -159,6 +174,51 @@ export default function LiveRadioStation() {
   // Phase 42-C — wire the inert toast to the real claim wizard.
   const onClaim = () => {
     navigate(`/claim/station/${id}`);
+  };
+
+  // Owner/admin artwork tools (imported stations).
+  const refetchStation = async () => {
+    try {
+      const r = await axios.get(`${API}/live-radio/stations/${id}`);
+      setData(r.data);
+    } catch (_e) { /* ignore */ }
+  };
+  const genArt = async () => {
+    setArtBusy(true);
+    try {
+      await axios.post(`${API}/imported-stations/${id}/artwork/generate`, {}, { withCredentials: true });
+      for (let i = 0; i < 12; i++) {
+        await new Promise((r) => setTimeout(r, 6000));
+        const st = await axios.get(`${API}/imported-stations/${id}/artwork/status`);
+        if (["complete", "failed", "idle"].includes(st.data?.status)) break;
+      }
+      await refetchStation();
+      toast.success("Artwork updated");
+    } catch (e) {
+      toast.error(e.response?.status === 429 ? "Hourly limit reached — try later." : "Couldn't generate artwork.");
+    } finally { setArtBusy(false); }
+  };
+  const uploadArt = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setArtBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await axios.post(`${API}/imported-stations/${id}/artwork/upload`, fd, { withCredentials: true });
+      await refetchStation();
+      toast.success("Logo uploaded");
+    } catch (_e) {
+      toast.error("Upload failed — use a JPG/PNG/WebP under 5 MB.");
+    } finally { setArtBusy(false); e.target.value = ""; }
+  };
+  const clearArt = async () => {
+    setArtBusy(true);
+    try {
+      await axios.post(`${API}/imported-stations/${id}/artwork/clear`, {}, { withCredentials: true });
+      await refetchStation();
+      toast.success("Reset to default");
+    } catch (_e) { /* ignore */ } finally { setArtBusy(false); }
   };
 
   // P0 · 3rd attempt — auto-play when the URL carries `?autoplay=1`
@@ -404,6 +464,34 @@ export default function LiveRadioStation() {
           )}
         </div>
       </div>
+
+      {/* Owner/admin artwork tools — imported stations only. */}
+      {data?.viewer_is_owner && !isAI && (
+        <section data-testid="owner-artwork-manager"
+                 className="mb-8 rounded-xl border border-white/[0.10] bg-white/[0.03] p-4">
+          <div className="text-xs uppercase tracking-widest text-white/50 font-mono mb-3 inline-flex items-center gap-1.5">
+            <ImageIcon size={12} /> Station artwork · owner tools
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" data-testid="owner-art-generate" onClick={genArt} disabled={artBusy}
+                    className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-cyan-400 text-slate-900 font-semibold text-sm disabled:opacity-40">
+              <Sparkles size={14} /> {artBusy ? "Working…" : "Generate AI artwork"}
+            </button>
+            <label data-testid="owner-art-upload"
+                   className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-white/[0.06] border border-white/[0.10] text-sm text-white/80 cursor-pointer hover:bg-white/[0.12]">
+              <Upload size={14} /> Upload logo
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={uploadArt} disabled={artBusy} />
+            </label>
+            <button type="button" data-testid="owner-art-clear" onClick={clearArt} disabled={artBusy}
+                    className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-white/[0.06] border border-white/[0.10] text-sm text-white/60 hover:text-white/90">
+              <Trash2 size={14} /> Reset
+            </button>
+          </div>
+          <div className="text-[11px] text-white/40 mt-2">
+            AI art is generated from your station name &amp; genre. Upload your own logo to override it.
+          </div>
+        </section>
+      )}
 
       {/* Phase AD.11 — station_detail banner slot (leaderboard). */}
       <BannerZoneSlot zone="station_detail" />

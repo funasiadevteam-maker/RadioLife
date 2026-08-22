@@ -7,6 +7,7 @@ route, auth, or earn-rate logic is touched.
 """
 from fastapi import APIRouter, Request, Body
 from auth import current_user, current_user_optional
+from services.station_art import resolve_art as _resolve_art
 from datetime import datetime, timezone
 import re
 
@@ -56,12 +57,14 @@ async def shell_summary(request: Request, city: str = ""):
     flagships = []
     cur = db.imported_radio_stations.find({"flagship_slug": {"$ne": None}}).limit(12)
     async for s in cur:
+        art_url, art_source = _resolve_art(s)
         flagships.append({
             "id": s.get("id") or s.get("station_id"),
             "slug": s.get("flagship_slug"),
             "name": s.get("name"),
             "city": s.get("country"),
-            "art": s.get("flagship_art") or s.get("favicon"),
+            "art": art_url,
+            "art_source": art_source,
             "live": bool(s.get("is_live")),
             "listeners": int(s.get("listeners") or 0),
         })
@@ -147,12 +150,16 @@ def _venue_card(p: dict, promoted_ids: set) -> dict:
 
 
 @router.get("/venues")
-async def shell_venues(request: Request, category: str = "", limit: int = 24):
-    """Real Shop & Eat venues for the Home feed — grouped-ready + sponsored-first.
+async def shell_venues(request: Request, category: str = "", city: str = "",
+                       market: str = "", limit: int = 24):
+    """Real Shop & Eat venues for the Home feed — sponsored-first, and scoped
+    to the listener's city/market when we have venues there.
 
     Sources `marketplace_profiles` directly (the `offers` collection is near-empty
     mock data). Excludes QA/seed shops. `category` accepts a raw business category
-    (restaurant/beauty/fitness/retail) or a `cat_<x>` chip key.
+    (restaurant/beauty/fitness/retail) or a `cat_<x>` chip key. When `market`/`city`
+    match local venues, only those are returned; otherwise falls back to all so the
+    shelf is never empty.
     """
     db = request.app.state.db
     promoted_ids = set(await db.marketplace_promotions.distinct(
@@ -160,8 +167,19 @@ async def shell_venues(request: Request, category: str = "", limit: int = 24):
     q = {"status": "approved", **_NON_TEST}
     if category:
         q["category"] = category[4:] if category.startswith("cat_") else category
-    cards = [_venue_card(p, promoted_ids)
-             async for p in db.marketplace_profiles.find(q).limit(200)]
+    profiles = [p async for p in db.marketplace_profiles.find(q).limit(200)]
+
+    terms = [t.lower() for t in (market, city) if t]
+    if terms:
+        def _loc_match(p):
+            blob = " ".join(str(x) for x in (
+                [p.get("market")] + [loc.get("city") for loc in (p.get("locations") or [])]
+            )).lower()
+            return any(t in blob or (blob and blob in t) for t in terms)
+        local = [p for p in profiles if _loc_match(p)]
+        profiles = local or profiles  # never empty the shelf
+
+    cards = [_venue_card(p, promoted_ids) for p in profiles]
     # Sponsored first, then higher-rated.
     cards.sort(key=lambda v: (0 if v["sponsored"] else 1, -(v["rating"] or 0)))
     return {"items": cards[:limit], "count": len(cards)}
@@ -175,8 +193,13 @@ async def shell_clips(request: Request, limit: int = 10):
     db = request.app.state.db
     clips = []
 
-    # One genuine sponsored clip from an active advertiser campaign.
-    camp = await db.campaigns.find_one({"status": "active"}, sort=[("created_at", -1)])
+    # One genuine sponsored clip from an active advertiser campaign — prefer
+    # one that already has a branded cover so the clip never renders blank.
+    camp = await db.campaigns.find_one(
+        {"status": "active", "clip_image_url": {"$nin": [None, ""]}},
+        sort=[("created_at", -1)])
+    if not camp:
+        camp = await db.campaigns.find_one({"status": "active"}, sort=[("created_at", -1)])
     if camp:
         biz = None
         if camp.get("business_id"):
@@ -192,9 +215,14 @@ async def shell_clips(request: Request, limit: int = 10):
             offer = name
         clips.append({
             "id": f"camp_{camp.get('campaign_id')}",
+            "campaign_id": camp.get("campaign_id"),
             "title": offer,
             "channel": sponsor,
-            "image": ((biz or {}).get("cover_urls") or [None])[0] or (biz or {}).get("logo_url"),
+            "offer": offer,
+            "sponsor": sponsor,
+            "image": (camp.get("clip_image_url")
+                      or ((biz or {}).get("cover_urls") or [None])[0]
+                      or (biz or {}).get("logo_url")),
             "sponsored": True,
             "business_id": camp.get("business_id"),
         })
@@ -210,3 +238,34 @@ async def shell_clips(request: Request, limit: int = 10):
             "sponsored": False,
         })
     return {"items": clips[:limit + 1], "count": len(clips)}
+
+
+@router.post("/clips/claim")
+async def claim_clip_offer(request: Request, body: dict = Body(default={})):
+    """Claim a sponsored clip's offer. Idempotent per user+campaign; returns a
+    short redemption code the user shows in-store."""
+    user = await current_user(request)
+    db = request.app.state.db
+    campaign_id = (body or {}).get("campaign_id")
+    if not campaign_id:
+        return {"ok": False, "error": "campaign_id required"}
+    camp = await db.campaigns.find_one({"campaign_id": campaign_id})
+    if not camp:
+        return {"ok": False, "error": "campaign not found"}
+
+    existing = await db.sponsored_clip_claims.find_one(
+        {"user_id": user["user_id"], "campaign_id": campaign_id})
+    if existing:
+        return {"ok": True, "code": existing["code"], "already": True,
+                "offer": camp.get("name")}
+
+    import secrets
+    code = "RL-" + secrets.token_hex(3).upper()
+    await db.sponsored_clip_claims.insert_one({
+        "user_id": user["user_id"],
+        "campaign_id": campaign_id,
+        "business_id": camp.get("business_id"),
+        "code": code,
+        "claimed_at": _now_iso(),
+    })
+    return {"ok": True, "code": code, "already": False, "offer": camp.get("name")}

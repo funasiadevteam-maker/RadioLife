@@ -31,6 +31,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from services.radio_browser_import import (
     CATEGORIES, send_click_track,
 )
+from services.station_art import resolve_art as _resolve_station_art
+from auth import current_user_optional
 
 logger = logging.getLogger("bigfm.live_radio.consumer")
 
@@ -124,6 +126,7 @@ def _ai_channel_to_card(ch: Dict[str, Any], category: Optional[str]) -> Dict[str
 
 
 def _imported_to_card(s: Dict[str, Any]) -> Dict[str, Any]:
+    art_url, art_source = _resolve_station_art(s)
     return {
         "id": s.get("id"),
         "external_station_uuid": s.get("external_station_uuid"),
@@ -132,8 +135,11 @@ def _imported_to_card(s: Dict[str, Any]) -> Dict[str, Any]:
         "is_ai_curated": False,
         "tags_json": s.get("tags_json") or [],
         "music_genre": s.get("music_genre"),
-        "favicon": s.get("favicon"),
-        "logo_url": s.get("logo_url"),
+        "favicon": art_url,
+        "logo_url": s.get("logo_url") or art_url,
+        "art": art_url,
+        "art_source": art_source,
+        "has_custom_art": art_source != "placeholder",
         "homepage": s.get("homepage"),
         "country": s.get("country"),
         "country_code": s.get("country_code"),
@@ -311,12 +317,27 @@ async def get_station(station_id: str, request: Request):
             all_cats.append({"category": r["category"],
                                           "confidence_score": r["confidence_score"],
                                           "source": r["source"]})
+        # Does the current viewer own/admin this station? Drives the
+        # owner artwork controls on the detail page.
+        viewer = await current_user_optional(request)
+        viewer_is_owner = False
+        if viewer:
+            if viewer.get("role") == "admin" or s.get("owner_user_id") == viewer.get("user_id"):
+                viewer_is_owner = True
+            else:
+                claim = await db.radio_station_claims.find_one({
+                    "station_id": station_id,
+                    "claimed_by_user_id": viewer["user_id"],
+                    "claim_status": "approved"})
+                viewer_is_owner = bool(claim)
         return {
             "station": _imported_to_card(s),
             "raw": _strip_mongo(s),
             "categories": all_cats,
             "similar_ai_channel": ai_suggestion,
             "claim_url_path": f"/claim/{station_id}",
+            "viewer_is_owner": viewer_is_owner,
+            "art_source": _imported_to_card(s).get("art_source"),
         }
     # AI-curated channel detail (graceful fallback).
     ch = await db.channels.find_one({"channel_id": station_id})
