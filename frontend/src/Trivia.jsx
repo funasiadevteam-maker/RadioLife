@@ -127,7 +127,7 @@ export default function Trivia() {
                                   text-text-secondary">
               Your recent runs
             </div>
-            <Card className="p-4 divide-y divide-white/[0.06]">
+            <Card className="p-4 divide-y divide-[color:var(--line)]">
               {history.map((h) => (
                 <div key={h.session_id}
                       className="py-2 flex items-center justify-between

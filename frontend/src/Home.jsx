@@ -12,10 +12,9 @@ import { StationTile } from "@/shell/primitives";
 import { useGeoStore } from "@/store/useGeoStore";
 import { useShellSummary, useShellFilter, fmtCount } from "@/shell/useShellData";
 import {
-  ShelfHeader, ShowCard16x9, VenueCard, NewsRow, absUrl,
+  ShelfHeader, ShowCard16x9, ClipCard9x16, VenueCard, NewsRow, HScroll, absUrl,
 } from "@/shell/cards";
 import WaysToEarnCard from "@/rewards/WaysToEarnCard";
-import LocalHighlightsStrip from "@/components/LocalHighlightsStrip";
 import BannerAdSlot from "@/components/BannerAdSlot";
 import OGMeta from "@/components/OGMeta";
 
@@ -24,10 +23,12 @@ export default function Home() {
   const navigate = useNavigate();
   const summary = useShellSummary();
   const city = useGeoStore((s) => s.city);
+  const market = useGeoStore((s) => s.market);
   const chip = useShellFilter((s) => s.chip);
 
   const [channels, setChannels] = useState([]);
   const [venues, setVenues] = useState([]);
+  const [clips, setClips] = useState([]);
   const [news, setNews] = useState([]);
 
   useEffect(() => {
@@ -39,14 +40,23 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
     axios.get(`${API}/channels`).then((r) => setChannels(r.data?.channels || [])).catch(() => setChannels([]));
-    axios.get(`${API}/news/headlines`, { params: { limit: 6 } })
-      .then((r) => setNews(r.data?.items || [])).catch(() => setNews([]));
   }, [user]);
+
+  // News follows the single geo source — matches the listener's detected city.
+  useEffect(() => {
+    if (!user) return;
+    const params = { limit: 6 };
+    if (market && market !== "global") params.market = market;
+    axios.get(`${API}/news/headlines`, { params })
+      .then((r) => setNews(r.data?.items || [])).catch(() => setNews([]));
+  }, [user, market]);
 
   useEffect(() => {
     if (!user) return;
     axios.get(`${API}/shell/venues`, { params: { limit: 24 }, withCredentials: true })
       .then((r) => setVenues(r.data?.items || [])).catch(() => setVenues([]));
+    axios.get(`${API}/shell/clips`, { params: { limit: 10 }, withCredentials: true })
+      .then((r) => setClips(r.data?.items || [])).catch(() => setClips([]));
   }, [user]);
 
   if (!user) return null;
@@ -196,10 +206,19 @@ export default function Home() {
         </section>
       )}
 
-      <section data-testid="home-clips">
-        <ShelfHeader title="Clips" suffix="RJ MOMENTS · 15–60s" />
-        <LocalHighlightsStrip />
-      </section>
+      {clips.length > 0 && (
+        <section data-testid="home-clips">
+          <ShelfHeader title="Clips" suffix="RJ MOMENTS · 15–60s" />
+          <HScroll itemClass="w-[150px] sm:w-[165px]">
+            {clips.map((c) => (
+              <ClipCard9x16 key={c.id} testId={`home-clip-${c.id}`}
+                title={c.title} channel={c.channel} image={c.image} sponsored={c.sponsored}
+                onOpen={() => (c.business_id ? navigate(`/shop/${c.business_id}`)
+                  : c.slug ? openStation(c.slug) : navigate("/radio"))} />
+            ))}
+          </HScroll>
+        </section>
+      )}
 
       {flagships.length > 0 && (
         <section data-testid="home-your-stations">
@@ -216,12 +235,14 @@ export default function Home() {
         </div>
       )}
 
-      <section data-testid="home-venues">
-        <ShelfHeader title="Eat & earn near you"
-          suffix={`${venues.length} VENUES${city ? " · " + city.toUpperCase() : ""}`}
-          linkTo="/shop" linkLabel="Open Shop & Eat" />
-        {venuesGrid(venues)}
-      </section>
+      {venues.length > 0 && (
+        <section data-testid="home-venues">
+          <ShelfHeader title="Eat & earn near you"
+            suffix={`${venues.length} VENUES${city ? " · " + city.toUpperCase() : ""}`}
+            linkTo="/shop" linkLabel="Open Shop & Eat" />
+          {venuesGrid(venues)}
+        </section>
+      )}
 
       {news.length > 0 && (
         <section data-testid="home-news">

@@ -165,3 +165,48 @@ async def shell_venues(request: Request, category: str = "", limit: int = 24):
     # Sponsored first, then higher-rated.
     cards.sort(key=lambda v: (0 if v["sponsored"] else 1, -(v["rating"] or 0)))
     return {"items": cards[:limit], "count": len(cards)}
+
+
+@router.get("/clips")
+async def shell_clips(request: Request, limit: int = 10):
+    """Clips shelf ("RJ moments") for Home. Surfaces ONE real SPONSORED clip
+    from an active advertiser campaign first, then station clips from live AI
+    channels (real movie-poster art). Empty-safe: [] when no channels."""
+    db = request.app.state.db
+    clips = []
+
+    # One genuine sponsored clip from an active advertiser campaign.
+    camp = await db.campaigns.find_one({"status": "active"}, sort=[("created_at", -1)])
+    if camp:
+        biz = None
+        if camp.get("business_id"):
+            biz = await db.marketplace_profiles.find_one(
+                {"business_id": camp["business_id"]},
+                {"public_name": 1, "cover_urls": 1, "logo_url": 1})
+        name = camp.get("name") or "Sponsored"
+        if "—" in name:
+            sponsor, _, offer = name.partition("—")
+            sponsor, offer = sponsor.strip(), offer.strip()
+        else:
+            sponsor = (biz or {}).get("public_name") or "Sponsored"
+            offer = name
+        clips.append({
+            "id": f"camp_{camp.get('campaign_id')}",
+            "title": offer,
+            "channel": sponsor,
+            "image": ((biz or {}).get("cover_urls") or [None])[0] or (biz or {}).get("logo_url"),
+            "sponsored": True,
+            "business_id": camp.get("business_id"),
+        })
+
+    # Station clips from live AI channels (real content + art).
+    async for ch in db.channels.find({"active": True}).sort("sort_order", 1).limit(limit):
+        clips.append({
+            "id": ch.get("_id"),
+            "slug": ch.get("_id"),
+            "title": ch.get("name"),
+            "channel": ch.get("tagline") or "RJ moment",
+            "image": ch.get("cover_image_url") or ch.get("thumbnail_url"),
+            "sponsored": False,
+        })
+    return {"items": clips[:limit + 1], "count": len(clips)}

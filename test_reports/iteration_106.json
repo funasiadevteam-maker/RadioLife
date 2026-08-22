@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 106 — Sponsored Clips + Smart Location news + Home empty-state doctrine + Light theme on /trivia and /predict-win — ALL 7 acceptance criteria PASS on both backend (pytest 11/11) and web frontend (demo@bigfm.dubai, viewport 1440x900). GET /api/shell/clips returns 11 items: first is a REAL sponsored clip from an active campaign (id=camp_cmp_dr_mehta_appt, business_id=biz_dr_mehta_jlt, title='Free dental check-up', channel='Dr. Mehta', sponsored=true, image=null → ClipCard9x16 renders electric-magenta gradient fallback with visible 'SPONSORED' badge — expected per main-agent doc note a); remaining 10 clips are live AI channels (sponsored=false, all with cover art). Home shelves gate on content (home-venues + home-clips + home-news render only when non-empty; home-venues-empty NOT present in default feed). GET /api/news/headlines?market=dfw is fired from Home (Smart Location resolved user to DFW/Dallas via geo bootstrap, single geo source via useGeoStore). Light-theme CSS vars propagate cleanly on both /predict-win and /trivia: body bg rgb(255,255,255), text rgb(11,11,18), cards rgb(245,246,248) — legible; DARK still correct after toggle. iter105 regression: /api/shell/venues still sponsored-first + category filter works.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/predict-win (light)", "issues": ["Minor / OUT-OF-SCOPE per main-agent note c: the 'Earn 100 BigPoints per friend' pill (BannerSlot house ad) and the top 'Premium — 7-day free trial' AD banner render very pale on the new white bg — low contrast. Both are BannerSlot/AD components, NOT PredictWin.jsx theme code, so out of scope for this iteration. Flagged so it isn't lost in the next iteration."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter106_shell_clips.py",
+    "/app/test_reports/pytest/iter106_shell_clips.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/shell.py:212 — `return {\"items\": clips[:limit + 1], \"count\": len(clips)}` slices `limit + 1` (11 when limit=10) but the docstring implies `limit` clips. This is intentional (sponsored clip is 'extra') but the slicing off-by-one is subtle; recommend either (a) documenting the +1 in the docstring or (b) fetching `.limit(limit)` on channels and using `clips[:limit]`. Also `count` counts sponsored + all fetched channels (up to `limit` channels), which mismatches the slice; minor cosmetic inconsistency.",
+    "backend/routes/shell.py:179 — Only picks ONE campaign (sort by created_at desc). If that most-recent 'active' campaign lacks a business_id / marketplace_profile, the sponsored clip will have no image. Currently the case for `cmp_dr_mehta_appt` (biz_dr_mehta_jlt is not in marketplace_profiles). The frontend gradient-fallback covers this, but consider preferring campaigns whose business_id resolves to a profile with a cover_url so the sponsored slot always shows real art.",
+    "frontend/src/Home.jsx:40-52 — News fetch depends only on [user, market]. Good — no double-fetch on chip changes. However the request fires 3× on my browser session (captured 3 identical calls to /api/news/headlines?limit=6&market=dfw) — likely due to store re-hydration cycling `market` from 'global' → cache → resolved 'dfw'. Not a bug, but each cycle re-queries; consider debouncing or gating on `useGeoStore((s)=>s.ready)`.",
+    "frontend/src/Home.jsx:75 — `chipLabel` uses .find() on every render; safe here (small array) but consider useMemo if summary.chips ever grows.",
+    "frontend/src/shell/cards.jsx:89 ClipCard9x16 — the Sponsored badge text is 9px + uppercase + wide letter-spacing on a black/70 pill; on the gradient fallback it's readable (the accent-electric colour pops), but on some cover images (dark low-contrast frames) the badge could be lost. Consider adding a slight backdrop-blur or increasing bg opacity to bg-black/85 for readability.",
+    "backend/routes/shell.py — file now at ~213 lines, still under the 700-line threshold. Fine for now."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter106_shell_clips.py"
+  ],
+  "success_rate": {"backend": "100% (11/11 pytest)", "frontend": "100% (all 7 acceptance criteria)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (verified working; user's geo resolved to DFW/Dallas — news requests carry ?market=dfw).",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Concrete evidence captured 2026-06-22 (viewport 1440x900): (Backend) /api/shell/clips returns 11 items, [0]={id:'camp_cmp_dr_mehta_appt', title:'Free dental check-up', channel:'Dr. Mehta', sponsored:true, business_id:'biz_dr_mehta_jlt', image:null}. Items [1..10] are all sponsored=false station clips with slug=<channel_id> and real image URLs (vip_lounge, premium_mehfil, dfw_bollywood_drive, dfw_garba_nights, bollywood_mehfil, party_dubai, late_night_drive, punjabi_beats, morning_masala, plus one more). (Frontend) On /, home-clips section renders under 'Clips · RJ MOMENTS · 15–60s' shelf header; first ClipCard has data-testid='home-clip-camp_cmp_dr_mehta_appt' and its DOM contains a <span> with text 'Sponsored' (rendered UPPERCASE via tracking-widest+font-black). Because the campaign business has no cover image, this card renders the electric-magenta gradient fallback (main-agent expected behaviour). No other clip carries the Sponsored badge (verified 0/10). home-venues section rendered (8 venues, first sponsored — matches iter105 regression). home-news rendered (3 rows). home-venues-empty placeholder is NOT in the DOM on default feed. Network captured on /: GET /api/news/headlines?limit=6&market=dfw fired 3× (user's IP resolved to Dallas). Light-mode CSS vars: --bg-base=#FFFFFF, --bg-elevated=#F5F6F8, --text-primary=#0B0B12, --text-secondary=rgba(10,10,20,0.58), --line=rgba(10,10,20,0.12). On /predict-win light: body=rgb(255,255,255)/rgb(11,11,18), card=rgb(245,246,248)/rgb(11,11,18), 'All' chip active=rgb(11,11,18)/rgb(255,255,255) — full contrast. Same vars propagate to /trivia (tested by setting localStorage.radiolife.theme='light' then navigating; also confirmed via theme-toggle click on trivia -> dark). Dark still correct on both. Screenshots: /tmp/home_default.png, /tmp/predict_light2.png, /tmp/predict_dark2.png, /tmp/trivia_light2.png, /tmp/trivia_dark2.png.",
+  "rca of the issue": ""
+}

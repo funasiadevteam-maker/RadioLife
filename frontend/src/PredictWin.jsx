@@ -76,7 +76,7 @@ function fmtCountdown(secs) {
 const ENTRY_STATUS_META = {
   submitted: { label: "Locked in", color: "#3b82f6", icon: Clock },
   winner:        { label: "Won",                color: "#22c55e", icon: Trophy },
-  loser:          { label: "Not this time", color: "#71717a", icon: X },
+  loser:          { label: "Not this time", color: "var(--text-secondary)", icon: X },
   void:            { label: "Withdrawn", color: "#a1a1aa", icon: X },
 };
 
@@ -89,8 +89,8 @@ export default function PredictWin() {
 
   return (
     <div data-testid="predict-win-consumer-page"
-            style={{ minHeight: "100vh", background: "#080809",
-                        color: "#e7e7ea" }}>
+            style={{ minHeight: "100vh", background: "var(--bg-base)",
+                        color: "var(--text-primary)" }}>
       <Toaster theme="dark" position="bottom-right" richColors />
       <div style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
         <div style={{ display: "flex", alignItems: "center",
@@ -103,16 +103,16 @@ export default function PredictWin() {
             <Trophy size={22} color="#0a0a0c" />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "#9aa3af",
+            <div style={{ fontSize: 11, color: "var(--text-secondary)",
                                 letterSpacing: 0.8 }}>
               SUB-PHASE E2 · COMMUNITY PREDICTIONS
             </div>
-            <h1 style={{ margin: "2px 0 0", fontSize: 24, color: "#e7e7ea" }}>
+            <h1 style={{ margin: "2px 0 0", fontSize: 24, color: "var(--text-primary)" }}>
               Predict &amp; Win
             </h1>
           </div>
         </div>
-        <p style={{ fontSize: 12, color: "#9aa3af",
+        <p style={{ fontSize: 12, color: "var(--text-secondary)",
                           marginBottom: 18, maxWidth: 700 }}>
           Free community predictions.  Make your pick before the lock,
           and if you&apos;re right you&apos;ll win prizes from the campaign sponsor.
@@ -130,7 +130,7 @@ export default function PredictWin() {
 
         {/* ─── Sub-tabs ───────────────────────── */}
         <div style={{ display: "flex", gap: 4, marginBottom: 18,
-                            borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+                            borderBottom: "1px solid var(--line)" }}
                 data-testid="pw-subnav">
           {[
             { value: "active",  label: "Active",                  testid: "subtab-active" },
@@ -146,7 +146,7 @@ export default function PredictWin() {
                             borderBottom: tab === t.value
                               ? "2px solid #22d3ee" : "2px solid transparent",
                             fontSize: 13, fontWeight: 600,
-                            color: tab === t.value ? "#22d3ee" : "#9aa3af",
+                            color: tab === t.value ? "#22d3ee" : "var(--text-secondary)",
                             cursor: "pointer",
                           }}>
               {t.label}            </button>
@@ -218,11 +218,11 @@ function ActiveTab({ onPick }) {
                                     marginBottom: 14 }}>
           <button data-testid="pw-cat-chip-all"
                           onClick={() => setCatFilter("")}
-                          style={pdxChipStyle(catFilter === "", "#e7e7ea")}>
+                          style={pdxChipStyle(catFilter === "", "var(--text-primary)")}>
             All
           </button>
           {categories.map((c) => {
-            const meta = PDX_CAT_META[c.slug] || { color: "#9aa3af" };
+            const meta = PDX_CAT_META[c.slug] || { color: "var(--text-secondary)" };
             const active = catFilter === c.slug;
             return (
               <button key={c.slug}
@@ -263,9 +263,9 @@ function pdxChipStyle(active, color) {
   return {
     fontSize: 11, fontWeight: 600, letterSpacing: 0.4,
     padding: "6px 12px", borderRadius: 999, cursor: "pointer",
-    border: `1px solid ${active ? color : "rgba(255,255,255,0.14)"}`,
-    background: active ? `${color}22` : "transparent",
-    color: active ? color : "#9aa3af",
+    border: `1px solid ${active ? color : "var(--line)"}`,
+    background: active ? `color-mix(in srgb, ${color} 14%, transparent)` : "transparent",
+    color: active ? color : "var(--text-secondary)",
     transition: "background 120ms ease, color 120ms ease",
   };
 }
@@ -277,8 +277,8 @@ function ActiveCard({ campaign, onPick }) {
   return (
     <div data-testid={`active-card-${campaign.campaign_id}`}
             style={{
-              background: "#0c0c10",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--line)",
               borderRadius: 12, padding: 16,
               display: "flex", flexDirection: "column", gap: 8,
               position: "relative",
@@ -312,16 +312,16 @@ function ActiveCard({ campaign, onPick }) {
           </span>
         )}
         {campaign.city && (
-          <span style={{ fontSize: 10, color: "#71717a" }}>
+          <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>
             · {campaign.city}
           </span>
         )}
       </div>
-      <div style={{ fontSize: 15, color: "#e7e7ea", fontWeight: 700 }}>
+      <div style={{ fontSize: 15, color: "var(--text-primary)", fontWeight: 700 }}>
         {campaign.title}
       </div>
       {campaign.question_prompt && (
-        <div style={{ fontSize: 12, color: "#9aa3af", marginBottom: 4 }}>
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
           {campaign.question_prompt}
         </div>
       )}
@@ -343,7 +343,7 @@ function ActiveCard({ campaign, onPick }) {
       <div data-testid={`active-card-lock-${campaign.campaign_id}`}
               style={{ display: "flex", gap: 6, alignItems: "center",
                           fontSize: 12,
-                          color: remaining > 600 ? "#9aa3af" : "#fbbf24" }}>
+                          color: remaining > 600 ? "var(--text-secondary)" : "#fbbf24" }}>
         <Clock size={12} />
         {remaining > 0
           ? <>Picks close in <strong>{fmtCountdown(remaining)}</strong></>
@@ -357,7 +357,7 @@ function ActiveCard({ campaign, onPick }) {
         </div>
       )}
       <div data-testid={`active-card-disclaimer-${campaign.campaign_id}`}
-              style={{ fontSize: 10, color: "#71717a" }}>
+              style={{ fontSize: 10, color: "var(--text-secondary)" }}>
         <ShieldCheck size={9}
           style={{ verticalAlign: -1, marginRight: 2 }} />
         {campaign.no_purchase_necessary_text}{" "}
@@ -467,7 +467,7 @@ function EnterModal({ campaignId, onClose, onSubmitted }) {
     return (
       <div style={backdropStyle} data-testid="enter-modal-backdrop">
         <div style={{ ...modalStyle, padding: 32, textAlign: "center" }}>
-          <Loader2 size={20} className="spin" color="#9aa3af" />
+          <Loader2 size={20} className="spin" color="var(--text-secondary)" />
         </div>
       </div>
     );
@@ -487,12 +487,12 @@ function EnterModal({ campaignId, onClose, onSubmitted }) {
               style={modalStyle}>
         <div style={modalHeaderStyle}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, color: "#9aa3af",
+            <div style={{ fontSize: 10, color: "var(--text-secondary)",
                                 letterSpacing: 0.5 }}>
               {c.event_type.replace(/_/g, " ").toUpperCase()}
               {c.city ? ` · ${c.city}` : ""}
             </div>
-            <h2 style={{ margin: "4px 0 0", color: "#e7e7ea",
+            <h2 style={{ margin: "4px 0 0", color: "var(--text-primary)",
                                 fontSize: 18, fontWeight: 700 }}>
               {c.title}
             </h2>
@@ -501,7 +501,7 @@ function EnterModal({ campaignId, onClose, onSubmitted }) {
                       style={iconBtnStyle}><X size={16} /></button>
         </div>
         <div style={modalBodyStyle}>
-          <div style={{ fontSize: 14, color: "#e7e7ea",
+          <div style={{ fontSize: 14, color: "var(--text-primary)",
                               marginBottom: 14, fontWeight: 600 }}>
             {c.question?.prompt}
           </div>
@@ -521,9 +521,9 @@ function EnterModal({ campaignId, onClose, onSubmitted }) {
                               data-testid={`enter-option-${o.option_id}`}
                               style={{
                                 background: isSel
-                                  ? "rgba(34,211,238,0.10)" : "#0c0c10",
+                                  ? "rgba(34,211,238,0.10)" : "var(--bg-elevated)",
                                 border: `1px solid ${isSel
-                                  ? "#22d3ee" : "rgba(255,255,255,0.10)"}`,
+                                  ? "#22d3ee" : "var(--line)"}`,
                                 borderRadius: 8, padding: 12,
                                 cursor: "pointer", color: "inherit",
                                 textAlign: "left",
@@ -532,12 +532,12 @@ function EnterModal({ campaignId, onClose, onSubmitted }) {
                   <input type="radio" checked={isSel} readOnly
                               style={{ accentColor: "#22d3ee" }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: "#e7e7ea",
+                    <div style={{ fontSize: 13, color: "var(--text-primary)",
                                           fontWeight: 600 }}>
                       {o.label}
                     </div>
                     {distRow && (
-                      <div style={{ fontSize: 10, color: "#71717a",
+                      <div style={{ fontSize: 10, color: "var(--text-secondary)",
                                             marginTop: 2 }}>
                         Community pick: {distRow.pct}% ({distRow.count})
                       </div>
@@ -549,7 +549,7 @@ function EnterModal({ campaignId, onClose, onSubmitted }) {
           </div>
           {dist === null && (
             <div data-testid="enter-modal-dist-hidden"
-                    style={{ fontSize: 11, color: "#71717a",
+                    style={{ fontSize: 11, color: "var(--text-secondary)",
                                 marginBottom: 14 }}>
               Community pick percentages will appear after picks close.
             </div>
@@ -586,7 +586,7 @@ function EnterModal({ campaignId, onClose, onSubmitted }) {
                         onChange={(e) => setConfidence(parseInt(e.target.value))}
                         data-testid="enter-modal-confidence"
                         style={{ width: "100%", accentColor: "#22d3ee" }} />
-            <div style={{ fontSize: 11, color: "#9aa3af",
+            <div style={{ fontSize: 11, color: "var(--text-secondary)",
                                 marginTop: 4, display: "flex",
                                 justifyContent: "space-between" }}>
               <span>low</span>
@@ -596,8 +596,8 @@ function EnterModal({ campaignId, onClose, onSubmitted }) {
           </Field>
 
           <div data-testid="enter-modal-disclaimer"
-                  style={{ fontSize: 10, color: "#71717a",
-                              borderTop: "1px solid rgba(255,255,255,0.06)",
+                  style={{ fontSize: 10, color: "var(--text-secondary)",
+                              borderTop: "1px solid var(--line)",
                               paddingTop: 10, marginTop: 14 }}>
             <ShieldCheck size={10}
               style={{ verticalAlign: -1, marginRight: 2 }} />
@@ -662,10 +662,10 @@ function MyPicksTab() {
                         style={{
                           padding: "5px 12px", borderRadius: 999,
                           border: `1px solid ${filter === f.value
-                            ? "#22d3ee" : "rgba(255,255,255,0.10)"}`,
+                            ? "#22d3ee" : "var(--line)"}`,
                           background: filter === f.value
-                            ? "rgba(34,211,238,0.10)" : "#0c0c10",
-                          color: filter === f.value ? "#22d3ee" : "#9aa3af",
+                            ? "rgba(34,211,238,0.10)" : "var(--bg-elevated)",
+                          color: filter === f.value ? "#22d3ee" : "var(--text-secondary)",
                           fontSize: 11, fontWeight: 600, cursor: "pointer",
                           textTransform: "uppercase", letterSpacing: 0.4,
                         }}>
@@ -679,7 +679,7 @@ function MyPicksTab() {
       ) : items.length === 0 ? (
         <div data-testid="picks-empty" style={emptyStyle}>
           <Trophy size={20} style={{ marginBottom: 8 }} />
-          <div style={{ fontSize: 13, color: "#9aa3af" }}>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
             No picks yet.  Head to the <strong>Active</strong> tab and
             make your first pick.
           </div>
@@ -702,26 +702,26 @@ function PickRow({ item }) {
   const Icon = meta.icon;
   return (
     <div data-testid={`pick-row-${e.entry_id}`}
-            style={{ background: "#0c0c10",
-                        border: "1px solid rgba(255,255,255,0.06)",
+            style={{ background: "var(--bg-elevated)",
+                        border: "1px solid var(--line)",
                         borderRadius: 10, padding: 14,
                         display: "flex", gap: 12, alignItems: "flex-start" }}>
       <div style={{ width: 32, height: 32, borderRadius: 8,
-                          background: `${meta.color}22`,
+                          background: `color-mix(in srgb, ${meta.color} 14%, transparent)`,
                           display: "flex", alignItems: "center",
                           justifyContent: "center", flexShrink: 0 }}>
         <Icon size={16} color={meta.color} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, color: "#e7e7ea", fontWeight: 600 }}>
+        <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}>
           {c.title}
         </div>
         {c.question_prompt && (
-          <div style={{ fontSize: 11, color: "#9aa3af", marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
             {c.question_prompt}
           </div>
         )}
-        <div style={{ fontSize: 10, color: "#71717a", marginTop: 6,
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 6,
                             display: "flex", gap: 6, alignItems: "center" }}>
           <span style={{ color: meta.color, fontWeight: 700,
                                   letterSpacing: 0.4, textTransform: "uppercase" }}>
@@ -768,7 +768,7 @@ function WonRewardsTab() {
     return (
       <div data-testid="wins-empty" style={emptyStyle}>
         <Award size={20} style={{ marginBottom: 8 }} />
-        <div style={{ fontSize: 13, color: "#9aa3af" }}>
+        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
           No wins yet.  Make picks in the <strong>Active</strong> tab —
           when a campaign resolves, your prizes show here.
         </div>
@@ -809,7 +809,7 @@ function WinCard({ item }) {
         </div>
         {prize && (
           <div data-testid={`win-card-prize-${item.entry.entry_id}`}
-                  style={{ fontSize: 16, color: "#e7e7ea",
+                  style={{ fontSize: 16, color: "var(--text-primary)",
                               fontWeight: 700, marginTop: 2 }}>
             {prize.title}
             {prize.value_amount && (
@@ -821,14 +821,14 @@ function WinCard({ item }) {
           </div>
         )}
         {prize?.description && (
-          <div style={{ fontSize: 12, color: "#9aa3af", marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
             {prize.description}
           </div>
         )}
-        <div style={{ fontSize: 11, color: "#71717a", marginTop: 8,
+        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 8,
                             display: "flex", gap: 6, alignItems: "center",
                             flexWrap: "wrap" }}>
-          <span>from <strong style={{ color: "#e7e7ea" }}>{c.title}</strong></span>
+          <span>from <strong style={{ color: "var(--text-primary)" }}>{c.title}</strong></span>
           {award?.awarded_at && (
             <span>· {new Date(award.awarded_at).toLocaleDateString()}</span>
           )}
@@ -865,7 +865,7 @@ function WinCard({ item }) {
 // ─── Helpers ─────────────────────────────────────────────────────────
 function Field({ label, children }) {
   return (
-    <label style={{ fontSize: 11, color: "#9aa3af",
+    <label style={{ fontSize: 11, color: "var(--text-secondary)",
                           display: "block", marginBottom: 12 }}>
       {label}{children}
     </label>
@@ -881,11 +881,11 @@ function eventPillStyle(eventType) {
     business_custom: "#3b82f6",
     bigfm_admin: "#86efac",
   };
-  const color = colors[eventType] || "#9aa3af";
+  const color = colors[eventType] || "var(--text-secondary)";
   return {
     fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
     padding: "2px 6px", borderRadius: 4,
-    background: `${color}22`, color,
+    background: `color-mix(in srgb, ${color} 14%, transparent)`, color,
   };
 }
 
@@ -900,18 +900,18 @@ const btnPrimaryStyle = {
 const btnGhostStyle = {
   display: "inline-flex", alignItems: "center", justifyContent: "center",
   gap: 6, padding: "8px 12px", background: "transparent",
-  border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6,
-  color: "#e7e7ea", fontSize: 12, cursor: "pointer", width: "100%",
+  border: "1px solid var(--line)", borderRadius: 6,
+  color: "var(--text-primary)", fontSize: 12, cursor: "pointer", width: "100%",
 };
 const iconBtnStyle = {
   display: "inline-flex", alignItems: "center", gap: 6,
   padding: "5px 6px", background: "transparent",
-  border: "1px solid rgba(255,255,255,0.12)", borderRadius: 5,
-  color: "#e7e7ea", fontSize: 12, cursor: "pointer", minWidth: 28,
+  border: "1px solid var(--line)", borderRadius: 5,
+  color: "var(--text-primary)", fontSize: 12, cursor: "pointer", minWidth: 28,
 };
 const emptyStyle = {
-  padding: 40, textAlign: "center", color: "#9aa3af",
-  border: "1px dashed rgba(255,255,255,0.10)", borderRadius: 10,
+  padding: 40, textAlign: "center", color: "var(--text-secondary)",
+  border: "1px dashed var(--line)", borderRadius: 10,
 };
 const backdropStyle = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
@@ -919,12 +919,12 @@ const backdropStyle = {
   zIndex: 50, padding: 16,
 };
 const modalStyle = {
-  width: "100%", maxWidth: 540, background: "#0a0a0c",
-  border: "1px solid rgba(255,255,255,0.10)", borderRadius: 12,
+  width: "100%", maxWidth: 540, background: "var(--bg-elevated)",
+  border: "1px solid var(--line)", borderRadius: 12,
   maxHeight: "90vh", display: "flex", flexDirection: "column",
 };
 const modalHeaderStyle = {
-  padding: 16, borderBottom: "1px solid rgba(255,255,255,0.06)",
+  padding: 16, borderBottom: "1px solid var(--line)",
   display: "flex", gap: 12, alignItems: "flex-start",
 };
 const modalBodyStyle = {
@@ -932,5 +932,5 @@ const modalBodyStyle = {
 };
 const modalFooterStyle = {
   display: "flex", gap: 8, padding: 12,
-  borderTop: "1px solid rgba(255,255,255,0.06)",
+  borderTop: "1px solid var(--line)",
 };
