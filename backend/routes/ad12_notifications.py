@@ -171,7 +171,7 @@ async def creative_upload(notification_campaign_id: str,
     try:
         from services.object_storage import get_storage as _get_storage
         _get_storage().upload_bytes(
-            key=f"notifications/{notification_campaign_id}/{fname}", data=data,
+            key=f"static/notifications/{notification_campaign_id}/{fname}", data=data,
             content_type=file.content_type)
     except Exception:
         pass

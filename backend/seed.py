@@ -6,8 +6,10 @@ Gracefully logs and skips on any failure — never raises.
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 import urllib.request
@@ -125,15 +127,107 @@ def seed_tracks(storage_dir: Path) -> List[dict]:
     return results
 
 
-# ---------- Phase 1: seed test users ----------
-from datetime import datetime, timezone
+# ─── Idempotent, self-healing demo catalog ─────────────────────────────
+# Deterministic ids so re-runs UPSERT (never duplicate) and a fresh pod
+# (empty local disk) re-downloads the clip on boot → the live player + RJ
+# breaks are always previewable. Genre/language are left null so a
+# channel's only hard gate is `energy_level`; the broad `vibe_tags`
+# satisfy the soft mood filter on every channel. Energies span
+# chill/medium/high/party so all 14 channels have candidates.
+DEMO_TRACKS = [
+    {"seed_id": "demo_track_1",
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+     "title": "Neon Pulse",       "artist": "RadioLife Demo", "energy_level": "high",
+     "mood": "energetic", "vibe_tags": ["energetic", "dance", "uplifting"]},
+    {"seed_id": "demo_track_2",
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+     "title": "Midnight Lounge",   "artist": "RadioLife Demo", "energy_level": "chill",
+     "mood": "groove", "vibe_tags": ["chill", "groove", "romantic"]},
+    {"seed_id": "demo_track_3",
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+     "title": "Late Night Drive",  "artist": "RadioLife Demo", "energy_level": "medium",
+     "mood": "uplifting", "vibe_tags": ["uplifting", "chill", "groove"]},
+    {"seed_id": "demo_track_4",
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+     "title": "Skyline Party",     "artist": "RadioLife Demo", "energy_level": "party",
+     "mood": "party", "vibe_tags": ["party", "dance", "energetic"]},
+    {"seed_id": "demo_track_5",
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+     "title": "Golden Hour",       "artist": "RadioLife Demo", "energy_level": "high",
+     "mood": "energetic", "vibe_tags": ["energetic", "uplifting", "party"]},
+    {"seed_id": "demo_track_6",
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+     "title": "Slow Embrace",      "artist": "RadioLife Demo", "energy_level": "medium",
+     "mood": "romantic", "vibe_tags": ["romantic", "chill", "uplifting"]},
+]
+
+
+def _ensure_demo_track_file(meta: dict, storage_dir: Path) -> Optional[dict]:
+    """Sync (network + ffmpeg). Ensures the clip exists on disk; returns
+    {file_path, duration_sec} or None on failure."""
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    final_path = storage_dir / f"{meta['seed_id']}.mp3"
+    if not final_path.exists():
+        tmp = storage_dir / f"_seed_tmp_{meta['seed_id']}.mp3"
+        try:
+            if not _download(meta["url"], tmp) or not _trim(tmp, final_path):
+                return None
+        finally:
+            try:
+                tmp.unlink(missing_ok=True)
+            except Exception:
+                pass
+    if not final_path.exists():
+        return None
+    try:
+        info = ffprobe_info(final_path)
+    except Exception as e:
+        logger.warning(f"ffprobe failed on demo track {meta['seed_id']}: {e}")
+        return None
+    return {"file_path": str(final_path), "duration_sec": info["duration_sec"]}
+
+
+async def ensure_demo_tracks(db, storage_dir: Path) -> int:
+    """Idempotent + self-healing demo catalog. Upserts each DEMO_TRACKS row
+    (deterministic _id), re-downloading the clip when the local file is
+    missing (fresh pod), and stamps playable_status='ok' so radio_start's
+    candidate query includes it. Never raises."""
+    import asyncio
+    ensured = 0
+    for meta in DEMO_TRACKS:
+        try:
+            fileinfo = await asyncio.to_thread(
+                _ensure_demo_track_file, meta, storage_dir)
+        except Exception as e:
+            logger.warning(f"demo track ensure failed {meta['seed_id']}: {e}")
+            fileinfo = None
+        if not fileinfo:
+            continue
+        doc = {
+            "title": meta["title"], "artist": meta["artist"],
+            "file_path": fileinfo["file_path"],
+            "duration_sec": fileinfo["duration_sec"],
+            "energy_level": meta["energy_level"], "mood": meta["mood"],
+            "vibe_tags": meta.get("vibe_tags", []),
+            "genre": None, "language": None,
+            "is_seed": True, "seed_url": meta["url"],
+            "playable_status": "ok",
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.tracks.update_one(
+            {"_id": meta["seed_id"]},
+            {"$set": doc, "$unset": {"status": ""}},
+            upsert=True)
+        ensured += 1
+    logger.info(f"ensure_demo_tracks: {ensured}/{len(DEMO_TRACKS)} ready")
+    return ensured
 
 
 SEED_USERS = [
     {
         "email": "test@bigfm.dubai",
         "name": "Test Listener",
-        "password": "TestUser123!",
+        "password": os.environ.get("SEED_TEST_USER_PW", "TestUser123!"),
         "role": "user",
         "onboarding_complete": True,
         "preference_vector": {
@@ -152,7 +246,7 @@ SEED_USERS = [
     {
         "email": "admin@bigfm.dubai",
         "name": "RadioLife Admin",
-        "password": "AdminPass123!",
+        "password": os.environ.get("SEED_ADMIN_PW", "AdminPass123!"),
         "role": "admin",
         "onboarding_complete": True,
         "preference_vector": {
@@ -172,7 +266,7 @@ SEED_USERS = [
     {
         "email": "premium@bigfm.dubai",
         "name": "Premium Tester",
-        "password": "PremiumTest123!",
+        "password": os.environ.get("SEED_PREMIUM_PW", "PremiumTest123!"),
         "role": "user",
         "onboarding_complete": True,
         "preference_vector": {

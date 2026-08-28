@@ -185,7 +185,7 @@ async def creative_upload(banner_id: str,
     try:
         from services.object_storage import get_storage as _get_storage
         _get_storage().upload_bytes(
-            key=f"banners/{banner_id}/{fname}", data=data,
+            key=f"static/banners/{banner_id}/{fname}", data=data,
             content_type=file.content_type)
     except Exception:
         pass

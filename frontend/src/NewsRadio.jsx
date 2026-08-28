@@ -114,6 +114,17 @@ export default function NewsRadio() {
                           marginBottom: 8 }}>
               NOW PLAYING · {idx + 1} of {items.length}
             </div>
+            {current.audio_url && (
+              <div data-testid="news-radio-audio-badge"
+                   style={{ display: "inline-flex", alignItems: "center", gap: 6,
+                            background: "rgba(0,217,255,0.12)",
+                            border: "1px solid rgba(0,217,255,0.35)",
+                            color: "#00d9ff", padding: "3px 10px",
+                            borderRadius: 999, fontSize: 11,
+                            fontFamily: "monospace", marginBottom: 10 }}>
+                <Volume2 size={12} /> LISTEN · shared for 48h
+              </div>
+            )}
             <h2 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 12px",
                           lineHeight: 1.4 }}>
               {current.title}
@@ -173,8 +184,12 @@ export default function NewsRadio() {
             <ul style={{ marginTop: 8, paddingLeft: 18 }}>
               {items.slice(idx + 1, idx + 4).map((it, i) => (
                 <li key={it.news_id} data-testid={`news-radio-upnext-${i}`}
-                    style={{ marginBottom: 4 }}>
-                  {it.title}
+                    style={{ marginBottom: 4, display: "flex",
+                             alignItems: "center", gap: 6 }}>
+                  {it.audio_url && (
+                    <Volume2 size={12} style={{ color: "#00d9ff", flexShrink: 0 }} />
+                  )}
+                  <span>{it.title}</span>
                 </li>
               ))}
             </ul>

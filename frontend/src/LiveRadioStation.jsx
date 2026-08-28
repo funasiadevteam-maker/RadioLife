@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import {
   Play, Pause, ArrowLeft, ExternalLink, Globe2, Radio as RadioIcon,
   Sparkles, MapPin, Languages, Tag, Award, AlertCircle, ShieldCheck,
-  Image as ImageIcon, Upload, Trash2,
+  Image as ImageIcon, Upload, Trash2, Loader2, CheckCircle2,
 } from "lucide-react";
 import { API } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -63,6 +63,7 @@ export default function LiveRadioStation() {
   const [streamErr, setStreamErr] = useState(null);
   const [toggling, setToggling] = useState(false);
   const [artBusy, setArtBusy] = useState(false);
+  const [artPhase, setArtPhase] = useState(null); // 'generating' | 'complete' | 'failed'
 
   // Phase 42-B2 hotfix — route Play through the unified player store so
   // the global ImportedStreamBridge can drive playback AND fire the
@@ -185,18 +186,39 @@ export default function LiveRadioStation() {
   };
   const genArt = async () => {
     setArtBusy(true);
+    setArtPhase("generating");
     try {
       await axios.post(`${API}/imported-stations/${id}/artwork/generate`, {}, { withCredentials: true });
-      for (let i = 0; i < 12; i++) {
-        await new Promise((r) => setTimeout(r, 6000));
-        const st = await axios.get(`${API}/imported-stations/${id}/artwork/status`);
-        if (["complete", "failed", "idle"].includes(st.data?.status)) break;
+      let lastUrl = null;
+      let settled = null;
+      // Poll every 3s and refresh the tile the INSTANT new art lands.
+      for (let i = 0; i < 24; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        let st;
+        try { st = await axios.get(`${API}/imported-stations/${id}/artwork/status`); }
+        catch (_e) { continue; }
+        const s = st.data?.status;
+        if (st.data?.art_url && st.data.art_url !== lastUrl) {
+          lastUrl = st.data.art_url;
+          await refetchStation();
+        }
+        if (["complete", "failed", "idle"].includes(s)) { settled = s; break; }
       }
       await refetchStation();
-      toast.success("Artwork updated");
+      if (settled === "failed") {
+        setArtPhase("failed");
+        toast.error("Artwork generation failed — try again.");
+      } else {
+        setArtPhase("complete");
+        toast.success("Artwork updated");
+      }
     } catch (e) {
+      setArtPhase("failed");
       toast.error(e.response?.status === 429 ? "Hourly limit reached — try later." : "Couldn't generate artwork.");
-    } finally { setArtBusy(false); }
+    } finally {
+      setArtBusy(false);
+      setTimeout(() => setArtPhase(null), 5000);
+    }
   };
   const uploadArt = async (e) => {
     const file = e.target.files?.[0];
@@ -475,7 +497,8 @@ export default function LiveRadioStation() {
           <div className="flex flex-wrap gap-2">
             <button type="button" data-testid="owner-art-generate" onClick={genArt} disabled={artBusy}
                     className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-cyan-400 text-slate-900 font-semibold text-sm disabled:opacity-40">
-              <Sparkles size={14} /> {artBusy ? "Working…" : "Generate AI artwork"}
+              {artBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              {artBusy ? "Generating…" : "Generate AI artwork"}
             </button>
             <label data-testid="owner-art-upload"
                    className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-white/[0.06] border border-white/[0.10] text-sm text-white/80 cursor-pointer hover:bg-white/[0.12]">
@@ -487,6 +510,19 @@ export default function LiveRadioStation() {
               <Trash2 size={14} /> Reset
             </button>
           </div>
+          {artPhase && (
+            <div data-testid="owner-art-status"
+                 className="mt-3 inline-flex items-center gap-2 text-xs font-mono px-3 h-8 rounded-full border"
+                 style={{
+                   borderColor: artPhase === "failed" ? "rgba(248,113,113,0.4)" : "rgba(34,211,238,0.4)",
+                   background: artPhase === "failed" ? "rgba(248,113,113,0.08)" : "rgba(34,211,238,0.08)",
+                   color: artPhase === "failed" ? "#fca5a5" : "#67e8f9",
+                 }}>
+              {artPhase === "generating" && (<><Loader2 size={13} className="animate-spin" /> Generating artwork… this usually takes ~20–40s</>)}
+              {artPhase === "complete" && (<><CheckCircle2 size={13} /> New artwork is live</>)}
+              {artPhase === "failed" && (<><AlertCircle size={13} /> Generation failed — try again</>)}
+            </div>
+          )}
           <div className="text-[11px] text-white/40 mt-2">
             AI art is generated from your station name &amp; genre. Upload your own logo to override it.
           </div>

@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 109 — e2e web + backend verification of the 4 shipped items. 11/11 pytest PASS + full UI proof captured. ITEM 1 (News Radio /radio/news): page renders with 6 text-mode items, expected 'Audio generation paused' banner shown, GET /api/news_radio/queue returns 200 with mode='text', audio_coverage 0/6, all items text_only=true (ElevenLabs invalid key → text mode is EXPECTED, badge correctly ABSENT). ITEM 2 (upload regression): admin flagship-logo upload still returns 200 with the exact contract from iter108. ITEM 3 (Live Radio): POST /api/radio/start with channel_slug=bollywood_mehfil returns 200 with a playable segment (track_id=demo_track_5 'Golden Hour', duration 47.6s, segment_url=/api/radio/segment/…), confirming the 9 seeded demo tracks are live. vip_lounge correctly ambassador-gated (200 with gate reason). ITEM 4 (Owner AI-artwork): on /radio/station/imp_96063f25060111e8ae as admin, owner-artwork-manager renders with owner-art-generate, owner-art-upload, owner-art-clear. Clicking Generate → button flips to 'Generating…' + owner-art-status chip appears reading 'Generating artwork… this usually takes ~20–40s' → within ~3s chip changes to 'New artwork is live' + 'Artwork updated' toast fires + tile art auto-refreshes. NO regressions found. NOTE (not a bug — as pre-flagged): /api/imported-stations/{sid} returns 404 for admin (viewer_is_owner not returned by that path); the front-end reads via /api/radio/station/{sid} which returns 200 and drives owner UI correctly.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter109_news_radio_artwork.py",
+    "/app/test_reports/pytest/iter109.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/imported_station_artwork.py:44 _load() only queries imported_radio_stations by id, but /api/radio/station/{sid} resolves via a broader resolver — so a station reachable at /api/radio/station/{sid} may 404 on /api/imported-stations/{sid}/artwork/*. In this env admin got 404 on GET /api/imported-stations/imp_96063f25060111e8ae yet 200 on /api/radio/station/imp_96063f25060111e8ae. The owner UI happens to work anyway because it reads the station shape from /api/radio/station and only POSTs to /api/imported-stations/.../artwork/generate, and the POST resolver DOES find the station. Consider harmonizing the two ID resolvers to avoid divergence in owner-tools that hit BOTH routes.",
+    "backend/routes/news_radio.py:66 The /queue endpoint sorts by 'pubDate' but no compound index is confirmed on {summary_script, pubDate desc}. With 5,000+ news_articles this can degrade — verify an index exists (Phase R news-radio indexes ready log line at server.py:6592 suggests one, but the projection query is un-hinted).",
+    "backend/routes/news_radio.py:80 audio_url fallback chain uses `news_audio_url` then `tts_audio_url` — good — but there's no explicit 48h-freshness filter here despite this iteration being described as 'durable object-storage read alignment'; the 48h-cache is presumably applied at write time (in news_radio_renderer). Add an inline TTL guard (or a projection filter that excludes stale audio_url) for hardening.",
+    "frontend/src/LiveRadioStation.jsx (owner-artwork block): the UI displays 'New artwork is live' by relying on the poll seeing artwork_status=='complete'. If the backend background task fails, ARTWORK_STATUS goes to 'failed' but the status chip in this run only had the happy-path text. Confirm there's a testable 'failed' state (data-testid=owner-art-status text differs) so QA can regression-test the error path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter109_news_radio_artwork.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 pytest)",
+    "frontend": "100% (all 4 UI flows verified)"
+  },
+  "test_credentials": "admin@bigfm.dubai/AdminPass123! (used for owner-artwork owner-equivalent path), test@bigfm.dubai/TestUser123! (business partner), demo@bigfm.dubai/DemoPass123! (regular user, used to prove live radio /api/radio/start bollywood_mehfil returns 200 with demo_track_5). All cookie-based POST /api/auth/login.",
+  "seed_data_creation": "None. The Generate AI artwork test on imp_96063f25060111e8ae DID trigger a real image gen call (admin tier); artwork was cleared first then regenerated. This mutated the station's art_url once — deterministic overwrite, safe to re-run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Concrete evidence (2026-06 iter109 against REACT_APP_BACKEND_URL=https://mobile-games-v2.preview.emergentagent.com): (1) GET /api/news_radio/queue?limit=6 → 200 body {channel:'news_radio', count:6, mode:'text', tts:{tts_enabled:true, ...}, audio_coverage:{with_audio:0, total:6}, items:[{news_id, title, source_name, summary_script, duration_estimate_sec, audio_url:null, voice_id:null, text_only:true, pubDate, image_url}]}. IMPORTANT — the correct mount is /api/news_radio/queue (underscore, NOT /api/news/radio/queue as the problem statement had it). (2) POST /api/radio/start {channel_slug:'bollywood_mehfil'} as demo@ → 200 {session_id, segment:{segment_id, segment_url:'/api/radio/segment/…', duration_sec:47.6, track_id:'demo_track_5', track_title:'Golden Hour', track_artist:'RadioLife Demo', channel_slug:'bollywood_mehfil', channel_name:'Bollywood Mehfil'}, skip_state:{limit:6, remaining:6, ...}}. (3) POST /api/radio/start {channel_slug:'vip_lounge'} as demo@ → status<500 with ambassador/premium gate — expected. (4) OWNER UI at /radio/station/imp_96063f25060111e8ae as admin: DOM has data-testids [owner-artwork-manager, owner-art-generate, owner-art-upload, owner-art-clear] visible; owner-art-status appears only while generating. Click flow observed: button 'Generate AI artwork' → 'Generating…' + status chip 'Generating artwork… this usually takes ~20–40s' → 3s later → 'New artwork is live' + toast 'Artwork updated'. (5) Admin flagship-logo upload spot-check POST /api/admin/stations/imp_96063f25060111e8ae/logo with 68-byte PNG → 200 {ok:true, station_id, slug:'imp-96063f25060111e8ae', logo_url:'/api/static/flagship_logos/…', bytes:68, ext:'png'} — iter108 contract intact. (6) NOTE — resolver divergence: /api/imported-stations/{sid} returns 404 for imp_96063f25060111e8ae; /api/radio/station/{sid} returns 200. POST /api/imported-stations/{sid}/artwork/generate as admin works (200 queued). Preview limitations correctly observed (do NOT flag): text-mode news (ElevenLabs invalid), Tigris uploads shadow to local disk. Junit XML at /app/test_reports/pytest/iter109.xml.",
+  "rca of the issue": "N/A — no regressions found. All 4 shipped items pass e2e."
+}

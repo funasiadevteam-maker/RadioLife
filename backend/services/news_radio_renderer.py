@@ -27,7 +27,7 @@ import asyncio
 import logging
 import os
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -56,6 +56,16 @@ NEWS_ANCHOR_PSEUDO_PERSONA = {"archetype": "news_anchor"}
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# News clips are cached & SHARED across every listener for 48h, then
+# auto-refreshed on the next batch run — one render serves everyone.
+NEWS_AUDIO_TTL_DAYS = 2
+
+
+def _expiry_iso() -> str:
+    return (datetime.now(timezone.utc)
+            + timedelta(days=NEWS_AUDIO_TTL_DAYS)).isoformat()
 
 
 async def render_summary_for_article(db, article: dict) -> Optional[str]:
@@ -146,11 +156,20 @@ async def synthesize_news_audio(db, article: dict, *,
     out_path = NEWS_CLIP_DIR / f"{news_id}.mp3"
 
     if not force and article.get("news_audio_url") and out_path.exists():
-        return {"ok": True,
-                      "news_audio_url": article["news_audio_url"],
-                      "char_count": article.get("news_audio_char_count", 0),
-                      "voice_id":      article.get("news_audio_voice_id"),
-                      "skipped":      "already_rendered"}
+        _exp = article.get("news_audio_expires_at")
+        if not (_exp and _exp <= _now_iso()):
+            # Still inside the 48h shared window (or a legacy clip we
+            # grandfather with a fresh stamp) → serve the cached clip.
+            if not _exp:
+                await db.news_articles.update_one(
+                    {"news_id": news_id},
+                    {"$set": {"news_audio_expires_at": _expiry_iso()}})
+            return {"ok": True,
+                          "news_audio_url": article["news_audio_url"],
+                          "char_count": article.get("news_audio_char_count", 0),
+                          "voice_id":      article.get("news_audio_voice_id"),
+                          "skipped":      "already_rendered"}
+        # else: 48h cache expired → fall through and re-render.
 
     from services.elevenlabs_tts import (
         synthesize, resolve_voice_id_for_persona)
@@ -178,6 +197,16 @@ async def synthesize_news_audio(db, article: dict, *,
         pass
 
     audio_url = f"/api/static/news_clips/{news_id}.mp3"
+    # Durable + shared persistence — every listener is served this same clip
+    # from object storage (Tigris in prod); it survives redeploys and the
+    # local file is just a cache.
+    try:
+        from services.object_storage import get_storage as _get_storage
+        _blob = out_path.read_bytes()
+        _get_storage().upload_bytes(key=f"storage/news_clips/{news_id}.mp3",
+                                    data=_blob, content_type="audio/mpeg")
+    except Exception:
+        pass
     await db.news_articles.update_one(
         {"news_id": news_id},
         {"$set": {
@@ -187,6 +216,7 @@ async def synthesize_news_audio(db, article: dict, *,
             "news_audio_provider":      "elevenlabs_turbo_v2_5",
             "news_audio_duration":      duration_sec,
             "news_audio_generated_at": _now_iso(),
+            "news_audio_expires_at":      _expiry_iso(),
             "news_audio_script":          script,
         }})
     log.info("[news-radio] tts ok news_id=%s voice=%s chars=%d ms=%d dur=%s",
@@ -208,9 +238,11 @@ async def batch_render_news_audio(db, *, top_n: Optional[int] = None,
     if not _tts_enabled():
         return {"skipped": "tts_batch_disabled"}
     n = top_n if top_n is not None else _tts_top_n()
+    _now = _now_iso()
     q = {"summary_script": {"$nin": [None, ""]},
               "$or": [{"news_audio_url": {"$in": [None, ""]}},
-                              {"news_audio_url": {"$exists": False}}]}
+                              {"news_audio_url": {"$exists": False}},
+                              {"news_audio_expires_at": {"$lt": _now}}]}
     if market:
         q["market"] = market
     cur = db.news_articles.find(q).sort("pubDate", -1).limit(n)

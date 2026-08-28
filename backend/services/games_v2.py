@@ -1865,7 +1865,7 @@ async def save_uploaded_asset(db, *, filename: str, content_type: str,
         f.write(data)
     try:
         from services.object_storage import get_storage as _get_storage
-        _get_storage().upload_bytes(key=f"game_assets/{fname}", data=data,
+        _get_storage().upload_bytes(key=f"storage/game_assets/{fname}", data=data,
                                     content_type=content_type)
     except Exception:
         pass

@@ -154,7 +154,7 @@ async def upload_brand_asset(sponsorship_id: str, request: Request,
     try:
         from services.object_storage import get_storage as _get_storage
         _get_storage().upload_bytes(
-            key=f"pw_sponsorships/{sponsorship_id}/{fname}", data=data,
+            key=f"static/pw_sponsorships/{sponsorship_id}/{fname}", data=data,
             content_type=file.content_type)
     except Exception:
         pass

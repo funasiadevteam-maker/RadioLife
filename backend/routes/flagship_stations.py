@@ -235,7 +235,7 @@ async def admin_upload_station_logo(
     out_path.write_bytes(data)
     try:
         from services.object_storage import get_storage as _get_storage
-        _get_storage().upload_bytes(key=f"flagship_logos/{slug}.{ext}", data=data,
+        _get_storage().upload_bytes(key=f"static/flagship_logos/{slug}.{ext}", data=data,
                                     content_type=_ALLOWED_LOGO_EXT.get(ext, "image/png"))
     except Exception:
         pass

@@ -125,7 +125,7 @@ async def persist_proof_documents(
         try:
             from services.object_storage import get_storage as _get_storage
             _get_storage().upload_bytes(
-                key=f"claim_proofs/{_sanitize_slug(claim_id)}/{out_name}",
+                key=f"static/claim_proofs/{_sanitize_slug(claim_id)}/{out_name}",
                 data=data)
         except Exception:
             pass
@@ -180,7 +180,7 @@ async def persist_banner(*, station_id: str, file: UploadFile) -> Dict[str, Any]
     try:
         from services.object_storage import get_storage as _get_storage
         _get_storage().upload_bytes(
-            key=f"station_media/{_sanitize_slug(station_id)}/banner.{ext}",
+            key=f"static/station_media/{_sanitize_slug(station_id)}/banner.{ext}",
             data=data)
     except Exception:
         pass
@@ -227,7 +227,7 @@ async def persist_description_audio(*, station_id: str, file: UploadFile
     try:
         from services.object_storage import get_storage as _get_storage
         _get_storage().upload_bytes(
-            key=f"station_media/{_sanitize_slug(station_id)}/description_audio.{ext}",
+            key=f"static/station_media/{_sanitize_slug(station_id)}/description_audio.{ext}",
             data=data)
     except Exception:
         pass

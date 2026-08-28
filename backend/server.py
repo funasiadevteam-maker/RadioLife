@@ -56,7 +56,7 @@ from compliance import (
     consecutive_artists_to_block, ensure_compliance_indexes, log_event,
     shares_count_today, skip_state,
 )
-from seed import seed_tracks, seed_users
+from seed import ensure_demo_tracks, seed_users
 from services.billing_service import ensure_billing_indexes, expire_lapsed_subscriptions
 from services.stripe_setup import stripe_setup_bootstrap
 from routes.billing import billing_router, webhook_router
@@ -1745,16 +1745,25 @@ async def _deferred_bootstrap(app_: FastAPI):
                     {"_id": t["_id"]},
                     {"$set": {"energy_level": meta["energy_level"], "mood": meta["mood"]}},
                 )
-        count = await db.tracks.count_documents({})
-        if count == 0:
-            logger.info("No tracks present — seeding from royalty-free sources...")
-            seeded = seed_tracks(TRACKS_DIR)
-            if seeded:
-                now = _now_iso()
-                docs = [{"_id": s["id"], "title": s["title"], "artist": s["artist"],
-                         "file_path": s["file_path"], "duration_sec": s["duration_sec"],
-                         "uploaded_at": now} for s in seeded]
-                await db.tracks.insert_many(docs)
+        # Idempotent + self-healing demo catalog — re-downloads missing
+        # clips on a fresh pod and stamps playable_status='ok' so radio
+        # always has candidates.
+        try:
+            ensured = await ensure_demo_tracks(db, TRACKS_DIR)
+            logger.info(f"Demo catalog ensured ({ensured} tracks).")
+        except Exception as e:
+            logger.warning(f"Demo track seeding failed: {e}")
+        # Self-heal legacy seed rows a cold-boot race flagged `disk_missing`
+        # while their file actually exists on disk.
+        try:
+            async for _t in db.tracks.find(
+                    {"playable_status": "disk_missing"}, {"file_path": 1}):
+                _fp = _t.get("file_path")
+                if _fp and os.path.exists(_fp):
+                    await db.tracks.update_one(
+                        {"_id": _t["_id"]}, {"$unset": {"playable_status": ""}})
+        except Exception as e:
+            logger.warning(f"disk_missing self-heal skipped: {e}")
         try:
             created = await seed_users(db, hash_password)
             if created: logger.info(f"Seeded {created} users.")
@@ -2622,7 +2631,7 @@ async def upload_track(file: UploadFile = File(...),
     # pod restarts / horizontal scaling; the local file stays as the cache.
     try:
         from services.object_storage import get_storage as _get_storage
-        _get_storage().upload_bytes(key=f"tracks/{track_id}.mp3", data=data,
+        _get_storage().upload_bytes(key=f"storage/tracks/{track_id}.mp3", data=data,
                                     content_type="audio/mpeg")
     except Exception:
         pass
