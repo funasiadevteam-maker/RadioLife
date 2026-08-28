@@ -253,19 +253,23 @@ def _peak_rss_mb() -> int:
 
 
 async def _spool_upload_to_disk(f: UploadFile, dst: Path) -> str:
-    """Stream `f` → `dst` in 1 MB chunks, returning the sha256 hex.
+    """Read `f` → `dst`, returning the sha256 hex. Also persists the bytes to
+    durable object storage (Tigris in prod) so bulk-uploaded tracks survive
+    pod restarts; the local file stays as the serving cache.
 
     Raises starlette.requests.ClientDisconnect when the client hangs up.
     """
     hasher = hashlib.sha256()
     dst.parent.mkdir(parents=True, exist_ok=True)
+    data = await f.read()
+    hasher.update(data)
     with open(dst, "wb") as out:
-        while True:
-            chunk = await f.read(SPOOL_CHUNK)
-            if not chunk:
-                break
-            hasher.update(chunk)
-            out.write(chunk)
+        out.write(data)
+    try:
+        from services.object_storage import get_storage as _get_storage
+        _get_storage().upload_bytes(key=f"bulk_tracks/{dst.name}", data=data)
+    except Exception:
+        pass
     return hasher.hexdigest()
 
 

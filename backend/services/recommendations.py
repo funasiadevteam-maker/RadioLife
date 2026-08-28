@@ -154,7 +154,7 @@ async def autoplay_suggestion(db, *, user_id: str,
         elif isinstance(k, str) and "-" in k:
             dow, hr = k.split("-", 1)
             try:    kk = (int(dow), int(hr))
-            except: continue
+            except Exception: continue
         else:
             continue
         if kk in neigh:

@@ -278,6 +278,14 @@ def _domains_for_country(country: str) -> Optional[str]:
     return _DOMAINS_BY_COUNTRY.get(cc)
 
 
+def _url_host(url: str) -> str:
+    from urllib.parse import urlparse
+    try:
+        return (urlparse(str(url or "")).netloc or "").lower()
+    except Exception:
+        return ""
+
+
 def _matches_country_domain(url: str, country: str) -> bool:
     """SAFETY post-filter: only keep articles whose URL host belongs
     to the country's whitelisted source pool.  When no whitelist is

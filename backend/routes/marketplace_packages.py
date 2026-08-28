@@ -182,7 +182,9 @@ class PurchaseBody(BaseModel):
 
 
 @consumer_router.post("/packages/purchase")
-async def purchase_package(body: PurchaseBody, request: Request, user: dict = Depends(current_user)):
+async def purchase_package(body: PurchaseBody, request: Request,
+                           background_tasks: BackgroundTasks,
+                           user: dict = Depends(current_user)):
     db = request.app.state.db
     uid = user.get("user_id")
     product = await db.package_products.find_one({"package_id": body.package_id, "active": True})

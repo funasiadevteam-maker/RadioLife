@@ -68,6 +68,27 @@ class ObjectStorage(ABC):
     @abstractmethod
     def list_keys(self, *, prefix: str = "") -> Iterator[dict]: ...
 
+    def upload_bytes(self, *, key: str, data: bytes,
+                     content_type: str = "application/octet-stream") -> dict:
+        """Persist raw upload bytes to durable storage (object store in prod).
+
+        Default: spool to a temp file then delegate to `upload`. Backends may
+        override for a direct byte path. This is the canonical durable sink for
+        user uploads — pairing it with a local write turns that write into a
+        cache rather than a data-loss risk."""
+        import tempfile
+        fd, tmp = tempfile.mkstemp(prefix="upl_")
+        try:
+            with os.fdopen(fd, "wb") as _f:
+                _f.write(data)
+            return self.upload(local_path=tmp, key=key,
+                               content_type=content_type)
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
 
 # ─── Local-disk implementation (the legacy path) ─────────────────
 class LocalDiskStorage(ObjectStorage):

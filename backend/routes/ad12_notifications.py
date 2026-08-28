@@ -168,6 +168,13 @@ async def creative_upload(notification_campaign_id: str,
     fpath = os.path.join(dir_path, fname)
     with open(fpath, "wb") as f:
         f.write(data)
+    try:
+        from services.object_storage import get_storage as _get_storage
+        _get_storage().upload_bytes(
+            key=f"notifications/{notification_campaign_id}/{fname}", data=data,
+            content_type=file.content_type)
+    except Exception:
+        pass
     creative_url = f"{NOTIF_PUBLIC_PREFIX}/{notification_campaign_id}/{fname}"
     doc = await _svc.attach_creative(
         db,

@@ -122,6 +122,13 @@ async def persist_proof_documents(
         out_name = f"{doc_type}_{ts}_{h}.{ext}"
         out_path = proof_dir / out_name
         out_path.write_bytes(data)
+        try:
+            from services.object_storage import get_storage as _get_storage
+            _get_storage().upload_bytes(
+                key=f"claim_proofs/{_sanitize_slug(claim_id)}/{out_name}",
+                data=data)
+        except Exception:
+            pass
         accepted.append({
             "type":                doc_type,
             "filename":        _sanitize_slug(f.filename or out_name),
@@ -170,6 +177,13 @@ async def persist_banner(*, station_id: str, file: UploadFile) -> Dict[str, Any]
             except Exception: pass
     out_path = d / f"banner.{ext}"
     out_path.write_bytes(data)
+    try:
+        from services.object_storage import get_storage as _get_storage
+        _get_storage().upload_bytes(
+            key=f"station_media/{_sanitize_slug(station_id)}/banner.{ext}",
+            data=data)
+    except Exception:
+        pass
     return {"banner_image_url": (f"/api/static/station_media/"
                                                                         f"{_sanitize_slug(station_id)}/banner.{ext}"),
                         "bytes": len(data)}
@@ -210,6 +224,13 @@ async def persist_description_audio(*, station_id: str, file: UploadFile
             except Exception: pass
     out_path = d / f"description_audio.{ext}"
     out_path.write_bytes(data)
+    try:
+        from services.object_storage import get_storage as _get_storage
+        _get_storage().upload_bytes(
+            key=f"station_media/{_sanitize_slug(station_id)}/description_audio.{ext}",
+            data=data)
+    except Exception:
+        pass
     # Probe duration; if over the cap, delete + raise.
     duration = _probe_audio_duration(out_path)
     if duration is not None and duration > MAX_AUDIO_SECONDS:

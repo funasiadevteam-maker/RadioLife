@@ -23,22 +23,39 @@ export default function NewsRadio() {
 
   useEffect(() => {
     let cancel = false;
-    (async () => {
+    let tries = 0;
+    const load = async () => {
       try {
         const r = await axios.get(`${API}/news_radio/queue`,
-                                  { params: { limit: 6 },
-                                    withCredentials: true });
-        if (!cancel) {
-          setItems(r.data?.items || []);
-          setMode(r.data?.mode || "text");
-          setTts(r.data?.tts || null);
-          if (!r.data?.items?.length) setEmpty(r.data?.retry_hint || "Cache cold");
+                                  { params: { limit: 6 }, withCredentials: true });
+        if (cancel) return;
+        if (r.data?.items?.length) {
+          setItems(r.data.items);
+          setMode(r.data.mode || "text");
+          setTts(r.data.tts || null);
+          setEmpty(null);
+          setLoading(false);
+          return;
+        }
+        // Cold cache: kick off generation ONCE, then poll until scripts land.
+        if (tries === 0) {
+          axios.post(`${API}/news_radio/trigger-batch`, null,
+                     { params: { top_n: 6 }, withCredentials: true }).catch(() => {});
+        }
+        tries += 1;
+        if (tries <= 6) {
+          setEmpty("Preparing today's news summaries — this takes a few seconds…");
+          setLoading(false);
+          setTimeout(load, 5000);
+        } else {
+          setEmpty(r.data?.retry_hint || "No news summaries available right now.");
+          setLoading(false);
         }
       } catch (e) {
-        if (!cancel) setEmpty("Could not load news radio queue.");
+        if (!cancel) { setEmpty("Could not load news radio queue."); setLoading(false); }
       }
-      if (!cancel) setLoading(false);
-    })();
+    };
+    load();
     return () => { cancel = true; };
   }, []);
 

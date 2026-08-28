@@ -386,12 +386,12 @@ async def create_creative(advertiser_id: str, request: Request,
         st = obs.get_storage()
         if st.backend_name == "tigris":
             k_a = obs.key_ad_creative_audio(cid, "mp3")
-            st.upload(local_path=str(audio_path), key=k_a,
+            st.upload_bytes(key=k_a, data=audio_bytes,
                               content_type="audio/mpeg")
             storage_key_creative_audio = k_a
             if image_filename and image_ext:
                 k_i = obs.key_ad_creative_image(cid, image_ext)
-                st.upload(local_path=str(STORAGE_ROOT / image_filename), key=k_i,
+                st.upload_bytes(key=k_i, data=img_bytes,
                                   content_type=f"image/{image_ext}")
                 storage_key_creative_image = k_i
     except Exception as e:

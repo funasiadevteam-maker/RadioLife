@@ -1397,20 +1397,20 @@ async def _deferred_bootstrap(app_: FastAPI):
             await ensure_points_indexes(db)
             await seed_earn_rules(db)
         except Exception as e:
-            log.warning("[points] bootstrap skipped: %s", e)
+            logger.warning("[points] bootstrap skipped: %s", e)
         # Phase MKT.1 — Merchant Marketplace: rate card + demo venue seed.
         try:
             from routes.merchant_marketplace import seed_marketplace
             mkt = await seed_marketplace(db)
-            log.info("[MKT.1] marketplace seeded: %s", mkt)
+            logger.info("[MKT.1] marketplace seeded: %s", mkt)
         except Exception as e:
-            log.warning("[MKT.1] marketplace bootstrap skipped: %s", e)
+            logger.warning("[MKT.1] marketplace bootstrap skipped: %s", e)
         # Phase 42-E1 — Banner ads + PW self-serve bootstrap.
         try:
             await ensure_banner_ad_indexes(db)
             await ensure_predict_win_pricing_indexes(db)
         except Exception as e:
-            log.warning("[42-E1] bootstrap skipped: %s", e)
+            logger.warning("[42-E1] bootstrap skipped: %s", e)
         # 24h TTL on the per-minute heartbeat lock to keep collection small
         try:
             await db.listening_heartbeat_minutes.create_index(
@@ -2613,14 +2613,19 @@ async def upload_track(file: UploadFile = File(...),
     track_id = str(uuid.uuid4())
     out_path = TRACKS_DIR / f"{track_id}.mp3"
     hasher = _hashlib.sha256()
+    data = await file.read()
+    hasher.update(data)
     with open(out_path, "wb") as out:
-        while True:
-            chunk = await file.read(1024 * 1024)
-            if not chunk:
-                break
-            hasher.update(chunk)
-            out.write(chunk)
+        out.write(data)
     sha = hasher.hexdigest()
+    # Durable persistence (Tigris in prod) so admin-uploaded tracks survive
+    # pod restarts / horizontal scaling; the local file stays as the cache.
+    try:
+        from services.object_storage import get_storage as _get_storage
+        _get_storage().upload_bytes(key=f"tracks/{track_id}.mp3", data=data,
+                                    content_type="audio/mpeg")
+    except Exception:
+        pass
     try:
         info = ffprobe_info(out_path)
     except Exception as e:
@@ -3736,9 +3741,10 @@ async def _build_one_segment_with_rj(session_id, track, prev_track, channel, ctx
         # Phase 5 — atomically consume any pending BigCoin milestone so the
         # RJ can shout it out in this break (once per crossing).
         milestone_shoutout = None
+        _uid = _sess.get("user_id") if _sess else None
         try:
             doc = await db.users.find_one_and_update(
-                {"user_id": user["user_id"],
+                {"user_id": _uid,
                  "bigcoin_milestone_pending": {"$exists": True}},
                 {"$unset": {"bigcoin_milestone_pending": ""}},
                 return_document=False,
@@ -3752,7 +3758,7 @@ async def _build_one_segment_with_rj(session_id, track, prev_track, channel, ctx
         commute_arrival_extra = None
         try:
             from services.route_ad_engine import pop_pending_rj_extra
-            extra = await pop_pending_rj_extra(db, user_id=user["user_id"])
+            extra = await pop_pending_rj_extra(db, user_id=_uid)
             if extra and extra.get("kind") == "commute_just_completed":
                 commute_arrival_extra = extra.get("payload") or {}
         except Exception as _e:

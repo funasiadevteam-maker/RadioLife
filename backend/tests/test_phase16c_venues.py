@@ -71,7 +71,7 @@ def test_tv_pairing_code_expires_after_10_minutes():
             "active":          True,
         })
         try:
-            c = _live_client();
+            c = _live_client()
             r = c.post("/api/tv/claim", json={"pairing_code": code})
             assert r.status_code == 410, r.text
             d = r.json()["detail"]
@@ -86,7 +86,7 @@ def test_tv_pairing_code_expires_after_10_minutes():
 # ─── 2. Token durable across refreshes ──────────────────────────────
 def test_tv_token_durable_across_refreshes():
     """After claim, the tv_token still validates against /api/tv/me."""
-    c = _live_client();
+    c = _live_client()
     r = c.post(f"/api/venue/{VENUE_ID}/tvs/pair")
     assert r.status_code == 200, r.text
     code = r.json()["pairing_code"]
@@ -107,7 +107,7 @@ def test_tv_token_durable_across_refreshes():
 def test_revoke_tv_token_disconnects_tv_ws():
     """After revoke, both REST `/api/tv/me?token=` returns 401 and the
     WS attempt closes immediately (4401)."""
-    c = _live_client();
+    c = _live_client()
     r = c.post(f"/api/venue/{VENUE_ID}/tvs/pair")
     code = r.json()["pairing_code"]
     rc = httpx.Client(base_url="http://localhost:8001", timeout=15)
@@ -128,7 +128,7 @@ def test_revoke_tv_token_disconnects_tv_ws():
 def test_only_venue_staff_can_start_room_for_that_venue():
     """A non-staff user gets 403 on POST /venue/{id}/trivia/start."""
     # Owner can start.
-    owner = _live_client();
+    owner = _live_client()
     cats = owner.get("/api/trivia/categories").json()["categories"]
     r = owner.post(f"/api/venue/{VENUE_ID}/trivia/start",
                           json={"category_id": cats[0]["id"]})
@@ -146,7 +146,7 @@ def test_only_venue_staff_can_start_room_for_that_venue():
 # ─── 5. Announcement broadcasts everywhere ──────────────────────────
 def test_venue_announcement_broadcasts_to_all_room_players_and_tvs():
     """Captured at the HTTP layer: response reports rooms + tvs hit."""
-    c = _live_client();
+    c = _live_client()
     # Pair a TV so there's at least one tv broadcast target.
     code = c.post(f"/api/venue/{VENUE_ID}/tvs/pair").json()["pairing_code"]
     rc = httpx.Client(base_url="http://localhost:8001", timeout=15)
@@ -183,7 +183,7 @@ def test_coupon_redemption_marks_idempotent():
 
     client, db, coupon_id = loop.run_until_complete(setup())
     try:
-        c = _live_client();
+        c = _live_client()
         r = c.post(f"/api/venue/{VENUE_ID}/coupons/redeem", json={"code": coupon_id})
         assert r.status_code == 200, r.text
         r = c.post(f"/api/venue/{VENUE_ID}/coupons/redeem", json={"code": coupon_id})
@@ -214,7 +214,7 @@ def test_coupon_redemption_only_for_owning_venue():
 
     client, db, coupon_id = loop.run_until_complete(setup())
     try:
-        c = _live_client();
+        c = _live_client()
         r = c.post(f"/api/venue/{VENUE_ID}/coupons/redeem", json={"code": coupon_id})
         assert r.status_code == 403, r.text
         assert r.json()["detail"]["code"] == "wrong_venue"
@@ -277,7 +277,7 @@ def test_kicked_player_via_venue_dashboard_uses_phase16b_kick_handler():
 
 # ─── 10. Venue stats aggregates correctly ───────────────────────────
 def test_venue_stats_aggregation():
-    c = _live_client();
+    c = _live_client()
     r = c.get(f"/api/venue/{VENUE_ID}/stats?period=today")
     assert r.status_code == 200, r.text
     b = r.json()
@@ -290,7 +290,7 @@ def test_venue_stats_aggregation():
 def test_tv_display_shows_lobby_state_when_no_active_room():
     """If no venue room is in the hub, /api/tv/me returns the venue + an
     empty schedule (the TV UI then renders the welcome screen)."""
-    c = _live_client();
+    c = _live_client()
     code = c.post(f"/api/venue/{VENUE_ID}/tvs/pair").json()["pairing_code"]
     rc = httpx.Client(base_url="http://localhost:8001", timeout=15)
     token = rc.post("/api/tv/claim", json={"pairing_code": code}).json()["tv_token"]
@@ -306,7 +306,7 @@ def test_tv_display_subscribes_to_active_room_via_ws():
     """Open a real WS against /api/tv/ws and assert a `hello` frame is
     received with the venue payload."""
     import websockets
-    c = _live_client();
+    c = _live_client()
     code = c.post(f"/api/venue/{VENUE_ID}/tvs/pair").json()["pairing_code"]
     rc = httpx.Client(base_url="http://localhost:8001", timeout=15)
     token = rc.post("/api/tv/claim", json={"pairing_code": code}).json()["tv_token"]

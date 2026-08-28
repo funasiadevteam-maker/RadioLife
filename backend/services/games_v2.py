@@ -1493,7 +1493,7 @@ async def save_for_later_unlock(db, user: dict, campaign_id: str,
             {"$set": {"expires_at": expires,
                        "saved_for_later": True,
                        "saved_at": now}})
-        return {"unlock_id": existing["_id"],
+        return {"unlock_id": str(existing["_id"]),
                 "saved_for_later": True,
                 "expires_at": expires.isoformat(),
                 "extended": True}
@@ -1863,6 +1863,12 @@ async def save_uploaded_asset(db, *, filename: str, content_type: str,
     path = ASSETS_DIR / fname
     with open(path, "wb") as f:
         f.write(data)
+    try:
+        from services.object_storage import get_storage as _get_storage
+        _get_storage().upload_bytes(key=f"game_assets/{fname}", data=data,
+                                    content_type=content_type)
+    except Exception:
+        pass
     url = f"/api/games_v2/assets/{fname}"
     await db.game_uploaded_assets.insert_one({
         "_id": asset_id, "asset_id": asset_id,

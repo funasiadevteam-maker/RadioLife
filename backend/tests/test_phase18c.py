@@ -208,7 +208,6 @@ def test_attribution_chain_e2e_save_coupon_persists_campaign_and_advertiser():
     confirms the freshly-minted coupon doc has all 3 attribution fields, AND
     the `/attribution` funnel reports impressions>=1 + coupon_saves>=1."""
     from routes.ads_public import action_save_coupon
-    from unittest.mock import MagicMock
     db = AsyncIOMotorClient(MONGO)[DBN]
     sid, cid, aid, oid, uid = _seed_attribution_fixture(
         db, suffix=secrets.token_hex(3))
@@ -243,7 +242,6 @@ def test_attribution_chain_e2e_redemption_status_flip_counts_in_funnel():
     """Same write path → flip coupon to `status=redeemed` → confirm the
     `/attribution` redemption query counts it."""
     from routes.ads_public import action_save_coupon
-    from unittest.mock import MagicMock
     db = AsyncIOMotorClient(MONGO)[DBN]
     sid, cid, aid, oid, uid = _seed_attribution_fixture(
         db, suffix=secrets.token_hex(3))
@@ -277,7 +275,6 @@ def test_attribution_chain_save_coupon_without_serve_id_is_silent_noop():
     """Missing or unknown serve_id must NOT 4xx — coupon is written without
     the attribution_* fields (so legacy non-ad coupon flows keep working)."""
     from routes.ads_public import action_save_coupon
-    from unittest.mock import MagicMock
     db = AsyncIOMotorClient(MONGO)[DBN]
     _sid, _cid, _aid, oid, uid = _seed_attribution_fixture(
         db, suffix=secrets.token_hex(3))

@@ -121,7 +121,7 @@ async def register_business(body: RegisterBusinessBody, request: Request,
         {"owner_user_id": user["user_id"]})
     if existing:
         return {"ok": False, "reason": "already_registered",
-                      "business_id": existing["_id"]}
+                      "business_id": str(existing["_id"])}
     bid = _new_id("biz")
     now = _now()
     doc = {
@@ -256,7 +256,7 @@ async def redeem_coupon(body: RedeemCouponBody, request: Request,
               "business_id": biz["_id"]})
         if existing:
             return {"ok": True, "idempotent": True,
-                          "redemption_id": existing["_id"],
+                          "redemption_id": str(existing["_id"]),
                           "redeemed_at": existing["redeemed_at"].isoformat()}
 
     # Mark coupon row + insert redemption ledger row atomically (best-effort).
@@ -275,7 +275,7 @@ async def redeem_coupon(body: RedeemCouponBody, request: Request,
                 {"code": code_upper, "business_id": biz["_id"]})
             if existing:
                 return {"ok": True, "idempotent": True,
-                              "redemption_id": existing["_id"]}
+                              "redemption_id": str(existing["_id"])}
         raise HTTPException(409, "redemption_race")
 
     await db.business_redemptions.insert_one({

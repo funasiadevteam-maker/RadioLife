@@ -43,7 +43,6 @@ async def attribution(advertiser_id: str, campaign_id: str, request: Request):
     async def _within_window(coupons_query):
         """Count coupons matching `coupons_query` whose tied serve fired
         within `window_h` hours of save/claim time."""
-        from datetime import timedelta
         n = 0
         async for cp in db.coupons.find(coupons_query,
                                                                   {"attribution_serve_id": 1,

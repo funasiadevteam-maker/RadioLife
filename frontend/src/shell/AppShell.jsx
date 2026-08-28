@@ -378,14 +378,21 @@ function FilterChips() {
   const summary = useShellSummary();
   const chip = useShellFilter((s) => s.chip);
   const setChip = useShellFilter((s) => s.setChip);
+  const navigate = useNavigate();
+  const location = useLocation();
   const chips = summary?.chips || [{ key: "all", label: "All" }];
+  const onChip = (key) => {
+    setChip(key);
+    // Chips drive the Home feed — bring the user there from any other page.
+    if (location.pathname !== "/") navigate("/");
+  };
   return (
     <div data-testid="shell-filter-chips" style={{ borderColor: "var(--line)" }}
       className="sticky top-0 z-20 bg-bg-base/95 backdrop-blur border-b flex gap-2 overflow-x-auto no-scrollbar px-4 xl:px-6 py-2.5">
       {chips.map((c) => {
         const active = chip === c.key;
         return (
-          <button key={c.key} onClick={() => setChip(c.key)} data-testid={`chip-${c.key}`}
+          <button key={c.key} onClick={() => onChip(c.key)} data-testid={`chip-${c.key}`}
             className={[
               "shrink-0 h-9 px-3.5 rounded-full text-[13px] font-bold border transition-colors duration-150 flex items-center gap-1.5",
               active ? "bg-text-primary text-bg-base border-transparent"

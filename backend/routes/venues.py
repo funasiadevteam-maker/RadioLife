@@ -986,6 +986,12 @@ def build_router(db, get_current_user) -> APIRouter:
         await db.venue_orgs.insert_one(doc)
         return {"org": {k: v for k, v in doc.items() if k != "_id"}}
 
+    @router.get("/api/venue/orgs/me")
+    async def my_orgs(request: Request,
+                              user: dict = Depends(get_current_user)):
+        orgs = await db.venue_orgs.find({"owner_user_id": user["user_id"]}).to_list(50)
+        return {"orgs": [{k: v for k, v in o.items() if k != "_id"} for o in orgs]}
+
     @router.get("/api/venue/orgs/{org_id}")
     async def get_org(org_id: str, request: Request,
                             user: dict = Depends(get_current_user)):
@@ -1012,12 +1018,6 @@ def build_router(db, get_current_user) -> APIRouter:
                                 "logo_url": org.get("logo_url"),
                                 "primary_color": org.get("primary_color")}
         return rollup
-
-    @router.get("/api/venue/orgs/me")
-    async def my_orgs(request: Request,
-                              user: dict = Depends(get_current_user)):
-        orgs = await db.venue_orgs.find({"owner_user_id": user["user_id"]}).to_list(50)
-        return {"orgs": [{k: v for k, v in o.items() if k != "_id"} for o in orgs]}
 
     # Link / unlink a venue under an org.
     @router.patch("/api/venue/{venue_id}/org")

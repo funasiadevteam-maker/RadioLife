@@ -6,6 +6,7 @@ land in the unified moderation queue (Phase 19 B) as `social_posts`.
 from __future__ import annotations
 import logging
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -23,6 +24,39 @@ MENTION_RE = re.compile(r"@([a-z0-9_]{3,32})", re.IGNORECASE)
 
 
 def _now() -> str: return datetime.now(timezone.utc).isoformat()
+
+
+RATE_LIMITS = {"post": 30, "comment": 60, "reaction": 120}
+
+
+async def _check_rate_limit(db, user_id: str, action: str) -> None:
+    """Atomic hourly bucket. Raises 429 with retry_after_sec on cap."""
+    cap = RATE_LIMITS.get(action, 60)
+    hour_bucket = int(time.time() // 3600)
+    r = await db.social_rate_limits.find_one_and_update(
+        {"user_id": user_id, "action": action, "hour_bucket": hour_bucket},
+        {"$inc": {"count": 1}, "$setOnInsert": {"created_at": _now()}},
+        upsert=True, return_document=True)
+    if ((r or {}).get("count") or 1) > cap:
+        raise HTTPException(429, {"code": "rate_limited", "action": action,
+                                  "limit": cap,
+                                  "retry_after_sec": 3600 - (int(time.time()) % 3600)})
+
+
+def _station_visible_to(page: dict, user_id: Optional[str],
+                        via_direct_link: bool = False) -> bool:
+    """Owner always sees. Others see published/public pages (unlisted only via
+    a direct link); private / unpublished stations stay hidden."""
+    if user_id and page.get("_owner_id") == user_id:
+        return True
+    vis = str(page.get("visibility") or page.get("status") or "public").lower()
+    if vis in ("private", "draft", "unpublished", "hidden", "suspended", "banned"):
+        return False
+    if page.get("is_published") is False or page.get("published") is False:
+        return False
+    if vis == "unlisted":
+        return via_direct_link
+    return True
 
 
 async def ensure_social_indexes(db) -> None:

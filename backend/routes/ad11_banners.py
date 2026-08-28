@@ -182,6 +182,13 @@ async def creative_upload(banner_id: str,
     fpath = os.path.join(dir_path, fname)
     with open(fpath, "wb") as f:
         f.write(data)
+    try:
+        from services.object_storage import get_storage as _get_storage
+        _get_storage().upload_bytes(
+            key=f"banners/{banner_id}/{fname}", data=data,
+            content_type=file.content_type)
+    except Exception:
+        pass
     creative_url = f"{BANNER_PUBLIC_PREFIX}/{banner_id}/{fname}"
     try:
         doc = await _svc.attach_creative(

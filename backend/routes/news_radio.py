@@ -126,8 +126,12 @@ async def trigger_news_audio_batch(request: Request,
     visit doesn't have to wait for the hourly cron to fire."""
     db = request.app.state.db
     try:
-        from services.news_radio_renderer import batch_render_news_audio
-        res = await batch_render_news_audio(db, top_n=top_n)
+        # Bootstrap-safe: render_top_n generates the text summaries FIRST
+        # (with a deterministic fallback when the LLM is unavailable) and then
+        # the TTS audio leg — so a cold cache can fill from empty. The old
+        # audio-only path could never bootstrap when no scripts existed yet.
+        from services.news_radio_renderer import render_top_n
+        res = await render_top_n(db, n=top_n)
     except Exception as e:
         log.warning("[news-radio] trigger-batch failed: %s", e)
         raise HTTPException(502, {"code": "batch_failed", "error": str(e)[:140]})

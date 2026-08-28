@@ -322,7 +322,9 @@ async def _price_menu(db, user, business_id: str, items: List["CheckoutItem"],
     if entitlement_discount <= 0:
         join_nudge = await find_join_nudge(db, user, business_id, nudge_items)
     return {
-        "profile": profile, "line_items": line_items, "subtotal_cents": subtotal,
+        "profile": ({k: v for k, v in profile.items() if k != "_id"}
+                    if isinstance(profile, dict) else profile),
+        "line_items": line_items, "subtotal_cents": subtotal,
         "entitlement_discount_cents": entitlement_discount,
         "applied_entitlements": applied_entitlements,
         "join_nudge": join_nudge,
