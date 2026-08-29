@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 112 — full e2e (web + backend) verification of the flagship AI cover-art feature with name + dial baked in (option c: AI background + Pillow-composited title bar) plus the manual admin upload alternative on /admin/flagship-stations. 7/7 pytest PASS + UI flow proven live against imp_fun_big_1062_uae. Backend: (a) POST /api/imported-stations/{sid}/artwork/generate on a flagship returns {ok:true, status:'queued', prompt:'...'}; the prompt contains the station name ('Big 106.2 UAE') and explicitly reserves the lower third for a title bar ('Keep the lower third calm and uncluttered so a title bar can overlay cleanly.'). (b) GET /artwork/status polls to 'complete' with image_url='/api/static/station_artwork/flg-d160df774bb005141e42.webp'; the file resolves 200 image/webp (~113KB, valid WebP badged composite). (c) POST /ensure-flagship-art is idempotent: two consecutive calls both return {ok:true, queued:N} with no errors. (d) POST /{sid}/artwork/upload with a 64x64 PNG as admin returns 200 {ok:true, status:'complete', url:'/api/static/station_artwork/upload-imp-imp_fun_big_1062_uae.webp'} AND the status endpoint reports art_source='owner' (manual upload correctly overrides AI). (e) Regression: non-flagship generate (imp_96063f25060111e8ae Classic FM UK) completes to a normal /api/static/station_artwork/<hash>.webp key with NO 'flg-' prefix — plain generation still works. UI: /admin/flagship-stations renders admin-flagship-table with 11 rows, each row exposes the 3 new artwork-column buttons (admin-flagship-{slug}-gen-art / upload-art / upload-logo). Clicking gen-art on Big 106.2 UAE fired POST generate, spawned an inline spinner + 'Generating art for Big 106.2 UAE…' toast, then within ~2s (cached hit) 'Art ready for Big 106.2 UAE' toast, and the row thumbnail (admin-flagship-big-1062-uae-logo-preview) auto-refreshed from upload-imp-*.webp to flg-d160df774bb005141e42.webp — the exact key the main agent flagged. Add/Edit modal opens and closes correctly (admin-flagship-form-modal). No console errors of significance (only expected /api/auth/me 401 during pre-login).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter112_flagship_artwork.py",
+    "/app/test_reports/pytest/iter112.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/imported_station_artwork.py:212 the ensure-flagship-art loop is capped at .limit(12) — fine today (11 flagships) but will silently skip flagships #13+ once the fleet grows; consider paging or removing the cap.",
+    "backend/services/image_gen.py:372 _flagship_art_key hashes only (station_id + name + dial). If an admin later changes the flagship's name or dial via edit modal, the badge key rotates — but the previous flg-*.webp file is NOT deleted, so /app/backend/static/station_artwork/ will accumulate stale badged composites over time. Consider adding a janitor or deleting the previous flagship_art on rename.",
+    "backend/services/image_gen.py:414 generate_flagship_art returns badge=False when the base download from Tigris/disk fails — but callers (_run_generation) don't propagate this, so the DB ends up with art_url pointing at the un-badged background silently. Non-blocking (art still renders), but a WARN log or `art_source='ai_no_badge'` marker would help ops spot compositing failures.",
+    "backend/routes/imported_station_artwork.py:265 admin upload writes upload-imp-<id>.webp deterministically, overwriting the previous owner upload — good. However the `_archive_current_art` call above only pushes AI/owner history entries when there's a previous art_url; an admin uploading OVER an existing AI-generated flg-*.webp will archive the flg key, which is fine, but flg-*.webp lives on disk with the same _flagship_art_key hash — if the admin later re-generates, it will hit the disk cache and *skip* the compositing/OpenAI call entirely. That's the desired dedupe, just noting.",
+    "frontend/AdminFlagshipStations.jsx:146 pollArt does 28 × 2.5s = up to 70s of polling with no cancel-on-unmount; if the admin navigates away mid-generation the async loop keeps running (harmless — no state update after unmount — but wastes bandwidth). Same pattern flagged in iter111 for NewsRadio polling."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter112_flagship_artwork.py"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7 pytest)",
+    "frontend": "100% (all admin-flagship artwork flows verified)"
+  },
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! (cookie via POST /api/auth/login, axios withCredentials).",
+  "seed_data_creation": "During testing (all idempotent): (a) imp_fun_big_1062_uae now has art_url=/api/static/station_artwork/flg-d160df774bb005141e42.webp (regenerated live — cache-hit). (b) imp_fun_big_1062_uae then had a small 64x64 red PNG uploaded via admin → art_source='owner', art_url=/api/static/station_artwork/upload-imp-imp_fun_big_1062_uae.webp. The badged flg-* file remains on disk and in the artwork_history array. (c) imp_96063f25060111e8ae received a fresh non-flagship AI art generation (regression check). No production data mutated.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live evidence (2026-06 iter112 against REACT_APP_BACKEND_URL=https://mobile-games-v2.preview.emergentagent.com): (1) POST /api/imported-stations/{sid}/artwork/generate branches on _is_flagship(station) (is_flagship OR flagship_slug set) → routes through image_gen.generate_flagship_art() which composites a Pillow title band (station name + dial) onto the AI background and writes flg-<20hex>.webp. Deterministic key = sha256('flg|<station_id>|<name>|<dial>')[:20]. (2) GET /artwork/status returns {sid, status, image_url (art_url OR flagship_art), art_source, error}. The image_url is a valid /api/static/station_artwork/*.webp URL. (3) POST /ensure-flagship-art is safe to spam — it skips flagships with existing art or art_gen_attempted=True. Returns {ok:true, queued:<int>}. (4) POST /{sid}/artwork/upload (multipart file field 'file') sets art_source='owner' + status='complete' immediately (no polling). MIME/size gates: image/jpeg|png|webp, max 5MB. (5) UI selectors verified live on /admin/flagship-stations: [data-testid=admin-flagship-page], [data-testid=admin-flagship-table] (11 rows), [data-testid=admin-flagship-row-<slug>], [data-testid=admin-flagship-{slug}-logo-preview], [data-testid=admin-flagship-{slug}-gen-art] (Sparkles), [data-testid=admin-flagship-{slug}-upload-art] (ImagePlus, with hidden input admin-flagship-{slug}-art-input), [data-testid=admin-flagship-{slug}-upload-logo] (Upload icon), [data-testid=admin-flagship-{slug}-homepage-link], [data-testid=admin-flagship-edit-button-{slug}], [data-testid=admin-flagship-delete-button-{slug}], [data-testid=admin-flagship-toast], [data-testid=admin-flagship-add-button], [data-testid=admin-flagship-form-modal]. Junit XML at /app/test_reports/pytest/iter112.xml.",
+  "rca of the issue": "N/A — the flagship-art feature (AI background + Pillow name/dial title bar, plus manual admin upload alternative) works end-to-end on backend and web UI."
+}

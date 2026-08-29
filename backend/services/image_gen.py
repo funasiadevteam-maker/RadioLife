@@ -30,7 +30,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 log = logging.getLogger("bigfm.image_gen")
 
@@ -222,3 +222,214 @@ def persist_uploaded_bytes(raw: bytes, *, slug: str) -> Optional[dict]:
     if not written:
         return None
     return {"url": public_url(key), "key": key}
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Flagship badge compositing — draws a crisp station name + dial title
+# band over an AI-generated background so the text is ALWAYS legible
+# (gpt-image-1 garbles letters, so we render them ourselves in Pillow).
+# The result is a single durable WebP (disk cache + object-store).
+# ═══════════════════════════════════════════════════════════════════
+
+_FONT_BOLD_CANDIDATES = [
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
+
+
+def _load_font(size: int):
+    for p in _FONT_BOLD_CANDIDATES:
+        try:
+            return ImageFont.truetype(p, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def _fit_and_wrap(draw, text: str, max_w: int, start_size: int,
+                  min_size: int, max_lines: int = 2):
+    """Return (font, lines) for `text` fitted within `max_w` across at
+    most `max_lines`, shrinking the font until it fits.  Falls back to a
+    truncated single fit with an ellipsis at the smallest size."""
+    text = " ".join((text or "").split()) or "Radio"
+    for size in range(start_size, min_size - 1, -4):
+        font = _load_font(size)
+        lines, cur, ok = [], "", True
+        for word in text.split():
+            trial = (cur + " " + word).strip()
+            if not cur or draw.textlength(trial, font=font) <= max_w:
+                cur = trial
+            else:
+                lines.append(cur)
+                cur = word
+                if len(lines) >= max_lines:
+                    ok = False
+                    break
+        if ok and cur:
+            lines.append(cur)
+        if ok and lines and all(draw.textlength(ln, font=font) <= max_w for ln in lines):
+            return font, lines
+    # Smallest-size fallback: hard-truncate with an ellipsis.
+    font = _load_font(min_size)
+    lines, cur = [], ""
+    for word in text.split():
+        trial = (cur + " " + word).strip()
+        if not cur or draw.textlength(trial, font=font) <= max_w:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = word
+            if len(lines) >= max_lines:
+                break
+    if cur and len(lines) < max_lines:
+        lines.append(cur)
+    lines = lines[:max_lines] or [text]
+    while lines and draw.textlength(lines[-1] + "…", font=font) > max_w and len(lines[-1]) > 1:
+        lines[-1] = lines[-1][:-1]
+    if len(" ".join(lines)) < len(text):
+        lines[-1] = lines[-1].rstrip() + "…"
+    return font, lines
+
+
+def composite_badge_bytes(base_raw: bytes, *, name: str, dial: str = "",
+                          size: int = 1024) -> Optional[bytes]:
+    """Overlay a station name + dial title band onto `base_raw`.
+    Returns WebP bytes, or None on failure (caller falls back to the
+    plain background)."""
+    try:
+        img = Image.open(io.BytesIO(base_raw)).convert("RGB")
+        w, h = img.size
+        if w != h:
+            s = min(w, h)
+            left = (w - s) // 2
+            top = (h - s) // 2
+            img = img.crop((left, top, left + s, top + s))
+        if img.width != size:
+            img = img.resize((size, size), Image.LANCZOS)
+        W = H = size
+        base = img.convert("RGBA")
+
+        # Bottom scrim for legibility — transparent → near-opaque ink.
+        scrim = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(scrim)
+        band = int(H * 0.46)
+        top_y = H - band
+        for i in range(band):
+            a = int(220 * (i / band) ** 1.5)
+            sd.line([(0, top_y + i), (W, top_y + i)], fill=(6, 8, 22, a))
+        base = Image.alpha_composite(base, scrim)
+        draw = ImageDraw.Draw(base)
+
+        pad = int(W * 0.075)
+        max_text_w = W - 2 * pad
+        name = (name or "Radio").strip() or "Radio"
+        dial = (dial or "").strip()
+
+        nf, nlines = _fit_and_wrap(draw, name, max_text_w, 92, 46, 2)
+        n_asc, n_desc = nf.getmetrics()
+        line_h = int((n_asc + n_desc) * 1.02)
+        name_block_h = line_h * len(nlines)
+
+        dial_text = dial.upper()
+        pill_pad_x, pill_pad_y = 24, 12
+        dial_h = 0
+        df = None
+        dw = 0
+        if dial_text:
+            df = _load_font(40)
+            dw = draw.textlength(dial_text, font=df)
+            d_asc, d_desc = df.getmetrics()
+            dial_h = (d_asc + d_desc) + 2 * pill_pad_y
+        gap = 24 if dial_text else 0
+        total_h = dial_h + gap + name_block_h
+        y = H - pad - total_h
+
+        # Accent dial pill.
+        if dial_text:
+            accent = (245, 197, 66)
+            draw.rounded_rectangle([pad, y, pad + dw + 2 * pill_pad_x, y + dial_h],
+                                   radius=dial_h // 2, fill=accent)
+            draw.text((pad + pill_pad_x, y + pill_pad_y), dial_text,
+                      font=df, fill=(24, 18, 6))
+            y += dial_h + gap
+
+        # Station name with a dark stroke for crisp edges.
+        for ln in nlines:
+            draw.text((pad, y), ln, font=nf, fill=(255, 255, 255),
+                      stroke_width=3, stroke_fill=(6, 8, 22))
+            y += line_h
+
+        out = base.convert("RGB")
+        buf = io.BytesIO()
+        out.save(buf, format="WEBP", quality=88, method=6)
+        return buf.getvalue()
+    except Exception as e:
+        log.error("[image_gen] badge composite failed: %s", e)
+        return None
+
+
+def _flagship_art_key(station_id: str, name: str, dial: str) -> str:
+    h = hashlib.sha256(
+        f"flg|{station_id}|{name}|{dial}".encode("utf-8")).hexdigest()[:20]
+    return f"flg-{h}"
+
+
+def _read_base_bytes(key: str) -> Optional[bytes]:
+    """Read a cached background WebP from disk; fall back to durable
+    object storage when the local file is absent (fresh container)."""
+    fp = cache_file(key)
+    try:
+        if fp.is_file() and fp.stat().st_size > 0:
+            return fp.read_bytes()
+    except Exception:
+        pass
+    try:
+        import tempfile
+        from services.object_storage import get_storage
+        fd, tmp = tempfile.mkstemp(prefix="flgbase_")
+        os.close(fd)
+        get_storage().download(key=f"static/station_artwork/{key}.webp", local_path=tmp)
+        data = Path(tmp).read_bytes()
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return data or None
+    except Exception:
+        return None
+
+
+async def generate_flagship_art(db: Any, *, prompt: str, name: str, dial: str,
+                                station_id: str, user_id: str = "",
+                                tier: str = "free") -> dict[str, Any]:
+    """Generate a no-text AI background, then overlay the station name +
+    dial as a legible title band.  Returns the same shape as `generate()`
+    plus a `badge` flag.  Falls back to the plain background if
+    compositing fails."""
+    result = await generate(db, prompt=prompt, user_id=user_id,
+                            station_slug=station_id, tier=tier,
+                            bypass_rate_limit=not user_id)
+    if not result.get("ok"):
+        return result
+    base_raw = _read_base_bytes(result["key"])
+    if not base_raw:
+        return {**result, "badge": False}
+    badged = composite_badge_bytes(base_raw, name=name, dial=dial)
+    if not badged:
+        return {**result, "badge": False}
+    bkey = _flagship_art_key(station_id, name, dial)
+    out = cache_file(bkey)
+    try:
+        out.write_bytes(badged)
+    except Exception as e:
+        log.warning("[image_gen] flagship disk write failed: %s", e)
+    try:
+        from services.object_storage import get_storage
+        get_storage().upload_bytes(key=f"static/station_artwork/{bkey}.webp",
+                                    data=badged, content_type="image/webp")
+    except Exception as e:
+        log.warning("[image_gen] flagship durable upload failed: %s", e)
+    return {"ok": True, "url": public_url(bkey), "key": bkey,
+            "source": result.get("source", "openai"), "badge": True,
+            "cached": result.get("cached", False)}

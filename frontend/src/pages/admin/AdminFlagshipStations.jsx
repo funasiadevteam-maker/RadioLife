@@ -11,7 +11,7 @@ import axios from "axios";
 import {
   Star, RefreshCw, Loader2, AlertCircle, CheckCircle2, XCircle,
   ExternalLink, Upload, Plus, Pencil, Trash2, ShieldAlert,
-  Radio, ChevronDown,
+  Radio, ChevronDown, Sparkles, ImagePlus,
 } from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { useEffectivePageVariant } from "@/hooks/useDesignVariant";
@@ -50,6 +50,7 @@ export default function AdminFlagshipStations() {
   const [loading, setLoading] = useState(true);
   const [refresher, setRefresher] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [genIds, setGenIds] = useState(() => new Set());   // stations mid AI-generation
   const [toast, setToast] = useState(null);   // { kind, message }
 
   // Modal state.
@@ -138,6 +139,61 @@ export default function AdminFlagshipStations() {
     } finally { setBusy(false); }
   }
 
+  // Best-available cover art for the admin preview.
+  const artOf = (s) => s.art_url || s.flagship_art || s.favicon || s.logo_url;
+
+  // Poll artwork status until it settles (complete/failed) or times out.
+  async function pollArt(stationId) {
+    for (let i = 0; i < 28; i += 1) {
+      await new Promise((r) => window.setTimeout(r, 2500));
+      try {
+        const { data } = await axios.get(
+          `${API}/imported-stations/${stationId}/artwork/status`);
+        if (data.status === "complete" || data.status === "failed") return data;
+      } catch (_) { /* transient — keep polling */ }
+    }
+    return null;
+  }
+
+  // Auto-generate AI cover art (station name + dial rendered in the art).
+  async function genArt(s) {
+    setGenIds((prev) => new Set(prev).add(s.id));
+    try {
+      await axios.post(`${API}/imported-stations/${s.id}/artwork/generate`, {});
+      showToast("success", `Generating art for ${s.name}…`);
+      const res = await pollArt(s.id);
+      if (res?.status === "complete") {
+        showToast("success", `Art ready for ${s.name}`);
+      } else if (res?.status === "failed") {
+        showToast("error", `Art failed: ${res.error || "unknown"}`);
+      }
+      setRefresher((n) => n + 1);
+    } catch (err) {
+      const d = err?.response?.data?.detail;
+      const msg = (d && (d.error || d.code || d.message)) || err.message || "gen_failed";
+      showToast("error", `Generate failed: ${typeof msg === "string" ? msg : JSON.stringify(msg)}`);
+    } finally {
+      setGenIds((prev) => { const n = new Set(prev); n.delete(s.id); return n; });
+    }
+  }
+
+  // Manual cover-art upload — a true alternative to AI generation.
+  async function uploadArt(stationId, file) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await axios.post(`${API}/imported-stations/${stationId}/artwork/upload`, fd);
+      setRefresher((n) => n + 1);
+      showToast("success", "Artwork uploaded");
+    } catch (err) {
+      const d = err?.response?.data?.detail;
+      const msg = (d && (d.error || d.code)) || err.message || "upload_failed";
+      showToast("error", `Artwork upload failed: ${msg}`);
+    } finally { setBusy(false); }
+  }
+
   const counts = items.reduce((acc, s) => {
     acc[s.playable_status || "pending"] = (acc[s.playable_status || "pending"] || 0) + 1;
     return acc;
@@ -197,22 +253,23 @@ export default function AdminFlagshipStations() {
         ) : (
           <div className={`${cardCls} mt-6 rounded-2xl overflow-hidden`}
                       data-testid="admin-flagship-table">
-            <div className={`hidden md:grid grid-cols-[1fr,90px,110px,110px,90px,180px] gap-3 px-5 py-3 text-[10px] uppercase tracking-widest font-mono ${
+            <div className={`hidden md:grid grid-cols-[1fr,80px,96px,96px,76px,244px] gap-3 px-5 py-3 text-[10px] uppercase tracking-widest font-mono ${
                                   light ? "border-b border-slate-200 text-slate-500 bg-slate-50" :
                                                 "border-b border-slate-800 text-slate-500 bg-slate-950"
                               }`}>
-              <div>Station</div><div>Priority</div><div>Categories</div><div>Health</div><div>Pre-roll</div><div>Actions</div>
+              <div>Station</div><div>Priority</div><div>Categories</div><div>Health</div><div>Pre-roll</div><div>Artwork · Actions</div>
             </div>
             {items.map((s) => {
               const slug = s.flagship_slug || s.id;
               const prerollOn = s.preroll_enabled !== false;
               return (
-                <div key={s.id} className={`grid md:grid-cols-[1fr,90px,110px,110px,90px,180px] gap-3 px-5 py-4 items-center ${
+                <div key={s.id} className={`grid md:grid-cols-[1fr,80px,96px,96px,76px,244px] gap-3 px-5 py-4 items-center ${
                                           light ? "border-b border-slate-100" : "border-b border-slate-800"
                                       }`}
                             data-testid={`admin-flagship-row-${slug}`}>
                   <div className="flex items-center gap-3 min-w-0">
-                    <img src={s.favicon} alt=""
+                    <img src={artOf(s)} alt=""
+                              onError={(e) => { if (s.favicon && e.currentTarget.src !== s.favicon) e.currentTarget.src = s.favicon; }}
                               data-testid={`admin-flagship-${slug}-logo-preview`}
                               className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-slate-800/40" />
                     <div className="min-w-0">
@@ -244,6 +301,13 @@ export default function AdminFlagshipStations() {
                                                   disabled={busy} light={light} />
                   </div>
                   <div className="text-right flex items-center justify-end gap-1">
+                    <GenArtButton slug={slug}
+                                              generating={genIds.has(s.id)}
+                                              onClick={() => genArt(s)}
+                                              disabled={busy} light={light} />
+                    <UploadArtButton stationId={s.id} slug={slug}
+                                                        onUpload={uploadArt}
+                                                        disabled={busy || genIds.has(s.id)} light={light} />
                     <UploadLogoButton stationId={s.id} slug={slug}
                                                             onUpload={uploadLogo} disabled={busy} light={light} />
                     <a href={s.homepage || s.url_resolved} target="_blank" rel="noreferrer"
@@ -370,11 +434,61 @@ function UploadLogoButton({ stationId, slug, onUpload, disabled, light }) {
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
         data-testid={`admin-flagship-${slug}-upload-logo`}
-        title="Upload logo"
+        title="Upload logo (small station icon)"
         className={`p-1.5 rounded-md ${light ? "text-slate-600 hover:bg-slate-100"
-                                                                    : "text-purple-300 hover:bg-purple-500/10"} disabled:opacity-40`}
+                                                                    : "text-slate-300 hover:bg-slate-800/60"} disabled:opacity-40`}
       >
         <Upload className="w-3.5 h-3.5" />
+      </button>
+    </>
+  );
+}
+
+// AI cover-art generation — bakes station name + dial into the artwork.
+function GenArtButton({ slug, generating, onClick, disabled, light }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled || generating}
+      onClick={onClick}
+      data-testid={`admin-flagship-${slug}-gen-art`}
+      title="Generate AI cover art (station name + dial baked in)"
+      className={`p-1.5 rounded-md ${light ? "text-purple-600 hover:bg-purple-50"
+                                                                  : "text-purple-300 hover:bg-purple-500/10"} disabled:opacity-40`}
+    >
+      {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <Sparkles className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
+// Manual cover-art upload — a true alternative to AI generation.
+function UploadArtButton({ stationId, slug, onUpload, disabled, light }) {
+  const inputRef = useRef(null);
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/webp,image/jpeg,.png,.webp,.jpg,.jpeg"
+        className="hidden"
+        data-testid={`admin-flagship-${slug}-art-input`}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onUpload(stationId, f);
+          e.target.value = "";
+        }}
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => inputRef.current?.click()}
+        data-testid={`admin-flagship-${slug}-upload-art`}
+        title="Upload cover art manually (skip AI)"
+        className={`p-1.5 rounded-md ${light ? "text-slate-600 hover:bg-slate-100"
+                                                                    : "text-slate-300 hover:bg-slate-800/60"} disabled:opacity-40`}
+      >
+        <ImagePlus className="w-3.5 h-3.5" />
       </button>
     </>
   );

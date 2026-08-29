@@ -1064,6 +1064,15 @@ Delivered 4 more items. Testing agent **iteration_111**: backend **15/15 PASS** 
 - **#3 Art style-note** (`imported_station_artwork.py` `_prompt`+generate, `LiveRadioStation.jsx`): owners add an optional style/vibe note; persisted as `art_style_note` and injected into every (re)generation prompt.
 - **#4 Per-market news voices** (`services/news_radio_settings.py`, `routes/news_radio.py`, renderer): anchor voice auto-resolves by the article's market (defaults dubai→Raghav[hi], dfw/new_york→Sarah[en]); admin can override global or per-market via a market-scoped picker on /radio/news. `GET /api/news_radio/voices` now returns `sample_url` + `global_voice_id` + `market_voices`; `POST /api/admin/news-radio/voice` accepts an optional `market`.
 
+### 2026-08-29 (pt.3) — Flagship auto-art (name+dial baked in) + manual admin cover art
+Delivered the pending user request. Testing agent **iteration_112**: backend **7/7 PASS** + admin web flows verified e2e. No regressions.
+
+- **#1 Flagship AI cover-art with name + dial baked in** (`services/image_gen.py`, `routes/imported_station_artwork.py`): flagship stations missing art now auto-generate a genre-matched, text-free AI background, then a Pillow step overlays a crisp title band — a gold **dial/frequency pill** (e.g. "106.2 FM DUBAI") + bold **station name** — producing a single durable WebP (`flg-<hash>.webp`, disk cache + object-store). User chose option (c): AI background + overlaid name/dial badge. New flagship-specific prompt reserves the lower third for the title bar. Routed via `image_gen.generate_flagship_art()`; both the `ensure-flagship-art` self-heal and the owner/admin `generate` endpoint use it. Non-flagship generation unchanged (regression-safe).
+- **#2 Manual admin cover art (skip AI)** (`frontend/src/pages/admin/AdminFlagshipStations.jsx`): each flagship row now has an explicit choice in the new "Artwork · Actions" column — a **Sparkles "Generate AI art"** button (fires generate, polls `/artwork/status`, live spinner + toast, auto-refreshes the thumbnail) and an **ImagePlus "Upload art"** button (manual cover via `/artwork/upload`, `art_source='owner'` so it overrides AI). Existing "Upload logo" retained (small station icon). Row thumbnail now shows the resolved cover art (`art_url → flagship_art → favicon`).
+- `ensure-flagship-art` now matches on `is_flagship OR flagship_slug` and scans up to 50 flagships (still queues only those actually missing art; idempotent).
+
+**Housekeeping note:** PRD.md now >1000 lines — split into PRD/CHANGELOG/ROADMAP is a pending low-priority chore.
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

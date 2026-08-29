@@ -82,6 +82,41 @@ def _prompt(station: dict) -> str:
     return " ".join(parts)[:1800]
 
 
+def _station_dial(station: dict) -> str:
+    """The station's on-air dial/frequency, e.g. '107.1 FM'."""
+    return (station.get("frequency") or station.get("dial") or "").strip()
+
+
+def _is_flagship(station: dict) -> bool:
+    return bool(station.get("is_flagship") or station.get("flagship_slug"))
+
+
+def _flagship_prompt(station: dict) -> str:
+    """Flagship background prompt. Uses the station name + genre as
+    creative context and reserves the lower third for the overlaid
+    name/dial title band. Text itself is rendered in Pillow, so the AI
+    background stays strictly text-free."""
+    name = (station.get("name") or "Radio").strip()
+    hay = " ".join(str(station.get(k) or "") for k in
+                   ("music_genre", "tags_raw", "description", "language",
+                    "flagship_categories")).lower()
+    genre_hint = next((h for k, h in GENRE_HINTS.items() if k in hay), "")
+    parts = [f"Premium radio station cover artwork representing '{name}'."]
+    if genre_hint:
+        parts.append(f"Visual mood: {genre_hint}.")
+    note = (station.get("art_style_note") or "").strip()
+    if note:
+        parts.append(f"Style direction: {note[:220]}.")
+    parts.append("Cinematic, bold, high-contrast composition. Keep the lower "
+                 "third calm and uncluttered so a title bar can overlay cleanly.")
+    parts.append(BRAND_SUFFIX)
+    return " ".join(parts)[:1800]
+
+
+def _prompt_for(station: dict) -> str:
+    return _flagship_prompt(station) if _is_flagship(station) else _prompt(station)
+
+
 async def _set(db: Any, sid: str, fields: dict) -> None:
     fields = {**fields, "artwork_status_at": datetime.now(timezone.utc)}
     await db.imported_radio_stations.update_one(
@@ -111,13 +146,25 @@ async def _archive_current_art(db: Any, sid: str) -> None:
 
 
 async def _run_generation(db: Any, *, sid: str, prompt: str,
+                          station: Optional[dict] = None,
                           user_id: str = "", tier: str = "free") -> None:
+    flagship = bool(station and _is_flagship(station))
     try:
-        result = await asyncio.wait_for(
-            image_gen_svc.generate(db, prompt=prompt, user_id=user_id,
-                                   station_slug=sid, tier=tier,
-                                   bypass_rate_limit=not user_id),
-            timeout=GEN_TIMEOUT_SEC)
+        if flagship:
+            result = await asyncio.wait_for(
+                image_gen_svc.generate_flagship_art(
+                    db, prompt=prompt,
+                    name=(station.get("name") or "Radio"),
+                    dial=_station_dial(station),
+                    station_id=station.get("id") or sid,
+                    user_id=user_id, tier=tier),
+                timeout=GEN_TIMEOUT_SEC)
+        else:
+            result = await asyncio.wait_for(
+                image_gen_svc.generate(db, prompt=prompt, user_id=user_id,
+                                       station_slug=sid, tier=tier,
+                                       bypass_rate_limit=not user_id),
+                timeout=GEN_TIMEOUT_SEC)
     except asyncio.TimeoutError:
         await _set(db, sid, {"artwork_status": "failed", "artwork_error": "timeout",
                              "art_gen_attempted": False})
@@ -127,11 +174,14 @@ async def _run_generation(db: Any, *, sid: str, prompt: str,
                              "artwork_error": result.get("error") or "unknown"})
         return
     await _archive_current_art(db, sid)
-    await _set(db, sid, {
+    fields = {
         "art_url": result["url"], "art_source": "ai",
         "artwork_status": "complete", "art_gen_attempted": True,
         "artwork_generated_at": datetime.now(timezone.utc), "artwork_error": None,
-    })
+    }
+    if flagship:
+        fields["flagship_art"] = result["url"]
+    await _set(db, sid, fields)
 
 
 @router.post("/{sid}/artwork/ensure")
@@ -146,24 +196,25 @@ async def ensure_artwork(sid: str, request: Request):
     if s.get("art_gen_attempted") or s.get("artwork_status") in ("running", "queued"):
         return {"ok": True, "status": s.get("artwork_status") or "pending", "already": True}
     await _set(db, sid, {"artwork_status": "queued", "art_gen_attempted": True})
-    asyncio.create_task(_run_generation(db, sid=sid, prompt=_prompt(s)))
+    asyncio.create_task(_run_generation(db, sid=sid, prompt=_prompt_for(s), station=s))
     return {"ok": True, "status": "queued"}
 
 
 @router.post("/ensure-flagship-art")
 async def ensure_flagship_art(request: Request):
     """Self-heal: queue AI-art generation for flagship stations that only
-    have a placeholder (e.g. a fresh deploy with no seeded art). Idempotent."""
+    have a placeholder (e.g. a fresh deploy with no seeded art). Idempotent.
+    Generated art embeds the station name + dial via a Pillow title band."""
     db = request.app.state.db
     queued = 0
     async for s in db.imported_radio_stations.find(
-            {"flagship_slug": {"$ne": None}}).limit(12):
+            {"$or": [{"is_flagship": True}, {"flagship_slug": {"$ne": None}}]}).limit(50):
         if s.get("flagship_art") or s.get("art_url") or s.get("art_gen_attempted"):
             continue
         if s.get("artwork_status") in ("running", "queued"):
             continue
         await _set(db, s["id"], {"artwork_status": "queued", "art_gen_attempted": True})
-        asyncio.create_task(_run_generation(db, sid=s["id"], prompt=_prompt(s)))
+        asyncio.create_task(_run_generation(db, sid=s["id"], prompt=_prompt_for(s), station=s))
         queued += 1
     return {"ok": True, "queued": queued}
 
@@ -191,9 +242,9 @@ async def generate_artwork(sid: str, request: Request,
         await db.imported_radio_stations.update_one(
             {"id": {"$in": _id_candidates(sid)}}, {"$set": {"art_style_note": note}})
         s["art_style_note"] = note
-    prompt = _prompt(s)
+    prompt = _prompt_for(s)
     await _set(db, sid, {"artwork_status": "running", "artwork_error": None})
-    asyncio.create_task(_run_generation(db, sid=sid, prompt=prompt,
+    asyncio.create_task(_run_generation(db, sid=sid, prompt=prompt, station=s,
                                         user_id=user["user_id"], tier=tier))
     return {"ok": True, "status": "queued", "prompt": prompt,
             "style_note": s.get("art_style_note")}
