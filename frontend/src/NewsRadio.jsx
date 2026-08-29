@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import { Radio, ArrowLeft, Volume2, Info } from "lucide-react";
 import { API, useAuth } from "@/AuthContext";
+import VoicePicker from "@/components/VoicePicker";
 
 export default function NewsRadio() {
   const { user } = useAuth();
@@ -22,7 +23,9 @@ export default function NewsRadio() {
   const [mode, setMode] = useState("audio");  // "audio" | "text"
   const [tts,  setTts]  = useState(null);
   const [voices, setVoices] = useState([]);
-  const [voiceId, setVoiceId] = useState("");
+  const [globalVoiceId, setGlobalVoiceId] = useState("");
+  const [marketVoices, setMarketVoices] = useState({});
+  const [voiceMarket, setVoiceMarket] = useState("global");
   const [voiceSaving, setVoiceSaving] = useState(false);
 
   useEffect(() => {
@@ -66,20 +69,31 @@ export default function NewsRadio() {
   const current = items[idx];
   const showTextModeBanner = mode === "text" && items.length > 0;
 
-  // Admin-only: load selectable anchor voices.
+  // Admin-only: load selectable anchor voices + per-market config.
   useEffect(() => {
     if (user?.role !== "admin") return;
     axios.get(`${API}/news_radio/voices`, { withCredentials: true })
-      .then((r) => { setVoices(r.data?.voices || []); setVoiceId(r.data?.current_voice_id || ""); })
+      .then((r) => {
+        setVoices(r.data?.voices || []);
+        setGlobalVoiceId(r.data?.global_voice_id || r.data?.current_voice_id || "");
+        setMarketVoices(r.data?.market_voices || {});
+      })
       .catch(() => {});
   }, [user?.role]);
 
+  const selectedVoiceId = voiceMarket === "global"
+    ? globalVoiceId : (marketVoices[voiceMarket] || globalVoiceId);
+
   const changeVoice = async (vid) => {
-    setVoiceId(vid); setVoiceSaving(true);
+    setVoiceSaving(true);
+    const market = voiceMarket === "global" ? undefined : voiceMarket;
+    if (market) setMarketVoices((m) => ({ ...m, [market]: vid }));
+    else setGlobalVoiceId(vid);
     try {
-      await axios.post(`${API}/admin/news-radio/voice`, { voice_id: vid }, { withCredentials: true });
-      // Kick a re-render (fire-and-forget — TTS is slow) then poll the queue
-      // for the new-voice clips.
+      await axios.post(`${API}/admin/news-radio/voice`,
+                       { voice_id: vid, ...(market ? { market } : {}) },
+                       { withCredentials: true });
+      // Kick a re-render (TTS is slow) then poll the queue for new-voice clips.
       axios.post(`${API}/news_radio/trigger-batch`, null,
                  { params: { top_n: 6 }, withCredentials: true }).catch(() => {});
       for (let i = 0; i < 6; i++) {
@@ -109,23 +123,31 @@ export default function NewsRadio() {
 
       {user?.role === "admin" && voices.length > 0 && (
         <div data-testid="news-radio-voice-picker"
-             style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16,
-                      flexWrap: "wrap",
-                      background: "rgba(0,217,255,0.06)",
-                      border: "1px solid rgba(0,217,255,0.25)",
-                      padding: "10px 14px", borderRadius: 10, fontSize: 13 }}>
-          <Volume2 size={16} color="#00d9ff" />
-          <span style={{ color: "#9aa3af" }}>Anchor voice</span>
-          <select data-testid="news-radio-voice-select" value={voiceId}
-                  onChange={(e) => changeVoice(e.target.value)} disabled={voiceSaving}
-                  style={{ background: "#0b0b0b", color: "#fff",
-                           border: "1px solid rgba(255,255,255,0.2)",
-                           borderRadius: 8, padding: "6px 10px", fontSize: 13 }}>
-            {voices.map((v) => (
-              <option key={v.voice_id} value={v.voice_id}>{`${v.name} — ${v.description}`}</option>
-            ))}
-          </select>
-          {voiceSaving && <span style={{ color: "#00d9ff", fontSize: 12 }}>Regenerating clips…</span>}
+             style={{ marginBottom: 20, background: "rgba(0,217,255,0.05)",
+                      border: "1px solid rgba(0,217,255,0.22)", padding: 14, borderRadius: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+            <Volume2 size={16} color="#00d9ff" />
+            <span style={{ color: "#e6e6e6", fontSize: 13, fontWeight: 600 }}>News anchor voice</span>
+            <select data-testid="news-radio-voice-market" value={voiceMarket}
+                    onChange={(e) => setVoiceMarket(e.target.value)}
+                    style={{ marginLeft: "auto", background: "#0b0b0b", color: "#fff",
+                             border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8,
+                             padding: "5px 9px", fontSize: 12 }}>
+              <option value="global">Global default</option>
+              <option value="dubai">Dubai (local)</option>
+              <option value="dfw">Dallas–Fort Worth (local)</option>
+              <option value="new_york">New York (local)</option>
+            </select>
+            {voiceSaving && <span style={{ color: "#00d9ff", fontSize: 12 }}>Regenerating clips…</span>}
+          </div>
+          <VoicePicker voices={voices} value={selectedVoiceId}
+                       onChange={changeVoice} disabled={voiceSaving}
+                       apiBase={API.replace(/\/api$/, "")} />
+          <div style={{ color: "#7c8391", fontSize: 11, marginTop: 8 }}>
+            {voiceMarket === "global"
+              ? "Used for every market unless a local voice is set for it."
+              : "Overrides the global voice for this market's local news."}
+          </div>
         </div>
       )}
 

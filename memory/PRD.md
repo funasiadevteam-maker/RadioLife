@@ -1056,6 +1056,14 @@ Delivered the 4 follow-up items. Testing agent **iteration_110**: backend **17/1
 
 **No longer mocked:** ElevenLabs TTS (valid key wired). **Still MOCKED:** Stripe (test mode).
 
+### 2026-08-29 (pt.2) — Per-station intros · voice preview · art captions · per-market news voices
+Delivered 4 more items. Testing agent **iteration_111**: backend **15/15 PASS** + all 4 web flows verified. No regressions.
+
+- **#1 Per-station AI intro** (`routes/imported_station_artwork.py` `GET/POST /{sid}/intro[/generate]`, `LiveRadioStation.jsx` owner-intro-manager): owners pick a voice and generate a short AI-narrated station intro (ElevenLabs), durably persisted at `/api/static/station_intros/{sid}.mp3` (new mount) with an inline audio player.
+- **#2 Voice preview** (`frontend/src/components/VoicePicker.jsx`, `scripts/gen_voice_samples.py`): reusable inline-styled picker with a ▶ preview per voice; pre-rendered samples served at `/api/static/voice_samples/{voice_id}.mp3` (new mount). Used on both the News-Radio admin picker and the station-intro picker.
+- **#3 Art style-note** (`imported_station_artwork.py` `_prompt`+generate, `LiveRadioStation.jsx`): owners add an optional style/vibe note; persisted as `art_style_note` and injected into every (re)generation prompt.
+- **#4 Per-market news voices** (`services/news_radio_settings.py`, `routes/news_radio.py`, renderer): anchor voice auto-resolves by the article's market (defaults dubai→Raghav[hi], dfw/new_york→Sarah[en]); admin can override global or per-market via a market-scoped picker on /radio/news. `GET /api/news_radio/voices` now returns `sample_url` + `global_voice_id` + `market_voices`; `POST /api/admin/news-radio/voice` accepts an optional `market`.
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

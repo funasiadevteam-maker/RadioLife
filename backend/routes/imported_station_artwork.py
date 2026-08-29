@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -74,6 +75,9 @@ def _prompt(station: dict) -> str:
         parts.append(f"Visual mood: {genre_hint}.")
     elif desc:
         parts.append(f"Theme: {desc[:160]}.")
+    note = (station.get("art_style_note") or "").strip()
+    if note:
+        parts.append(f"Style direction from the owner: {note[:220]}.")
     parts.append(BRAND_SUFFIX)
     return " ".join(parts)[:1800]
 
@@ -178,11 +182,21 @@ async def generate_artwork(sid: str, request: Request,
     if not allowed:
         raise HTTPException(429, detail={"error": "rate_limited", "used": used,
                                          "limit": limit, "tier": tier})
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if isinstance(body, dict) and "style_note" in body:
+        note = (body.get("style_note") or "").strip()[:220] or None
+        await db.imported_radio_stations.update_one(
+            {"id": {"$in": _id_candidates(sid)}}, {"$set": {"art_style_note": note}})
+        s["art_style_note"] = note
     prompt = _prompt(s)
     await _set(db, sid, {"artwork_status": "running", "artwork_error": None})
     asyncio.create_task(_run_generation(db, sid=sid, prompt=prompt,
                                         user_id=user["user_id"], tier=tier))
-    return {"ok": True, "status": "queued", "prompt": prompt}
+    return {"ok": True, "status": "queued", "prompt": prompt,
+            "style_note": s.get("art_style_note")}
 
 
 @router.post("/{sid}/artwork/upload")
@@ -270,3 +284,87 @@ async def restore_artwork(sid: str, request: Request,
         "artwork_error": None,
     })
     return {"ok": True, "status": "complete", "art_url": url}
+
+
+# ── Per-station AI intro (owner-narrated) ──────────────────────────────
+_INTRO_DIR = Path("/app/backend/storage/station_intros")
+
+
+def _intro_script(station: dict, custom: Optional[str] = None) -> str:
+    if custom and custom.strip():
+        return custom.strip()[:400]
+    name = (station.get("name") or "this station").strip()
+    hay = " ".join(str(station.get(k) or "") for k in
+                   ("music_genre", "tags_raw")).strip()
+    genre = ""
+    if hay:
+        genre = f" — your home for {hay.split(',')[0].strip()[:40]}"
+    return (f"You're tuned in to {name}{genre}, now playing on RadioLife. "
+            f"Stay locked in.")
+
+
+async def _read_json(request: Request) -> dict:
+    try:
+        body = await request.json()
+        return body if isinstance(body, dict) else {}
+    except Exception:
+        return {}
+
+
+@router.get("/{sid}/intro")
+async def station_intro(sid: str, request: Request,
+                        user: dict = Depends(current_user)):
+    """Owner/admin — current AI station intro + selectable voices."""
+    from services.news_radio_settings import list_voices, DEFAULT_ANCHOR_VOICE_ID
+    db = request.app.state.db
+    s = await _load(db, sid)
+    if not await _is_owner_or_admin(db, s, user):
+        raise HTTPException(403, "not_owner")
+    return {"ok": True,
+            "intro_url": s.get("station_intro_url"),
+            "voice_id": s.get("station_intro_voice_id") or DEFAULT_ANCHOR_VOICE_ID,
+            "voice_name": s.get("station_intro_voice_name"),
+            "script": s.get("station_intro_script"),
+            "voices": list_voices()}
+
+
+@router.post("/{sid}/intro/generate")
+async def generate_intro(sid: str, request: Request,
+                         user: dict = Depends(current_user)):
+    """Owner/admin — TTS-narrate a short station intro in the chosen voice."""
+    from services.elevenlabs_tts import synthesize
+    from services.news_radio_settings import (
+        is_valid_voice, _voice_name, DEFAULT_ANCHOR_VOICE_ID)
+    db = request.app.state.db
+    s = await _load(db, sid)
+    if not await _is_owner_or_admin(db, s, user):
+        raise HTTPException(403, "not_owner")
+    body = await _read_json(request)
+    voice_id = (body.get("voice_id") or s.get("station_intro_voice_id")
+                or DEFAULT_ANCHOR_VOICE_ID)
+    if not is_valid_voice(voice_id):
+        raise HTTPException(400, detail={"error": "unknown_voice"})
+    script = _intro_script(s, body.get("script"))
+    _INTRO_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = _INTRO_DIR / f"{s.get('id')}.mp3"
+    res = synthesize(text=script, voice_id=voice_id, out_path=out_path)
+    if not res.get("ok"):
+        raise HTTPException(502, detail={"error": res.get("error") or "tts_failed",
+                                         "over_quota": res.get("over_quota", False)})
+    try:
+        from services.object_storage import get_storage as _get_storage
+        data = out_path.read_bytes()
+        _get_storage().upload_bytes(key=f"storage/station_intros/{s.get('id')}.mp3",
+                                    data=data, content_type="audio/mpeg")
+    except Exception:
+        pass
+    intro_url = f"/api/static/station_intros/{s.get('id')}.mp3"
+    await db.imported_radio_stations.update_one(
+        {"id": {"$in": _id_candidates(sid)}},
+        {"$set": {"station_intro_url": intro_url,
+                  "station_intro_voice_id": voice_id,
+                  "station_intro_voice_name": _voice_name(voice_id),
+                  "station_intro_script": script,
+                  "station_intro_generated_at": datetime.now(timezone.utc)}})
+    return {"ok": True, "intro_url": intro_url, "voice_id": voice_id,
+            "voice_name": _voice_name(voice_id), "script": script}

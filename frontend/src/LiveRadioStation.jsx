@@ -19,8 +19,9 @@ import { toast } from "sonner";
 import {
   Play, Pause, ArrowLeft, ExternalLink, Globe2, Radio as RadioIcon,
   Sparkles, MapPin, Languages, Tag, Award, AlertCircle, ShieldCheck,
-  Image as ImageIcon, Upload, Trash2, Loader2, CheckCircle2, RotateCcw,
+  Image as ImageIcon, Upload, Trash2, Loader2, CheckCircle2, RotateCcw, Volume2,
 } from "lucide-react";
+import VoicePicker from "@/components/VoicePicker";
 import { API } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
 // Phase 42-D3 — heart toggle on the detail header.
@@ -65,6 +66,11 @@ export default function LiveRadioStation() {
   const [artBusy, setArtBusy] = useState(false);
   const [artPhase, setArtPhase] = useState(null); // 'generating' | 'complete' | 'failed'
   const [artHistory, setArtHistory] = useState([]);
+  const [artStyleNote, setArtStyleNote] = useState("");
+  const [introVoices, setIntroVoices] = useState([]);
+  const [introVoiceId, setIntroVoiceId] = useState("");
+  const [introUrl, setIntroUrl] = useState(null);
+  const [introBusy, setIntroBusy] = useState(false);
 
   // Phase 42-B2 hotfix — route Play through the unified player store so
   // the global ImportedStreamBridge can drive playback AND fire the
@@ -189,7 +195,7 @@ export default function LiveRadioStation() {
     setArtBusy(true);
     setArtPhase("generating");
     try {
-      await axios.post(`${API}/imported-stations/${id}/artwork/generate`, {}, { withCredentials: true });
+      await axios.post(`${API}/imported-stations/${id}/artwork/generate`, { style_note: artStyleNote || undefined }, { withCredentials: true });
       let lastUrl = null;
       let settled = null;
       // Poll every 3s and refresh the tile the INSTANT new art lands.
@@ -263,8 +269,27 @@ export default function LiveRadioStation() {
       toast.error("Couldn't revert artwork.");
     } finally { setArtBusy(false); }
   };
+  const loadIntro = async () => {
+    try {
+      const r = await axios.get(`${API}/imported-stations/${id}/intro`, { withCredentials: true });
+      setIntroVoices(r.data?.voices || []);
+      setIntroVoiceId(r.data?.voice_id || "");
+      setIntroUrl(r.data?.intro_url || null);
+    } catch (_e) { /* ignore */ }
+  };
+  const genIntro = async () => {
+    setIntroBusy(true);
+    try {
+      const r = await axios.post(`${API}/imported-stations/${id}/intro/generate`,
+                                 { voice_id: introVoiceId }, { withCredentials: true });
+      setIntroUrl(r.data?.intro_url || null);
+      toast.success("Station intro generated");
+    } catch (e) {
+      toast.error(e.response?.data?.detail?.over_quota ? "Voice quota reached — try later." : "Couldn't generate intro.");
+    } finally { setIntroBusy(false); }
+  };
   useEffect(() => {
-    if (data?.viewer_is_owner && data?.source !== "bigfm_ai") { loadArtHistory(); }
+    if (data?.viewer_is_owner && data?.source !== "bigfm_ai") { loadArtHistory(); loadIntro(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.viewer_is_owner, data?.source, id]);
 
@@ -519,6 +544,10 @@ export default function LiveRadioStation() {
           <div className="text-xs uppercase tracking-widest text-white/50 font-mono mb-3 inline-flex items-center gap-1.5">
             <ImageIcon size={12} /> Station artwork · owner tools
           </div>
+          <input type="text" data-testid="owner-art-style-note" value={artStyleNote}
+                 onChange={(e) => setArtStyleNote(e.target.value)} maxLength={220}
+                 placeholder="Style note (optional) — e.g. neon cyberpunk, moody purple, cinematic"
+                 className="w-full mb-3 px-3 h-9 rounded-lg bg-black/30 border border-white/[0.12] text-sm text-white/90 placeholder:text-white/30 focus:border-cyan-400/60 outline-none" />
           <div className="flex flex-wrap gap-2">
             <button type="button" data-testid="owner-art-generate" onClick={genArt} disabled={artBusy}
                     className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-cyan-400 text-slate-900 font-semibold text-sm disabled:opacity-40">
@@ -575,6 +604,31 @@ export default function LiveRadioStation() {
               </div>
             </div>
           )}
+          <div data-testid="owner-intro-manager" className="mt-6 pt-4 border-t border-white/[0.08]">
+            <div className="text-xs uppercase tracking-widest text-white/50 font-mono mb-1 inline-flex items-center gap-1.5">
+              <Volume2 size={12} /> Station intro · pick a voice
+            </div>
+            <div className="text-[11px] text-white/40 mb-3">
+              A short AI-narrated intro for your station. Preview a voice, then generate.
+            </div>
+            {introVoices.length > 0 && (
+              <VoicePicker voices={introVoices} value={introVoiceId}
+                           onChange={setIntroVoiceId} disabled={introBusy}
+                           apiBase={API.replace(/\/api$/, "")} />
+            )}
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <button type="button" data-testid="owner-intro-generate" onClick={genIntro}
+                      disabled={introBusy || !introVoiceId}
+                      className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-cyan-400 text-slate-900 font-semibold text-sm disabled:opacity-40">
+                {introBusy ? <Loader2 size={14} className="animate-spin" /> : <Volume2 size={14} />}
+                {introBusy ? "Generating…" : (introUrl ? "Regenerate intro" : "Generate intro")}
+              </button>
+              {introUrl && (
+                <audio data-testid="owner-intro-audio" controls
+                       src={`${API.replace(/\/api$/, "")}${introUrl}`} className="h-9" />
+              )}
+            </div>
+          </div>
         </section>
       )}
 

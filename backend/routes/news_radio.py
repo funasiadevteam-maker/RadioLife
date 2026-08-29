@@ -197,25 +197,30 @@ async def admin_batch_render(request: Request,
     return await batch_render_news_audio(db, top_n=top_n, market=market)
 
 
-@router.get("/voices", description="List selectable News-Radio anchor voices.")
+@router.get("/voices", description="Selectable anchor voices + current config.")
 async def news_radio_voices(request: Request):
     from services.news_radio_settings import (
-        CURATED_ANCHOR_VOICES, get_anchor_voice)
+        list_voices, get_anchor_voice, get_voice_config)
     db = request.app.state.db
     current = await get_anchor_voice(db)
-    return {"voices": CURATED_ANCHOR_VOICES,
+    cfg = await get_voice_config(db)
+    return {"voices": list_voices(),
             "current_voice_id": current["voice_id"],
-            "current_voice_name": current["name"]}
+            "current_voice_name": current["name"],
+            "global_voice_id": cfg["global_voice_id"],
+            "market_voices": cfg["market_voices"]}
 
 
-@admin_router.post("/voice", description="Admin — set the News-Radio anchor voice.")
+@admin_router.post("/voice",
+                   description="Admin — set the global or a per-market anchor voice.")
 async def news_radio_set_voice(request: Request,
                                _admin: dict = Depends(require_admin)):
     from services.news_radio_settings import set_anchor_voice
     db = request.app.state.db
     body = await request.json()
     try:
-        res = await set_anchor_voice(db, (body or {}).get("voice_id"))
+        res = await set_anchor_voice(db, (body or {}).get("voice_id"),
+                                     market=(body or {}).get("market"))
     except ValueError:
         raise HTTPException(400, detail={"error": "unknown_voice"})
     return {"ok": True, **res}

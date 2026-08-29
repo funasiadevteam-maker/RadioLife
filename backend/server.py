@@ -5408,6 +5408,19 @@ try:
         StaticFiles(directory="/app/backend/storage/rj_segments"),
         name="rj_segments",
     )
+    # Anchor-voice preview samples + per-station AI intros.
+    _os.makedirs("/app/backend/storage/voice_samples", exist_ok=True)
+    _os.makedirs("/app/backend/storage/station_intros", exist_ok=True)
+    app.mount(
+        "/api/static/voice_samples",
+        StaticFiles(directory="/app/backend/storage/voice_samples"),
+        name="voice_samples",
+    )
+    app.mount(
+        "/api/static/station_intros",
+        StaticFiles(directory="/app/backend/storage/station_intros"),
+        name="station_intros",
+    )
     # 2026-07-31 — public download route for the RadioLife investor +
     # sales PPTX decks.  Files live under
     # `/app/backend/storage/decks/*.pptx` and are served as

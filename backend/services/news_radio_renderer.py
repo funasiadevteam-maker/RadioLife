@@ -173,7 +173,7 @@ async def synthesize_news_audio(db, article: dict, *,
 
     from services.elevenlabs_tts import synthesize
     from services.news_radio_settings import get_anchor_voice
-    voice_id = (await get_anchor_voice(db))["voice_id"]
+    voice_id = (await get_anchor_voice(db, market=article.get("market")))["voice_id"]
     script = _build_anchor_script(article, article["summary_script"])
     res = await asyncio.to_thread(
         synthesize, script, voice_id, energy="medium",
