@@ -171,9 +171,9 @@ async def synthesize_news_audio(db, article: dict, *,
                           "skipped":      "already_rendered"}
         # else: 48h cache expired → fall through and re-render.
 
-    from services.elevenlabs_tts import (
-        synthesize, resolve_voice_id_for_persona)
-    voice_id = resolve_voice_id_for_persona(NEWS_ANCHOR_PSEUDO_PERSONA)
+    from services.elevenlabs_tts import synthesize
+    from services.news_radio_settings import get_anchor_voice
+    voice_id = (await get_anchor_voice(db))["voice_id"]
     script = _build_anchor_script(article, article["summary_script"])
     res = await asyncio.to_thread(
         synthesize, script, voice_id, energy="medium",

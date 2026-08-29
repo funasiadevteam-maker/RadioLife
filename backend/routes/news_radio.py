@@ -195,3 +195,27 @@ async def admin_batch_render(request: Request,
     db = request.app.state.db
     from services.news_radio_renderer import batch_render_news_audio
     return await batch_render_news_audio(db, top_n=top_n, market=market)
+
+
+@router.get("/voices", description="List selectable News-Radio anchor voices.")
+async def news_radio_voices(request: Request):
+    from services.news_radio_settings import (
+        CURATED_ANCHOR_VOICES, get_anchor_voice)
+    db = request.app.state.db
+    current = await get_anchor_voice(db)
+    return {"voices": CURATED_ANCHOR_VOICES,
+            "current_voice_id": current["voice_id"],
+            "current_voice_name": current["name"]}
+
+
+@admin_router.post("/voice", description="Admin — set the News-Radio anchor voice.")
+async def news_radio_set_voice(request: Request,
+                               _admin: dict = Depends(require_admin)):
+    from services.news_radio_settings import set_anchor_voice
+    db = request.app.state.db
+    body = await request.json()
+    try:
+        res = await set_anchor_voice(db, (body or {}).get("voice_id"))
+    except ValueError:
+        raise HTTPException(400, detail={"error": "unknown_voice"})
+    return {"ok": True, **res}

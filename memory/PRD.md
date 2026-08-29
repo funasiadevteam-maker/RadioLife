@@ -1046,6 +1046,16 @@ Delivered 4 user-requested items (web + shared backend). Testing agent **iterati
 
 **Follow-ups noted (non-blocking):** harmonize `imported_station_artwork._load()` (`/api/imported-stations/{id}` 404s while `/api/radio/station/{id}` 200s); News-Radio queue mount is `/api/news_radio/queue` (underscore).
 
+### 2026-08-29 — News Radio audio LIVE · voice picker · art history · genre demo catalog
+Delivered the 4 follow-up items. Testing agent **iteration_110**: backend **17/17 PASS** + all 4 UI flows verified e2e. No regressions.
+
+- **#1 Real Station Audio — NOW LIVE:** wired a valid ElevenLabs `sk_` key into `backend/.env` (`ELEVENLABS_API_KEY`); the previous value was an invalid API-key *ID*. News Radio now renders real spoken clips (ElevenLabs `eleven_turbo_v2_5`), each durably persisted + on the 48h shared cache, with the "🔊 LISTEN · shared for 48h" badge + audio player + up-next speaker icons. (OpenAI TTS via the Emergent key was verified as a working fallback but ElevenLabs is the primary now that the key is valid.)
+- **#2 Anchor-voice picker** (`services/news_radio_settings.py`, `routes/news_radio.py`, `NewsRadio.jsx`): 5 curated ElevenLabs anchor voices (Raghav default, Sarah, George, Roger, Charlie) persisted in `app_settings`. `GET /api/news_radio/voices`; admin-only `POST /api/admin/news-radio/voice` (invalidates cached clips → re-render in the new voice). Admin-only `<select>` on /radio/news; hidden for non-admins.
+- **#3 Artwork history + revert** (`routes/imported_station_artwork.py`, `LiveRadioStation.jsx`): each new AI/owner artwork archives the previous into `artwork_history` (capped 5). `GET /{sid}/artwork/history` + `POST /{sid}/artwork/restore` (owner/admin). Owner tools show a "Recent artwork · tap to revert" thumbnail strip.
+- **#4 Genre-tagged demo catalog** (`seed.py`): expanded `ensure_demo_tracks` to 14 genre-tagged tracks (bollywood/pop/indie/retro/electronic/hip_hop/punjabi_pop/bhangra/devotional/ghazal) spanning all channel energies, so each channel plays a more varied rotation.
+
+**No longer mocked:** ElevenLabs TTS (valid key wired). **Still MOCKED:** Stripe (test mode).
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

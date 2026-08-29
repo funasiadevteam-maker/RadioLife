@@ -84,6 +84,28 @@ async def _set(db: Any, sid: str, fields: dict) -> None:
         {"id": {"$in": _id_candidates(sid)}}, {"$set": fields})
 
 
+ART_HISTORY_MAX = 5
+
+
+async def _archive_current_art(db: Any, sid: str) -> None:
+    """Push the station's current AI/owner artwork into `artwork_history`
+    (capped, most-recent-last, deduped) so the owner can flip back to it."""
+    s = await db.imported_radio_stations.find_one(
+        {"id": {"$in": _id_candidates(sid)}},
+        {"art_url": 1, "art_source": 1, "artwork_history": 1})
+    if not s:
+        return
+    url = s.get("art_url")
+    if not url or s.get("art_source") not in ("ai", "owner"):
+        return
+    hist = [h for h in (s.get("artwork_history") or []) if h.get("url") != url]
+    hist.append({"url": url, "source": s.get("art_source"),
+                 "archived_at": datetime.now(timezone.utc).isoformat()})
+    await db.imported_radio_stations.update_one(
+        {"id": {"$in": _id_candidates(sid)}},
+        {"$set": {"artwork_history": hist[-ART_HISTORY_MAX:]}})
+
+
 async def _run_generation(db: Any, *, sid: str, prompt: str,
                           user_id: str = "", tier: str = "free") -> None:
     try:
@@ -100,6 +122,7 @@ async def _run_generation(db: Any, *, sid: str, prompt: str,
         await _set(db, sid, {"artwork_status": "failed", "art_gen_attempted": False,
                              "artwork_error": result.get("error") or "unknown"})
         return
+    await _archive_current_art(db, sid)
     await _set(db, sid, {
         "art_url": result["url"], "art_source": "ai",
         "artwork_status": "complete", "art_gen_attempted": True,
@@ -177,6 +200,7 @@ async def upload_artwork(sid: str, request: Request, file: UploadFile = File(...
     saved = image_gen_svc.persist_uploaded_bytes(raw, slug=f"imp-{s.get('id')}")
     if not saved:
         raise HTTPException(500, "upload_processing_failed")
+    await _archive_current_art(db, sid)
     await _set(db, sid, {
         "art_url": saved["url"], "art_source": "owner",
         "artwork_status": "complete", "art_gen_attempted": True,
@@ -210,3 +234,39 @@ async def artwork_status(sid: str, request: Request):
     status = s.get("artwork_status") or ("complete" if url else "idle")
     return {"sid": sid, "status": status, "image_url": url,
             "art_source": s.get("art_source"), "error": s.get("artwork_error")}
+
+
+@router.get("/{sid}/artwork/history")
+async def artwork_history(sid: str, request: Request,
+                          user: dict = Depends(current_user)):
+    """Owner/admin — the last few AI/owner artworks, newest first."""
+    db = request.app.state.db
+    s = await _load(db, sid)
+    if not await _is_owner_or_admin(db, s, user):
+        raise HTTPException(403, "not_owner")
+    hist = list(reversed(s.get("artwork_history") or []))
+    return {"ok": True, "current": s.get("art_url"),
+            "current_source": s.get("art_source"), "history": hist}
+
+
+@router.post("/{sid}/artwork/restore")
+async def restore_artwork(sid: str, request: Request,
+                          user: dict = Depends(current_user)):
+    """Owner/admin — flip the station art back to a previous history entry."""
+    db = request.app.state.db
+    s = await _load(db, sid)
+    if not await _is_owner_or_admin(db, s, user):
+        raise HTTPException(403, "not_owner")
+    body = await request.json()
+    url = (body or {}).get("art_url")
+    entries = s.get("artwork_history") or []
+    match = next((h for h in entries if h.get("url") == url), None)
+    if not match:
+        raise HTTPException(400, detail={"error": "unknown_art_url"})
+    await _archive_current_art(db, sid)
+    await _set(db, sid, {
+        "art_url": url, "art_source": match.get("source") or "ai",
+        "artwork_status": "complete", "art_gen_attempted": True,
+        "artwork_error": None,
+    })
+    return {"ok": True, "status": "complete", "art_url": url}

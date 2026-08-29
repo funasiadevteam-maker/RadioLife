@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 110 — e2e web + backend verification of the 4 shipped items. 17/17 pytest PASS + full UI proof captured. ITEM 1 (News Radio /radio/news audio regression): GET /api/news_radio/queue?limit=6 → 200 body mode='audio', audio_coverage 6/6, tts.status='active', tts_enabled=true, every item has a real audio_url (/api/static/news_clips/*.mp3), news_audio_voice_id populated. Web UI shows the '🔊 LISTEN · shared for 48h' badge (data-testid=news-radio-audio-badge), a working <audio> player (0:21 duration on the first article), and up-next items rendered with speaker icons. ITEM 2 (Admin anchor-voice picker): GET /api/news_radio/voices returns exactly 5 voices (Raghav/Sarah/George/Roger/Charlie) + current selection. UI: as ADMIN the picker (data-testid=news-radio-voice-picker + select data-testid=news-radio-voice-select) IS visible; as DEMO USER and ANON it is ABSENT. Changing the select POSTs /api/admin/news-radio/voice, the 'Regenerating clips…' status label appears next to the select, and GET /api/news_radio/voices reflects the new current_voice_id. Backend gate: non-admin+anon POST → 401/403; unknown voice_id → 400 {error:unknown_voice}. ITEM 3 (Owner artwork history + revert): GET /api/imported-stations/imp_96063f25060111e8ae/artwork/history returns {ok, current, current_source, history:[{url,source,archived_at}]}. Non-owner user → 403. On the station page as admin, owner-artwork-manager renders with owner-art-generate + a 'RECENT ARTWORK · TAP TO REVERT' strip (data-testid=owner-art-history) containing owner-art-history-0 thumbnail. Clicking the thumbnail → POST /api/imported-stations/{sid}/artwork/restore → 200, toast 'Reverted to previous artwork' shown, thumbnail visually annotated with revert icon. POST restore with unknown url → 400 {error:unknown_art_url}. ITEM 4 (Genre-tagged demo catalog): POST /api/radio/start returns a playable segment (segment_url + track_id + duration_sec) for bollywood_mehfil, punjabi_beats, devotional_hour, and dfw_bollywood_drive. vip_lounge correctly returns a gated response (as designed). No regressions found.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/radio/news anchor-voice picker", "issues": ["React hydration warning: '<span> cannot be a child of <option>' — the option label includes a styled span. Non-blocking but should be flattened to plain text to silence the console warning."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter110_voice_history.py",
+    "/app/test_reports/pytest/iter110.xml"
+  ],
+  "action_items": [
+    "(Nit) Remove the nested <span> inside <option> in the anchor-voice picker (frontend/src/NewsRadio.jsx around the select's <option>) to silence a React hydration warning; no functional impact."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/news_radio.py:66 /queue still sorts by pubDate without a compound index hint on {summary_script,pubDate desc}. Fine today but revisit under load.",
+    "backend/routes/imported_station_artwork.py: no size/dedupe check for artwork_history — if generation returns the exact same URL (image_gen dedupe), _archive_current_art correctly skips the duplicate via the pre-append filter, but a stale entry with `source=='ai'` and current==entry.url is possible if the same URL is later restored + re-archived. Not observed in practice; cosmetic.",
+    "backend/routes/imported_station_artwork.py:265 restore returns HTTPException detail dict {error:unknown_art_url} — consistent with other endpoints, good. Response wrapping via FastAPI puts it under 'detail' — clients need to read `.detail.error` (verified in tests).",
+    "backend/services/news_radio_settings.py:52 set_anchor_voice invalidates ALL cached news_audio_url rows by setting news_audio_expires_at=EPOCH — this is correct for freshness but forces a full batch re-render (5 clips × ~2-3s TTS each) on next request. Consider throttling admin voice-changes to prevent quota burn during A/B testing."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter110_voice_history.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 pytest)",
+    "frontend": "100% (all 4 UI flows verified)"
+  },
+  "test_credentials": "admin@bigfm.dubai/AdminPass123! (voice picker + artwork owner-equivalent), demo@bigfm.dubai/DemoPass123! (regular user — non-owner + non-admin). Cookie-based POST /api/auth/login.",
+  "seed_data_creation": "Anchor voice was flipped to Sarah during e2e testing and reset back to Raghav (default) at test-teardown. Artwork on imp_96063f25060111e8ae was generated once via admin — resulting in one artwork_history entry which was subsequently restored (deterministic overwrite, safe to re-run).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Concrete evidence (2026-06 iter110 against REACT_APP_BACKEND_URL=https://mobile-games-v2.preview.emergentagent.com): (1) GET /api/news_radio/queue?limit=6 → 200, mode='audio', audio_coverage={with_audio:6,total:6}, tts={provider:'elevenlabs', status:'active', tts_enabled:true, quota:{...}}, each item has audio_url like '/api/static/news_clips/newsapi_243034b42f49f4.mp3', text_only=false, news_audio_voice_id populated. IMPORTANT — the correct queue mount is /api/news_radio/queue (underscore, NOT /api/news/radio/queue). (2) GET /api/news_radio/voices returns {voices:[5 curated], current_voice_id, current_voice_name} — publicly readable (no auth). (3) POST /api/admin/news-radio/voice {voice_id:...} — admin-only (test@/demo@ → 401/403), unknown voice → 400 {detail:{error:unknown_voice}}. Persists in app_settings._id='news_radio'. Side-effect: sets news_audio_expires_at=EPOCH on all cached clips to force re-render. (4) GET/POST /api/imported-stations/{sid}/artwork/history + /restore — require owner_or_admin (403 for demo@ on imp_96063f25060111e8ae). Unknown art_url on restore → 400 {detail:{error:unknown_art_url}}. Restore returns {ok:true, status:'complete', art_url}. (5) UI selectors verified live: [data-testid=news-radio-audio-badge], [data-testid=news-radio-voice-picker], [data-testid=news-radio-voice-select], [data-testid=owner-artwork-manager], [data-testid=owner-art-generate], [data-testid=owner-art-history], [data-testid=owner-art-history-0]. Toast 'Reverted to previous artwork' fires after clicking the history thumbnail. (6) POST /api/radio/start for bollywood_mehfil/punjabi_beats/devotional_hour/dfw_bollywood_drive all return 200 with playable segments; vip_lounge is ambassador-gated (expected). Junit XML at /app/test_reports/pytest/iter110.xml.",
+  "rca of the issue": "N/A — no regressions found. All 4 shipped items pass e2e."
+}

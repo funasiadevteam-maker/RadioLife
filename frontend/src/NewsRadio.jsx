@@ -11,15 +11,19 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { Radio, ArrowLeft, Volume2, Info } from "lucide-react";
-import { API } from "@/AuthContext";
+import { API, useAuth } from "@/AuthContext";
 
 export default function NewsRadio() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [idx,   setIdx]   = useState(0);
   const [empty, setEmpty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState("audio");  // "audio" | "text"
   const [tts,  setTts]  = useState(null);
+  const [voices, setVoices] = useState([]);
+  const [voiceId, setVoiceId] = useState("");
+  const [voiceSaving, setVoiceSaving] = useState(false);
 
   useEffect(() => {
     let cancel = false;
@@ -62,6 +66,33 @@ export default function NewsRadio() {
   const current = items[idx];
   const showTextModeBanner = mode === "text" && items.length > 0;
 
+  // Admin-only: load selectable anchor voices.
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    axios.get(`${API}/news_radio/voices`, { withCredentials: true })
+      .then((r) => { setVoices(r.data?.voices || []); setVoiceId(r.data?.current_voice_id || ""); })
+      .catch(() => {});
+  }, [user?.role]);
+
+  const changeVoice = async (vid) => {
+    setVoiceId(vid); setVoiceSaving(true);
+    try {
+      await axios.post(`${API}/admin/news-radio/voice`, { voice_id: vid }, { withCredentials: true });
+      // Kick a re-render (fire-and-forget — TTS is slow) then poll the queue
+      // for the new-voice clips.
+      axios.post(`${API}/news_radio/trigger-batch`, null,
+                 { params: { top_n: 6 }, withCredentials: true }).catch(() => {});
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        try {
+          const r = await axios.get(`${API}/news_radio/queue`,
+                                    { params: { limit: 6 }, withCredentials: true });
+          if (r.data?.items?.length) { setItems(r.data.items); setMode(r.data.mode || "text"); setIdx(0); }
+        } catch (_e) { /* ignore */ }
+      }
+    } catch (_e) { /* ignore */ } finally { setVoiceSaving(false); }
+  };
+
   return (
     <div data-testid="news-radio-page"
          style={{ maxWidth: 760, margin: "0 auto", padding: 24, color: "#fff" }}>
@@ -75,6 +106,28 @@ export default function NewsRadio() {
                    fontSize: 26, fontWeight: 700, margin: "0 0 18px" }}>
         <Radio size={22} color="#00d9ff" /> RadioLife News Radio
       </h1>
+
+      {user?.role === "admin" && voices.length > 0 && (
+        <div data-testid="news-radio-voice-picker"
+             style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16,
+                      flexWrap: "wrap",
+                      background: "rgba(0,217,255,0.06)",
+                      border: "1px solid rgba(0,217,255,0.25)",
+                      padding: "10px 14px", borderRadius: 10, fontSize: 13 }}>
+          <Volume2 size={16} color="#00d9ff" />
+          <span style={{ color: "#9aa3af" }}>Anchor voice</span>
+          <select data-testid="news-radio-voice-select" value={voiceId}
+                  onChange={(e) => changeVoice(e.target.value)} disabled={voiceSaving}
+                  style={{ background: "#0b0b0b", color: "#fff",
+                           border: "1px solid rgba(255,255,255,0.2)",
+                           borderRadius: 8, padding: "6px 10px", fontSize: 13 }}>
+            {voices.map((v) => (
+              <option key={v.voice_id} value={v.voice_id}>{`${v.name} — ${v.description}`}</option>
+            ))}
+          </select>
+          {voiceSaving && <span style={{ color: "#00d9ff", fontSize: 12 }}>Regenerating clips…</span>}
+        </div>
+      )}
 
       {showTextModeBanner && (
         <div data-testid="news-radio-mode-banner"

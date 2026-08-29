@@ -135,30 +135,20 @@ def seed_tracks(storage_dir: Path) -> List[dict]:
 # satisfy the soft mood filter on every channel. Energies span
 # chill/medium/high/party so all 14 channels have candidates.
 DEMO_TRACKS = [
-    {"seed_id": "demo_track_1",
-     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-     "title": "Neon Pulse",       "artist": "RadioLife Demo", "energy_level": "high",
-     "mood": "energetic", "vibe_tags": ["energetic", "dance", "uplifting"]},
-    {"seed_id": "demo_track_2",
-     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-     "title": "Midnight Lounge",   "artist": "RadioLife Demo", "energy_level": "chill",
-     "mood": "groove", "vibe_tags": ["chill", "groove", "romantic"]},
-    {"seed_id": "demo_track_3",
-     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-     "title": "Late Night Drive",  "artist": "RadioLife Demo", "energy_level": "medium",
-     "mood": "uplifting", "vibe_tags": ["uplifting", "chill", "groove"]},
-    {"seed_id": "demo_track_4",
-     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-     "title": "Skyline Party",     "artist": "RadioLife Demo", "energy_level": "party",
-     "mood": "party", "vibe_tags": ["party", "dance", "energetic"]},
-    {"seed_id": "demo_track_5",
-     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
-     "title": "Golden Hour",       "artist": "RadioLife Demo", "energy_level": "high",
-     "mood": "energetic", "vibe_tags": ["energetic", "uplifting", "party"]},
-    {"seed_id": "demo_track_6",
-     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
-     "title": "Slow Embrace",      "artist": "RadioLife Demo", "energy_level": "medium",
-     "mood": "romantic", "vibe_tags": ["romantic", "chill", "uplifting"]},
+    {"seed_id": "demo_track_1",  "song": 1,  "title": "Neon Bazaar",     "genre": "bollywood",   "energy_level": "high",   "mood": "energetic",  "vibe_tags": ["energetic", "dance", "uplifting"]},
+    {"seed_id": "demo_track_2",  "song": 2,  "title": "Mumbai Midnight", "genre": "bollywood",   "energy_level": "chill",  "mood": "romantic",   "vibe_tags": ["romantic", "chill", "groove"]},
+    {"seed_id": "demo_track_3",  "song": 3,  "title": "Skyline Anthem",  "genre": "pop",         "energy_level": "medium", "mood": "uplifting",  "vibe_tags": ["uplifting", "pop", "groove"]},
+    {"seed_id": "demo_track_4",  "song": 4,  "title": "Sugar Rush",      "genre": "pop",         "energy_level": "party",  "mood": "party",      "vibe_tags": ["party", "dance", "energetic"]},
+    {"seed_id": "demo_track_5",  "song": 5,  "title": "Slow Embrace",    "genre": "indie",       "energy_level": "medium", "mood": "uplifting",  "vibe_tags": ["uplifting", "chill", "indie"]},
+    {"seed_id": "demo_track_6",  "song": 6,  "title": "Paper Boats",     "genre": "indie",       "energy_level": "chill",  "mood": "melancholy", "vibe_tags": ["chill", "melancholy", "romantic"]},
+    {"seed_id": "demo_track_7",  "song": 7,  "title": "Golden Reel",     "genre": "retro",       "energy_level": "medium", "mood": "groove",     "vibe_tags": ["retro", "groove", "uplifting"]},
+    {"seed_id": "demo_track_8",  "song": 8,  "title": "Voltage",         "genre": "electronic",  "energy_level": "high",   "mood": "energetic",  "vibe_tags": ["energetic", "dance", "electronic"]},
+    {"seed_id": "demo_track_9",  "song": 9,  "title": "Afterglow Drop",  "genre": "electronic",  "energy_level": "party",  "mood": "party",      "vibe_tags": ["party", "dance", "energetic"]},
+    {"seed_id": "demo_track_10", "song": 10, "title": "City Cypher",     "genre": "hip_hop",     "energy_level": "high",   "mood": "energetic",  "vibe_tags": ["energetic", "hip_hop", "groove"]},
+    {"seed_id": "demo_track_11", "song": 11, "title": "Dhol Fire",       "genre": "punjabi_pop", "energy_level": "party",  "mood": "party",      "vibe_tags": ["party", "bhangra", "dance"]},
+    {"seed_id": "demo_track_12", "song": 12, "title": "Bhangra Sunrise", "genre": "bhangra",     "energy_level": "high",   "mood": "energetic",  "vibe_tags": ["energetic", "bhangra", "party"]},
+    {"seed_id": "demo_track_13", "song": 13, "title": "Temple Bells",    "genre": "devotional",  "energy_level": "chill",  "mood": "romantic",   "vibe_tags": ["chill", "devotional", "uplifting"]},
+    {"seed_id": "demo_track_14", "song": 14, "title": "Desert Ghazal",   "genre": "ghazal",      "energy_level": "medium", "mood": "romantic",   "vibe_tags": ["romantic", "chill", "ghazal"]},
 ]
 
 
@@ -167,10 +157,12 @@ def _ensure_demo_track_file(meta: dict, storage_dir: Path) -> Optional[dict]:
     {file_path, duration_sec} or None on failure."""
     storage_dir.mkdir(parents=True, exist_ok=True)
     final_path = storage_dir / f"{meta['seed_id']}.mp3"
+    url = (meta.get("url")
+           or f"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-{meta['song']}.mp3")
     if not final_path.exists():
         tmp = storage_dir / f"_seed_tmp_{meta['seed_id']}.mp3"
         try:
-            if not _download(meta["url"], tmp) or not _trim(tmp, final_path):
+            if not _download(url, tmp) or not _trim(tmp, final_path):
                 return None
         finally:
             try:
@@ -204,13 +196,15 @@ async def ensure_demo_tracks(db, storage_dir: Path) -> int:
         if not fileinfo:
             continue
         doc = {
-            "title": meta["title"], "artist": meta["artist"],
+            "title": meta["title"], "artist": "RadioLife Demo",
             "file_path": fileinfo["file_path"],
             "duration_sec": fileinfo["duration_sec"],
             "energy_level": meta["energy_level"], "mood": meta["mood"],
             "vibe_tags": meta.get("vibe_tags", []),
-            "genre": None, "language": None,
-            "is_seed": True, "seed_url": meta["url"],
+            "genre": meta.get("genre"), "language": None,
+            "is_seed": True,
+            "seed_url": (meta.get("url")
+                         or f"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-{meta['song']}.mp3"),
             "playable_status": "ok",
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
         }

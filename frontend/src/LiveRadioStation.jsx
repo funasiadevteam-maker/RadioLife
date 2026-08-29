@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import {
   Play, Pause, ArrowLeft, ExternalLink, Globe2, Radio as RadioIcon,
   Sparkles, MapPin, Languages, Tag, Award, AlertCircle, ShieldCheck,
-  Image as ImageIcon, Upload, Trash2, Loader2, CheckCircle2,
+  Image as ImageIcon, Upload, Trash2, Loader2, CheckCircle2, RotateCcw,
 } from "lucide-react";
 import { API } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -64,6 +64,7 @@ export default function LiveRadioStation() {
   const [toggling, setToggling] = useState(false);
   const [artBusy, setArtBusy] = useState(false);
   const [artPhase, setArtPhase] = useState(null); // 'generating' | 'complete' | 'failed'
+  const [artHistory, setArtHistory] = useState([]);
 
   // Phase 42-B2 hotfix — route Play through the unified player store so
   // the global ImportedStreamBridge can drive playback AND fire the
@@ -205,6 +206,7 @@ export default function LiveRadioStation() {
         if (["complete", "failed", "idle"].includes(s)) { settled = s; break; }
       }
       await refetchStation();
+      await loadArtHistory();
       if (settled === "failed") {
         setArtPhase("failed");
         toast.error("Artwork generation failed — try again.");
@@ -229,6 +231,7 @@ export default function LiveRadioStation() {
       fd.append("file", file);
       await axios.post(`${API}/imported-stations/${id}/artwork/upload`, fd, { withCredentials: true });
       await refetchStation();
+      await loadArtHistory();
       toast.success("Logo uploaded");
     } catch (_e) {
       toast.error("Upload failed — use a JPG/PNG/WebP under 5 MB.");
@@ -239,9 +242,31 @@ export default function LiveRadioStation() {
     try {
       await axios.post(`${API}/imported-stations/${id}/artwork/clear`, {}, { withCredentials: true });
       await refetchStation();
+      await loadArtHistory();
       toast.success("Reset to default");
     } catch (_e) { /* ignore */ } finally { setArtBusy(false); }
   };
+  const loadArtHistory = async () => {
+    try {
+      const r = await axios.get(`${API}/imported-stations/${id}/artwork/history`, { withCredentials: true });
+      setArtHistory(r.data?.history || []);
+    } catch (_e) { /* ignore */ }
+  };
+  const restoreArt = async (url) => {
+    setArtBusy(true);
+    try {
+      await axios.post(`${API}/imported-stations/${id}/artwork/restore`, { art_url: url }, { withCredentials: true });
+      await refetchStation();
+      await loadArtHistory();
+      toast.success("Reverted to previous artwork");
+    } catch (_e) {
+      toast.error("Couldn't revert artwork.");
+    } finally { setArtBusy(false); }
+  };
+  useEffect(() => {
+    if (data?.viewer_is_owner && data?.source !== "bigfm_ai") { loadArtHistory(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.viewer_is_owner, data?.source, id]);
 
   // P0 · 3rd attempt — auto-play when the URL carries `?autoplay=1`
   // (bottom-bar Play button + station-rail item clicks land here).  We
@@ -526,6 +551,30 @@ export default function LiveRadioStation() {
           <div className="text-[11px] text-white/40 mt-2">
             AI art is generated from your station name &amp; genre. Upload your own logo to override it.
           </div>
+          {artHistory.length > 0 && (
+            <div data-testid="owner-art-history" className="mt-4">
+              <div className="text-[11px] uppercase tracking-widest text-white/40 font-mono mb-2">
+                Recent artwork · tap to revert
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {artHistory.map((h, i) => {
+                  const src = h.url?.startsWith("http") ? h.url : `${API.replace(/\/api$/, "")}${h.url}`;
+                  return (
+                    <button key={h.url || i} type="button"
+                            data-testid={`owner-art-history-${i}`}
+                            onClick={() => restoreArt(h.url)} disabled={artBusy}
+                            title={`Revert to this ${h.source || "AI"} artwork`}
+                            className="group relative w-16 h-16 rounded-lg overflow-hidden border border-white/[0.12] hover:border-cyan-400/70 disabled:opacity-40 transition">
+                      <img src={src} alt="Previous artwork" className="w-full h-full object-cover" />
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition">
+                        <RotateCcw size={15} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
