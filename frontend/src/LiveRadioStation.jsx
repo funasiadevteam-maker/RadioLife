@@ -195,7 +195,7 @@ export default function LiveRadioStation() {
     setArtBusy(true);
     setArtPhase("generating");
     try {
-      await axios.post(`${API}/imported-stations/${id}/artwork/generate`, { style_note: artStyleNote || undefined }, { withCredentials: true });
+      await axios.post(`${API}/imported-stations/${id}/artwork/generate`, { style_note: artStyleNote || undefined, variation: true }, { withCredentials: true });
       let lastUrl = null;
       let settled = null;
       // Poll every 3s and refresh the tile the INSTANT new art lands.

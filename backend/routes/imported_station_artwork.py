@@ -17,6 +17,7 @@ Tigris/disk persistence in ``services.image_gen``.
 from __future__ import annotations
 import asyncio
 import logging
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -273,6 +274,12 @@ async def generate_artwork(sid: str, request: Request,
             {"id": {"$in": _id_candidates(sid)}}, {"$set": {"art_style_note": note}})
         s["art_style_note"] = note
     prompt = _prompt_for(s)
+    # Fresh-variation flag: append a nonce so the prompt hash (and thus the
+    # generated image) differs from any cached cover — an explicit
+    # regenerate should yield a NEW alternate, not the same cached art. The
+    # previous cover is archived to artwork_history first (revertible).
+    if isinstance(body, dict) and body.get("variation"):
+        prompt = f"{prompt} Fresh alternate take {secrets.token_hex(3)}."
     await _set(db, sid, {"artwork_status": "running", "artwork_error": None})
     asyncio.create_task(_run_generation(db, sid=sid, prompt=prompt, station=s,
                                         user_id=user["user_id"], tier=tier))

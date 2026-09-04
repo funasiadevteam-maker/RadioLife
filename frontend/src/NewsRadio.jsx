@@ -14,6 +14,50 @@ import { Radio, ArrowLeft, Volume2, Info } from "lucide-react";
 import { API, useAuth } from "@/AuthContext";
 import VoicePicker from "@/components/VoicePicker";
 
+// Sleek horizontally-scrolling headline ticker shown above the player.
+function NewsTicker({ items, activeIdx }) {
+  const entries = (items || [])
+    .map((it, i) => ({ i, t: it.title }))
+    .filter((e) => e.t);
+  if (!entries.length) return null;
+  const seq = [...entries, ...entries];   // duplicate for a seamless loop
+  const totalChars = entries.reduce((n, e) => n + e.t.length, 0);
+  const dur = Math.max(18, Math.round(totalChars * 0.16));
+  return (
+    <div data-testid="news-radio-ticker"
+         style={{ display: "flex", alignItems: "center",
+                  background: "#0b1220",
+                  border: "1px solid rgba(0,217,255,0.25)",
+                  borderRadius: 10, overflow: "hidden",
+                  height: 40, marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6,
+                    background: "#00d9ff", color: "#04121a",
+                    padding: "0 12px", height: "100%", flexShrink: 0,
+                    fontFamily: "monospace", fontSize: 11,
+                    fontWeight: 700, letterSpacing: 1 }}>
+        <Radio size={13} /> LIVE NEWS
+      </div>
+      <div style={{ overflow: "hidden", flex: 1 }}>
+        <div className="news-ticker-track" style={{ animationDuration: `${dur}s` }}>
+          {seq.map((e, k) => {
+            const active = e.i === activeIdx;
+            return (
+              <span key={k}
+                    style={{ display: "inline-flex", alignItems: "center",
+                             color: active ? "#00d9ff" : "#cbd5e1",
+                             fontSize: 13, fontWeight: active ? 700 : 400,
+                             whiteSpace: "nowrap" }}>
+                <span style={{ color: "#00d9ff", margin: "0 14px", opacity: 0.7 }}>●</span>
+                {e.t}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function NewsRadio() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -120,6 +164,8 @@ export default function NewsRadio() {
                    fontSize: 26, fontWeight: 700, margin: "0 0 18px" }}>
         <Radio size={22} color="#00d9ff" /> RadioLife News Radio
       </h1>
+
+      <NewsTicker items={items} activeIdx={idx} />
 
       {user?.role === "admin" && voices.length > 0 && (
         <div data-testid="news-radio-voice-picker"

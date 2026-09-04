@@ -1,5 +1,6 @@
 """Phase 19 Parts A + B — Channel thumbnail re-roll + Unified moderation queue."""
 from __future__ import annotations
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -15,7 +16,7 @@ def _now_iso() -> str: return datetime.now(timezone.utc).isoformat()
 
 
 def _require_admin(user: dict) -> None:
-    if not user or not user.get("is_admin"):
+    if not user or (not user.get("is_admin") and user.get("role") != "admin"):
         raise HTTPException(403, {"code": "forbidden"})
 
 
@@ -48,6 +49,30 @@ async def reroll_channel_thumbnail(slug: str, request: Request, body: dict = Non
         "prompt": (body or {}).get("prompt"),
         "at": _now_iso()})
     return {"ok": True, "slug": slug, "thumbnail_url": new_url}
+
+
+@router.post("/channels/thumbnails/heal-all")
+async def heal_all_channel_thumbnails(request: Request,
+                                      user: dict = Depends(current_user)):
+    """One-tap fleet-wide heal for AI channel thumbnails — regenerates
+    (durably) any channel whose thumbnail file has vanished from disk +
+    object storage. Runs in the background; returns the missing count so
+    the admin sees whether work was kicked off. Idempotent."""
+    _require_admin(user)
+    db = request.app.state.db
+    from services import channel_thumbnails as ct
+    missing = 0
+    async for ch in db.channels.find({}, {"_id": 1, "thumbnail_prompt": 1}):
+        slug = ch.get("_id")
+        if not slug:
+            continue
+        if not (ch.get("thumbnail_prompt") or ct.THUMBNAIL_PROMPTS.get(slug)):
+            continue
+        if ct._thumb_missing(slug):
+            missing += 1
+    if missing:
+        asyncio.create_task(ct.heal_all_thumbnails(db))
+    return {"ok": True, "missing": missing, "started": bool(missing)}
 
 
 @router.get("/moderation/queue")

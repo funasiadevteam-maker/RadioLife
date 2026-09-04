@@ -258,3 +258,48 @@ async def regenerate_one(db, channel_id: str, prompt_override: str | None = None
                         MIGRATION_FLAG: True}},
     )
     return {"ok": True, "thumbnail_url": url, "thumbnail_prompt": prompt}
+
+
+def _thumb_missing(slug: str) -> bool:
+    """True when a channel's thumbnail WebP is absent from BOTH local disk
+    and durable object storage (so a client fetch would 404). Errs toward
+    False on probe error so we never regenerate needlessly."""
+    fp = _file_path(slug)
+    try:
+        if fp.is_file() and fp.stat().st_size > 0:
+            return False
+        from services.object_storage import get_storage
+        return not get_storage().exists(key=f"static/channel_thumbnails/{slug}.webp")
+    except Exception:
+        return False
+
+
+async def heal_all_thumbnails(db) -> dict:
+    """Fleet-wide self-heal for AI channel thumbnails. Regenerates (durably)
+    every channel whose thumbnail file has vanished from disk + storage, or
+    that never got one. Idempotent — a healthy fleet regenerates nothing."""
+    out = {"checked": 0, "healed": 0, "failed": 0,
+              "healed_slugs": [], "failed_slugs": []}
+    async for ch in db.channels.find({}):
+        slug = ch.get("_id")
+        if not slug:
+            continue
+        prompt = ch.get("thumbnail_prompt") or THUMBNAIL_PROMPTS.get(slug)
+        if not prompt:
+            continue                       # channel has no thumbnail concept
+        out["checked"] += 1
+        if not _thumb_missing(slug):
+            continue
+        written = await _generate_one(slug, prompt)   # _save_as_webp uploads durably
+        if not written:
+            out["failed"] += 1
+            out["failed_slugs"].append(slug)
+            continue
+        await db.channels.update_one(
+            {"_id": slug},
+            {"$set": {"thumbnail_url": public_url(slug),
+                        "thumbnail_prompt": prompt, MIGRATION_FLAG: True}})
+        out["healed"] += 1
+        out["healed_slugs"].append(slug)
+    logger.info("[thumbnails] heal_all_thumbnails done: %s", out)
+    return out

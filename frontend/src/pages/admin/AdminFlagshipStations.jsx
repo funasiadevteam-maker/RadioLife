@@ -119,6 +119,18 @@ export default function AdminFlagshipStations() {
       showToast("error", "Heal artwork failed");
     } finally { setBusy(false); }
   }
+  async function healThumbnails() {
+    setBusy(true);
+    try {
+      const { data } = await axios.post(`${API}/admin/channels/thumbnails/heal-all`);
+      const n = data?.missing || 0;
+      showToast("success", n
+        ? `Healing ${n} channel thumbnail${n > 1 ? "s" : ""} in the background…`
+        : "All channel thumbnails are healthy");
+    } catch (_) {
+      showToast("error", "Heal thumbnails failed");
+    } finally { setBusy(false); }
+  }
   async function togglePreroll(row) {
     setBusy(true);
     try {
@@ -172,8 +184,8 @@ export default function AdminFlagshipStations() {
   async function genArt(s) {
     setGenIds((prev) => new Set(prev).add(s.id));
     try {
-      await axios.post(`${API}/imported-stations/${s.id}/artwork/generate`, {});
-      showToast("success", `Generating art for ${s.name}…`);
+      await axios.post(`${API}/imported-stations/${s.id}/artwork/generate`, { variation: true });
+      showToast("success", `Generating fresh art for ${s.name}…`);
       const res = await pollArt(s.id);
       if (res?.status === "complete") {
         showToast("success", `Art ready for ${s.name}`);
@@ -264,7 +276,16 @@ export default function AdminFlagshipStations() {
                                 light ? "border border-purple-300 text-purple-700 hover:bg-purple-50"
                                               : "border border-purple-700 text-purple-300 hover:bg-purple-500/10"
                             } disabled:opacity-50`}>
-              <Sparkles className="w-4 h-4" /> Heal artwork
+              <Sparkles className="w-4 h-4" /> Heal flagship art
+            </button>
+            <button onClick={healThumbnails} disabled={busy}
+                            data-testid="admin-flagship-heal-thumbnails"
+                            title="Regenerate any AI channel thumbnail whose file is missing or broken (saved durably)"
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition ${
+                                light ? "border border-cyan-300 text-cyan-700 hover:bg-cyan-50"
+                                              : "border border-cyan-700 text-cyan-300 hover:bg-cyan-500/10"
+                            } disabled:opacity-50`}>
+              <ImagePlus className="w-4 h-4" /> Heal channel thumbnails
             </button>
           </div>
         </div>
