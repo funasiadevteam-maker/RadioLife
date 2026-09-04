@@ -1809,6 +1809,31 @@ async def _deferred_bootstrap(app_: FastAPI):
             logger.info("[FUN.1 seed] %s", fun1_stats)
         except Exception as e:
             logger.warning("[FUN.1 seed] skipped: %s", e)
+        # Daily auto-heal cron — quietly regenerate (durably) any flagship
+        # cover or AI channel thumbnail whose file has gone missing, so
+        # admins never have to touch the "Heal" buttons manually.
+        try:
+            from routes.imported_station_artwork import run_flagship_art_heal as _fl_heal
+            from services import channel_thumbnails as _ct_heal
+
+            async def _art_autoheal_cron():
+                await asyncio.sleep(900)   # 15-min grace after boot seeds
+                while True:
+                    try:
+                        fq = await _fl_heal(db)
+                        th = await _ct_heal.heal_all_thumbnails(db)
+                        if fq or th.get("healed"):
+                            logger.info("[art-autoheal] flagship_queued=%s thumbs=%s",
+                                        fq, th)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as _e:
+                        logger.warning("[art-autoheal] error: %s", _e)
+                    await asyncio.sleep(86400)   # once per day
+            app.state.art_autoheal_task = asyncio.create_task(_art_autoheal_cron())
+            logger.info("[art-autoheal] daily cron scheduled")
+        except Exception as e:
+            logger.warning("[art-autoheal] setup failed: %s", e)
         await _ensure_voice_previews()
         try:
             _ensure_tuning_sfx()

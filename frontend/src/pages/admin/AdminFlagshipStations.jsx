@@ -19,6 +19,8 @@ import AdminPageHeader from "@/components/AdminPageHeader";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
+const ART_HISTORY_MAX = 5;   // mirrors backend artwork_history cap
+
 const STATUS_STYLES = {
   healthy:         "bg-emerald-500/15 text-emerald-500",
   pending:         "bg-amber-500/15 text-amber-500",
@@ -57,6 +59,7 @@ export default function AdminFlagshipStations() {
   const [addOpen, setAddOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [deleteRow, setDeleteRow] = useState(null);
+  const [galleryRow, setGalleryRow] = useState(null);   // art-variation gallery
 
   const showToast = useCallback((kind, message) => {
     setToast({ kind, message });
@@ -311,10 +314,18 @@ export default function AdminFlagshipStations() {
                                       }`}
                             data-testid={`admin-flagship-row-${slug}`}>
                   <div className="flex items-center gap-3 min-w-0">
-                    <img src={artOf(s)} alt=""
-                              onError={(e) => { if (s.favicon && e.currentTarget.src !== s.favicon) e.currentTarget.src = s.favicon; }}
-                              data-testid={`admin-flagship-${slug}-logo-preview`}
-                              className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-slate-800/40" />
+                    <button type="button" onClick={() => setGalleryRow(s)}
+                                    data-testid={`admin-flagship-${slug}-open-gallery`}
+                                    title="View art variations · pick a favourite"
+                                    className="relative group/art w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-slate-800/40">
+                      <img src={artOf(s)} alt=""
+                                onError={(e) => { if (s.favicon && e.currentTarget.src !== s.favicon) e.currentTarget.src = s.favicon; }}
+                                data-testid={`admin-flagship-${slug}-logo-preview`}
+                                className="w-full h-full object-cover" />
+                      <span className="absolute inset-0 hidden group-hover/art:flex items-center justify-center bg-black/50">
+                        <ImagePlus className="w-3.5 h-3.5 text-white" />
+                      </span>
+                    </button>
                     <div className="min-w-0">
                       <div className="font-semibold truncate">{s.name}</div>
                       <div className={`text-[10px] ${light ? "text-slate-500" : "text-slate-500"} truncate`}>
@@ -415,6 +426,16 @@ export default function AdminFlagshipStations() {
           row={deleteRow}
           light={light}
           onClose={() => setDeleteRow(null)}
+          onSuccess={(msg) => { setRefresher((n) => n + 1); showToast("success", msg); }}
+          onError={(msg) => showToast("error", msg)}
+        />
+      )}
+      {galleryRow && (
+        <ArtGalleryModal
+          row={galleryRow}
+          light={light}
+          onClose={() => setGalleryRow(null)}
+          onGenerate={(s) => { setGalleryRow(null); genArt(s); }}
           onSuccess={(msg) => { setRefresher((n) => n + 1); showToast("success", msg); }}
           onError={(msg) => showToast("error", msg)}
         />
@@ -917,6 +938,130 @@ function FlagshipDeleteModal({ row, light, onClose, onSuccess, onError }) {
                           : hard ? <Trash2 className="w-4 h-4" />
                                           : <ChevronDown className="w-4 h-4" />}
             {hard ? "Permanently delete" : "Retire station"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ═════════════════════════════════════════════════════════════════
+// ArtGalleryModal — the station's recent AI covers as pickable
+// thumbnails.  Tap one to restore it as the live cover in one tap.
+// ═════════════════════════════════════════════════════════════════
+function ArtGalleryModal({ row, light, onClose, onGenerate, onSuccess, onError }) {
+  const [loading, setLoading] = useState(true);
+  const [current, setCurrent] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [busyUrl, setBusyUrl] = useState(null);
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await axios.get(
+          `${API}/imported-stations/${row.id}/artwork/history`);
+        if (cancel) return;
+        setCurrent(data.current || null);
+        setHistory(data.history || []);
+      } catch (_) {
+        if (!cancel) { setCurrent(null); setHistory([]); }
+      } finally { if (!cancel) setLoading(false); }
+    })();
+    return () => { cancel = true; };
+  }, [row.id]);
+
+  async function restore(url) {
+    setBusyUrl(url);
+    try {
+      await axios.post(`${API}/imported-stations/${row.id}/artwork/restore`,
+                                      { art_url: url });
+      onSuccess(`Restored a previous cover for ${row.name}`);
+      onClose();
+    } catch (err) {
+      const d = err?.response?.data?.detail;
+      onError(`Restore failed: ${(d && (d.error || d.code)) || err.message || "restore_failed"}`);
+    } finally { setBusyUrl(null); }
+  }
+
+  const abs = (u) => (!u ? u : (u.startsWith("http")
+    ? u : `${process.env.REACT_APP_BACKEND_URL || ""}${u}`));
+  const bg = light ? "bg-white" : "bg-slate-900";
+  const border = light ? "border-slate-200" : "border-slate-800";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto"
+              data-testid="admin-flagship-gallery-modal"
+              onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className={`${bg} border ${border} rounded-2xl shadow-2xl max-w-2xl w-full my-8`}>
+        <div className={`px-6 py-4 border-b ${border} flex items-center justify-between`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <ImagePlus className={`w-5 h-5 ${light ? "text-purple-600" : "text-purple-400"}`} />
+            <h2 className="text-lg font-bold truncate">Art variations · {row.name}</h2>
+          </div>
+          <button onClick={onClose} className={`p-1.5 rounded-md ${light ? "hover:bg-slate-100" : "hover:bg-slate-800"}`}
+                          data-testid="admin-flagship-gallery-close">
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {loading ? (
+            <Loader2 className="w-6 h-6 animate-spin text-purple-500 mx-auto my-8" />
+          ) : (
+            <div className="grid grid-cols-3 gap-4" data-testid="admin-flagship-gallery-grid">
+              {current && (
+                <div className="relative" data-testid="admin-flagship-gallery-current">
+                  <div className="w-full aspect-square rounded-xl overflow-hidden ring-2 ring-purple-500"
+                            style={{ background: "linear-gradient(135deg,#6d28d9,#db2777)" }}>
+                    <img src={abs(current)} alt="current cover"
+                              onError={(e) => { e.currentTarget.style.display = "none"; }}
+                              className="w-full h-full object-cover" />
+                  </div>
+                  <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-purple-500 text-white text-[10px] font-bold uppercase tracking-wider">
+                    Current
+                  </span>
+                </div>
+              )}
+              {history.map((h, i) => (
+                <button type="button" key={h.url + i}
+                                onClick={() => restore(h.url)}
+                                disabled={!!busyUrl}
+                                data-testid={`admin-flagship-gallery-item-${i}`}
+                                title="Use this cover"
+                                style={{ background: "linear-gradient(135deg,#312e81,#831843)" }}
+                                className="relative group aspect-square rounded-xl overflow-hidden disabled:opacity-60">
+                  <img src={abs(h.url)} alt={`variation ${i + 1}`}
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                            className="w-full h-full object-cover" />
+                  <span className={`absolute inset-0 flex items-center justify-center gap-1 text-white text-xs font-semibold transition ${
+                                    busyUrl === h.url ? "bg-black/60" : "bg-black/0 group-hover:bg-black/55 opacity-0 group-hover:opacity-100"}`}>
+                    {busyUrl === h.url
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <><CheckCircle2 className="w-3.5 h-3.5" /> Use this</>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {!loading && !history.length && (
+            <div className={`mt-4 text-center text-sm ${light ? "text-slate-500" : "text-slate-400"}`}
+                        data-testid="admin-flagship-gallery-empty">
+              No previous covers yet — generate a few variations to build the gallery.
+            </div>
+          )}
+        </div>
+
+        <div className={`px-6 py-4 border-t ${border} flex items-center justify-between gap-2`}>
+          <div className={`text-[11px] ${light ? "text-slate-500" : "text-slate-500"}`}>
+            The last {ART_HISTORY_MAX} covers are kept. Tap any to make it live.
+          </div>
+          <button onClick={() => onGenerate(row)}
+                          data-testid="admin-flagship-gallery-generate"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500 text-white text-sm font-semibold hover:bg-purple-400 transition">
+            <Sparkles className="w-4 h-4" /> Generate new variation
           </button>
         </div>
       </div>

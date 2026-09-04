@@ -228,8 +228,17 @@ async def ensure_flagship_art(request: Request):
     (b) its stored `/api/static/…` art file has vanished from both disk
     and durable storage (e.g. a production redeploy wiped the disk before
     the durability fix landed). Generated art embeds the station name +
-    dial via a Pillow title band and is persisted durably."""
+    dial via a Pillow title band and is persisted durably. Shared with the
+    daily auto-heal cron via `run_flagship_art_heal`."""
     db = request.app.state.db
+    return {"ok": True, "queued": await run_flagship_art_heal(db)}
+
+
+async def run_flagship_art_heal(db: Any) -> int:
+    """Queue AI regeneration for flagships whose art is a placeholder /
+    absent OR whose stored `/api/static/…` file has vanished. Returns the
+    number queued. Idempotent — used by both the route above and the daily
+    auto-heal cron in server.py."""
     queued = 0
     async for s in db.imported_radio_stations.find(
             {"$or": [{"is_flagship": True}, {"flagship_slug": {"$ne": None}}]}).limit(50):
@@ -247,7 +256,7 @@ async def ensure_flagship_art(request: Request):
         await _set(db, s["id"], {"artwork_status": "queued", "art_gen_attempted": True})
         asyncio.create_task(_run_generation(db, sid=s["id"], prompt=_prompt_for(s), station=s))
         queued += 1
-    return {"ok": True, "queued": queued}
+    return queued
 
 
 

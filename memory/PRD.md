@@ -1087,6 +1087,13 @@ Three follow-ups. Testing agent **iteration_114**: **9/9 backend PASS** + all we
 - **#2 Fresh Art Variations** (`routes/imported_station_artwork.py` generate endpoint, `AdminFlagshipStations.jsx` + `LiveRadioStation.jsx`): the generate endpoint accepts `{variation:true}` → appends a nonce to the prompt so the cache key differs and a genuinely NEW alternate cover is produced (verified: two successive variation calls yield different art URLs). The previous cover is archived to `artwork_history` first (revertible). The admin per-row Sparkles button and the owner "Generate art" button now request fresh variations; the automatic self-heal/ensure paths still reuse cache.
 - **#3 News Ticker** (`NewsRadio.jsx` `NewsTicker`, `index.css` `.news-ticker-track` + `@keyframes news-ticker-scroll`): a sleek horizontally-scrolling headline ticker above the News Radio player — cyan "LIVE NEWS" pill + the queue headlines looping seamlessly (pause on hover), current item highlighted. Hides when the queue is empty.
 
+### 2026-08-29 (pt.6) — Daily auto-heal cron · ticker tap-through · admin variation gallery
+Three more follow-ups. Testing agent **iteration_115**: **8/8 backend PASS** + all web flows verified. No regressions.
+
+- **#1 Auto Heal Schedule** (`server.py` deferred-bootstrap cron, `routes/imported_station_artwork.py` `run_flagship_art_heal`): a daily background cron (15-min grace after boot, then every 24h) that quietly runs the flagship-art heal + channel-thumbnail heal, regenerating (durably) any missing cover so admins never have to click "Heal". The flagship heal logic was factored into a shared `run_flagship_art_heal(db)` used by both the route and the cron. Boot log: `[art-autoheal] daily cron scheduled`.
+- **#2 Ticker Tap-Through** (`NewsRadio.jsx` `NewsTicker`): each scrolling headline is now a button — tapping it jumps the player straight to that story (`onPick → setIdx`). Hover already pauses the scroll so a moving headline is easy to hit. `data-testid news-radio-ticker-item-<i>`.
+- **#3 Variation Gallery** (`AdminFlagshipStations.jsx` `ArtGalleryModal`): clicking a flagship row's cover opens a gallery of the station's recent AI covers (current + up to 5 history entries, reusing the existing `/artwork/history` + `/artwork/restore` endpoints). Tap any past cover to make it live in one tap; a "Generate new variation" button kicks off a fresh AI cover. Broken/older URLs degrade to a gradient instead of a broken-image icon.
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

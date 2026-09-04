@@ -15,7 +15,9 @@ import { API, useAuth } from "@/AuthContext";
 import VoicePicker from "@/components/VoicePicker";
 
 // Sleek horizontally-scrolling headline ticker shown above the player.
-function NewsTicker({ items, activeIdx }) {
+// Tapping a headline jumps the player straight to that story (hover pauses
+// the scroll so a moving headline is easy to click).
+function NewsTicker({ items, activeIdx, onPick }) {
   const entries = (items || [])
     .map((it, i) => ({ i, t: it.title }))
     .filter((e) => e.t);
@@ -43,10 +45,16 @@ function NewsTicker({ items, activeIdx }) {
             const active = e.i === activeIdx;
             return (
               <span key={k}
+                    role="button"
+                    tabIndex={0}
+                    data-testid={`news-radio-ticker-item-${e.i}`}
+                    onClick={() => onPick && onPick(e.i)}
+                    onKeyDown={(ev) => { if (ev.key === "Enter") onPick && onPick(e.i); }}
+                    title="Jump to this story"
                     style={{ display: "inline-flex", alignItems: "center",
                              color: active ? "#00d9ff" : "#cbd5e1",
                              fontSize: 13, fontWeight: active ? 700 : 400,
-                             whiteSpace: "nowrap" }}>
+                             whiteSpace: "nowrap", cursor: "pointer" }}>
                 <span style={{ color: "#00d9ff", margin: "0 14px", opacity: 0.7 }}>●</span>
                 {e.t}
               </span>
@@ -165,7 +173,7 @@ export default function NewsRadio() {
         <Radio size={22} color="#00d9ff" /> RadioLife News Radio
       </h1>
 
-      <NewsTicker items={items} activeIdx={idx} />
+      <NewsTicker items={items} activeIdx={idx} onPick={setIdx} />
 
       {user?.role === "admin" && voices.length > 0 && (
         <div data-testid="news-radio-voice-picker"
