@@ -67,13 +67,14 @@ export default function Home() {
       .then((r) => setClips(r.data?.items || [])).catch(() => setClips([]));
   }, [user]);
 
-  // Self-heal flagship art: if any flagship only has a placeholder (e.g. a
-  // fresh deploy with no seeded covers), kick off AI generation and refresh.
+  // Self-heal flagship art on every home load (and right after login):
+  // the backend regenerates any flagship whose cover is only a placeholder
+  // OR whose stored art file has vanished (e.g. a prod redeploy wiped the
+  // disk). Idempotent + fire-and-forget; we refresh tiles once it settles.
   const flCount = summary?.flagship_count || 0;
   useEffect(() => {
     const fl = summary?.flagships || [];
     if (!user || !fl.length) return;
-    if (!fl.some((f) => f.art_source === "placeholder")) return;
     axios.post(`${API}/imported-stations/ensure-flagship-art`).catch(() => {});
     const t = setTimeout(() => {
       axios.get(`${API}/shell/summary`, { withCredentials: true })

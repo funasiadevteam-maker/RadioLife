@@ -62,6 +62,23 @@ def public_url(key: str) -> str:
     return f"{PUBLIC_PREFIX}/{key}.webp"
 
 
+def _upload_durable(fp: Path, *, sub: str = "station_artwork") -> None:
+    """Best-effort durable copy of a just-written WebP to object storage,
+    using the exact key convention the `TigrisFallbackStaticFiles` reader
+    expects (`static/<sub>/<file>`). Skips the write when the object is
+    already present. Never raises — a durable-write miss must not fail
+    generation; it just means no cross-redeploy persistence."""
+    try:
+        from services.object_storage import get_storage
+        st = get_storage()
+        key = f"static/{sub}/{fp.name}"
+        if st.exists(key=key):
+            return
+        st.upload_bytes(key=key, data=fp.read_bytes(), content_type="image/webp")
+    except Exception as e:
+        log.warning("[image_gen] durable upload failed for %s: %s", fp.name, e)
+
+
 # ─── Rate-limit gate ────────────────────────────────────────────────────
 async def check_rate_limit(db: Any, user_id: str, tier: str) -> tuple[bool, int, int]:
     """Returns (allowed, used_in_window, limit).  Caller is expected to
@@ -180,6 +197,7 @@ async def generate(db: Any, *, prompt: str, user_id: str = "",
     fp  = cache_file(key)
     # 1. Disk-level dedupe.  Cheap; ~0ms.
     if fp.is_file() and fp.stat().st_size > 0:
+        _upload_durable(fp)   # opportunistic backfill to durable storage
         return {"ok": True, "url": public_url(key), "key": key,
                   "prompt": prompt, "source": "cached", "cached": True}
 
@@ -205,6 +223,7 @@ async def generate(db: Any, *, prompt: str, user_id: str = "",
     if not written:
         return {"ok": False, "error": "encode_failed",
                   "source": "gradient_fallback", "cached": False}
+    _upload_durable(fp)   # survive production redeploys
     return {"ok": True, "url": public_url(key), "key": key,
               "prompt": prompt, "source": "openai", "cached": False}
 
@@ -221,6 +240,7 @@ def persist_uploaded_bytes(raw: bytes, *, slug: str) -> Optional[dict]:
     written = _encode_webp(raw, out=out)
     if not written:
         return None
+    _upload_durable(out)   # survive production redeploys
     return {"url": public_url(key), "key": key}
 
 

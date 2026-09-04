@@ -200,18 +200,48 @@ async def ensure_artwork(sid: str, request: Request):
     return {"ok": True, "status": "queued"}
 
 
+def _static_asset_missing(url: Optional[str]) -> bool:
+    """True when a local `/api/static/…` asset is absent from BOTH local
+    disk and durable object storage (so a client fetch would 404).
+    External URLs (http, ui-avatars, presigned Tigris) are assumed OK.
+    Errs on the side of False so a probe failure never triggers needless
+    regeneration."""
+    try:
+        if not url or not str(url).startswith("/api/static/"):
+            return False
+        rel = str(url).split("?", 1)[0]                # strip cache-buster
+        key = rel[len("/api/"):]                         # static/<sub>/<file>
+        disk = Path("/app/backend") / key
+        if disk.is_file() and disk.stat().st_size > 0:
+            return False
+        from services.object_storage import get_storage
+        return not get_storage().exists(key=key)
+    except Exception:
+        return False
+
+
 @router.post("/ensure-flagship-art")
 async def ensure_flagship_art(request: Request):
-    """Self-heal: queue AI-art generation for flagship stations that only
-    have a placeholder (e.g. a fresh deploy with no seeded art). Idempotent.
-    Generated art embeds the station name + dial via a Pillow title band."""
+    """Self-heal flagship cover art. Idempotent. Queues AI generation for
+    a flagship when EITHER (a) it only has a placeholder / no art, OR
+    (b) its stored `/api/static/…` art file has vanished from both disk
+    and durable storage (e.g. a production redeploy wiped the disk before
+    the durability fix landed). Generated art embeds the station name +
+    dial via a Pillow title band and is persisted durably."""
     db = request.app.state.db
     queued = 0
     async for s in db.imported_radio_stations.find(
             {"$or": [{"is_flagship": True}, {"flagship_slug": {"$ne": None}}]}).limit(50):
-        if s.get("flagship_art") or s.get("art_url") or s.get("art_gen_attempted"):
-            continue
         if s.get("artwork_status") in ("running", "queued"):
+            continue
+        art_url = s.get("art_url") or s.get("flagship_art")
+        if not art_url:
+            # No real art yet — only a placeholder resolves. Generate once;
+            # skip if we already tried (avoids retry loops on hard failures).
+            if s.get("art_gen_attempted"):
+                continue
+        elif not _static_asset_missing(art_url):
+            # Art file is present (or an external URL) — nothing to heal.
             continue
         await _set(db, s["id"], {"artwork_status": "queued", "art_gen_attempted": True})
         asyncio.create_task(_run_generation(db, sid=s["id"], prompt=_prompt_for(s), station=s))

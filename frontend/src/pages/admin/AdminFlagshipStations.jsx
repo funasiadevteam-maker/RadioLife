@@ -106,6 +106,19 @@ export default function AdminFlagshipStations() {
       showToast("success", "Manifest re-seeded");
     } finally { setBusy(false); }
   }
+  async function healArt() {
+    setBusy(true);
+    try {
+      const { data } = await axios.post(`${API}/imported-stations/ensure-flagship-art`);
+      const n = data?.queued || 0;
+      showToast("success", n
+        ? `Regenerating art for ${n} station${n > 1 ? "s" : ""}… tiles refresh shortly`
+        : "All flagship artwork is healthy");
+      if (n) window.setTimeout(() => setRefresher((x) => x + 1), 20000);
+    } catch (_) {
+      showToast("error", "Heal artwork failed");
+    } finally { setBusy(false); }
+  }
   async function togglePreroll(row) {
     setBusy(true);
     try {
@@ -243,6 +256,15 @@ export default function AdminFlagshipStations() {
                                               : "border border-slate-700 text-slate-300 hover:bg-slate-800"
                             } disabled:opacity-50`}>
               <RefreshCw className="w-4 h-4" /> Re-seed manifest
+            </button>
+            <button onClick={healArt} disabled={busy}
+                            data-testid="admin-flagship-heal-art"
+                            title="Regenerate any flagship cover whose art is missing or broken (saved durably)"
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition ${
+                                light ? "border border-purple-300 text-purple-700 hover:bg-purple-50"
+                                              : "border border-purple-700 text-purple-300 hover:bg-purple-500/10"
+                            } disabled:opacity-50`}>
+              <Sparkles className="w-4 h-4" /> Heal artwork
             </button>
           </div>
         </div>

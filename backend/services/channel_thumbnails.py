@@ -172,6 +172,16 @@ def _save_as_webp(image_bytes: bytes, slug: str) -> Path | None:
             img = img.resize((1024, 1024), Image.LANCZOS)
         out = _file_path(slug)
         img.save(out, format="WEBP", quality=82, method=6)
+        # Durable copy so thumbnails survive production redeploys (the
+        # local disk is wiped on each deploy; the fallback reader looks
+        # under `static/channel_thumbnails/<file>`).
+        try:
+            from services.object_storage import get_storage
+            get_storage().upload_bytes(key=f"static/channel_thumbnails/{out.name}",
+                                        data=out.read_bytes(),
+                                        content_type="image/webp")
+        except Exception as _e:
+            logger.warning("[thumbnails] durable upload failed for %s: %s", slug, _e)
         return out
     except Exception as e:
         logger.error("[thumbnails] webp encode failed for %s: %s", slug, e)
