@@ -793,6 +793,24 @@ export default function Radio() {
               }
             </div>
 
+            {!user.is_premium && skipExhausted && (
+              <Link to="/pricing" data-testid="skip-upsell-cue"
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      marginTop: 10, padding: "10px 12px", borderRadius: 12,
+                      background: "rgba(160,32,240,0.10)", border: "1px solid rgba(160,32,240,0.35)",
+                      textDecoration: "none", color: "inherit",
+                    }}>
+                <Crown size={15} color="#ffd700" />
+                <span style={{ fontSize: 12.5, lineHeight: 1.3 }}>
+                  <b>6 skips an hour with Premium.</b> You're on {skipLimit} — next in {fmtCountdown(skipCountdown)}.
+                </span>
+                <span style={{ marginLeft: "auto", color: "#ffd700", fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap" }}>
+                  View Premium →
+                </span>
+              </Link>
+            )}
+
             {currentSeg?.rj_script && (
               <div className={`rj-bubble ${inRJ ? "active" : "dim"}`} data-testid="rj-bubble">
                 <div className="rj-tag mono">

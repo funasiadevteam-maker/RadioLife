@@ -287,10 +287,13 @@ import { useEffect as _useEffect_ } from "react";
 import axios from "axios";
 // Phase 15a — responsive shell + dev styleguide.
 import AppShell from "@/shell/AppShell";
+import AppShellB from "@/shell/AppShellB";
 import Styleguide from "@/shell/Styleguide";
 import { Toaster as _ShellToaster_ } from "sonner";
 // Phase 15b — Home dashboard, Trivia, Search.
 import Home from "@/Home";
+import HomeB from "@/HomeB";
+import AdminSkipRules from "@/pages/admin/AdminSkipRules";
 import Trivia from "@/Trivia";
 import TriviaPlay from "@/TriviaPlay";
 import { TriviaRoomCreate, TriviaJoin, TriviaRoom } from "@/TriviaRoom";
@@ -376,6 +379,8 @@ function ReferralCapture() {
 
 function AppRouter() {
   const location = useLocation();
+  const designVariant = useDesignVariantStore((s) => s.variant);
+  const Shell = designVariant === "classic_b" ? AppShellB : AppShell;
   if (location.hash?.includes("session_id=")) {
     return <AuthCallback />;
   }
@@ -396,7 +401,7 @@ function AppRouter() {
       <AdminSidebar />
       <AdminGlobalSearch />
       <PageFrame>
-      <AppShell>
+      <Shell>
       <Routes>
       <Route path="/" element={<RootGate />} />
       {/* Phase LAND.v2 — alternative positioning landing (public,
@@ -639,6 +644,9 @@ function AppRouter() {
       } />
       <Route path="/admin/imaging" element={
         <ProtectedRoute requireAdmin><AdminImaging /></ProtectedRoute>
+      } />
+      <Route path="/admin/radio-settings" element={
+        <ProtectedRoute requireAdmin><AdminSkipRules /></ProtectedRoute>
       } />
       <Route path="/admin/imaging/:station/assets" element={
         <ProtectedRoute requireAdmin><AdminImagingAssets /></ProtectedRoute>
@@ -1018,7 +1026,7 @@ function AppRouter() {
       <Route path="/coupon/:coupon_id" element={
         <ProtectedRoute><RadioLifeStubPage title="Coupon" hint="Enable RadioLife design to preview Redeem." /></ProtectedRoute>} />
       </Routes>
-      </AppShell>
+      </Shell>
       </PageFrame>
       {/* Phase R.1 — Overlay RadioLife variant on top of the legacy shell
             when the variant toggle is ON.  The wrapper reads the current
@@ -1056,8 +1064,10 @@ export default function App() {
 // listener chrome doesn't wrap the marketing surface.
 export function RootGate() {
   const { user, loading } = _useAuth_();
+  const designVariant = useDesignVariantStore((s) => s.variant);
   if (loading) return null;
-  return user ? <Home /> : <Landing />;
+  if (!user) return <Landing />;
+  return designVariant === "classic_b" ? <HomeB /> : <Home />;
 }
 
 // `/pricing` is a single URL with two faces:

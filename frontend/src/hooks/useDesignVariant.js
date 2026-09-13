@@ -11,7 +11,11 @@ import { create } from "zustand";
 
 const LS_KEY = "bigfm_design_variant";
 const QP_KEY = "design";
-const VALID = new Set(["legacy", "radiolife"]);
+const VALID = new Set(["legacy", "classic_b", "radiolife"]);
+
+function _clamp(v) {
+  return VALID.has(v) ? v : "legacy";
+}
 
 function readQueryVariant() {
   try {
@@ -41,7 +45,7 @@ function readInitial() {
   }
   try {
     const v = typeof window !== "undefined" && window.localStorage.getItem(LS_KEY);
-    return v === "radiolife" ? "radiolife" : "legacy";
+    return _clamp(v);
   } catch {
     return "legacy";
   }
@@ -50,7 +54,7 @@ function readInitial() {
 export const useDesignVariantStore = create((set) => ({
   variant: readInitial(),
   setVariant: (v) => {
-    const next = v === "radiolife" ? "radiolife" : "legacy";
+    const next = _clamp(v);
     try {
       if (typeof window !== "undefined") window.localStorage.setItem(LS_KEY, next);
     } catch { /* private mode etc — ignore */ }

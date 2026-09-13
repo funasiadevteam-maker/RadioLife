@@ -515,6 +515,23 @@ export default function RadioScreen() {
               )}
             </View>
 
+            {!user.is_premium && skipExhausted && (
+              <TouchableOpacity
+                testID="skip-upsell-cue"
+                onPress={() => router.push('/billing')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'center',
+                                marginBottom: SPACING.lg, paddingVertical: 10, paddingHorizontal: 12,
+                                borderRadius: 12, backgroundColor: 'rgba(160,32,240,0.12)',
+                                borderWidth: 1, borderColor: 'rgba(160,32,240,0.35)', maxWidth: 340 }}>
+                <Ionicons name="diamond" size={14} color={COLORS.gold} />
+                <Text style={{ color: COLORS.textDim, fontSize: 12.5, flexShrink: 1 }}>
+                  <Text style={{ fontWeight: '800', color: COLORS.text }}>6 skips an hour with Premium.</Text>{' '}
+                  Next in {fmtCountdown(skipCountdown)}.
+                </Text>
+                <Text style={{ color: COLORS.gold, fontWeight: '800', fontSize: 12.5 }}>View →</Text>
+              </TouchableOpacity>
+            )}
+
             {/* RJ Script */}
             {currentSeg?.rj_script && (
               <View style={[s.rjBubble, inRJ && { borderColor: COLORS.secondary }]} testID="rj-bubble">

@@ -1107,6 +1107,17 @@ Kickoff of a large multi-phase consumer-UX program (nav consolidation, audio-fir
 
 **Remaining phases (next):** P2 Navigation (Classic-B duplicate: Home·Listen·Shop·Play·Social + Wallet header mini-wallet + avatar menu) → P3 Audio-first Home → P4 Listen aggregator + My Radio + Like/Less + "Why this?" → P5 Public landing hierarchy → P6 remove internal "Phase" labels + BrandConfig. Note: mobile Expo web-preview has a pre-existing CORS issue that blocks live DOM QA there (source verified).
 
+### 2026-08-29 (pt.8) — Consumer UX PHASE 2 (Classic-B nav) + PHASE 3-start + skip follow-ups
+Testing agent **iteration_117**: web **PASS, no blockers**. Mobile skip cue source-verified (Expo web-preview has a pre-existing CORS QA limitation).
+
+- **PHASE 2 — Classic-B shell** (`shell/AppShellB.jsx` = duplicated classic shell; `shell/VariantSwitcher.jsx`; `hooks/useDesignVariant.js` now 3 variants). Consumer nav consolidated to **Home · Listen · Shop · Play · Social** (Listen→/radio, Social→/community bridges for now; Shop/Play existing). Wallet removed from primary nav. A 3-way switcher offers **Classic A** (original, untouched) / **Classic B** (new) / **New Look** (RadioLife); persisted to `localStorage.bigfm_design_variant`; shell chosen in `App.js AppRouter`. Classic A verified pristine.
+- **Header mini-wallet** (`shell/HeaderMiniWallet.jsx`): one-tap BigPoints pill → drawer with balance, tier, points-to-next, top ways-to-earn, and EARN MORE / USE REWARDS / OPEN WALLET actions. Avatar menu gained Wallet + Premium.
+- **PHASE 3 start — audio-first HomeB** (`HomeB.jsx`, rendered by `RootGate` only in Classic B): leads with **Continue Listening** (resume card, or a big Start-My-Radio card) + a single **For You** rail. Classic A keeps the original Home.
+- **Skip Rules Admin UI** (`pages/admin/AdminSkipRules.jsx` @ `/admin/radio-settings`): tune Free/Premium skips + window via the existing `/api/admin/radio/skip-rules`; loads current, saves, persists.
+- **Premium Skip Upsell**: gentle inline cue (`skip-upsell-cue`) on the web (`Radio.js`) + mobile (`app/(tabs)/radio.tsx`) shown to Free listeners ONLY after they exhaust their 1 skip ("6 skips an hour with Premium" → /pricing); no forced modal, playback continues.
+
+**Remaining program phases:** P3 continue (chip-bar simplification, Earn/Play/Shop/Social Home rails, content limits, personalization signals via HomeRecommendationService) → P4 Listen aggregator page + My Radio + Like/Less + "Why this?" → P5 public landing hierarchy → P6 remove internal "Phase" labels + BrandConfig → apply Classic-B changes to New Look once user verifies Classic B.
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

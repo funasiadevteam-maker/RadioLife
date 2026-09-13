@@ -20,7 +20,7 @@ import { MiniPlayer } from "./primitives";
 import MobilePremiumStrip from "./MobilePremiumStrip";
 import { useAuth } from "@/AuthContext";
 import { useRoleNav } from "@/lib/roleNav";
-import { useDesignVariantStore } from "@/hooks/useDesignVariant";
+import VariantSwitcher from "./VariantSwitcher";
 import { useGeoStore } from "@/store/useGeoStore";
 import CityChip from "@/components/CityChip";
 import ChannelCategoryFooter from "@/components/ChannelCategoryFooter";
@@ -447,24 +447,7 @@ function PersistentPlayer() {
 
 // "Try new look" toggle (kept — parallel RadioLife design variant).
 function TryNewLookToggle() {
-  const { user } = useAuth();
-  const variant = useDesignVariantStore((s) => s.variant);
-  const toggle = useDesignVariantStore((s) => s.toggle);
-  if (!user) return null;
-  const active = variant === "radiolife";
-  return (
-    <button type="button" onClick={toggle} data-testid="try-new-look-toggle" aria-pressed={active}
-      title={active ? "Switch back to the classic design" : "Try the new RadioLife design"}
-      className={[
-        "h-9 px-3 rounded-full border text-[11px] font-semibold uppercase tracking-widest",
-        "transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap",
-        active ? "text-white border-transparent shadow-md" : "text-text-secondary hover:text-text-primary",
-      ].join(" ")}
-      style={active ? { background: "linear-gradient(135deg, #A020F0, #EC4899)" } : { borderColor: "var(--line)" }}>
-      <Sparkles size={12} />
-      <span className="hidden xl:inline">{active ? "RadioLife ON" : "Try new look"}</span>
-    </button>
-  );
+  return <VariantSwitcher />;
 }
 
 // ─── Mobile / Tablet (<1024) ────────────────────────────────────────────

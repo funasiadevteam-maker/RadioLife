@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 117 — WEB live testing of Phase 2 (Classic-B shell + 3-way variant switcher + header mini-wallet) and Phase 3-start (audio-first HomeB + Premium Skip Upsell + Skip Rules Admin UI). All requested Phase-2/3 UI surfaces verified live in the DOM: variant-switcher opens with 3 options (Classic A / Classic B / New Look) and persists to localStorage 'bigfm_design_variant'; Classic B renders AppShellB with primary nav Home · Listen · Shop · Play · Social (nav-wallet is NOT present as a primary tab — correct); header mini-wallet-pill shows 477 BP for demo@, drawer exposes mini-wallet-balance-big, mini-wallet-tier, and the three action buttons Earn More / Use Rewards / Open Wallet, plus 'Earn right now' rows; avatar-menu in Classic B has menu-wallet and menu-premium; RootGate at '/' renders home-b for logged-in Classic B users with home-b-continue (start-card path with home-b-start-btn since no active session) + home-b-foryou (8 station tiles + home-b-foryou-seeall → /radio); switching variant live (Classic B → Classic A) swaps the shell in place, hides home-b, and legacy still shows Home · Radio · Shop & Eat · Games · Wallet; switching to New Look loads the radiolife light overlay. Admin (admin@bigfm.dubai) can open /admin/radio-settings, sees admin-skip-rules with correct current policy Free=1/Premium=6/60min, editing to 2/8/30 and clicking admin-skip-save shows 'Skip rules saved.' in admin-skip-msg AND persists across reload (backend GET /api/admin/radio/skip-rules returns the same values). Restored to 1/6/60 at end of test. Skip-upsell-cue is correctly ABSENT for the free demo user before the skip is exhausted on /radio (`!user.is_premium && skipExhausted` gate) — the post-exhaustion appearance was source-verified in Radio.js:796-812 but could not be exercised live in a headless browser (would need real audio playback + a full skip cycle). Backend GET/PUT /api/admin/radio/skip-rules confirmed authoritatively working via curl.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/radio/skip-state", "issue": "Route returns 404 (Not Found). Not exposed as a standalone endpoint — skip meta is delivered via the segment/skip POST responses instead. Not a defect for this batch, just an inventory note for the next agent."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "Radio.js skip-upsell-cue copy", "issue": "Cue text reads 'You're on 1 — next in {countdown}'. The '1' is hard-coded to the free-tier limit and will drift the moment an admin changes Free skips from 1 in /admin/radio-settings. Should read the live limit from the same skip-state hook that drives skipExhausted (e.g. skipUsed/skipLimit) so it stays truthful when a non-default policy is saved. Reference: /app/frontend/src/Radio.js:806.", "selector": "[data-testid='skip-upsell-cue']", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "HomeB / (Classic B, logged-in)", "issues": ["The legacy filter-chip bar (All · My stations · Radio 14 · Eat 6 · Salons 3 · Fitness 2 · Shops 2 · Games 3 · Trivia · Offers 13 · World 5,368) still shows above the audio-first HomeB layout. Per the agent-to-agent note this is intentional for this batch (Phase-3 PART 13 chip simplification is deferred). Flagging only so it isn't lost — no fix required now."]}
+      ]
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": ["/app/backend/tests/test_iter116_skip_policy.py"],
+  "action_items": [
+    "OPTIONAL (medium): Make skip-upsell-cue copy in /app/frontend/src/Radio.js:806 dynamic — replace the literal 'on 1' with 'on {skipLimit}' (or 'on your {skipLimit} skip{s}') so the cue stays accurate if an admin edits Free skips via /admin/radio-settings.",
+    "NO-OP for this batch: filter-chip bar simplification on HomeB is deferred to a later Phase-3 step per the agent-to-agent note.",
+    "Next-agent: re-verify skip-upsell-cue appearance by seeding a playback_logs 'skip' event for a free user (or by doing one real audio skip on /radio) and confirming the cue renders + does NOT render for a premium user."
+  ],
+  "critical_code_review_comments": [
+    "useDesignVariant.js: `toggle()` still only swaps between 'radiolife' and 'legacy' — with the new 3-way switcher, `toggle` is dead code that could confuse future callers (it will silently drop 'classic_b' → 'radiolife'). Recommend either removing `toggle` or making it cycle through all three variants.",
+    "AppShellB.jsx: primary tabs bar exposes 'shop'/'play' badges via nav-badge-shop/games — good testability. Consider adding data-testid to the SEARCH form for parity with the legacy shell (already present as topbar-search-form — verified).",
+    "HomeB.jsx: uses `useShellSummary()` (flagships) as the For-You feed source. This is a reasonable v1 but is NOT actually personalized — the copy 'For You' + 'personalized picks will appear here' can mislead. Consider swapping to a personalized endpoint or renaming the rail to 'Featured stations' until real personalization is wired.",
+    "AdminSkipRules.jsx: max caps of 20/50/1440 are sensible; consider also validating that `free <= premium` on the client (backend already accepts arbitrary values) to prevent an admin from saving Free=10/Premium=2 by mistake."
+  ],
+  "updated_files": ["/app/test_reports/iteration_117.json"],
+  "success_rate": {"backend": "100% (all endpoints checked live returned expected shapes)", "frontend": "100% of live-testable Phase-2 + Phase-3-start surfaces PASS. Skip-upsell-cue post-exhaustion path source-verified only."},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (free tier, cookie); admin@bigfm.dubai / AdminPass123! (admin, cookie). Both used via /api/auth/login. Cookie auth (axios withCredentials) verified working.",
+  "seed_data_creation": "During testing (all restored on teardown): admin skip-rules PUT overrode policy to {free:2, premium:8, window_sec:1800} then restored to {free:1, premium:6, window_sec:3600} via a second admin-skip-save. No other DB mutations.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 117 — Phase 2 (Classic-B shell + 3-way variant switcher + header mini-wallet + avatar menu Wallet/Premium) and Phase 3-start (HomeB + Skip Rules Admin UI + Skip Upsell gating) all PASS live in the WEB DOM. Only the FREE-skip-exhaustion path for skip-upsell-cue was NOT live-exercised (headless audio playback not viable); its logical gate `!user.is_premium && skipExhausted` in Radio.js:796 is source-correct. Backend skip policy from iter116 (Free=1 / Premium=6 / rolling 60min) still enforced on the shared backend, verified via GET /api/admin/radio/skip-rules and the admin-UI reload persistence test. To fully close skip-upsell-cue: seed a playback_logs {type:'skip', ts:<now-30s>} row for demo@ user_id, reload /radio, expect the cue to render for demo (free) and be absent for premium@. Backend admin skip-rules restored to 1/6/3600 at end of test; safe to re-run.",
+  "rca of the issue": "No unresolved defects for this batch. One deferred item is called out (skip-upsell-cue hard-coded '1' — will drift if admin changes Free skips) and one intentional deferral (filter-chip simplification on HomeB) is flagged per agent-to-agent note."
+}
