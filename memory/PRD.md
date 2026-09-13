@@ -1,5 +1,18 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## PROGRAMMATIC API — PHASE B: WRITE-SAFETY + QUOTES (2026-09 fork) — testing iter121 33/33 PASS, no bugs, Phase A regression intact
+Extended /api/v1 (no rebuild). Backend only:
+- **POST /api/v1/quotes** (`ad_product_registry.compute_quote`) — server-authoritative pricing from RATE_CARD: base_rate × market × daypart × premium × (1+0.1·targeting_dims). Returns quote_id (stored in `api_quotes`, 24h TTL), effective_rate_cents, multipliers_applied, estimated_volume (impr/clicks/actions/plays/entries by model), minimum_spend_cents. Invalid model→400 invalid_pricing_model_for_product; unknown product→400 unknown_product. External clients can't submit arbitrary prices.
+- **Idempotency-Key** (`services/partner_api_ext.py`) — on POST /advertisers, /campaigns, /sponsorships, /quotes: same (partner_id, environment, endpoint, key) returns the original response (`partner_idempotency_keys`, unique index + 7-day TTL).
+- **external_id de-dup** — advertisers/campaigns/sponsorships accept `external_id`; (partner_id, environment, resource_type, external_id) unique in `partner_external_mappings`; re-send returns the existing object. `?external_id=` filter added to list endpoints.
+- **Cursor pagination** — `partner_api_ext.paginate()` opaque base64 offset cursors; `/campaigns` and `/sponsorships` return backward-compat `{items,count}` PLUS `{data,next_cursor,has_more}`; invalid cursor→400 invalid_cursor.
+- FEATURE_FLAGS now idempotency_keys/external_id/quotes = true. Indexes seeded on boot (`ensure_ext_indexes`).
+- Non-blocking hardening notes (later): move sponsorship cursoring into the DB query (currently `.limit(500)` in-memory); log idem_save non-dup failures; LIVE↔SANDBOX external_id parity only shape-verified.
+- Files: `services/partner_api_ext.py` (NEW), `services/ad_product_registry.py` (compute_quote), `routes/partner_api_v1.py` (create endpoints + /quotes + list cursors), `server.py` (boot indexes). Test: `/app/test_reports/iteration_121.json`.
+- NEXT: Phase C (creative library + signed upload-url + multi-format campaign line items + lifecycle) → D → E → F. Paused consumer items still pending: game-win crediting, /store storefront, coupon-cap dashboard, daily streak bonus, BigPoints DB migration.
+
+
+
 ## PROGRAMMATIC MEDIA/AD API — PHASE A: DISCOVERY & FOUNDATION (2026-09 fork) — testing iter120 14/14 PASS, no regression
 User pivoted to a master spec: turn RadioLife into a programmatic media/ad platform by EXTENDING the existing Partner API v1 (sub-FastAPI mounted at /api/v1, OAuth2 + API keys, LIVE/SANDBOX), NOT rebuilding, reusing existing ad/game/sponsorship engines. Agreed sequence: **A→B→C→D→E→F**. Phase A shipped (backend only):
 - **AdvertisingProductRegistry** (`backend/services/ad_product_registry.py`, NEW) — single source of truth reconciled with real engines: 17 products with status (available/beta/coming_soon/unavailable), api_bookable, pricing_models, creative_requirements, targeting_capabilities, internal_service, approval, reporting_metrics, consumer_placement. Also MARKETS (from MARKET_LEXICON: dubai/new_york/london/mumbai/los_angeles/dfw), TARGETING_OPTIONS, RATE_CARD (base rates + multipliers), inventory(), capabilities().

@@ -6051,6 +6051,7 @@ try:
     from routes.partner_portal import router as _partner_portal_router
     from routes.partner_portal import admin_router as _partner_admin_router
     from services.partner_api import ensure_partner_api as _ensure_partner_api
+    from services.partner_api_ext import ensure_ext_indexes as _ensure_ext_indexes
     _partner_v1_app.state.db = db
     app.mount("/api/v1", _partner_v1_app)
     app.include_router(_partner_portal_router)
@@ -6058,6 +6059,7 @@ try:
     try:
         import asyncio as _aio_pa
         _aio_pa.get_event_loop().create_task(_ensure_partner_api(db))
+        _aio_pa.get_event_loop().create_task(_ensure_ext_indexes(db))
     except RuntimeError:
         pass
     logger.info("RadioLife Ads API v1 wired: /api/v1 (+ /api/v1/docs), "

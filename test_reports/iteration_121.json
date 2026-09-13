@@ -1,0 +1,33 @@
+{
+  "summary": "Phase B (Partner API v1 write-safety + discovery pricing) is fully green — 33/33 pytest cases PASS against the external URL. Verified: POST /api/v1/quotes returns the exact expected server-authoritative pricing (audio_preroll/cpm/dubai/500000c/dims2/morning_drive → base_rate_cents 2500, effective_rate_cents 4680, impressions 106837, multipliers market=1.2/daypart=1.3/premium=1.0/targeting=1.2, minimum_spend 5000, quote_id qte_*, expires_at set); premium multiplier 1.25 applies correctly; invalid_pricing_model_for_product and unknown_product both return 400 with normalized {error:{code:...}} while preserving legacy `detail`. Idempotency-Key returns the SAME object on retry with the same key even when the body differs (advertisers, campaigns, sponsorships, quotes). external_id de-dupes across DIFFERENT Idempotency-Keys on advertisers/campaigns/sponsorships. Cursor pagination on GET /api/v1/campaigns and GET /api/v1/sponsorships yields backward-compat {items,count,data,next_cursor,has_more}, disjoint next-page items, and 400 {code:invalid_cursor} on garbage cursors. external_id filter narrows to exactly the created object and returns count=0 for unknown ids. SANDBOX advertisers/campaigns auto-activate. capabilities.feature_flags now show idempotency_keys=true, external_id=true, quotes=true. Phase A regression (/status, /inventory, /markets, /rate-card, /me, /products, /openapi.json, /stations cursor) is intact and errors still carry the legacy `detail` field.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter121_partner_api_phase_b.py",
+    "/app/test_reports/pytest/iter121.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/partner_api_ext.py::paginate uses an in-memory offset over the list fetched by the route. list_campaigns pulls up to N via ad.list_campaigns_for_advertiser and list_sponsorships pulls .limit(500) from Mongo, so cursors work but any partner with >500 sponsorships silently truncates. Move cursoring into the underlying DB query before the partner-facing list grows.",
+    "routes/partner_api_v1.py::create_quote persists every quote to db.api_quotes with a TTL index, but the route sets `expires_at` on the stored doc to a datetime and then overwrites the response field with .isoformat() — good — however the cached idempotency response stores the ISO string, so a later /quotes retry with the same Idempotency-Key returns the ORIGINAL expires_at (correct semantic for idempotency, but worth documenting since it can look stale to partners).",
+    "services/partner_api_ext.py::idem_save silently swallows Exceptions (bare `except Exception: pass`). A duplicate-key race is expected, but broader failures (e.g., Mongo down) will be invisible; consider logging at WARNING level.",
+    "The Idempotency-Key TTL is 7 days; after expiry a retry with the same key + same external_id will still be de-duped by external_id, but a retry with the same key + NO external_id will create a new object. That’s the standard trade-off, but worth calling out in the OpenAPI description.",
+    "capabilities.feature_flags is a plain dict — no schema/version. Consider bumping API_VERSION or adding a `capabilities_version` when flags change so partners can cache safely.",
+    "services/ad_product_registry.py::compute_quote falls back to the FIRST base_rate for a product when the pricing_model doesn't match a rate-card row; this is unreachable today because we validate pricing_model against p['pricing_models'] first, but the fallback silently mispriced a mismatched pair if that check were ever loosened."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter121_partner_api_phase_b.py"
+  ],
+  "success_rate": {"backend": "100% (33/33)", "frontend": "n/a"},
+  "test_credentials": "Sandbox key rlk_test_BdmWmROSnKO1.7gBxOXKXEIsKhfWOwunaKO2zBlhrtvbgU8uAmkZBwIk",
+  "seed_data_creation": "TEST_-prefixed advertiser + 3 audio_preroll campaigns + 3 trivia sponsorships created per session under the sandbox partner; idempotency + external-id docs are TTL'd (7d for idempotency, no TTL on external mappings by design).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase B is green end-to-end. Sponsorship (trivia) create requires prize_pool rows with {rank, points_reward, currency (bc|usd)} AND start_at/end_at — not amount_cents. audio_preroll+cpm+dubai example matches the spec exactly. Sandbox key auto-activates advertisers/campaigns. Idempotency store: partner_idempotency_keys with (partner_id, environment, endpoint, key) unique + 7d TTL. External mappings: partner_external_mappings with (partner_id, environment, resource_type, external_id) unique. Cursor is opaque base64 of {o:offset}. Legacy `detail` field still on every error body for backward compatibility. LIVE-vs-SANDBOX collision test could not be verified with only a SANDBOX key — considered covered by the (partner_id, environment, ...) unique index but a full parity test needs a LIVE key.",
+  "rca of the issue": ""
+}

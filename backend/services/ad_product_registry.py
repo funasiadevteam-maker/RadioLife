@@ -370,13 +370,66 @@ def inventory() -> list[dict]:
 FEATURE_FLAGS = {
     "multi_format_campaigns": False,   # Phase C
     "creative_library": False,         # Phase C
-    "idempotency_keys": False,         # Phase B
-    "external_id": False,              # Phase B
-    "quotes": False,                   # Phase B
+    "idempotency_keys": True,          # Phase B
+    "external_id": True,               # Phase B
+    "quotes": True,                    # Phase B
     "webhooks": True,
     "sandbox": True,
     "openrtb": True,
 }
+
+
+def compute_quote(*, product: str, pricing_model: str,
+                  market: Optional[str] = None, budget_cents: int = 0,
+                  targeting_dimensions: int = 0, daypart: Optional[str] = None,
+                  premium: bool = False) -> dict:
+    """Server-authoritative pricing estimate from the rate card. External
+    clients cannot submit arbitrary low prices — this is the source of truth."""
+    p = by_key(product)
+    if not p:
+        raise ValueError("unknown_product")
+    if pricing_model not in p["pricing_models"]:
+        raise ValueError("invalid_pricing_model_for_product")
+    base = next((r["amount_cents"] for r in RATE_CARD["base_rates"]
+                 if r["product"] == product and r["model"] == pricing_model), None)
+    if base is None:
+        base = next((r["amount_cents"] for r in RATE_CARD["base_rates"]
+                     if r["product"] == product), 1000)
+    mkt_mult = dp_mult = 1.0
+    for m in RATE_CARD["multipliers"]:
+        if m["key"] == "market" and market:
+            mkt_mult = float(m["examples"].get(market, 1.0))
+        elif m["key"] == "daypart" and daypart:
+            dp_mult = float(m["examples"].get(daypart, 1.0))
+    prem_mult = 1.25 if premium else 1.0
+    tgt_mult = 1.0 + 0.1 * max(0, int(targeting_dimensions or 0))
+    effective = base * mkt_mult * dp_mult * prem_mult * tgt_mult
+    eff_int = int(round(effective))
+    est: dict = {}
+    b = int(budget_cents or 0)
+    if effective > 0 and b > 0:
+        if pricing_model in ("cpm", "per_impression"):
+            est["impressions"] = int(b / effective * 1000)
+        elif pricing_model == "cpc":
+            est["clicks"] = int(b / effective)
+        elif pricing_model in ("cpa", "cpl"):
+            est["actions"] = int(b / effective)
+        elif pricing_model == "cost_per_play":
+            est["plays"] = int(b / effective)
+        elif pricing_model == "per_entry":
+            est["entries"] = int(b / effective)
+        else:  # flat / prize_pool / revenue_share
+            est["flights"] = 1
+    return {
+        "product": product, "pricing_model": pricing_model, "market": market,
+        "currency": RATE_CARD["currency"], "base_rate_cents": base,
+        "effective_rate_cents": eff_int,
+        "multipliers_applied": {"market": mkt_mult, "daypart": dp_mult,
+                                "premium": prem_mult, "targeting": round(tgt_mult, 2)},
+        "estimated_volume": est,
+        "minimum_spend_cents": max(eff_int, 5000),
+        "estimated_total_cents": b,
+    }
 
 
 async def supported_game_types(db) -> list[dict]:
@@ -416,5 +469,5 @@ async def capabilities(db, environment: str = "LIVE") -> dict:
 __all__ = [
     "API_VERSION", "REGISTRY", "registry_list", "by_key", "bookable",
     "markets", "market_ids", "TARGETING_OPTIONS", "RATE_CARD", "inventory",
-    "FEATURE_FLAGS", "capabilities", "supported_game_types",
+    "FEATURE_FLAGS", "capabilities", "supported_game_types", "compute_quote",
 ]

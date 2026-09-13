@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from datetime import timedelta
 from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -27,6 +28,7 @@ from services import rj_sponsored_read_service as rj
 from services import partner_api as pa
 from services import partner_marketplace as mkt
 from services import ad_product_registry as reg
+from services import partner_api_ext as ext
 from services.partner_api import Caller, require_scopes
 
 log = logging.getLogger("bigfm.partner_api.v1")
@@ -310,12 +312,21 @@ class AdvertiserCreate(BaseModel):
     website: Optional[str] = None
     industry: Optional[str] = None
     logo_url: Optional[str] = None
+    external_id: Optional[str] = Field(None, description="Your own id for this advertiser (de-dupes retries)")
 
 
 @partner_app.post("/advertisers", tags=["advertisers"], status_code=201)
 async def create_advertiser(body: AdvertiserCreate, request: Request,
                             caller: Caller = Depends(require_scopes("advertisers:write"))):
     db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_advertiser", idem)
+    if cached is not None:
+        return cached
+    dup = await ext.external_get(db, caller, "advertiser", body.external_id)
+    if dup is not None:
+        await ext.idem_save(db, caller, "create_advertiser", idem, dup)
+        return dup
     try:
         adv = await ad.create_advertiser(
             db, owner_user_id=caller.owner_id, name=body.name,
@@ -333,7 +344,11 @@ async def create_advertiser(body: AdvertiserCreate, request: Request,
     else:
         await ad.submit_advertiser_for_approval(db, advertiser_id=aid, user=_svc_user(caller))
         adv["status"] = "pending_approval"
-    return {"advertiser": adv, "environment": caller.environment}
+    result = {"advertiser": adv, "external_id": body.external_id,
+              "environment": caller.environment}
+    await ext.external_save(db, caller, "advertiser", body.external_id, aid, result)
+    await ext.idem_save(db, caller, "create_advertiser", idem, result)
+    return result
 
 
 @partner_app.get("/advertisers/{advertiser_id}", tags=["advertisers"])
@@ -416,12 +431,61 @@ class CampaignCreate(BaseModel):
     end_at: Optional[str] = None
     targeting: Targeting = Field(default_factory=Targeting)
     creative: Creative = Field(default_factory=Creative)
+    external_id: Optional[str] = Field(None, description="Your own id for this campaign (de-dupes retries)")
+
+
+class QuoteRequest(BaseModel):
+    product: str
+    pricing_model: str = "cpm"
+    market: Optional[str] = None
+    budget_cents: int = Field(0, ge=0)
+    targeting_dimensions: int = Field(0, ge=0)
+    daypart: Optional[str] = None
+    premium: bool = False
+
+
+@partner_app.post("/quotes", tags=["catalog"])
+async def create_quote(body: QuoteRequest, request: Request,
+                       caller: Caller = Depends(require_scopes("catalog:read"))):
+    """Server-authoritative pricing estimate. External systems cannot submit
+    arbitrary low prices — the rate card remains the source of truth."""
+    db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_quote", idem)
+    if cached is not None:
+        return cached
+    try:
+        q = reg.compute_quote(
+            product=body.product, pricing_model=body.pricing_model, market=body.market,
+            budget_cents=body.budget_cents, targeting_dimensions=body.targeting_dimensions,
+            daypart=body.daypart, premium=body.premium)
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    now = pa._now()
+    quote_id = "qte_" + uuid.uuid4().hex[:16]
+    expires_at = now + timedelta(hours=24)
+    q.update({"quote_id": quote_id, "environment": caller.environment,
+              "created_at": now.isoformat()})
+    await db.api_quotes.insert_one({"_id": quote_id, "partner_id": caller.partner_id,
+                                    "environment": caller.environment,
+                                    "expires_at": expires_at, **q})
+    q["expires_at"] = expires_at.isoformat()
+    await ext.idem_save(db, caller, "create_quote", idem, q)
+    return q
 
 
 @partner_app.post("/campaigns", tags=["campaigns"], status_code=201)
 async def create_campaign(body: CampaignCreate, request: Request,
                           caller: Caller = Depends(require_scopes("campaigns:write"))):
     db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_campaign", idem)
+    if cached is not None:
+        return cached
+    dup = await ext.external_get(db, caller, "campaign", body.external_id)
+    if dup is not None:
+        await ext.idem_save(db, caller, "create_campaign", idem, dup)
+        return dup
     adv = await _assert_adv(db, caller, body.advertiser_id)
     prod = pa.product_by_key(body.product)
     if not prod:
@@ -456,17 +520,32 @@ async def create_campaign(body: CampaignCreate, request: Request,
             {"$set": {"status": "active", "approved_at": pa._now(),
                       "approved_by": "sandbox", "updated_at": pa._now()}})
         camp["status"] = "active"
-    return {"campaign": camp, "product": body.product, "environment": caller.environment}
+    result = {"campaign": camp, "product": body.product,
+              "external_id": body.external_id, "environment": caller.environment}
+    await ext.external_save(db, caller, "campaign", body.external_id, cid, result)
+    await ext.idem_save(db, caller, "create_campaign", idem, result)
+    return result
 
 
 @partner_app.get("/campaigns", tags=["campaigns"])
 async def list_campaigns(request: Request, advertiser_id: str,
                          status: Optional[str] = None,
+                         external_id: Optional[str] = None,
+                         cursor: Optional[str] = None, limit: int = 50,
                          caller: Caller = Depends(require_scopes("campaigns:read"))):
     db = request.app.state.db
     await _assert_adv(db, caller, advertiser_id)
     items = await ad.list_campaigns_for_advertiser(db, advertiser_id=advertiser_id, status=status)
-    return {"items": items, "count": len(items)}
+    if external_id:
+        internal_id = await ext.external_lookup_id(db, caller, "campaign", external_id)
+        items = [c for c in items if c.get("campaign_id") == internal_id]
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"items": page["data"], "count": page["count"],
+            "data": page["data"], "next_cursor": page["next_cursor"],
+            "has_more": page["has_more"]}
 
 
 @partner_app.get("/campaigns/{campaign_id}", tags=["campaigns"])
@@ -625,6 +704,7 @@ class SponsorshipCreate(BaseModel):
     product_name: Optional[str] = None
     key_message: Optional[str] = None
     cta: Optional[str] = None
+    external_id: Optional[str] = Field(None, description="Your own id for this sponsorship (de-dupes retries)")
 
 
 @partner_app.get("/sponsorships/inventory", tags=["sponsorships"])
@@ -650,6 +730,14 @@ async def sponsorship_inventory(request: Request, type: str,
 async def create_sponsorship(body: SponsorshipCreate, request: Request,
                              caller: Caller = Depends(require_scopes("campaigns:write"))):
     db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_sponsorship", idem)
+    if cached is not None:
+        return cached
+    dup = await ext.external_get(db, caller, "sponsorship", body.external_id)
+    if dup is not None:
+        await ext.idem_save(db, caller, "create_sponsorship", idem, dup)
+        return dup
     await _assert_adv(db, caller, body.advertiser_id)
     t, owner = body.type, caller.owner_id
     try:
@@ -688,19 +776,35 @@ async def create_sponsorship(body: SponsorshipCreate, request: Request,
     if caller.is_sandbox and sid:
         await _sandbox_activate(db, t, sid)
         res = await _sp_fetch(db, t, sid)
-    return {"sponsorship": res, "type": t, "environment": caller.environment}
+    result = {"sponsorship": res, "type": t, "external_id": body.external_id,
+              "environment": caller.environment}
+    if sid:
+        await ext.external_save(db, caller, "sponsorship", body.external_id, sid, result)
+    await ext.idem_save(db, caller, "create_sponsorship", idem, result)
+    return result
 
 
 @partner_app.get("/sponsorships", tags=["sponsorships"])
 async def list_sponsorships(request: Request, type: str, advertiser_id: str,
+                            external_id: Optional[str] = None,
+                            cursor: Optional[str] = None, limit: int = 50,
                             caller: Caller = Depends(require_scopes("campaigns:read"))):
     db = request.app.state.db
     await _assert_adv(db, caller, advertiser_id)
     if type not in _SP:
         raise HTTPException(400, {"code": "unknown_sponsorship_type"})
     coll, _idf, owner, _a = _SP[type]
-    items = [_sp_clean(x) async for x in db[coll].find({owner: advertiser_id}).sort("created_at", -1).limit(100)]
-    return {"items": items, "count": len(items)}
+    items = [_sp_clean(x) async for x in db[coll].find({owner: advertiser_id}).sort("created_at", -1).limit(500)]
+    if external_id:
+        internal_id = await ext.external_lookup_id(db, caller, "sponsorship", external_id)
+        items = [s for s in items if (s.get("id") or s.get("sponsorship_id")) == internal_id]
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"items": page["data"], "count": page["count"],
+            "data": page["data"], "next_cursor": page["next_cursor"],
+            "has_more": page["has_more"]}
 
 
 @partner_app.get("/sponsorships/{sponsorship_id}", tags=["sponsorships"])
