@@ -95,7 +95,7 @@ export default function BillingSuccess() {
           <div className="success-eyebrow mono">WELCOME TO</div>
           <h1>RadioLife <span className="hero-accent">Premium</span></h1>
           <p className="success-sub">
-            Unlimited skips, two VIP channels, and a gold badge — all yours.
+            6 skips an hour, two VIP channels, and a gold badge — all yours.
           </p>
           <div className="success-receipt" data-testid="success-receipt">
             <div className="receipt-row">

@@ -211,7 +211,7 @@ export default function Profile() {
         ) : (
           <div className="billing-upsell">
             <p>
-              You're on the free tier. Skip cap (6/hr), standard channels, no VIP.
+              You're on the free tier. 1 skip/hr, standard channels, no VIP.
             </p>
             <Link
               to="/pricing"

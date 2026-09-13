@@ -483,15 +483,17 @@ export default function Radio() {
     } catch (e) {
       if (e?.response?.status === 429) {
         const d = e.response.data || {};
-        const retry = d.retry_after_sec || 0;
-        setSkipResetIn(retry);
-        setSkipUsed(d.used || skipLimit);
+        if (d.skip_state) applySkipState(d.skip_state);
+        else { setSkipResetIn(d.retry_after_sec || 0); setSkipUsed(d.used || skipLimit); }
+        const retry = d.reset_in_sec || d.retry_after_sec || 0;
         toast.error(
           <span>
-            Skip limit reached — try again in {fmtCountdown(retry)}.{" "}
-            <Link to="/pricing" style={{ color: "#ffd700", textDecoration: "underline" }}>
-              Go Premium for unlimited skips →
-            </Link>
+            {user.is_premium
+              ? <>All {d.limit || skipLimit} skips used — next skip in {fmtCountdown(retry)}.</>
+              : <>You've used your free skip — next skip in {fmtCountdown(retry)}.{" "}
+                  <Link to="/pricing" style={{ color: "#ffd700", textDecoration: "underline" }}>
+                    View Premium →
+                  </Link></>}
           </span>,
           { duration: 6000 },
         );
@@ -749,16 +751,15 @@ export default function Radio() {
               </button>
               <button className="ctrl-btn ghost"
                       onClick={skip}
-                      disabled={advancing || (skipExhausted && !user.is_premium)}
+                      disabled={advancing || skipExhausted}
                       data-testid="skip-btn"
-                      title={(skipExhausted && !user.is_premium) ? `Skip resets in ${fmtCountdown(skipCountdown)}` : "Skip"}
+                      title={skipExhausted ? `Next skip in ${fmtCountdown(skipCountdown)}` : "Skip"}
                       aria-label="Skip">
                 {advancing ? <Loader2 size={18} className="spin" /> : <SkipForward size={18} />}
                 <span className="lbl">
                   {advancing ? "Switching…" :
-                   user.is_premium ? "Skip · ∞" :
-                   skipExhausted ? `Resets ${fmtCountdown(skipCountdown)}` :
-                   `Skip · ${skipRemaining}/${skipLimit}`}
+                   skipExhausted ? `Next skip ${fmtCountdown(skipCountdown)}` :
+                   `Skip · ${skipRemaining} left`}
                 </span>
               </button>
               <button
@@ -786,11 +787,9 @@ export default function Radio() {
 
             <div className="skip-meta mono" data-testid="skip-meta">
               <Clock size={11} />
-              {user.is_premium
-                ? <><Crown size={11} /> VIP · UNLIMITED SKIPS</>
-                : skipExhausted
-                  ? <>SKIP LIMIT HIT · RESETS IN <b>{fmtCountdown(skipCountdown)}</b></>
-                  : <>{skipUsed}/{skipLimit} SKIPS USED · 1H ROLLING</>
+              {skipExhausted
+                ? <>{user.is_premium ? `ALL ${skipLimit} SKIPS USED` : "FREE SKIP USED"} · NEXT IN <b>{fmtCountdown(skipCountdown)}</b></>
+                : <>{skipUsed}/{skipLimit} SKIPS USED · 1H ROLLING{user.is_premium ? <> · <Crown size={11} /> PREMIUM</> : null}</>
               }
             </div>
 

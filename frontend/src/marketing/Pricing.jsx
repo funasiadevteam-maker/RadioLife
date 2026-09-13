@@ -11,11 +11,11 @@ const TIERS = [
     cta: { to: "/login", label: "Start listening" },
     bullets: [
       ["Personalized AI radio",     true],
-      ["6 skips per hour",            true],
+      ["1 skip per hour",             true],
       ["Wallet + rewards",            true],
       ["Live trivia",                  true],
       ["VIP channels",                 false],
-      ["Skip cap removed",            false],
+      ["Ad-free listening",            false],
       ["Early access to features",    false],
     ],
   },
@@ -26,11 +26,11 @@ const TIERS = [
     cta: { to: "/login?upgrade=premium", label: "Go Premium" },
     bullets: [
       ["Personalized AI radio",     true],
-      ["Unlimited skips",            true],
+      ["6 skips every hour",         true],
       ["Wallet + rewards",            true],
       ["Live trivia",                  true],
       ["VIP channels",                 true],
-      ["Skip cap removed",            true],
+      ["Ad-free listening",            true],
       ["Early access to features",    false],
     ],
   },
@@ -40,11 +40,11 @@ const TIERS = [
     cta: { to: "/login?upgrade=plus", label: "Go Premium+" },
     bullets: [
       ["Personalized AI radio",     true],
-      ["Unlimited skips",            true],
+      ["6 skips every hour",         true],
       ["Wallet + rewards",            true],
       ["Live trivia",                  true],
       ["VIP channels",                 true],
-      ["Skip cap removed",            true],
+      ["Ad-free listening",            true],
       ["Early access to features",    true],
     ],
   },
@@ -54,7 +54,7 @@ export default function Pricing() {
   return (
     <MarketingShell>
       <SEO title="Pricing · Free, Premium, Premium+"
-              description="Listen free, or go Premium for unlimited skips, VIP channels and early access to features." />
+              description="Listen free with 1 skip an hour, or go Premium for 6 skips an hour, VIP channels and early access to features." />
       <section className="max-w-6xl mx-auto px-6 lg:px-10 py-20 space-y-3"
                   data-testid="pricing-hero">
         <div className="text-[10px] font-mono uppercase tracking-widest

@@ -52,9 +52,9 @@ from channels import (
     list_active_channels, pick_voice_for_segment, seed_channels, slot_for_position,
 )
 from compliance import (
-    SKIP_LIMIT, SKIP_WINDOW_SEC, banned_artists_albums,
+    banned_artists_albums,
     consecutive_artists_to_block, ensure_compliance_indexes, log_event,
-    shares_count_today, skip_state,
+    shares_count_today, skip_state, get_skip_policy, set_skip_policy,
 )
 from seed import ensure_demo_tracks, seed_users
 from services.billing_service import ensure_billing_indexes, expire_lapsed_subscriptions
@@ -1809,6 +1809,15 @@ async def _deferred_bootstrap(app_: FastAPI):
             logger.info("[FUN.1 seed] %s", fun1_stats)
         except Exception as e:
             logger.warning("[FUN.1 seed] skipped: %s", e)
+        # Load any admin-persisted skip policy (fallback stays Free=1 / Premium=6 / 3600s).
+        try:
+            _skip_cfg = await db.radio_settings.find_one({"_id": "skip_policy"})
+            if _skip_cfg:
+                set_skip_policy(free=_skip_cfg.get("free"), premium=_skip_cfg.get("premium"),
+                                window_sec=_skip_cfg.get("window_sec"))
+                logger.info("[skip-policy] loaded from settings: %s", _skip_cfg)
+        except Exception as e:
+            logger.warning("[skip-policy] load skipped: %s", e)
         # Daily auto-heal cron — quietly regenerate (durably) any flagship
         # cover or AI channel thumbnail whose file has gone missing, so
         # admins never have to touch the "Heal" buttons manually.
@@ -4639,15 +4648,31 @@ async def radio_skip(session_id: str, user: dict = Depends(current_user)):
     is_premium = user.get("is_premium", False)
     ss = await skip_state(db, user["user_id"], is_premium=is_premium)
     if ss["exhausted"]:
+        # Log the blocked attempt for analytics (NOT counted as a skip).
+        try:
+            await log_event(
+                db, user_id=user["user_id"], session_id=session_id,
+                segment_id=None, track_id=None, channel_slug=None,
+                event="skip_limit_reached",
+                metadata={"tier": ss["tier"], "used": ss["used"],
+                                    "limit": ss["limit"], "remaining": ss["remaining"],
+                                    "reset_in_sec": ss["reset_in_sec"]},
+            )
+        except Exception:
+            pass
+        content = {
+            "detail": "Skip limit reached",
+            "retry_after_sec": ss["reset_in_sec"],
+            "tier": ss["tier"], "limit": ss["limit"], "window_sec": ss["window_sec"],
+            "used": ss["used"], "remaining": ss["remaining"],
+            "reset_in_sec": ss["reset_in_sec"], "skip_state": ss,
+        }
+        # Only Free users see an upgrade cue; Premium simply waits for a slot.
+        if ss["tier"] != "premium":
+            content["upgrade_cta"] = "Premium gives you 6 skips every hour"
         return JSONResponse(
             status_code=429,
-            content={
-                "detail": "Skip limit reached",
-                "retry_after_sec": ss["reset_in_sec"],
-                "limit": ss["limit"], "window_sec": ss["window_sec"],
-                "used": ss["used"],
-                "upgrade_cta": "Premium = unlimited skips",
-            },
+            content=content,
             headers={"Retry-After": str(ss["reset_in_sec"])},
         )
     # Log the skip and advance
@@ -4855,6 +4880,37 @@ async def radio_session_state(session_id: str, user: dict = Depends(current_user
 @api.get("/radio/skip_state")
 async def radio_skip_state(user: dict = Depends(current_user)):
     return await skip_state(db, user["user_id"], is_premium=user.get("is_premium", False))
+
+
+# ---------- admin: skip rules (Playback & Compliance) ----------
+class SkipRulesReq(BaseModel):
+    free: Optional[int] = None
+    premium: Optional[int] = None
+    window_sec: Optional[int] = None
+
+
+@api.get("/admin/radio/skip-rules", dependencies=[Depends(require_admin)])
+async def admin_get_skip_rules():
+    """Current skip policy (admin view). Backend fallback: Free=1, Premium=6,
+    window=3600s. No user-facing 'unlimited' option is exposed."""
+    return {"ok": True, "policy": get_skip_policy(True) | {"free_limit": get_skip_policy(False)["limit"]},
+            "free": get_skip_policy(False)["limit"],
+            "premium": get_skip_policy(True)["limit"],
+            "window_sec": get_skip_policy(False)["window_sec"]}
+
+
+@api.put("/admin/radio/skip-rules", dependencies=[Depends(require_admin)])
+async def admin_set_skip_rules(req: SkipRulesReq):
+    policy = set_skip_policy(free=req.free, premium=req.premium, window_sec=req.window_sec)
+    await db.radio_settings.update_one(
+        {"_id": "skip_policy"},
+        {"$set": {"free": policy["free"], "premium": policy["premium"],
+                        "window_sec": policy["window_sec"],
+                        "updated_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"ok": True, "free": policy["free"], "premium": policy["premium"],
+            "window_sec": policy["window_sec"]}
 
 
 @api.get("/radio/segment/{segment_id}")
@@ -7314,7 +7370,7 @@ async def _trial_reminder_cron():
                             html=(f"<h2>24 hours left on your trial</h2>"
                                         f"<p>Get <b>50% off your first month</b> with code "
                                         f"<code>{code}</code>. Sliders, premium voices, "
-                                        f"unlimited skips, Social Passport bonuses — all "
+                                        f"6 skips an hour, Social Passport bonuses — all "
                                         f"yours.</p>"
                                         f"<a href='https://mobile-games-v2.preview.emergentagent.com/upgrade?code={code}'>Claim 50% off →</a>"))
                         logger.info(f"[trial-reminder] sent user={u['user_id']} code={code}")

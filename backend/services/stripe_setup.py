@@ -29,12 +29,12 @@ logger = logging.getLogger("bigfm.stripe_setup")
 PRICING_PLANS: Dict[str, Dict] = {
     "premium_annual": {
         "name": "RadioLife Premium",
-        "description": "Unlimited skips · 2 VIP channels · Ad-free · VIP badge · 2× rewards",
+        "description": "6 skips/hour · 2 VIP channels · Ad-free · VIP badge · 2× rewards",
         "interval": "annual",
         "tier": "premium",
         "is_premium": True,
         "features": [
-            "Unlimited skips (1-hour rolling cap removed)",
+            "6 skips every hour (vs 1 on Free)",
             "2 exclusive VIP channels: VIP Lounge + Premium Mehfil",
             "Ad-free listening (no breaks for promos)",
             "VIP Badge on your avatar + profile",

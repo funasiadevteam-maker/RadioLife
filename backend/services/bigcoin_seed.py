@@ -10,7 +10,7 @@ logger = logging.getLogger("bigfm.bigcoin.seed")
 # ---------------------------------------------------------------
 LAUNCH_REWARDS = [
     {"_id": "rwd_1mo_premium", "name": "1 Month Premium",
-     "description": "Unlock all Premium perks for 30 days: unlimited skips, 2 VIP channels, ad-free.",
+     "description": "Unlock all Premium perks for 30 days: 6 skips/hour, 2 VIP channels, ad-free.",
      "cost_bigcoin": 500, "type": "premium_days",
      "payload_json": {"days": 30},
      "stock_limit": None, "image_url": "/assets/rewards/premium_1mo.svg",

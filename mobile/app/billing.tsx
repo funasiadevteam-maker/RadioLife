@@ -195,8 +195,9 @@ export default function BillingScreen() {
                 <Text style={st.planRowDesc}>{p.description}</Text>
                 <View style={{ marginTop: 6, gap: 3 }}>
                   {p.features?.ad_free && <Text style={st.featureText}>• Ad-free listening</Text>}
-                  {p.features?.max_skips_per_hour === -1 ? <Text style={st.featureText}>• Unlimited skips</Text>
-                    : p.features?.max_skips_per_hour ? <Text style={st.featureText}>• {p.features.max_skips_per_hour} skips/hour</Text> : null}
+                  {(p.features?.max_skips_per_hour > 0)
+                    ? <Text style={st.featureText}>• {p.features.max_skips_per_hour} skips/hour</Text>
+                    : <Text style={st.featureText}>• 1 skip/hour</Text>}
                   {p.features?.premium_channels > 0 && <Text style={st.featureText}>• {p.features.premium_channels} VIP channels</Text>}
                   {p.family_seats > 1 && <Text style={st.featureText}>• {p.family_seats} family seats</Text>}
                   {p.features?.bigcoin_2x_weekends && <Text style={st.featureText}>• 2× BigCoin weekends</Text>}

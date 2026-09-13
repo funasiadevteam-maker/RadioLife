@@ -1,0 +1,67 @@
+{
+  "summary": "Iteration 116 — Skip policy Phase 1 verified backend-authoritative on shared backend; 11/11 pytest PASS (iter116.xml). Free=1/rolling 3600s and Premium=6/rolling 3600s enforced correctly with normalized skip_state shape (unlimited ALWAYS false, reset_in_sec math correct, events >3600s excluded). GET/PUT /api/admin/radio/skip-rules works and persists to radio_settings. 429 body includes {detail,tier,limit,used,remaining,reset_in_sec,window_sec,skip_state}+Retry-After header and upgrade_cta '...6 skips every hour' ONLY for free tier (premium 429 omits upgrade_cta as spec). A blocked skip writes a 'skip_limit_reached' event and does NOT increment completed 'skip' count. GET /api/billing/plans is clean (free.max_skips_per_hour=1, premium*=6, no -1/unlimited). Web /pricing (marketing, anon) also clean — '1 skip per hour' + '6 skips every hour' visible, no '∞'/'unlimited'. Web /radio Radio.js source and mobile app/(tabs)/radio.tsx source contain correct 'Skip · N left'/'Next skip MM:SS'/'{used}/{limit} SKIPS USED · 1H ROLLING' strings and disable the button when exhausted for both tiers. HOWEVER: the auth /pricing page (Pricing.js) STILL renders 'Unlimited skips · 2 VIP channels …' and the checklist 'Unlimited skips (1-hour rolling cap removed)' because /api/billing/config → services/stripe_setup.py:32,37 still ships those strings. Additional hard-coded copy leaks in frontend Pricing.js:145 ('Skip without limits.'), Pricing.js:149 ('Every skip on the house.'), and Pricing.js:172 shows an INVERTED X marker on FREE labeled 'Skip cap (6/hour)' (nonsensical — implies free has no 6/hour cap). Also Pricing.js:26 hard-codes FREE column bullet ' 6 skips per hour' — free tier is 1 skip/hour, not 6. These are all copy-sweep misses under this Phase 1 scope.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/billing/config", "issue": "Returns 'Unlimited skips · 2 VIP channels · Ad-free · VIP badge · 2× rewards' as premium description and 'Unlimited skips (1-hour rolling cap removed)' as feature bullet — source /app/backend/services/stripe_setup.py:32 + line 37. Violates Phase 1 copy sweep. Should read '6 skips every hour · ...' and '6 skips every hour (rolling 60 min window)'.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "Pricing.js hero", "issue": "Hero H1 hard-codes 'Skip without limits.' and hero-sub says 'Every skip on the house.' — user-facing 'unlimited' copy. Reference: /app/frontend/src/Pricing.js:145,149", "selector": "[data-testid='pricing-page'] .pricing-hero", "priority": "HIGH"},
+        {"component": "Pricing.js FREE column", "issue": "FREE_FEATURES[0] hard-codes bullet '6 skips per hour' with green Check icon → free tier is shown as if it has 6 skips/hour (spec says 1). Reference: /app/frontend/src/Pricing.js:26", "selector": "[data-testid='plan-card-free'] .plan-list li:nth-child(1)", "priority": "HIGH"},
+        {"component": "Pricing.js FREE missing-list", "issue": "Inverted X marker labeled 'Skip cap (6/hour)' on FREE column — semantically wrong (free HAS a skip cap, not misses it) and shows '6/hour' for free. Reference: /app/frontend/src/Pricing.js:172", "selector": "[data-testid='plan-card-free'] .plan-missing", "priority": "MEDIUM"},
+        {"component": "Pricing.js PREMIUM_HEADLINE_FEATURES", "issue": "'What you unlock' tile 0 says '6 skips per hour' — copy is technically correct but headline emphasises perk; spec suggests '6 skips every hour'. Consistency nit. Reference: /app/frontend/src/Pricing.js:32", "selector": "[data-testid='pricing-headlines']", "priority": "LOW"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "app/billing.tsx plan bullet", "issue": "Bullet template '{n} skips/hour' will render '1 skips/hour' (grammar) for free tier because max_skips_per_hour=1 has no singular handling. Reference: /app/mobile/app/billing.tsx:199", "testID": "billing-plan-list", "priority": "LOW"}
+      ],
+      "integration_issues": [
+        {"flow": "Mobile Expo web preview → backend", "issue": "CORS ERR_FAILED on every /api/* call from the expo preview host to the API host in this preview environment (Access to XMLHttpRequest ... blocked). Not a Phase 1 skip-policy defect but blocks runtime verification of mobile /billing + /radio. Native builds unaffected.", "affected_testIDs": ["demo-login-btn"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "'shadow*' style props are deprecated. Use 'boxShadow'. (React Native Web warning across screens.)"}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "Pricing page copy", "platform": "web", "issue": "Web /pricing (auth) still says 'Unlimited skips …' twice + 'Skip without limits.' + 'Every skip on the house.'; mobile app/billing.tsx (source) does NOT contain any 'unlimited' string. Parity broken by web copy leak.", "expected": "Both surfaces: no 'unlimited'/'∞' skip copy; both say Free '1 skip per hour' + Premium '6 skips every hour'.", "actual": "Web leaks unlimited copy via /api/billing/config description+features AND via hard-coded Pricing.js hero. Mobile clean in source."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter116_skip_policy.py",
+    "/app/test_reports/pytest/iter116.xml"
+  ],
+  "action_items": [
+    "Rewrite premium copy in /app/backend/services/stripe_setup.py:32 description → '6 skips every hour · 2 VIP channels · Ad-free · VIP badge · 2× rewards' and features[0] at line 37 → '6 skips every hour (rolling 60-min window)'. Applies to BOTH web /pricing (auth) and any consumer of /api/billing/config.",
+    "Edit /app/frontend/src/Pricing.js:145 hero H1 → replace 'Skip without limits.' (e.g. 'Skip more. Wait less.'). Line 149 → replace 'Every skip on the house.'",
+    "Edit /app/frontend/src/Pricing.js:26 FREE_FEATURES[0].copy from '6 skips per hour' to '1 skip per hour' (free tier is 1).",
+    "Fix /app/frontend/src/Pricing.js:172 inverted missing-item: should be 'Only 1 skip per hour' (or drop the X row). '6/hour' listed here misleads users into thinking free tier has 6/hour.",
+    "Optional: /app/mobile/app/billing.tsx:199 pluralize '{n} skip{n===1?'':'s'}/hour' so free tier reads '1 skip/hour'.",
+    "Investigate CORS from mobile-games-v2.expo.preview.emergentagent.com → mobile-games-v2.preview.emergentagent.com — /api/* preflight is blocked in the preview env, preventing runtime QA of the mobile web preview. Backend CORS_ORIGINS='*' but Access-Control-Allow-Credentials + explicit origin may be required."
+  ],
+  "critical_code_review_comments": [
+    "compliance.skip_state reset_in_sec math (line 207): idx = min(len(times)-1, max(0, used-limit)). When used==limit, idx=0 (oldest), reset when oldest exits — correct. When used>limit (should not happen but possible if policy shrunk mid-window), idx=used-limit points to the oldest event that still keeps user over cap — also correct.",
+    "server.py:4646 POST /radio/skip logs 'skip_limit_reached' inside try/except-swallow. If the analytics write fails silently, ops has no signal. Consider a WARNING log on the except.",
+    "services/stripe_setup.py is the SINGLE SOURCE of 'Unlimited skips' copy that leaks into /api/billing/config AND (before Phase 1) any Stripe product/price description. Any change should also refresh Stripe product metadata via `stripe_setup_bootstrap()` if that hydrates Stripe on first boot.",
+    "frontend/src/Pricing.js:26 FREE_FEATURES + PREMIUM_HEADLINE_FEATURES are static constants — they never re-render on tier change and are decoupled from /api/billing/plans.features.max_skips_per_hour. Consider deriving from the plans endpoint so future policy changes propagate automatically."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter116_skip_policy.py",
+    "/app/test_reports/pytest/iter116.xml",
+    "/app/test_reports/iteration_116.json"
+  ],
+  "success_rate": {"backend": "100% (11/11 pytest, iter116.xml)", "frontend": "partial — enforcement logic + skip-meta strings verified in source; live DOM check of /pricing (anon+auth) revealed backend+frontend copy leaks; mobile runtime blocked by preview CORS"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! (cookie), test@bigfm.dubai / TestUser123! (cookie, temporarily flipped is_premium=true then restored to null in test cleanup), demo@bigfm.dubai / DemoPass123! (used for /pricing DOM inspection).",
+  "seed_data_creation": "During testing (all cleaned up on teardown): (a) test@bigfm.dubai user_id (users.user_id filter) had is_premium flipped True→restored. (b) playback_logs events for TEST_skip_user_iter116 (async unit) and test@ user_id (integration) inserted then deleted. (c) Admin skip-rules PUT overrode policy to {free:2,premium:8,window:1800} then restored to {1,6,3600} — persisted to radio_settings._id='skip_policy'.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 116 — Phase 1 skip policy enforcement is 100% backend-authoritative and passes 11/11 tests. Rolling window math correct; upgrade_cta tier-aware. Copy sweep is INCOMPLETE: (a) /api/billing/config leaks 'Unlimited skips' twice via /app/backend/services/stripe_setup.py:32,37; (b) /app/frontend/src/Pricing.js hard-codes 'Skip without limits.' (line 145), 'Every skip on the house.' (line 149), '6 skips per hour' on FREE column (line 26 — factually wrong: free is 1), and inverted 'Skip cap (6/hour)' X marker (line 172). Marketing Pricing.jsx (anon) is clean. Mobile source (radio.tsx + billing.tsx) is clean but couldn't be runtime-verified due to preview CORS. Test file at /app/backend/tests/test_iter116_skip_policy.py (11 tests, 2 min due to premium 6-skip walk). To retest after main-agent fixes: (1) curl /api/billing/config and grep 'Unlimited' — must return 0; (2) rerun pytest; (3) re-DOM-scan /pricing while logged in as demo@.",
+  "rca of the issue": "Phase 1 enforcement is correct end-to-end; unresolved defects are pure COPY LEAKS in three places: /app/backend/services/stripe_setup.py (lines 32,37 — 'Unlimited skips' × 2) which surfaces via /api/billing/config → Pricing.js premium plan card, and /app/frontend/src/Pricing.js (lines 26, 145, 149, 172) which are hard-coded strings not driven by plans API. Root cause: Phase 1 copy sweep updated marketing/Pricing.jsx + Billing.js + BillingSuccess.js but missed stripe_setup.py (backend copy source) and legacy /pricing (Pricing.js) hero + FREE column bullets."
+}

@@ -23,13 +23,13 @@ const SUPPORTED_CURRENCIES = [
 
 // Frozen free-tier features (no API surface for these in Phase 3).
 const FREE_FEATURES = [
-  { copy: "6 skips per hour", premium: false },
+  { copy: "1 skip per hour", premium: false },
   { copy: "8 standard channels", premium: false },
   { copy: "Solo + Duo AI RJs", premium: false },
   { copy: "Share-the-break links", premium: false },
 ];
 const PREMIUM_HEADLINE_FEATURES = [
-  { icon: Zap,         copy: "Unlimited skips" },
+  { icon: Zap,         copy: "6 skips per hour" },
   { icon: Crown,       copy: "2 exclusive VIP channels" },
   { icon: ShieldCheck, copy: "Ad-free listening" },
   { icon: Sparkles,    copy: "VIP badge on your profile" },
@@ -140,13 +140,13 @@ export default function Pricing() {
       )}
 
       <section className="pricing-hero">
-        <div className="hero-eyebrow mono">PHASE 3 · RADIOLIFE PREMIUM</div>
+        <div className="hero-eyebrow mono">RADIOLIFE PREMIUM</div>
         <h1 className="hero-h1">
-          Skip without limits.<br/>
+          Six skips every hour.<br/>
           <span className="hero-accent">Mehfil, on gold standard.</span>
         </h1>
         <p className="hero-sub">
-          One annual pass. Two VIP channels you can't get on free. Every skip on the house.
+          One annual pass. Two VIP channels you can't get on free. Six skips an hour, not one.
         </p>
       </section>
 
@@ -169,7 +169,7 @@ export default function Pricing() {
                 </li>
               ))}
               <li className="plan-missing">
-                <X size={14} /> <span>Skip cap (6/hour)</span>
+                <X size={14} /> <span>6 skips/hour (Premium only)</span>
               </li>
               <li className="plan-missing">
                 <X size={14} /> <span>VIP channels locked</span>

@@ -1094,6 +1094,19 @@ Three more follow-ups. Testing agent **iteration_115**: **8/8 backend PASS** + a
 - **#2 Ticker Tap-Through** (`NewsRadio.jsx` `NewsTicker`): each scrolling headline is now a button — tapping it jumps the player straight to that story (`onPick → setIdx`). Hover already pauses the scroll so a moving headline is easy to hit. `data-testid news-radio-ticker-item-<i>`.
 - **#3 Variation Gallery** (`AdminFlagshipStations.jsx` `ArtGalleryModal`): clicking a flagship row's cover opens a gallery of the station's recent AI covers (current + up to 5 history entries, reusing the existing `/artwork/history` + `/artwork/restore` endpoints). Tap any past cover to make it live in one tap; a "Generate new variation" button kicks off a fresh AI cover. Broken/older URLs degrade to a gradient instead of a broken-image icon.
 
+### 2026-08-29 (pt.7) — Consumer UX program · PHASE 1: Skip policy (Free 1 / Premium 6)
+Kickoff of a large multi-phase consumer-UX program (nav consolidation, audio-first Home, Wallet-to-header, landing, personalization, skip policy). Delivered in tested slices. **User scope decisions:** both web + Expo mobile in scope; for web shells, duplicate the classic shell → "Classic B" and apply changes there (toggle offers Classic A / Classic B / New Look, New Look untouched); Listen = new aggregator page with old `/radio` linked on top.
+
+**PHASE 1 — Skip Policy (DONE).** Testing agent **iteration_116**: backend **11/11 PASS**; copy leaks found + all fixed; web `/pricing` verified clean.
+- **Backend authoritative & tier-aware** (`compliance.py`): removed `SKIP_LIMIT`/`PREMIUM_UNLIMITED_SKIPS`; added `FREE_SKIP_LIMIT=1`, `PREMIUM_SKIP_LIMIT=6`, `get_skip_policy()`, `set_skip_policy()`. `skip_state()` returns the normalized shape `{tier,used,limit,remaining,window_sec,reset_in_sec,exhausted,unlimited:false}` — `unlimited` is ALWAYS false; rolling 3600s window (never clock-hour reset); reset frees exactly when the qualifying skip exits.
+- **`/radio/skip`**: 429 body carries full skip_state + tier; Free-only `upgrade_cta`; logs `skip_limit_reached` analytics event (not counted as a skip).
+- **Admin config**: `GET/PUT /api/admin/radio/skip-rules` (persist to `radio_settings{_id:'skip_policy'}`) + startup loader; fallback stays Free=1/Premium=6/3600.
+- **Plans** (`services/plans.py`): free `max_skips_per_hour` 6→1, premium tiers −1→6.
+- **Player UI** (web `Radio.js`, mobile `app/(tabs)/radio.tsx`): "Skip · N left" / "Next skip MM:SS"; tier-aware skip-meta; button disabled when exhausted for BOTH tiers; no `∞` / "UNLIMITED SKIPS". MediaSession `nexttrack` (GlobalAudio) now self-limits at 6 for premium (finite limit).
+- **Copy sweep**: removed all "unlimited skips" from `stripe_setup.py`, `plans.py`, `bigcoin_seed.py`, server trial-reminder email, web `Pricing.js`/`marketing/Pricing.jsx`/`Billing.js`/`BillingSuccess.js`/`Profile.js`, mobile `billing.tsx`. (Lobby/ad "skip cap" left intact — different feature.)
+
+**Remaining phases (next):** P2 Navigation (Classic-B duplicate: Home·Listen·Shop·Play·Social + Wallet header mini-wallet + avatar menu) → P3 Audio-first Home → P4 Listen aggregator + My Radio + Like/Less + "Why this?" → P5 Public landing hierarchy → P6 remove internal "Phase" labels + BrandConfig. Note: mobile Expo web-preview has a pre-existing CORS issue that blocks live DOM QA there (source verified).
+
 ## Backlog (P0/P1/P2 — earlier)
 - **P1** Picture-in-Picture for Creator Studio video podcasts.
 - **P1** Clean up recurring mobile TS/ESLint warnings (missing useEffect deps, unused vars, require-style imports).

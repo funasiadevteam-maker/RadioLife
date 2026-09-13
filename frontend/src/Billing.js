@@ -184,9 +184,7 @@ export default function Billing() {
               <div className="reward-desc">{p.description}</div>
               <ul style={{ color: "#aaa", fontSize: 11, padding: "0 0 0 16px", margin: "8px 0", lineHeight: 1.7 }}>
                 {p.features.ad_free && <li>Ad-free listening</li>}
-                {p.features.max_skips_per_hour === -1
-                  ? <li>Unlimited skips</li>
-                  : <li>{p.features.max_skips_per_hour} skips / hour</li>}
+                <li>{p.features.max_skips_per_hour > 0 ? `${p.features.max_skips_per_hour} skips / hour` : "1 skip / hour"}</li>
                 {p.features.premium_channels > 0 && <li>{p.features.premium_channels} VIP channels</li>}
                 {p.family_seats > 1 && <li><b>{p.family_seats} family seats</b></li>}
                 {p.features.bigcoin_2x_weekends && <li>2× BigPoints weekends</li>}

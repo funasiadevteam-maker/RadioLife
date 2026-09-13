@@ -287,11 +287,14 @@ export default function RadioScreen() {
     } catch (e: any) {
       if (e?.response?.status === 429) {
         const d = e.response.data || {};
-        const retry = d.retry_after_sec || 0;
-        setSkipState(d.used || skipLimit, skipLimit, retry);
+        if (d.skip_state) applySkipState(d.skip_state);
+        else setSkipState(d.used || skipLimit, d.limit || skipLimit, d.reset_in_sec || d.retry_after_sec || 0);
+        const retry = d.reset_in_sec || d.retry_after_sec || 0;
         Alert.alert(
-          'Skip limit reached',
-          `Slow down, DJ — you have hit your skip limit. Try again in ${fmtCountdown(retry)}.\n\nGo Premium for unlimited skips.`
+          user.is_premium ? 'All skips used' : 'Free skip used',
+          user.is_premium
+            ? `All ${d.limit || skipLimit} skips used. Next skip in ${fmtCountdown(retry)}.`
+            : `You've used your free skip. Next skip in ${fmtCountdown(retry)}.\n\nPremium gives you 6 skips every hour.`
         );
         try { playerRef.current?.play?.(); setPlaying(true); } catch {}
       } else {
@@ -486,17 +489,16 @@ export default function RadioScreen() {
                 <Ionicons name={playing ? 'pause' : 'play'} size={28} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[s.skipBtn, (advancing || (skipExhausted && !user.is_premium)) && { opacity: 0.4 }]}
+                style={[s.skipBtn, (advancing || skipExhausted) && { opacity: 0.4 }]}
                 onPress={skip}
-                disabled={advancing || (skipExhausted && !user.is_premium)}
+                disabled={advancing || skipExhausted}
                 testID="skip-btn"
               >
                 {advancing ? <ActivityIndicator size={18} color={COLORS.textDim} /> : <Ionicons name="play-skip-forward" size={18} color={COLORS.textDim} />}
                 <Text style={s.skipText}>
                   {advancing ? 'Switching...'
-                    : user.is_premium ? 'Skip · ∞'
-                    : skipExhausted ? `Resets ${fmtCountdown(skipCountdown)}`
-                    : `Skip · ${skipRemaining}/${skipLimit}`}
+                    : skipExhausted ? `Next skip ${fmtCountdown(skipCountdown)}`
+                    : `Skip · ${skipRemaining} left`}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -504,17 +506,12 @@ export default function RadioScreen() {
             {/* Skip Meta */}
             <View style={s.skipMetaRow} testID="skip-meta">
               <Ionicons name="time-outline" size={11} color={COLORS.textMuted} />
-              {user.is_premium ? (
-                <>
-                  <Ionicons name="diamond" size={11} color={COLORS.gold} />
-                  <Text style={s.skipMeta}>VIP · UNLIMITED SKIPS</Text>
-                </>
-              ) : skipExhausted ? (
+              {skipExhausted ? (
                 <Text style={[s.skipMeta, { color: COLORS.orange }]}>
-                  SKIP LIMIT HIT · RESETS IN <Text style={{ fontWeight: '900' }}>{fmtCountdown(skipCountdown)}</Text>
+                  {user.is_premium ? `ALL ${skipLimit} SKIPS USED` : 'FREE SKIP USED'} · NEXT IN <Text style={{ fontWeight: '900' }}>{fmtCountdown(skipCountdown)}</Text>
                 </Text>
               ) : (
-                <Text style={s.skipMeta}>{skipUsed}/{skipLimit} SKIPS USED · 1H ROLLING</Text>
+                <Text style={s.skipMeta}>{skipUsed}/{skipLimit} SKIPS USED · 1H ROLLING{user.is_premium ? ' · PREMIUM' : ''}</Text>
               )}
             </View>
 

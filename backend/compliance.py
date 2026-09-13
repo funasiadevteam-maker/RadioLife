@@ -5,7 +5,7 @@ Non-interactive radio compliance (CRTC/FCC-style) rules applied server-side:
 1. 4 tracks per artist per rolling 3 hours per user
 2. 3 tracks per album per rolling 3 hours per user
 3. Never 3 consecutive same-artist tracks (last 2 are hard-banned)
-4. 6 skips per rolling 1 hour per user
+4. Free = 1 skip / Premium = 6 skips, per rolling 1 hour per user (tier-aware)
 
 Also exposes a thin event logger that other modules use to write to the
 `playback_logs` collection. Indexes are ensured at startup.
@@ -16,16 +16,49 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 
-SKIP_LIMIT = 6
 SKIP_WINDOW_SEC = 3600
 ARTIST_LIMIT_3H = 4
 ALBUM_LIMIT_3H = 3
 ROLLING_WINDOW_SEC = 3 * 3600
 CONSECUTIVE_ARTIST_BAN = 2  # never 3-in-a-row → last 2 are banned
 
-# Premium tier bypasses the 1-hour skip limit. We still LOG every skip event
-# so analytics + abuse detection can see the activity.
-PREMIUM_UNLIMITED_SKIPS = True
+# ── Tier-aware skip policy (single source of truth) ──────────────────
+# FINAL RULE: Free = 1 skip / rolling 60 min · Premium = 6 skips / rolling
+# 60 min. Premium is NOT unlimited. These are the hard fallback defaults;
+# an admin may override them at runtime via `set_skip_policy` (persisted in
+# the settings collection, loaded at startup).
+FREE_SKIP_LIMIT = 1
+PREMIUM_SKIP_LIMIT = 6
+
+_SKIP_POLICY: Dict[str, int] = {
+    "free": FREE_SKIP_LIMIT,
+    "premium": PREMIUM_SKIP_LIMIT,
+    "window_sec": SKIP_WINDOW_SEC,
+}
+
+
+def set_skip_policy(*, free: Optional[int] = None, premium: Optional[int] = None,
+                    window_sec: Optional[int] = None) -> Dict[str, int]:
+    """Runtime override for the skip policy (admin-configurable). Values are
+    clamped to safe ranges. Returns the resulting policy."""
+    if free is not None:
+        _SKIP_POLICY["free"] = max(0, int(free))
+    if premium is not None:
+        _SKIP_POLICY["premium"] = max(0, int(premium))
+    if window_sec is not None:
+        _SKIP_POLICY["window_sec"] = max(60, int(window_sec))
+    return dict(_SKIP_POLICY)
+
+
+def get_skip_policy(user_or_premium: Any) -> Dict[str, Any]:
+    """The authoritative per-user skip policy. Accepts a user doc or an
+    is_premium bool. Returns {tier, limit, window_sec}. Never 'unlimited'."""
+    is_prem = is_premium_user(user_or_premium)
+    return {
+        "tier": "premium" if is_prem else "free",
+        "limit": _SKIP_POLICY["premium"] if is_prem else _SKIP_POLICY["free"],
+        "window_sec": _SKIP_POLICY["window_sec"],
+    }
 
 
 def is_premium_user(user_or_id) -> bool:
@@ -136,12 +169,20 @@ async def consecutive_artists_to_block(db, user_id: str) -> List[str]:
 
 
 async def skip_state(db, user_id: str, *, is_premium: bool = False) -> Dict[str, Any]:
-    """Return {used, limit, window_sec, oldest_skip_at, reset_in_sec}.
+    """Authoritative rolling-window skip state for a user. Backend is the
+    single source of truth. Returns the normalized shape:
 
-    Premium users get unlimited=True and never have `exhausted=True`. The
-    `used` field is still populated for analytics.
+        {tier, used, limit, remaining, window_sec, reset_in_sec,
+         exhausted, unlimited}
+
+    `unlimited` is ALWAYS false — Premium gets a higher limit (6), not
+    infinite skips. The rolling window never resets on the clock hour; a
+    slot frees exactly when its qualifying skip exits the window.
     """
-    cutoff = _now() - timedelta(seconds=SKIP_WINDOW_SEC)
+    policy = get_skip_policy(is_premium)
+    limit = policy["limit"]
+    window = policy["window_sec"]
+    cutoff = _now() - timedelta(seconds=window)
     cur = db.playback_logs.find(
         {"user_id": user_id, "event": "skip", "timestamp": {"$gte": cutoff}},
         {"timestamp": 1, "_id": 0},
@@ -157,27 +198,23 @@ async def skip_state(db, user_id: str, *, is_premium: bool = False) -> Dict[str,
                 ts = ts.replace(tzinfo=timezone.utc)
             times.append(ts)
     used = len(times)
-    if is_premium and PREMIUM_UNLIMITED_SKIPS:
-        return {
-            "used": used,
-            "limit": -1,
-            "window_sec": SKIP_WINDOW_SEC,
-            "reset_in_sec": 0,
-            "remaining": -1,
-            "exhausted": False,
-            "unlimited": True,
-        }
+    remaining = max(0, limit - used)
+    exhausted = used >= limit
     reset_in = 0
-    if used >= SKIP_LIMIT and times:
-        reset_at = times[0] + timedelta(seconds=SKIP_WINDOW_SEC)
+    if exhausted and times:
+        # The next slot frees when the oldest skip that keeps us at/over the
+        # limit exits the rolling window.
+        idx = min(len(times) - 1, max(0, used - limit))
+        reset_at = times[idx] + timedelta(seconds=window)
         reset_in = int(max(0, (reset_at - _now()).total_seconds()))
     return {
+        "tier": policy["tier"],
         "used": used,
-        "limit": SKIP_LIMIT,
-        "window_sec": SKIP_WINDOW_SEC,
+        "limit": limit,
+        "remaining": remaining,
+        "window_sec": window,
         "reset_in_sec": reset_in,
-        "remaining": max(0, SKIP_LIMIT - used),
-        "exhausted": used >= SKIP_LIMIT,
+        "exhausted": exhausted,
         "unlimited": False,
     }
 

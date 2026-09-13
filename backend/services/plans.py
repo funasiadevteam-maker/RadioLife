@@ -32,12 +32,12 @@ PLAN_CATALOG: Dict[str, Dict] = {
             "INR": {"amount": 0.00, "display": "Free"},
         },
         "features_json": {
-            "max_skips_per_hour": 6, "ad_free": False,
+            "max_skips_per_hour": 1, "ad_free": False,
             "premium_voices": False, "premium_channels": 0,
             "family_seats": 0, "reward_multiplier": 1.0,
             "bigcoin_2x_weekends": False,
         },
-        "description": "Personalized AI radio with ads. Up to 6 skips per hour.",
+        "description": "Personalized AI radio with ads. 1 skip per hour.",
     },
     "premium_monthly": {
         "slug": "premium_monthly", "display_name": "Premium Monthly",
@@ -52,12 +52,12 @@ PLAN_CATALOG: Dict[str, Dict] = {
             "INR": {"amount": 399.00, "display": "₹399 / mo"},
         },
         "features_json": {
-            "max_skips_per_hour": -1, "ad_free": True,
+            "max_skips_per_hour": 6, "ad_free": True,
             "premium_voices": True, "premium_channels": 2,
             "family_seats": 1, "reward_multiplier": 2.0,
             "bigcoin_2x_weekends": True,
         },
-        "description": "Unlimited skips · Ad-free · 2 VIP channels · 2× BigCoin weekends.",
+        "description": "6 skips/hour · Ad-free · 2 VIP channels · 2× BigCoin weekends.",
     },
     "premium_annual": {
         "slug": "premium_annual", "display_name": "Premium Annual",
@@ -73,7 +73,7 @@ PLAN_CATALOG: Dict[str, Dict] = {
             "INR": {"amount": 3999.00, "display": "₹3,999 / yr"},
         },
         "features_json": {
-            "max_skips_per_hour": -1, "ad_free": True,
+            "max_skips_per_hour": 6, "ad_free": True,
             "premium_voices": True, "premium_channels": 2,
             "family_seats": 1, "reward_multiplier": 2.0,
             "bigcoin_2x_weekends": True,
@@ -93,7 +93,7 @@ PLAN_CATALOG: Dict[str, Dict] = {
             "INR": {"amount": 799.00, "display": "₹799 / mo"},
         },
         "features_json": {
-            "max_skips_per_hour": -1, "ad_free": True,
+            "max_skips_per_hour": 6, "ad_free": True,
             "premium_voices": True, "premium_channels": 2,
             "family_seats": 5, "reward_multiplier": 2.0,
             "bigcoin_2x_weekends": True,
@@ -114,7 +114,7 @@ PLAN_CATALOG: Dict[str, Dict] = {
             "INR": {"amount": 8999.00, "display": "Contact sales"},
         },
         "features_json": {
-            "max_skips_per_hour": -1, "ad_free": True,
+            "max_skips_per_hour": 6, "ad_free": True,
             "premium_voices": True, "premium_channels": 0,
             "family_seats": 0, "reward_multiplier": 2.0,
             "venue_branded_channel": True, "venue_playlist_control": True,
