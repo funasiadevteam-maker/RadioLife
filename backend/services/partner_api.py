@@ -51,13 +51,32 @@ RATE_LIMIT_PER_MINUTE = int(os.environ.get("PARTNER_API_RATE_LIMIT_PER_MINUTE", 
 
 # ── Scopes ──────────────────────────────────────────────────────────
 SCOPES = [
+    "account:read",       # read partner/account profile
     "catalog:read",       # browse the product/inventory catalog
+    "inventory:read", "markets:read", "stations:read",
+    "targeting:read", "ratecard:read",
     "advertisers:read", "advertisers:write",
     "campaigns:read", "campaigns:write",
-    "reports:read",
+    "creatives:read", "creatives:write",
+    "games:read", "games:write",
+    "offers:read", "offers:write",
+    "merchant:read", "merchant:write",
+    "reports:read", "analytics:read", "billing:read",
     "funding:write",      # top-up campaign budget
+    "webhooks:read", "webhooks:write",
+    "rewards:read",
 ]
-DEFAULT_SCOPES = list(SCOPES)
+# Keys/clients minted without an explicit scope list get this least-privilege
+# read+basic set (write scopes for advertisers/campaigns/creatives kept for
+# backward compatibility with the pre-Phase-A default).
+DEFAULT_SCOPES = [
+    "account:read", "catalog:read", "inventory:read", "markets:read",
+    "stations:read", "targeting:read", "ratecard:read",
+    "advertisers:read", "advertisers:write",
+    "campaigns:read", "campaigns:write",
+    "creatives:read", "creatives:write",
+    "reports:read", "analytics:read", "funding:write",
+]
 
 # Webhook event types partners can subscribe to.
 WEBHOOK_EVENTS = [

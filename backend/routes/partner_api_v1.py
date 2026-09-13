@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from services import ad1_advertiser_service as ad
@@ -24,6 +26,7 @@ from services import trivia_sponsorship_service as tr
 from services import rj_sponsored_read_service as rj
 from services import partner_api as pa
 from services import partner_marketplace as mkt
+from services import ad_product_registry as reg
 from services.partner_api import Caller, require_scopes
 
 log = logging.getLogger("bigfm.partner_api.v1")
@@ -44,9 +47,14 @@ partner_app = FastAPI(
 
 @partner_app.middleware("http")
 async def _usage_mw(request: Request, call_next):
-    """Log each authenticated call for usage analytics + fire webhook events."""
+    """Log each authenticated call for usage analytics + fire webhook events.
+    Also stamps every response with the API version + a request id."""
     t0 = time.time()
+    request_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:20]}"
+    request.state.request_id = request_id
     response = await call_next(request)
+    response.headers["X-RadioLife-API-Version"] = reg.API_VERSION
+    response.headers["X-Request-ID"] = request_id
     try:
         caller = getattr(request.state, "caller", None)
         if caller is not None:
@@ -59,6 +67,48 @@ async def _usage_mw(request: Request, call_next):
     except Exception:
         pass
     return response
+
+
+# ── normalized error envelope (Phase A) ─────────────────────────────
+# Every error carries {error:{code,message,field?,request_id}} while ALSO
+# keeping the legacy `detail` field for backward compatibility.
+def _error_body(request: Request, status_code: int, detail: Any) -> dict:
+    code, message, field = None, None, None
+    if isinstance(detail, dict):
+        code = detail.get("code")
+        message = detail.get("message")
+        field = detail.get("field")
+        if not message:
+            message = detail.get("error") or detail.get("detail")
+    elif isinstance(detail, str):
+        message = detail
+    code = code or {400: "bad_request", 401: "unauthorized", 403: "forbidden",
+                    404: "not_found", 409: "conflict", 422: "unprocessable",
+                    429: "rate_limited"}.get(status_code, "error")
+    return {
+        "detail": detail,
+        "error": {"code": code, "message": message or code,
+                  "field": field,
+                  "request_id": getattr(request.state, "request_id", None)},
+    }
+
+
+@partner_app.exception_handler(HTTPException)
+async def _http_exc_handler(request: Request, exc: HTTPException):
+    body = _error_body(request, exc.status_code, exc.detail)
+    headers = dict(exc.headers or {})
+    headers["X-RadioLife-API-Version"] = reg.API_VERSION
+    headers["X-Request-ID"] = getattr(request.state, "request_id", "") or ""
+    return JSONResponse(status_code=exc.status_code, content=body, headers=headers)
+
+
+@partner_app.exception_handler(Exception)
+async def _unhandled_exc_handler(request: Request, exc: Exception):
+    log.warning("[v1] unhandled error: %s", exc)
+    body = _error_body(request, 500, {"code": "internal_error"})
+    return JSONResponse(status_code=500, content=body,
+                        headers={"X-RadioLife-API-Version": reg.API_VERSION,
+                                 "X-Request-ID": getattr(request.state, "request_id", "") or ""})
 
 
 # ── error mapping ───────────────────────────────────────────────────
@@ -108,6 +158,107 @@ async def products(caller: Caller = Depends(require_scopes("catalog:read"))):
     return {"pricing_models": {"cpm": "cost per 1,000 impressions",
                                "cpc": "cost per click", "flat": "flat fee for the flight"},
             "scopes": pa.SCOPES, "items": pa.PRODUCTS}
+
+
+# ══════════════════════════ discovery (Phase A) ═════════════════════
+@partner_app.get("/status", tags=["meta"])
+async def status_ep():
+    """Public, unauthenticated operational status."""
+    return {"status": "operational", "api_version": reg.API_VERSION,
+            "docs": "/api/v1/docs", "services": {
+                "campaigns": "operational", "sponsorships": "operational",
+                "marketplace": "operational", "webhooks": "operational"}}
+
+
+@partner_app.get("/capabilities", tags=["catalog"])
+async def capabilities_ep(request: Request,
+                          caller: Caller = Depends(require_scopes("catalog:read"))):
+    """Dynamic capability discovery — external clients should read this instead
+    of hardcoding which products/markets/targeting are available."""
+    caps = await reg.capabilities(request.app.state.db, environment=caller.environment)
+    caps["scopes"] = pa.SCOPES
+    return caps
+
+
+@partner_app.get("/inventory", tags=["catalog"])
+async def inventory_ep(caller: Caller = Depends(require_scopes("catalog:read"))):
+    return {"categories": reg.inventory()}
+
+
+@partner_app.get("/markets", tags=["catalog"])
+async def markets_ep(caller: Caller = Depends(require_scopes("catalog:read"))):
+    return {"data": reg.markets()}
+
+
+@partner_app.get("/targeting/options", tags=["catalog"])
+async def targeting_options_ep(caller: Caller = Depends(require_scopes("catalog:read"))):
+    return {"data": reg.TARGETING_OPTIONS}
+
+
+@partner_app.get("/rate-card", tags=["catalog"])
+async def rate_card_ep(caller: Caller = Depends(require_scopes("catalog:read"))):
+    return reg.RATE_CARD
+
+
+@partner_app.get("/stations", tags=["catalog"])
+async def stations_ep(request: Request,
+                      market: Optional[str] = None,
+                      country: Optional[str] = None,
+                      genre: Optional[str] = None,
+                      language: Optional[str] = None,
+                      station_type: Optional[str] = None,
+                      flagship: Optional[bool] = None,
+                      q: Optional[str] = None,
+                      cursor: Optional[str] = None,
+                      limit: int = 50,
+                      caller: Caller = Depends(require_scopes("catalog:read"))):
+    """Cursor-paginated station directory. `station_type=radiolife` returns the
+    RadioLife AI stations; otherwise the imported live-radio directory."""
+    db = request.app.state.db
+    limit = max(1, min(int(limit), 100))
+
+    if station_type == "radiolife":
+        query: dict = {"active": True}
+        if market:
+            query["market"] = market
+        rows = await db.channels.find(query).sort("_id", 1).to_list(200)
+        data = [{"station_id": c["_id"], "name": c.get("name"),
+                 "station_type": "radiolife", "market": c.get("market"),
+                 "genre": c.get("music_genre"), "language": c.get("language_mix"),
+                 "premium": bool(c.get("premium_only")),
+                 "artwork": c.get("cover_image_url")} for c in rows]
+        return {"data": data, "next_cursor": None, "has_more": False}
+
+    query = {"active": True}
+    if country:
+        query["country_code"] = country.upper()
+    if language:
+        query["language"] = {"$regex": language, "$options": "i"}
+    if genre:
+        query["music_genre"] = {"$regex": genre, "$options": "i"}
+    if flagship is not None:
+        query["is_flagship"] = bool(flagship)
+    if q:
+        query["name"] = {"$regex": q, "$options": "i"}
+    if cursor:
+        try:
+            from bson import ObjectId
+            query["_id"] = {"$gt": ObjectId(cursor)}
+        except Exception:
+            raise HTTPException(400, {"code": "invalid_cursor"})
+
+    rows = await db.imported_radio_stations.find(query).sort("_id", 1).to_list(limit + 1)
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    data = [{"station_id": r.get("id") or str(r.get("_id")),
+             "name": r.get("name"), "station_type": "live_radio",
+             "country": r.get("country"), "country_code": r.get("country_code"),
+             "city": r.get("city"), "genre": r.get("music_genre"),
+             "language": r.get("language"), "flagship": bool(r.get("is_flagship")),
+             "artwork": r.get("favicon"), "frequency": r.get("frequency")}
+            for r in rows]
+    next_cursor = str(rows[-1]["_id"]) if (has_more and rows) else None
+    return {"data": data, "next_cursor": next_cursor, "has_more": has_more}
 
 
 # ══════════════════════════ OAuth2 ══════════════════════════════════
