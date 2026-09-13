@@ -30,6 +30,8 @@ from services import partner_marketplace as mkt
 from services import ad_product_registry as reg
 from services import partner_api_ext as ext
 from services import partner_creatives as cr
+from services import games_v2 as gv2
+from services import partner_api_phase_e as pe
 from services.partner_api import Caller, require_scopes
 
 log = logging.getLogger("bigfm.partner_api.v1")
@@ -58,6 +60,10 @@ async def _usage_mw(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-RadioLife-API-Version"] = reg.API_VERSION
     response.headers["X-Request-ID"] = request_id
+    # Phase F security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers.setdefault("Cache-Control", "no-store")
     try:
         caller = getattr(request.state, "caller", None)
         if caller is not None:
@@ -132,6 +138,24 @@ def _svc_user(caller: Caller) -> dict:
     return {"user_id": caller.owner_id, "role": "partner"}
 
 
+def _parse_dt(s: Optional[str]):
+    if not s:
+        return None
+    try:
+        from datetime import datetime as _dt
+        return _dt.fromisoformat(s.replace("Z", "+00:00"))
+    except Exception:
+        raise HTTPException(400, {"code": "invalid_datetime", "field": "start_at/end_at",
+                                  "message": "use ISO-8601, e.g. 2026-07-01T00:00:00Z"})
+
+
+def _iso(v):
+    if v is None:
+        return None
+    return v.isoformat() if hasattr(v, "isoformat") else str(v)
+
+
+
 async def _assert_adv(db, caller: Caller, advertiser_id: str) -> dict:
     adv = await ad.get_advertiser(db, advertiser_id=advertiser_id)
     if not adv or adv.get("owner_user_id") != caller.owner_id:
@@ -180,6 +204,13 @@ async def capabilities_ep(request: Request,
     of hardcoding which products/markets/targeting are available."""
     caps = await reg.capabilities(request.app.state.db, environment=caller.environment)
     caps["scopes"] = pa.SCOPES
+    # Phase F — merge per-partner feature-flag overrides on top of the global set.
+    overrides = await pa.get_partner_flags(request.app.state.db, caller.partner_id)
+    if overrides:
+        merged = dict(caps.get("feature_flags") or {})
+        merged.update(overrides)
+        caps["feature_flags"] = merged
+        caps["feature_flag_overrides"] = overrides
     return caps
 
 
@@ -975,6 +1006,178 @@ async def delete_creative(creative_id: str, request: Request,
     return {"deleted": True, "creative_id": creative_id}
 
 
+# ══════════════════════ booking discovery + games (Phase D) ════════
+@partner_app.get("/game-templates", tags=["games"])
+async def game_templates(request: Request,
+                         caller: Caller = Depends(require_scopes("games:read"))):
+    """Enabled Play & Win game templates available to sponsor."""
+    db = request.app.state.db
+    rows = await db.game_templates.find({"active": True}).to_list(50)
+    data = [{"template_id": t["template_id"], "game_type": t.get("game_type"),
+             "name": t.get("name"), "description": t.get("description"),
+             "min_prizes": int(t.get("min_prizes") or 1),
+             "max_prizes": int(t.get("max_prizes") or 12),
+             "preview_image_url": t.get("preview_image_url"),
+             "prize_types": sorted(gv2.PRIZE_TYPES),
+             "redemption_methods": sorted(gv2.REDEMPTION_METHODS)} for t in rows]
+    return {"data": data, "count": len(data),
+            "notes": "prize probability_weight values must sum to 100."}
+
+
+class SGPrize(BaseModel):
+    prize_type: str
+    title: str
+    description: Optional[str] = None
+    value_amount: Optional[float] = None
+    value_currency: Optional[str] = None
+    probability_weight: int
+    inventory_total: int = Field(..., ge=1)
+    max_per_user: int = 0
+    redemption_method: str = "in_app_wallet"
+    daily_quantity_cap: int = 0
+
+
+class SponsoredGameCreate(BaseModel):
+    advertiser_id: str
+    template_id: str
+    name: str
+    prizes: list[SGPrize]
+    description: Optional[str] = None
+    start_at: Optional[str] = None
+    end_at: Optional[str] = None
+    sponsor_name: Optional[str] = None
+    brand: Optional[dict] = None
+    config: Optional[dict] = None
+    external_id: Optional[str] = None
+
+
+@partner_app.post("/sponsored-games", tags=["games"], status_code=201)
+async def create_sponsored_game_ep(body: SponsoredGameCreate, request: Request,
+                                   caller: Caller = Depends(require_scopes("games:write"))):
+    db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_sponsored_game", idem)
+    if cached is not None:
+        return cached
+    dup = await ext.external_get(db, caller, "sponsored_game", body.external_id)
+    if dup is not None:
+        await ext.idem_save(db, caller, "create_sponsored_game", idem, dup)
+        return dup
+    await _assert_adv(db, caller, body.advertiser_id)
+    status = "active" if caller.is_sandbox else "pending_approval"
+    try:
+        res = await gv2.create_sponsored_game(
+            db, advertiser_id=body.advertiser_id, template_id=body.template_id,
+            title=body.name, prizes=[p.model_dump() for p in body.prizes],
+            sponsor_name=body.sponsor_name, brand=body.brand, description=body.description,
+            start_at=_parse_dt(body.start_at), end_at=_parse_dt(body.end_at),
+            status=status, config_overrides=body.config,
+            actor_user_id=caller.owner_id or "partner_api")
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    except Exception as e:
+        raise _map_error(e)
+    result = {"sponsored_game": res, "external_id": body.external_id,
+              "environment": caller.environment}
+    await pa.emit_event(db, partner_id=caller.partner_id, environment=caller.environment,
+                        event_type="sponsored_game.created", data=res)
+    await ext.external_save(db, caller, "sponsored_game", body.external_id,
+                            res["campaign_id"], result)
+    await ext.idem_save(db, caller, "create_sponsored_game", idem, result)
+    return result
+
+
+@partner_app.get("/sponsored-games", tags=["games"])
+async def list_sponsored_games(request: Request, advertiser_id: str,
+                               cursor: Optional[str] = None, limit: int = 50,
+                               caller: Caller = Depends(require_scopes("games:read"))):
+    db = request.app.state.db
+    await _assert_adv(db, caller, advertiser_id)
+    rows = await db.game_campaigns.find(
+        {"advertiser_id": advertiser_id, "is_platform_funded": False}
+    ).sort("created_at", -1).to_list(500)
+    items = [_sg_view(c) for c in rows]
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"data": page["data"], "count": page["count"],
+            "next_cursor": page["next_cursor"], "has_more": page["has_more"]}
+
+
+@partner_app.get("/sponsored-games/{campaign_id}", tags=["games"])
+async def get_sponsored_game(campaign_id: str, request: Request,
+                             caller: Caller = Depends(require_scopes("games:read"))):
+    db = request.app.state.db
+    c = await db.game_campaigns.find_one({"campaign_id": campaign_id})
+    if not c or c.get("is_platform_funded"):
+        raise HTTPException(404, {"code": "sponsored_game_not_found"})
+    await _assert_adv(db, caller, c.get("advertiser_id"))
+    prizes = await db.game_prizes.find({"campaign_id": campaign_id}).to_list(50)
+    view = _sg_view(c)
+    view["prizes"] = [{"title": p.get("title"), "prize_type": p.get("prize_type"),
+                       "value_amount": p.get("value_amount"),
+                       "probability_weight": p.get("probability_weight"),
+                       "inventory_remaining": p.get("inventory_remaining"),
+                       "daily_quantity_cap": p.get("daily_quantity_cap")} for p in prizes]
+    return {"sponsored_game": view}
+
+
+def _sg_view(c: dict) -> dict:
+    return {"campaign_id": c.get("campaign_id"), "name": c.get("title"),
+            "template_id": c.get("template_id"), "status": c.get("status"),
+            "advertiser_id": c.get("advertiser_id"), "sponsor_name": c.get("sponsor_name"),
+            "start_at": _iso(c.get("start_at")), "end_at": _iso(c.get("end_at")),
+            "created_at": _iso(c.get("created_at"))}
+
+
+@partner_app.get("/predictions/eligible", tags=["sponsorships"])
+async def predictions_eligible(request: Request, limit: int = 50,
+                               caller: Caller = Depends(require_scopes("campaigns:read"))):
+    """Open Predict & Win parents an advertiser can attach a sponsorship to."""
+    db = request.app.state.db
+    from services import ad3_sponsorship_service as pw
+    rows = await pw.available_parent_campaigns(db, limit=min(int(limit), 100))
+    return {"data": rows, "count": len(rows)}
+
+
+@partner_app.get("/trivia/inventory", tags=["sponsorships"])
+async def trivia_inventory(request: Request,
+                           caller: Caller = Depends(require_scopes("catalog:read"))):
+    db = request.app.state.db
+    cats = await db.trivia_categories.find({}).limit(100).to_list(100)
+    return {"scopes": ["room", "category", "any"],
+            "categories": [{"id": str(c.get("_id") or c.get("category_id")),
+                            "name": c.get("name")} for c in cats],
+            "notes": "Create via POST /sponsorships {type:'trivia'}."}
+
+
+@partner_app.get("/inventory/display", tags=["catalog"])
+async def inventory_display(caller: Caller = Depends(require_scopes("catalog:read"))):
+    p = reg.by_key("display_banner") or {}
+    return {"product": "display_banner", "status": p.get("status"),
+            "pricing_models": p.get("pricing_models"),
+            "creative_requirements": p.get("creative_requirements"),
+            "placements": [
+                {"placement": "home_rail", "dimensions": "970x250", "aspect_ratio": "3.88:1"},
+                {"placement": "player_companion", "dimensions": "300x250", "aspect_ratio": "1.2:1"},
+                {"placement": "listing_inline", "dimensions": "320x100", "aspect_ratio": "3.2:1"}]}
+
+
+@partner_app.get("/inventory/audio", tags=["catalog"])
+async def inventory_audio(caller: Caller = Depends(require_scopes("catalog:read"))):
+    pre = reg.by_key("audio_preroll") or {}
+    mid = reg.by_key("audio_midroll") or {}
+    return {"products": [
+        {"product": "audio_preroll", "status": pre.get("status"),
+         "api_bookable": pre.get("api_bookable"), "pricing_models": pre.get("pricing_models"),
+         "creative_requirements": pre.get("creative_requirements")},
+        {"product": "audio_midroll", "status": mid.get("status"),
+         "api_bookable": mid.get("api_bookable"), "pricing_models": mid.get("pricing_models"),
+         "creative_requirements": mid.get("creative_requirements")}]}
+
+
+
 
 @partner_app.post("/campaigns/{campaign_id}/submit", tags=["campaigns"])
 async def submit_campaign(campaign_id: str, request: Request, advertiser_id: str,
@@ -1487,6 +1690,408 @@ async def ping_webhook_ep(webhook_id: str, request: Request,
 async def deliveries_ep(webhook_id: str, request: Request,
                         caller: Caller = Depends(require_scopes("campaigns:read"))):
     return {"items": await pa.list_deliveries(request.app.state.db, partner_id=caller.partner_id, webhook_id=webhook_id)}
+
+
+# ══════════════════════════ Phase E — Merchant API ══════════════════
+class MerchantCreate(BaseModel):
+    name: str
+    category: Optional[str] = None
+    contact_email: Optional[str] = None
+    website: Optional[str] = None
+    description: Optional[str] = None
+    external_id: Optional[str] = None
+
+
+class MerchantPatch(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    contact_email: Optional[str] = None
+    website: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+
+
+class OfferCreate(BaseModel):
+    title: str
+    offer_type: str = "percent"
+    value: Optional[float] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+    starts_at: Optional[str] = None
+    ends_at: Optional[str] = None
+    external_id: Optional[str] = None
+
+
+class OfferPatch(BaseModel):
+    title: Optional[str] = None
+    offer_type: Optional[str] = None
+    value: Optional[float] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    starts_at: Optional[str] = None
+    ends_at: Optional[str] = None
+
+
+@partner_app.post("/merchant/businesses", tags=["merchant"], status_code=201)
+async def create_merchant_ep(body: MerchantCreate, request: Request,
+                             caller: Caller = Depends(require_scopes("merchant:write"))):
+    db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_merchant", idem)
+    if cached is not None:
+        return cached
+    dup = await ext.external_get(db, caller, "merchant", body.external_id)
+    if dup is not None:
+        await ext.idem_save(db, caller, "create_merchant", idem, dup)
+        return dup
+    try:
+        m = await pe.create_merchant(db, caller, name=body.name, category=body.category,
+                                     contact_email=body.contact_email, website=body.website,
+                                     description=body.description, external_id=body.external_id)
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    result = {"merchant": m, "external_id": body.external_id, "environment": caller.environment}
+    await pa.emit_event(db, partner_id=caller.partner_id, environment=caller.environment,
+                        event_type="merchant.created", data=m)
+    await ext.external_save(db, caller, "merchant", body.external_id, m["merchant_id"], result)
+    await ext.idem_save(db, caller, "create_merchant", idem, result)
+    return result
+
+
+@partner_app.get("/merchant/businesses", tags=["merchant"])
+async def list_merchants_ep(request: Request, external_id: Optional[str] = None,
+                            cursor: Optional[str] = None, limit: int = 50,
+                            caller: Caller = Depends(require_scopes("merchant:read"))):
+    db = request.app.state.db
+    items = await pe.list_merchants(db, caller, external_id=external_id)
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"data": page["data"], "count": page["count"],
+            "next_cursor": page["next_cursor"], "has_more": page["has_more"]}
+
+
+@partner_app.get("/merchant/businesses/{merchant_id}", tags=["merchant"])
+async def get_merchant_ep(merchant_id: str, request: Request,
+                          caller: Caller = Depends(require_scopes("merchant:read"))):
+    m = await pe.get_merchant(request.app.state.db, caller, merchant_id)
+    if not m:
+        raise HTTPException(404, {"code": "merchant_not_found"})
+    return {"merchant": m}
+
+
+@partner_app.patch("/merchant/businesses/{merchant_id}", tags=["merchant"])
+async def patch_merchant_ep(merchant_id: str, body: MerchantPatch, request: Request,
+                            caller: Caller = Depends(require_scopes("merchant:write"))):
+    try:
+        m = await pe.patch_merchant(request.app.state.db, caller, merchant_id,
+                                    body.model_dump(exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    if not m:
+        raise HTTPException(404, {"code": "merchant_not_found"})
+    return {"merchant": m}
+
+
+@partner_app.post("/merchant/businesses/{merchant_id}/offers", tags=["merchant"], status_code=201)
+async def create_offer_ep(merchant_id: str, body: OfferCreate, request: Request,
+                          caller: Caller = Depends(require_scopes("merchant:write"))):
+    db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_offer", idem)
+    if cached is not None:
+        return cached
+    dup = await ext.external_get(db, caller, "offer", body.external_id)
+    if dup is not None:
+        await ext.idem_save(db, caller, "create_offer", idem, dup)
+        return dup
+    try:
+        o = await pe.create_offer(db, caller, merchant_id, title=body.title,
+                                  offer_type=body.offer_type, value=body.value,
+                                  code=body.code, description=body.description,
+                                  starts_at=body.starts_at, ends_at=body.ends_at,
+                                  external_id=body.external_id)
+    except LookupError:
+        raise HTTPException(404, {"code": "merchant_not_found"})
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    result = {"offer": o, "external_id": body.external_id, "environment": caller.environment}
+    await pa.emit_event(db, partner_id=caller.partner_id, environment=caller.environment,
+                        event_type="offer.created", data=o)
+    await ext.external_save(db, caller, "offer", body.external_id, o["offer_id"], result)
+    await ext.idem_save(db, caller, "create_offer", idem, result)
+    return result
+
+
+@partner_app.get("/merchant/businesses/{merchant_id}/offers", tags=["merchant"])
+async def list_offers_ep(merchant_id: str, request: Request, external_id: Optional[str] = None,
+                         cursor: Optional[str] = None, limit: int = 50,
+                         caller: Caller = Depends(require_scopes("merchant:read"))):
+    db = request.app.state.db
+    items = await pe.list_offers(db, caller, merchant_id, external_id=external_id)
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"data": page["data"], "count": page["count"],
+            "next_cursor": page["next_cursor"], "has_more": page["has_more"]}
+
+
+@partner_app.patch("/merchant/offers/{offer_id}", tags=["merchant"])
+async def patch_offer_ep(offer_id: str, body: OfferPatch, request: Request,
+                         caller: Caller = Depends(require_scopes("merchant:write"))):
+    try:
+        o = await pe.patch_offer(request.app.state.db, caller, offer_id,
+                                 body.model_dump(exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    if not o:
+        raise HTTPException(404, {"code": "offer_not_found"})
+    return {"offer": o}
+
+
+# ══════════════════════ Phase E — reward events ═════════════════════
+class RewardEventCreate(BaseModel):
+    type: str = Field(..., description="listen_minutes | purchase | signup | referral | coupon_redeemed | survey_completed | app_open | share | custom")
+    value_cents: int = Field(0, ge=0)
+    points: int = Field(0, ge=0)
+    user_ref: Optional[str] = None
+    campaign_id: Optional[str] = None
+    metadata: Optional[dict] = None
+    occurred_at: Optional[str] = None
+    external_id: Optional[str] = None
+
+
+@partner_app.post("/reward-events", tags=["rewards"], status_code=201)
+async def create_reward_event_ep(body: RewardEventCreate, request: Request,
+                                 caller: Caller = Depends(require_scopes("rewards:write"))):
+    db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_reward_event", idem)
+    if cached is not None:
+        return cached
+    try:
+        ev, created = await pe.record_reward_event(
+            db, caller, type=body.type, value_cents=body.value_cents, points=body.points,
+            user_ref=body.user_ref, campaign_id=body.campaign_id, metadata=body.metadata,
+            occurred_at=body.occurred_at, external_id=body.external_id)
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    result = {"reward_event": ev, "created": created, "environment": caller.environment}
+    if created:
+        await pa.emit_event(db, partner_id=caller.partner_id, environment=caller.environment,
+                            event_type="reward_event.recorded", data=ev)
+    await ext.idem_save(db, caller, "create_reward_event", idem, result)
+    return result
+
+
+@partner_app.get("/reward-events", tags=["rewards"])
+async def list_reward_events_ep(request: Request, type: Optional[str] = None,
+                                status: Optional[str] = None, external_id: Optional[str] = None,
+                                cursor: Optional[str] = None, limit: int = 50,
+                                caller: Caller = Depends(require_scopes("rewards:read"))):
+    db = request.app.state.db
+    items = await pe.list_reward_events(db, caller, type=type, status=status, external_id=external_id)
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"data": page["data"], "count": page["count"],
+            "next_cursor": page["next_cursor"], "has_more": page["has_more"]}
+
+
+@partner_app.get("/reward-events/{event_id}", tags=["rewards"])
+async def get_reward_event_ep(event_id: str, request: Request,
+                              caller: Caller = Depends(require_scopes("rewards:read"))):
+    ev = await pe.get_reward_event(request.app.state.db, caller, event_id)
+    if not ev:
+        raise HTTPException(404, {"code": "reward_event_not_found"})
+    return {"reward_event": ev}
+
+
+# ══════════════════════ Phase E — conversions ═══════════════════════
+class ConversionCreate(BaseModel):
+    conversion_type: str = Field(..., description="purchase | signup | lead | install | subscription | add_to_cart | page_view | custom")
+    value_cents: int = Field(0, ge=0)
+    campaign_id: Optional[str] = None
+    creative_id: Optional[str] = None
+    advertiser_id: Optional[str] = None
+    user_ref: Optional[str] = None
+    metadata: Optional[dict] = None
+    occurred_at: Optional[str] = None
+    external_id: Optional[str] = None
+
+
+@partner_app.post("/conversions", tags=["conversions"], status_code=201)
+async def create_conversion_ep(body: ConversionCreate, request: Request,
+                               caller: Caller = Depends(require_scopes("conversions:write"))):
+    db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_conversion", idem)
+    if cached is not None:
+        return cached
+    try:
+        cv, created = await pe.record_conversion(
+            db, caller, conversion_type=body.conversion_type, value_cents=body.value_cents,
+            campaign_id=body.campaign_id, creative_id=body.creative_id,
+            advertiser_id=body.advertiser_id, user_ref=body.user_ref,
+            metadata=body.metadata, occurred_at=body.occurred_at, external_id=body.external_id)
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    result = {"conversion": cv, "created": created, "environment": caller.environment}
+    if created:
+        await pa.emit_event(db, partner_id=caller.partner_id, environment=caller.environment,
+                            event_type="conversion.recorded", data=cv)
+    await ext.idem_save(db, caller, "create_conversion", idem, result)
+    return result
+
+
+@partner_app.get("/conversions", tags=["conversions"])
+async def list_conversions_ep(request: Request, conversion_type: Optional[str] = None,
+                              campaign_id: Optional[str] = None, external_id: Optional[str] = None,
+                              cursor: Optional[str] = None, limit: int = 50,
+                              caller: Caller = Depends(require_scopes("conversions:read"))):
+    db = request.app.state.db
+    items = await pe.list_conversions(db, caller, conversion_type=conversion_type,
+                                      campaign_id=campaign_id, external_id=external_id)
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"data": page["data"], "count": page["count"],
+            "next_cursor": page["next_cursor"], "has_more": page["has_more"]}
+
+
+@partner_app.get("/conversions/{conversion_id}", tags=["conversions"])
+async def get_conversion_ep(conversion_id: str, request: Request,
+                            caller: Caller = Depends(require_scopes("conversions:read"))):
+    cv = await pe.get_conversion(request.app.state.db, caller, conversion_id)
+    if not cv:
+        raise HTTPException(404, {"code": "conversion_not_found"})
+    return {"conversion": cv}
+
+
+# ══════════════════════ Phase E — bulk / async jobs ═════════════════
+class BulkBody(BaseModel):
+    items: list[dict] = Field(..., description="Up to 1000 records to sync")
+
+
+@partner_app.post("/bulk/{operation}", tags=["jobs"], status_code=202)
+async def create_bulk_job_ep(operation: str, body: BulkBody, request: Request,
+                             caller: Caller = Depends(require_scopes("jobs:write"))):
+    """Submit a bulk-sync job (reward_events | conversions | offers). Returns a
+    queued job processed asynchronously; poll GET /jobs/{id}. Requires the
+    operation's own write scope in addition to jobs:write."""
+    db = request.app.state.db
+    if operation not in pe.BULK_OPERATIONS:
+        raise HTTPException(400, {"code": "invalid_bulk_operation",
+                                  "allowed": sorted(pe.BULK_OPERATIONS)})
+    need = pe.BULK_OP_SCOPE[operation]
+    if need not in caller.scopes:
+        raise HTTPException(403, {"code": "insufficient_scope", "missing": [need]})
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, f"bulk_{operation}", idem)
+    if cached is not None:
+        return cached
+    try:
+        job = await pe.create_job(db, caller, operation=operation, items=body.items)
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    import asyncio as _aio
+    _aio.create_task(pe.run_job(db, job["job_id"]))
+    result = {"job": job}
+    await ext.idem_save(db, caller, f"bulk_{operation}", idem, result)
+    return result
+
+
+@partner_app.get("/jobs", tags=["jobs"])
+async def list_jobs_ep(request: Request, cursor: Optional[str] = None, limit: int = 50,
+                       caller: Caller = Depends(require_scopes("jobs:read"))):
+    db = request.app.state.db
+    items = await pe.list_jobs(db, caller)
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"data": page["data"], "count": page["count"],
+            "next_cursor": page["next_cursor"], "has_more": page["has_more"]}
+
+
+@partner_app.get("/jobs/{job_id}", tags=["jobs"])
+async def get_job_ep(job_id: str, request: Request,
+                     caller: Caller = Depends(require_scopes("jobs:read"))):
+    job = await pe.get_job(request.app.state.db, caller, job_id)
+    if not job:
+        raise HTTPException(404, {"code": "job_not_found"})
+    return {"job": job}
+
+
+# ══════════════════════ Phase E — analytics ═════════════════════════
+@partner_app.get("/analytics/summary", tags=["reporting"])
+async def analytics_summary_ep(request: Request, days: int = 30,
+                               caller: Caller = Depends(require_scopes("analytics:read"))):
+    return await pe.analytics_summary(request.app.state.db, caller, days=days)
+
+
+@partner_app.get("/analytics/timeseries", tags=["reporting"])
+async def analytics_timeseries_ep(request: Request, metric: str, days: int = 30,
+                                  caller: Caller = Depends(require_scopes("analytics:read"))):
+    try:
+        return await pe.analytics_timeseries(request.app.state.db, caller, metric=metric, days=days)
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e), "allowed": sorted(pe._TS_METRICS)})
+
+
+# ══════════════════════ Phase E — billing ═══════════════════════════
+@partner_app.get("/billing/summary", tags=["billing"])
+async def billing_summary_ep(request: Request, days: int = 30,
+                             caller: Caller = Depends(require_scopes("billing:read"))):
+    return await pe.billing_summary(request.app.state.db, caller, days=days)
+
+
+@partner_app.get("/billing/invoices", tags=["billing"])
+async def billing_invoices_ep(request: Request, cursor: Optional[str] = None, limit: int = 50,
+                              caller: Caller = Depends(require_scopes("billing:read"))):
+    db = request.app.state.db
+    items = await pe.list_invoices(db, caller)
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"data": page["data"], "count": page["count"],
+            "next_cursor": page["next_cursor"], "has_more": page["has_more"]}
+
+
+@partner_app.get("/billing/invoices/{invoice_id}", tags=["billing"])
+async def billing_invoice_ep(invoice_id: str, request: Request,
+                             caller: Caller = Depends(require_scopes("billing:read"))):
+    inv = await pe.get_invoice(request.app.state.db, caller, invoice_id)
+    if not inv:
+        raise HTTPException(404, {"code": "invoice_not_found"})
+    return {"invoice": inv}
+
+
+# ══════════════════════ Phase F — webhook hardening ═════════════════
+@partner_app.post("/webhooks/{webhook_id}/rotate-secret", tags=["webhooks"])
+async def rotate_webhook_secret_ep(webhook_id: str, request: Request,
+                                   caller: Caller = Depends(require_scopes("campaigns:write"))):
+    r = await pa.rotate_webhook_secret(request.app.state.db, partner_id=caller.partner_id,
+                                       webhook_id=webhook_id)
+    if r is None:
+        raise HTTPException(404, {"code": "webhook_not_found"})
+    return r
+
+
+@partner_app.post("/webhooks/{webhook_id}/deliveries/{delivery_id}/retry", tags=["webhooks"])
+async def retry_delivery_ep(webhook_id: str, delivery_id: str, request: Request,
+                            caller: Caller = Depends(require_scopes("campaigns:write"))):
+    r = await pa.retry_delivery(request.app.state.db, partner_id=caller.partner_id,
+                                webhook_id=webhook_id, delivery_id=delivery_id)
+    if r is None:
+        raise HTTPException(404, {"code": "delivery_not_found"})
+    return r
 
 
 __all__ = ["partner_app"]

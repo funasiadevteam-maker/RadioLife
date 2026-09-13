@@ -1,3 +1,38 @@
+# RadioLife — PRD
+
+> NOTE (2026-09 fork): This file grew changelog-style. Newest work is now also logged in **CHANGELOG.md** and the backlog lives in **ROADMAP.md**. The dated sections below remain the historical record.
+
+## ✅ UNIVERSAL ADVERTISING API — PHASES A→F COMPLETE (2026-09 fork)
+The programmatic media/ad platform built by EXTENDING the existing Partner API v1 (`/api/v1`, partner API-key/OAuth2 auth, LIVE/SANDBOX isolation; NO rebuild — reuses the internal ad/game/sponsorship engines) is now fully shipped through Phase F. All phases backend-tested + (F) web-tested.
+
+### Phase D — Booking APIs (iter123, 36/36 PASS)
+Discovery + booking for sponsored games / trivia / Predict&Win / AI-RJ reads / audio+display. Endpoints in `routes/partner_api_v1.py`: `GET /game-templates`, `POST/GET /sponsored-games` (+`/{id}`) reusing `games_v2.create_sponsored_game`, `GET /predictions/eligible`, `GET /trivia/inventory`, `GET /inventory/{display,audio}`, plus `/sponsorships` (predict_win/trivia/rj_read) with submit/checkout/status. SANDBOX auto-activates; Idempotency-Key + external_id dedup + cursor pagination throughout.
+
+### Phase E — Merchant API + Rewards/Conversions + Bulk/Async + Analytics + Billing (iter124, 52/52 PASS)
+NEW service `services/partner_api_phase_e.py` + endpoints. Never mutates real listener wallets — safely INGESTS partner-reported events (idempotent, de-duped, validated, capped) and READS aggregates.
+- **Merchant API**: `POST/GET/PATCH /merchant/businesses` (+ `/{id}`), `POST/GET /merchant/businesses/{id}/offers`, `PATCH /merchant/offers/{id}` (scopes merchant:read/write; Idempotency + external_id dedup).
+- **Reward events (safe)**: `POST/GET /reward-events` (+`/{id}`) scope rewards:read/write; type-validated, value/points capped, external_id dedup returns created=false, status=recorded/credited=false.
+- **Conversions**: `POST/GET /conversions` (+`/{id}`) scope conversions:read/write; attributed to campaign/creative.
+- **Bulk/async jobs**: `POST /bulk/{operation}` (reward_events|conversions|offers) → 202 queued job processed async via `run_job` (shares the safe single-record path); requires jobs:write + the op's own write scope; poll `GET /jobs/{id}` (+ `GET /jobs`). Per-item results {ok|duplicate|error}.
+- **Analytics**: `GET /analytics/summary` + `GET /analytics/timeseries?metric=` (analytics:read).
+- **Billing**: `GET /billing/summary` + `GET /billing/invoices` (+`/{id}`) (billing:read) — monthly statements from ad-campaign spend + marketplace promotion payments; current month 'open', past 'final'.
+- Collections (net-new): partner_merchants, partner_offers, partner_reward_events, partner_conversions, partner_jobs, partner_invoices. NEW scopes (additive): rewards:write, conversions:read/write, jobs:read/write. FEATURE_FLAGS +merchant_api/reward_events/conversions/bulk_jobs/analytics/billing.
+
+### Phase F — Webhooks hardening + Developer Portal + API Explorer + admin mgmt + feature flags + IP allowlist + security (iter125, 26/26 backend PASS + web verified)
+- **Webhooks**: expanded event catalog (Phase D/E events + ping); emit on reward/conversion/merchant/offer/sponsored-game create + job.completed; `POST /webhooks/{id}/rotate-secret`; deliveries now store the event payload → `GET /webhooks/{id}/deliveries` + `POST /webhooks/{id}/deliveries/{delivery_id}/retry`. HMAC `X-RadioLife-Signature` + 3-try in-request retry (pre-existing).
+- **IP allowlist**: optional per-key `ip_allowlist` (exact IP or CIDR) enforced in `resolve_caller` → 403 ip_not_allowed; opt-in (empty = any). Set via portal `POST /api/partner/keys/{id}/ip-allowlist`.
+- **Per-partner feature flags**: admin sets overrides; `/capabilities` merges them + returns feature_flag_overrides.
+- **Admin partner mgmt** (`/api/admin/partner-api`, cookie admin): list/credentials/usage/status(active|suspended)/rate-limit/flags/key-revoke. Suspension → 403 partner_suspended (cached ~60s via `_partner_meta`); per-partner rate-limit override.
+- **Security headers**: X-Content-Type-Options:nosniff, Referrer-Policy:no-referrer, Cache-Control:no-store on every /api/v1 response.
+- **Developer Portal (WEB)**: `frontend/src/pages/advertiser_v2/DeveloperApi.jsx` (route /advertiser/dashboard/api) extended — per-key IP allowlist editor, webhook event chips, secret rotation, delivery log + retry, and an interactive **API Explorer** (paste key → GET a safe endpoint → JSON response).
+- Files: `services/partner_api.py`, `routes/partner_api_v1.py`, `routes/partner_portal.py`, `services/partner_api_phase_e.py`, `frontend/.../DeveloperApi.jsx`. Test creds/keys in `/app/memory/test_credentials.md`.
+- Non-blocking nits (deferred): move list pagination into DB queries; webhooks:* scopes vs campaigns:* (kept campaigns:* for back-compat); durable webhook retry queue; cache 'final' invoices.
+
+### PAUSED consumer features (resume now that API A–F is done, or on request)
+Real game-win BigPoints crediting (`/api/play/resolve` does NOT credit wins today), `/store/:id` storefront + my-coupons, FPK coupon-cap admin dashboard + player scarcity strip, daily play-streak bonus (+10/day cap +70), BigPoints DB migration for existing docs. See ROADMAP.md.
+
+---
+
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
 ## PROGRAMMATIC API — PHASE C: CREATIVE LIBRARY + MULTI-FORMAT LINE ITEMS (2026-09 fork) — testing iter122 41/41 PASS, A+B regression intact

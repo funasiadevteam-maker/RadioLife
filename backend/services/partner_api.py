@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -64,7 +65,9 @@ SCOPES = [
     "reports:read", "analytics:read", "billing:read",
     "funding:write",      # top-up campaign budget
     "webhooks:read", "webhooks:write",
-    "rewards:read",
+    "rewards:read", "rewards:write",          # Phase E — reward events
+    "conversions:read", "conversions:write",  # Phase E — conversions
+    "jobs:read", "jobs:write",                # Phase E — bulk/async jobs
 ]
 # Keys/clients minted without an explicit scope list get this least-privilege
 # read+basic set (write scopes for advertisers/campaigns/creatives kept for
@@ -82,6 +85,10 @@ DEFAULT_SCOPES = [
 WEBHOOK_EVENTS = [
     "campaign.approved", "campaign.live", "campaign.budget_exhausted",
     "campaign.completed", "sponsorship.approved",
+    # Phase D / E
+    "sponsored_game.created", "conversion.recorded", "reward_event.recorded",
+    "job.completed", "merchant.created", "offer.created",
+    "ping",
 ]
 
 # ── Marketing product catalog (facade over the internal ad engine) ──
@@ -351,6 +358,36 @@ def _unauthorized(detail: str = "invalid_credentials") -> HTTPException:
                          headers={"WWW-Authenticate": "Bearer"})
 
 
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return (request.client.host if request.client else "") or ""
+
+
+def _ip_allowed(ip: str, allowlist: list[str]) -> bool:
+    """True if `ip` matches any allowlist entry (exact IP or CIDR)."""
+    if not allowlist:
+        return True
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    for entry in allowlist:
+        entry = (entry or "").strip()
+        if not entry:
+            continue
+        try:
+            if "/" in entry:
+                if addr in ipaddress.ip_network(entry, strict=False):
+                    return True
+            elif addr == ipaddress.ip_address(entry):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 async def resolve_caller(request: Request) -> Caller:
     db = request.app.state.db
     s = await _load_secrets(db)
@@ -365,6 +402,10 @@ async def resolve_caller(request: Request) -> Caller:
         if (not doc or doc.get("revoked_at")
                 or not hmac.compare_digest(_digest(s["pepper"], provided), doc["secret_hash"])):
             raise _unauthorized()
+        # Optional per-key IP allowlist (Phase F security hardening).
+        allowlist = doc.get("ip_allowlist") or []
+        if allowlist and not _ip_allowed(_client_ip(request), allowlist):
+            raise HTTPException(status_code=403, detail={"code": "ip_not_allowed"})
         # best-effort last-used tracking (never blocks the request)
         try:
             await db.partner_keys.update_one({"key_id": key_id},
@@ -387,8 +428,34 @@ async def resolve_caller(request: Request) -> Caller:
                   credential_id=p["sub"])
 
 
+_partner_limit_cache: dict[str, tuple[float, int, bool]] = {}
+
+
+async def _partner_meta(db, partner_id: str, default: int) -> tuple[int, bool]:
+    """(rate_limit, active) for a partner — admin-set override, cached 60s."""
+    cached = _partner_limit_cache.get(partner_id)
+    if cached and (time.time() - cached[0]) < 60:
+        return cached[1], cached[2]
+    limit, active = default, True
+    try:
+        p = await db.partner_accounts.find_one(
+            {"partner_id": partner_id},
+            {"rate_limit_per_minute": 1, "status": 1})
+        if p:
+            if int(p.get("rate_limit_per_minute") or 0) > 0:
+                limit = int(p["rate_limit_per_minute"])
+            active = (p.get("status") or "active") != "suspended"
+    except Exception:
+        pass
+    _partner_limit_cache[partner_id] = (time.time(), limit, active)
+    return limit, active
+
+
 async def enforce_rate_limit(db, caller: Caller, limit: int = RATE_LIMIT_PER_MINUTE) -> None:
     now = _now()
+    limit, active = await _partner_meta(db, caller.partner_id, limit)
+    if not active:
+        raise HTTPException(status_code=403, detail={"code": "partner_suspended"})
     window = now.replace(second=0, microsecond=0)
     key = f"{caller.environment}:{caller.credential_id}:{window.isoformat()}"
     doc = await db.partner_rate_windows.find_one_and_update(
@@ -479,7 +546,8 @@ def _wh_public(doc: Optional[dict]) -> Optional[dict]:
 async def create_webhook(db, *, partner_id: str, environment: str,
                          url: str, events: Optional[list[str]] = None) -> dict:
     env = _norm_env(environment)
-    evs = [e for e in (events or []) if e in WEBHOOK_EVENTS] or list(WEBHOOK_EVENTS)
+    subscribable = [e for e in WEBHOOK_EVENTS if e != "ping"]
+    evs = [e for e in (events or []) if e in WEBHOOK_EVENTS] or list(subscribable)
     secret = "whsec_" + secrets.token_urlsafe(24)
     wid = _gen("whk")
     await db.partner_webhooks.insert_one({
@@ -529,9 +597,11 @@ async def _deliver(db, wh: dict, event: dict) -> bool:
         await asyncio.sleep(0.5 * (attempt + 1))
     try:
         await db.partner_webhook_deliveries.insert_one({
+            "delivery_id": _gen("whd"),
             "webhook_id": wh["webhook_id"], "partner_id": wh["partner_id"],
             "event_type": event["type"], "event_id": event["id"], "url": wh["url"],
-            "status_code": status, "ok": ok, "error": err, "ts": _now()})
+            "status_code": status, "ok": ok, "error": err,
+            "event": event, "ts": _now()})
         await db.partner_webhooks.update_one({"webhook_id": wh["webhook_id"]},
                                              {"$set": {"last_delivery_at": _now()}})
     except Exception:
@@ -560,6 +630,76 @@ async def ping_webhook(db, *, partner_id: str, webhook_id: str) -> Optional[dict
     ev = {"id": _gen("evt"), "type": "ping", "created": _now().isoformat(),
           "environment": w["environment"], "data": {"message": "pong"}}
     return {"delivered": await _deliver(db, w, ev)}
+
+
+async def rotate_webhook_secret(db, *, partner_id: str, webhook_id: str) -> Optional[dict]:
+    """Issue a fresh signing secret (shown once). Old signatures stop verifying."""
+    w = await db.partner_webhooks.find_one({"webhook_id": webhook_id, "partner_id": partner_id})
+    if not w:
+        return None
+    secret = "whsec_" + secrets.token_urlsafe(24)
+    await db.partner_webhooks.update_one(
+        {"webhook_id": webhook_id}, {"$set": {"secret": secret, "rotated_at": _now()}})
+    return {"webhook_id": webhook_id, "secret": secret, "rotated_at": _now().isoformat()}
+
+
+async def retry_delivery(db, *, partner_id: str, webhook_id: str,
+                         delivery_id: str) -> Optional[dict]:
+    """Re-POST a previously-recorded event to its webhook (manual replay)."""
+    d = await db.partner_webhook_deliveries.find_one(
+        {"delivery_id": delivery_id, "webhook_id": webhook_id, "partner_id": partner_id})
+    if not d or not d.get("event"):
+        return None
+    w = await db.partner_webhooks.find_one({"webhook_id": webhook_id, "partner_id": partner_id})
+    if not w:
+        return None
+    return {"delivered": await _deliver(db, w, d["event"]), "event_id": d.get("event_id")}
+
+
+# ══════════════════════ management (Phase F) ════════════════════════
+async def set_key_ip_allowlist(db, *, partner_id: str, key_id: str,
+                               ip_allowlist: list[str]) -> bool:
+    r = await db.partner_keys.update_one(
+        {"key_id": key_id, "partner_id": partner_id},
+        {"$set": {"ip_allowlist": [x.strip() for x in (ip_allowlist or []) if x.strip()]}})
+    return r.matched_count > 0
+
+
+DEFAULT_PARTNER_FLAGS = {"api_bookings", "sandbox", "webhooks", "reward_events",
+                         "conversions", "merchant_api", "bulk_jobs"}
+
+
+async def get_partner_flags(db, partner_id: str) -> dict:
+    """Per-partner feature-flag overrides (only the keys the admin has set)."""
+    p = await db.partner_accounts.find_one({"partner_id": partner_id},
+                                           {"feature_flags": 1})
+    return dict((p or {}).get("feature_flags") or {})
+
+
+async def set_partner_flags(db, *, partner_id: str, flags: dict) -> dict:
+    clean = {k: bool(v) for k, v in (flags or {}).items()}
+    await db.partner_accounts.update_one(
+        {"partner_id": partner_id},
+        {"$set": {"feature_flags": clean, "updated_at": _now()}})
+    _partner_limit_cache.pop(partner_id, None)
+    return clean
+
+
+async def set_partner_status(db, *, partner_id: str, status: str) -> bool:
+    if status not in ("active", "suspended"):
+        raise ValueError("invalid_status")
+    r = await db.partner_accounts.update_one(
+        {"partner_id": partner_id},
+        {"$set": {"status": status, "updated_at": _now()}})
+    return r.matched_count > 0
+
+
+async def set_partner_rate_limit(db, *, partner_id: str, per_minute: int) -> bool:
+    r = await db.partner_accounts.update_one(
+        {"partner_id": partner_id},
+        {"$set": {"rate_limit_per_minute": max(1, int(per_minute)), "updated_at": _now()}})
+    _partner_limit_cache.pop(partner_id, None)
+    return r.matched_count > 0
 
 
 _last_wh_sweep: dict = {}
@@ -622,4 +762,7 @@ __all__ = [
     "log_api_call", "compute_usage",
     "create_webhook", "list_webhooks", "delete_webhook", "list_deliveries",
     "emit_event", "ping_webhook", "sweep_webhook_events",
+    "rotate_webhook_secret", "retry_delivery",
+    "set_key_ip_allowlist", "get_partner_flags", "set_partner_flags",
+    "set_partner_status", "set_partner_rate_limit",
 ]

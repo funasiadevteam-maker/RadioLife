@@ -165,6 +165,62 @@ async def my_delete_webhook(webhook_id: str, request: Request, user: dict = Depe
     return {"deleted": True}
 
 
+# ── Phase F: portal webhook hardening + key IP allowlist ────────────
+class IpAllowlistBody(BaseModel):
+    ip_allowlist: list[str] = Field(default_factory=list)
+
+
+@router.post("/keys/{key_id}/ip-allowlist")
+async def my_set_key_ip_allowlist(key_id: str, body: IpAllowlistBody, request: Request,
+                                  user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        raise HTTPException(400, {"code": "no_partner_account"})
+    ok = await pa.set_key_ip_allowlist(db, partner_id=p["partner_id"], key_id=key_id,
+                                       ip_allowlist=body.ip_allowlist)
+    if not ok:
+        raise HTTPException(404, {"code": "key_not_found"})
+    return {"ok": True, "key_id": key_id, "ip_allowlist": body.ip_allowlist}
+
+
+@router.post("/webhooks/{webhook_id}/rotate-secret")
+async def my_rotate_webhook_secret(webhook_id: str, request: Request,
+                                   user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        raise HTTPException(400, {"code": "no_partner_account"})
+    r = await pa.rotate_webhook_secret(db, partner_id=p["partner_id"], webhook_id=webhook_id)
+    if r is None:
+        raise HTTPException(404, {"code": "webhook_not_found"})
+    return r
+
+
+@router.get("/webhooks/{webhook_id}/deliveries")
+async def my_webhook_deliveries(webhook_id: str, request: Request,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        raise HTTPException(400, {"code": "no_partner_account"})
+    return {"items": await pa.list_deliveries(db, partner_id=p["partner_id"], webhook_id=webhook_id)}
+
+
+@router.post("/webhooks/{webhook_id}/deliveries/{delivery_id}/retry")
+async def my_retry_delivery(webhook_id: str, delivery_id: str, request: Request,
+                            user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await _my_partner(db, user)
+    if not p:
+        raise HTTPException(400, {"code": "no_partner_account"})
+    r = await pa.retry_delivery(db, partner_id=p["partner_id"], webhook_id=webhook_id,
+                                delivery_id=delivery_id)
+    if r is None:
+        raise HTTPException(404, {"code": "delivery_not_found"})
+    return r
+
+
 # ── console "buy & promote" (cookie-auth wrappers over /api/v1) ──────
 # The Advertiser Dashboard "API Checkout" page drives the SAME Partner-API
 # services as /api/v1, but authenticated by the logged-in user's cookie so
@@ -574,6 +630,88 @@ async def admin_issue_key(partner_id: str, body: KeyCreate, request: Request,
         raise HTTPException(404, {"code": "partner_not_found"})
     return await pa.issue_api_key(db, partner_id=partner_id, environment=body.environment,
                                   scopes=body.scopes, label=body.label)
+
+
+# ── Phase F: admin partner management ───────────────────────────────
+class AdminStatusBody(BaseModel):
+    status: str = Field(..., description="active | suspended")
+
+
+class AdminRateLimitBody(BaseModel):
+    per_minute: int = Field(..., ge=1, le=100000)
+
+
+class AdminFlagsBody(BaseModel):
+    flags: dict
+
+
+async def _admin_assert_partner(db, partner_id: str) -> dict:
+    p = await pa.get_partner(db, partner_id)
+    if not p:
+        raise HTTPException(404, {"code": "partner_not_found"})
+    return p
+
+
+@admin_router.get("/partners/{partner_id}/credentials")
+async def admin_partner_credentials(partner_id: str, request: Request, _a=Depends(require_admin)):
+    db = request.app.state.db
+    await _admin_assert_partner(db, partner_id)
+    return await pa.list_credentials(db, partner_id=partner_id)
+
+
+@admin_router.get("/partners/{partner_id}/usage")
+async def admin_partner_usage(partner_id: str, request: Request, days: int = 30,
+                              _a=Depends(require_admin)):
+    db = request.app.state.db
+    await _admin_assert_partner(db, partner_id)
+    return await pa.compute_usage(db, partner_id=partner_id, days=days)
+
+
+@admin_router.post("/partners/{partner_id}/status")
+async def admin_partner_status(partner_id: str, body: AdminStatusBody, request: Request,
+                               _a=Depends(require_admin)):
+    db = request.app.state.db
+    await _admin_assert_partner(db, partner_id)
+    try:
+        await pa.set_partner_status(db, partner_id=partner_id, status=body.status)
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    return {"ok": True, "partner_id": partner_id, "status": body.status}
+
+
+@admin_router.post("/partners/{partner_id}/rate-limit")
+async def admin_partner_rate_limit(partner_id: str, body: AdminRateLimitBody, request: Request,
+                                   _a=Depends(require_admin)):
+    db = request.app.state.db
+    await _admin_assert_partner(db, partner_id)
+    await pa.set_partner_rate_limit(db, partner_id=partner_id, per_minute=body.per_minute)
+    return {"ok": True, "partner_id": partner_id, "rate_limit_per_minute": body.per_minute}
+
+
+@admin_router.get("/partners/{partner_id}/flags")
+async def admin_get_partner_flags(partner_id: str, request: Request, _a=Depends(require_admin)):
+    db = request.app.state.db
+    await _admin_assert_partner(db, partner_id)
+    return {"flags": await pa.get_partner_flags(db, partner_id)}
+
+
+@admin_router.post("/partners/{partner_id}/flags")
+async def admin_set_partner_flags(partner_id: str, body: AdminFlagsBody, request: Request,
+                                  _a=Depends(require_admin)):
+    db = request.app.state.db
+    await _admin_assert_partner(db, partner_id)
+    flags = await pa.set_partner_flags(db, partner_id=partner_id, flags=body.flags)
+    return {"ok": True, "partner_id": partner_id, "flags": flags}
+
+
+@admin_router.post("/partners/{partner_id}/keys/{key_id}/revoke")
+async def admin_revoke_key(partner_id: str, key_id: str, request: Request,
+                           _a=Depends(require_admin)):
+    db = request.app.state.db
+    await _admin_assert_partner(db, partner_id)
+    if not await pa.revoke_api_key(db, partner_id=partner_id, key_id=key_id):
+        raise HTTPException(404, {"code": "key_not_found"})
+    return {"ok": True, "key_id": key_id, "revoked": True}
 
 
 __all__ = ["router", "admin_router"]

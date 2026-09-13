@@ -373,6 +373,12 @@ FEATURE_FLAGS = {
     "idempotency_keys": True,          # Phase B
     "external_id": True,               # Phase B
     "quotes": True,                    # Phase B
+    "merchant_api": True,              # Phase E
+    "reward_events": True,             # Phase E
+    "conversions": True,               # Phase E
+    "bulk_jobs": True,                 # Phase E
+    "analytics": True,                 # Phase E
+    "billing": True,                   # Phase E
     "webhooks": True,
     "sandbox": True,
     "openrtb": True,

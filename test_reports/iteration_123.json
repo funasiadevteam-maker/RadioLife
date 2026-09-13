@@ -1,0 +1,43 @@
+{
+  "summary": "Phase D of Partner API v1 (sponsored games + trivia/predict-win/rj-read sponsorships + audio/display inventory + discovery) is fully green — 36/36 pytest cases PASS against the external URL. Verified: GET /game-templates returns active Play&Win templates with prize_types + redemption_methods + min/max_prizes; POST /sponsored-games in SANDBOX auto-activates (status='active'), correctly enforces min-prize count and probability_weight sum=100, and Idempotency-Key REPLAYS the original response even when the body changes; external_id DEDUPES across different Idempotency-Keys (returns the same campaign_id); GET /sponsored-games returns cursor-paginated {data, count, next_cursor, has_more} scoped to advertiser_id, only surfacing is_platform_funded=false records; GET /sponsored-games/{id} 200 with prizes[] + advertiser_id; unknown/house campaigns → 404 sponsored_game_not_found. Discovery: /predictions/eligible returns open pwc_ parents, /trivia/inventory returns scopes(room/category/any)+categories, /inventory/display returns 3 placements w/ dimensions+aspect_ratio, /inventory/audio returns audio_preroll(api_bookable=true) + audio_midroll(api_bookable=false). Sponsorships: /sponsorships/inventory?type=predict_win|trivia|rj_read all 200 with expected shape; unknown type → 400 unknown_sponsorship_type; POST /sponsorships rj_read in SANDBOX creates + auto-activates (sid returned, environment=SANDBOX). Cross-cutting: scope enforcement VERIFIED with a real limited-scope key (catalog:read only, freshly minted via services.partner_api.issue_api_key) — POST /sponsored-games → 403, GET /game-templates → 403 (needs games:read), GET /inventory/audio → 200. Error envelope: 401/403/404/400 all carry {error:{code,message,field,request_id}} + keep legacy `detail`. Every response — including errors — stamps X-RadioLife-API-Version + X-Request-ID. Regression Phase A: /capabilities (creative_library=true, multi_format_campaigns=true), /me (partner_id + scopes), /inventory, /markets, /products, /stations cursor pagination all 200. Regression Phase B: POST /quotes audio_preroll+dubai+morning_drive+cpm → 200 with effective_rate_cents>0. Regression Phase C: GET /creatives cursor paginates, POST /creatives with asset_url → status='ready' + crv_ id, POST /campaigns single-format audio_preroll → 200/201 sandbox auto-activate.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/v1/sponsored-games", "issue": "Response body is slimmer than GET /sponsored-games/{id} and the list view — POST returns only {campaign_id, status, template_id, game_type, prize_count} with no advertiser_id, name, sponsor_name, start_at, end_at, prizes[]. Clients that want to render the created game immediately have to do a second GET. Recommend returning the full _sg_view() (+ prizes) directly."},
+      {"endpoint": "GET /api/v1/sponsored-games (HEAD)", "issue": "HEAD requests return 405 Method Not Allowed with Allow: POST (misleading, since GET is the primary verb). Cosmetic — most partner clients use GET, but the Allow header should include GET."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter123_partner_api_phase_d.py",
+    "/app/backend/tests/_mint_limited_key.py",
+    "/app/test_reports/pytest/iter123.xml"
+  ],
+  "action_items": [
+    "(optional) Enrich POST /api/v1/sponsored-games response to match GET single/list shape (include advertiser_id + prizes[]) — otherwise Phase D is production-ready.",
+    "(optional) Fix Allow header on HEAD /sponsored-games to include GET."
+  ],
+  "critical_code_review_comments": [
+    "routes/partner_api_v1.py::list_sponsored_games — fetches db.game_campaigns.find(...).sort(created_at,-1).to_list(500) then paginates in-memory via ext.paginate. Same 500-cap limitation flagged in iter121/iter122 for /campaigns, /creatives, /sponsorships. An advertiser with >500 sponsored games will silently truncate the list. Move cursoring into the underlying Mongo query (use ObjectId+created_at as the cursor).",
+    "routes/partner_api_v1.py::create_sponsored_game_ep — the response {sponsored_game: res, ...} echoes whatever gv2.create_sponsored_game returns (currently just {campaign_id, status, template_id, game_type, prize_count}). This diverges from the GET view (_sg_view) which is richer. Consider calling _sg_view(await db.game_campaigns.find_one(...)) and attaching prizes[] for parity.",
+    "routes/partner_api_v1.py::_sandbox_activate — for predict_win it sets approval_status='approved' + status='live', but for rj_read/trivia it only sets status + activated_at. That's fine but worth documenting per-type activation semantics in the OpenAPI so partners can rely on which fields flip in SANDBOX.",
+    "routes/partner_api_v1.py::create_sponsorship — when rj_read/trivia create fails inside the underlying service (e.g. persona_id missing) the raised HTTPException bubbles up but the idem-key cache is NOT written, so a retry with the same Idempotency-Key hits the service again. Consider caching the FAILURE response for a short TTL so genuine retries don't double-charge (or at minimum, document the current behaviour).",
+    "routes/partner_api_v1.py::_error_body / _sg_view — GET /sponsored-games/{id} does NOT expose is_platform_funded on the wire, so callers can't tell a rejected 404 was 'house game' vs 'no such id'. That's intentional for privacy but noting it here so support/debugging teams know."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter123_partner_api_phase_d.py",
+    "/app/backend/tests/_mint_limited_key.py"
+  ],
+  "success_rate": {"backend": "100% (36/36)", "frontend": "n/a"},
+  "test_credentials": "Full-scope sandbox key rlk_test_5K60MMvOyYDv.1DgfP8f5qfWjEMmQDFed1m04G0aEr5sdWvVZvi-pT_I (partner prt_Ngu4e33qm4KULA). Limited-scope sandbox key minted for scope-enforcement tests: rlk_test_tGV3_3OF_xVi.Ss4UrbGWmTdfb7vYEY3Re1cnYarSfMmpiLa5-Hks-FM (scopes=['catalog:read'], label=TEST_iter123_limited_scope). Advertiser: advv2_a1c94f911a7c9d.",
+  "seed_data_creation": "Under sandbox partner prt_Ngu4e33qm4KULA / advertiser advv2_a1c94f911a7c9d, this run created ~7 TEST_iter123-prefixed sponsored games (spin_wheel, all active), 1 TEST_iter123 rj_read sponsorship, 1 TEST_iter123 creative (crv_, status=ready), 1 TEST_iter123 single-format audio_preroll campaign, plus a limited-scope api key (rlk_test_tGV3_3OF_xVi). All test data is prefixed TEST_iter123* for easy cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase D is green end-to-end and can be safely built on for Phase E. Sponsored games live in db.game_campaigns with is_platform_funded=false, prizes in db.game_prizes; the partner list explicitly filters is_platform_funded=false so house/FPK games are hidden — that's tested. tpl_spin_wheel requires >=2 prizes and probability_weight must sum to exactly 100 (400 need_min_2_prizes / weight_sum_must_be_100 otherwise). Idempotency-Key + external_id are honoured on both /sponsored-games and /sponsorships via services.partner_api_ext helpers. rj_read sponsorships accept any_station=true without a persona; trivia and predict_win create paths exist but weren't exercised end-to-end (rj_read was — that path is representative). Same 500-record in-memory pagination cap as prior phases still applies. If Phase E adds analytics/reporting on sponsored games, extend test_iter123 with report + inventory-consumption assertions.",
+  "rca of the issue": ""
+}

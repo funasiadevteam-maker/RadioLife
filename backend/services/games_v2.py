@@ -788,6 +788,97 @@ async def seed_fpk_sponsored_games(db, actor_user_id: str = "system") -> dict:
     return summary
 
 
+async def create_sponsored_game(db, *, advertiser_id: str, template_id: str,
+                                title: str, prizes: list[dict],
+                                sponsor_name: Optional[str] = None,
+                                brand: Optional[dict] = None,
+                                description: Optional[str] = None,
+                                start_at: Optional[datetime] = None,
+                                end_at: Optional[datetime] = None,
+                                status: str = "pending_approval",
+                                open_to_all: bool = True,
+                                config_overrides: Optional[dict] = None,
+                                compliance: Optional[dict] = None,
+                                actor_user_id: str = "partner_api",
+                                campaign_id: Optional[str] = None) -> dict:
+    """Reusable advertiser-funded sponsored-game creator (Partner API Phase D).
+    Reuses the games_v2 engine: validates prizes, creates the campaign + prizes
+    + redemption rules + compliance so it plays via /api/play/resolve."""
+    tpl = await db.game_templates.find_one({"template_id": template_id})
+    if not tpl:
+        raise ValueError("unknown_template")
+    validate_prizes(prizes, tpl)
+    cid = campaign_id or _new_id("cmp")
+    now = _now()
+    cfg = dict(tpl.get("default_config_json") or {})
+    if config_overrides:
+        cfg.update(config_overrides)
+    await db.game_campaigns.insert_one({
+        "_id": cid, "campaign_id": cid, "advertiser_id": advertiser_id,
+        "business_id": None, "template_id": template_id, "title": title,
+        "description": description or f"Sponsored game by {sponsor_name or 'advertiser'}.",
+        "sponsor_name": sponsor_name, "sponsor_logo_url": (brand or {}).get("logo_url"),
+        "brand_colors_json": brand or {}, "game_config_json": cfg,
+        "objective": "engagement", "budget_cents": None,
+        "bid_type": "flat", "bid_amount_cents": 0,
+        "start_at": start_at or (now - timedelta(minutes=1)), "end_at": end_at,
+        "targeting_json": {"open_to_all": open_to_all},
+        "status": status, "is_platform_funded": False, "funded_source": "partner_api",
+        "created_by_user_id": actor_user_id, "created_at": now, "updated_at": now,
+        "approved_by_user_id": ("system" if status == "active" else None),
+        "approved_at": (now if status == "active" else None),
+        "open_to_all": open_to_all, "rejection_reason": None,
+    })
+    for p in prizes:
+        pid = _new_id("prz")
+        inv = int(p["inventory_total"])
+        await db.game_prizes.insert_one({
+            "_id": pid, "prize_id": pid, "campaign_id": cid,
+            "prize_type": p["prize_type"], "title": p.get("title"),
+            "description": p.get("description"),
+            "value_amount": p.get("value_amount"), "value_currency": p.get("value_currency"),
+            "probability_weight": int(p["probability_weight"]),
+            "inventory_total": inv, "inventory_remaining": inv,
+            "max_per_user": int(p.get("max_per_user") or 0),
+            "redemption_method": p["redemption_method"],
+            "daily_quantity_cap": int(p.get("daily_quantity_cap") or 0),
+            "daily_issued": 0, "daily_issued_date": None,
+            "requires_location": bool(p.get("requires_location")),
+            "requires_staff_validation": bool(p.get("requires_staff_validation")),
+            "expiration_policy_json": {"days_after_award": int(p.get("expiration_days") or 30),
+                                       "hard_expiry_at": None},
+            "linked_offer_id": p.get("linked_offer_id"), "linked_badge_id": None,
+            "active": True, "created_at": now,
+        })
+    comp = compliance or {}
+    await db.game_redemption_rules.insert_one({
+        "_id": cid, "campaign_id": cid, "one_time_use": True, "requires_qr": True,
+        "requires_location": False, "requires_staff_validation": True,
+        "expiration_days": 30, "terms_url": comp.get("terms_url"),
+        "odds_disclosure_text": comp.get("odds_disclosure", "Odds vary by prize tier."),
+        "no_purchase_necessary_text": comp.get("no_purchase_necessary_text",
+                                               "No purchase necessary; void where prohibited."),
+        "age_restriction": comp.get("age_restriction"),
+        "geo_restrictions_json": comp.get("geo_restrictions_json", {"allowed_countries": ["*"]}),
+        "created_at": now, "updated_at": now,
+    })
+    await db.game_compliance_settings.insert_one({
+        "_id": cid, "campaign_id": cid,
+        "terms_text": comp.get("terms_text", f"Sponsored game by {sponsor_name or 'advertiser'}."),
+        "odds_disclosure": comp.get("odds_disclosure", "Odds vary by prize tier."),
+        "no_purchase_necessary_text": comp.get("no_purchase_necessary_text",
+                                               "No purchase necessary; void where prohibited."),
+        "age_restriction": comp.get("age_restriction"),
+        "geo_restrictions_json": comp.get("geo_restrictions_json", {"allowed_countries": ["*"]}),
+        "approval_status": ("approved" if status == "active" else "pending"),
+        "approved_by": ("system" if status == "active" else None),
+        "approved_at": (now if status == "active" else None), "rejection_notes": None,
+    })
+    return {"campaign_id": cid, "status": status, "template_id": template_id,
+            "game_type": tpl.get("game_type"), "prize_count": len(prizes)}
+
+
+
 # =====================================================================
 # Award engine
 # =====================================================================
@@ -1782,6 +1873,7 @@ async def _campaign_public_view(db, c: dict) -> dict:
 __all__ = [
     "ensure_games_v2_indexes", "seed_games_v2",
     "migrate_phase5_games", "seed_extra_house_games", "seed_fpk_sponsored_games",
+    "create_sponsored_game",
     "start_session", "submit_session",
     "claim_to_wallet", "generate_qr", "redeem_qr",
     "public_play_and_win", "validate_prizes", "validate_compliance",
