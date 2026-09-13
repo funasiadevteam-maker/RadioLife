@@ -158,6 +158,12 @@ function CampaignCard({ campaign, drivingMode }) {
   const accent  = theme.accent;
   const brand    = campaign.brand_colors_json?.primary || accent;
   const onPlay = () => navigate(`/play-and-win/${campaign.campaign_id}`);
+  // Daily-play policy surfaced from the backend: sponsored games are
+  // unlimited; free/house games allow one play per type per day.
+  const pe = campaign.play_eligibility || {};
+  const sponsored = !!pe.sponsored;
+  const playedToday = pe.can_play === false;
+  const disabled = drivingMode || playedToday;
   return (
     <div
       className="paw-card themed-card"
@@ -195,18 +201,25 @@ function CampaignCard({ campaign, drivingMode }) {
         {campaign.description && (
           <p className="paw-card-desc">{campaign.description}</p>
         )}
-        {campaign.is_platform_funded && (
-          <span className="paw-house-tag mono">RADIOLIFE HOUSE</span>
-        )}
+        {sponsored ? (
+          <span className="paw-house-tag mono" data-testid={`sponsored-tag-${campaign.campaign_id}`}
+                style={{ background: "#0aa54b22", color: "#0aa54b" }}>
+            SPONSORED · UNLIMITED
+          </span>
+        ) : campaign.is_platform_funded ? (
+          <span className="paw-house-tag mono">RADIOLIFE HOUSE · 1/DAY</span>
+        ) : null}
       </div>
       <button
         className="paw-play-btn"
         onClick={onPlay}
-        disabled={drivingMode}
-        style={{ background: accent }}
+        disabled={disabled}
+        style={{ background: disabled && playedToday ? "#6b7280" : accent }}
         data-testid={`play-btn-${campaign.campaign_id}`}>
         {drivingMode ? (
           <>Save for later <Car size={12} /></>
+        ) : playedToday ? (
+          <>Come back tomorrow <Clock size={12} /></>
         ) : (
           <>Play now <Gamepad2 size={12} /></>
         )}

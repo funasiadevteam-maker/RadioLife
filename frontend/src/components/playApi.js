@@ -39,9 +39,13 @@ export async function resolvePlay(gameId, idempotencyKey) {
   }
 
   if (!res.ok) {
-    const map = { 401: "AUTH", 402: "NO_BALANCE", 403: "INELIGIBLE", 404: "UNAVAILABLE" };
+    const map = { 401: "AUTH", 402: "NO_BALANCE", 403: "INELIGIBLE", 404: "UNAVAILABLE", 429: "LIMIT" };
     let detail = "";
-    try { detail = (await res.json()).detail; } catch { /* ignore */ }
+    try {
+      const j = await res.json();
+      detail = j.detail;
+      if (detail && typeof detail === "object") detail = detail.message || detail.code || "";
+    } catch { /* ignore */ }
     throw new PlayError(map[res.status] || "ERROR", detail || `Play failed (${res.status})`);
   }
   return res.json();

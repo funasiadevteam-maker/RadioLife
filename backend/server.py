@@ -1496,6 +1496,9 @@ async def _deferred_bootstrap(app_: FastAPI):
         from services.games_v2 import seed_extra_house_games
         extra = await seed_extra_house_games(db, actor_user_id="system")
         logger.info(f"Extra house games bootstrap: {extra}")
+        from services.games_v2 import seed_fpk_sponsored_games
+        fpk = await seed_fpk_sponsored_games(db, actor_user_id="system")
+        logger.info(f"FPK sponsored games bootstrap: {fpk}")
     except Exception as e:
         logger.warning(f"phase 8a bootstrap: {e}")
     # Super Marketplace — Phase A foundation seed (rates, categories, commission).
@@ -3108,6 +3111,8 @@ def _score_track(track, pv, prev_track, played_ids, recent_artists,
                                        track.get("energy_level")) > 1:
         s -= 20
     if track.get("artist") and track["artist"].lower() in fav_artists: s += 25
+    disliked = [a.lower() for a in (pv.get("disliked_artists") or [])]
+    if track.get("artist") and track["artist"].lower() in disliked: s -= 60
     s += random.uniform(0, 5)
     return s
 
@@ -4911,6 +4916,73 @@ async def admin_set_skip_rules(req: SkipRulesReq):
     )
     return {"ok": True, "free": policy["free"], "premium": policy["premium"],
             "window_sec": policy["window_sec"]}
+
+
+# ---------- My Radio preference signals (Like / Less like this) ----------
+class RadioFeedbackReq(BaseModel):
+    action: str                              # "like" | "less"
+    segment_id: Optional[str] = None
+    track_id: Optional[str] = None
+    track_title: Optional[str] = None
+    track_artist: Optional[str] = None
+    genre: Optional[str] = None
+    channel_slug: Optional[str] = None
+
+
+def _dedup_cap(seq, item, cap=60):
+    out = [x for x in (seq or []) if x and x.lower() != item.lower()]
+    out.append(item)
+    return out[-cap:]
+
+
+@api.post("/radio/feedback")
+async def radio_feedback(req: RadioFeedbackReq, user: dict = Depends(current_user)):
+    """Lightweight My Radio preference signal. 'like' boosts the track's
+    artist/genre in the listener's preference_vector; 'less' removes the
+    artist from favourites and soft-penalises it going forward. These bias
+    FUTURE recommendations — they are NOT direct song selection."""
+    action = (req.action or "").lower()
+    if action not in ("like", "less"):
+        raise HTTPException(400, {"code": "bad_action"})
+    artist = (req.track_artist or "").strip()
+    genre = (req.genre or "").strip()
+    title = (req.track_title or "").strip()
+    # Enrich from the track doc when we only have an id.
+    if req.track_id and (not artist or not genre):
+        try:
+            t = await db.tracks.find_one({"_id": req.track_id})
+            if t:
+                artist = artist or (t.get("artist") or "")
+                genre = genre or (t.get("genre") or "")
+                title = title or (t.get("title") or "")
+        except Exception:
+            pass
+    pv = dict(user.get("preference_vector") or {})
+    if action == "like":
+        if genre:
+            pv["genres"] = _dedup_cap(pv.get("genres"), genre, cap=40)
+        if artist:
+            pv["favorite_artists"] = _dedup_cap(pv.get("favorite_artists"), artist, cap=60)
+            pv["disliked_artists"] = [a for a in (pv.get("disliked_artists") or [])
+                                      if a and a.lower() != artist.lower()]
+    else:  # less
+        if artist:
+            pv["favorite_artists"] = [a for a in (pv.get("favorite_artists") or [])
+                                      if a and a.lower() != artist.lower()]
+            pv["disliked_artists"] = _dedup_cap(pv.get("disliked_artists"), artist, cap=60)
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"preference_vector": pv}})
+    try:
+        await db.radio_feedback.insert_one({
+            "user_id": user["user_id"], "action": action,
+            "segment_id": req.segment_id, "track_id": req.track_id,
+            "track_title": title, "track_artist": artist, "genre": genre,
+            "channel_slug": req.channel_slug, "created_at": datetime.now(timezone.utc),
+        })
+    except Exception:
+        pass
+    return {"ok": True, "action": action,
+            "favorite_artists": len(pv.get("favorite_artists") or []),
+            "disliked_artists": len(pv.get("disliked_artists") or [])}
 
 
 @api.get("/radio/segment/{segment_id}")

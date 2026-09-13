@@ -50,9 +50,9 @@ export const MARKETING_ROUTES = [
 // ── Nav model (Classic-B consumer IA: Home · Listen · Shop · Play · Social) ──
 const PRIMARY_NAV = [
   { key: "home",   label: "Home",   icon: Home,        path: "/" },
-  { key: "listen", label: "Listen", icon: Headphones,  path: "/radio" },
+  { key: "listen", label: "Listen", icon: Headphones,  path: "/listen" },
   { key: "shop",   label: "Shop",   icon: ShoppingBag, path: "/shop", badge: "shop" },
-  { key: "play",   label: "Play",   icon: Gamepad2,    path: "/play", badge: "games" },
+  { key: "play",   label: "Play",   icon: Gamepad2,    path: "/play-and-win", badge: "games" },
   { key: "social", label: "Social", icon: UsersIcon,   path: "/community" },
 ];
 const DISCOVER_NAV = [
@@ -66,6 +66,15 @@ const REWARDS_NAV = [
   { key: "passport", label: "Passport",      icon: BadgeCheck, path: "/passport" },
 ];
 const MOBILE_TABS = PRIMARY_NAV;
+
+// Light Home feed chips (Classic-B). Replaces the busy backend-driven
+// chip bar. These re-scope the audio-first Home For-You rail.
+const HOME_CHIPS = [
+  { key: "all",      label: "All" },
+  { key: "foryou",   label: "For You" },
+  { key: "local",    label: "Local" },
+  { key: "trending", label: "Trending" },
+];
 
 export default function AppShellB({ children }) {
   const { pathname } = useLocation();
@@ -376,12 +385,11 @@ function AdLeaderboard() {
 
 // ── Filter chips (YouTube signature) ───────────────────────────────────
 function FilterChips() {
-  const summary = useShellSummary();
   const chip = useShellFilter((s) => s.chip);
   const setChip = useShellFilter((s) => s.setChip);
   const navigate = useNavigate();
   const location = useLocation();
-  const chips = summary?.chips || [{ key: "all", label: "All" }];
+  const chips = HOME_CHIPS;
   const onChip = (key) => {
     setChip(key);
     // Chips drive the Home feed — bring the user there from any other page.

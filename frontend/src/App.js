@@ -6,6 +6,7 @@ import Radio from "@/Radio";
 import RadioDiscover from "@/RadioDiscover";
 import RadioBrowse from "@/RadioBrowse";
 import RadioHome from "@/RadioHome";
+import ListenHub from "@/pages/ListenHub";
 import Admin from "@/Admin";
 import AdminHome from "@/pages/admin/AdminHome";  // Phase T — Admin Home dashboard
 import AdminGlobalSearch from "@/components/AdminGlobalSearch";  // Phase T — Cmd/Ctrl+K palette
@@ -408,6 +409,9 @@ function AppRouter() {
               noindexed, does not replace `/`). */}
       <Route path="/l/v2" element={<LandingV2 />} />
       <Route path="/radio" element={<RadioRouteSwitch />} />
+      <Route path="/listen" element={
+        <ProtectedRoute><ListenHub /></ProtectedRoute>
+      } />
       <Route path="/radio/discover" element={<RadioDiscover />} />
       <Route path="/personas" element={<PersonaLibrary />} />
       <Route path="/privacy" element={<PrivacyCenter />} />

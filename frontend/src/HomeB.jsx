@@ -4,19 +4,51 @@
 // behind the Listen / Play / Shop / Social tabs.
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Play, Pause, Radio as RadioIcon, Sparkles, ChevronRight } from "lucide-react";
+import {
+  Play, Pause, Radio as RadioIcon, Sparkles, ChevronRight,
+  Coins, Gamepad2, ShoppingBag, Users as UsersIcon,
+} from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
-import { useShellSummary } from "@/shell/useShellData";
+import { useShellSummary, useShellFilter } from "@/shell/useShellData";
 
 function firstName(user) {
   return (user?.first_name || user?.name || "").split(" ")[0] || "there";
 }
 
+// Re-scope the For-You rail from the light Home chips. Never returns an
+// empty list when flagships exist (Local/Trending fall back to All).
+function scopeByChip(chip, flagships, summary) {
+  if (!flagships.length) return [];
+  if (chip === "trending") {
+    return [...flagships].sort(
+      (a, b) => (b.live ? 1 : 0) - (a.live ? 1 : 0) || (b.listeners || 0) - (a.listeners || 0));
+  }
+  if (chip === "local") {
+    const city = (summary?.city || "").toLowerCase().trim();
+    if (city) {
+      const local = flagships.filter((s) => (s.city || "").toLowerCase().includes(city));
+      if (local.length) return local;
+    }
+    return flagships;
+  }
+  return flagships; // all + foryou
+}
+
+const CHIP_TITLES = { all: "For You", foryou: "For You", local: "Local stations", trending: "Trending now" };
+
+const HOME_RAILS = [
+  { key: "earn",   label: "Earn while you listen", sub: "Points every minute",   icon: Coins,        to: "/wallet" },
+  { key: "play",   label: "Play & Win",            sub: "Games · trivia · predict", icon: Gamepad2,   to: "/play-and-win" },
+  { key: "shop",   label: "Shop & Eat",            sub: "Deals near you",         icon: ShoppingBag,  to: "/shop" },
+  { key: "social", label: "Social",                sub: "Lobbies & community",    icon: UsersIcon,    to: "/community" },
+];
+
 export default function HomeB() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const summary = useShellSummary();
+  const chip = useShellFilter((s) => s.chip);
 
   const currentSeg = usePlayerStore((s) => s.currentSeg);
   const importedStation = usePlayerStore((s) => s.importedStation);
@@ -42,7 +74,8 @@ export default function HomeB() {
   };
   const startListening = () => navigate("/radio");
 
-  const forYou = (summary?.flagships || []).slice(0, 6);
+  const forYou = scopeByChip(chip, summary?.flagships || [], summary).slice(0, 6);
+  const forYouTitle = CHIP_TITLES[chip] || "For You";
 
   return (
     <div className="max-w-5xl mx-auto space-y-8" data-testid="home-b">
@@ -100,7 +133,7 @@ export default function HomeB() {
       {/* B · For You */}
       <section data-testid="home-b-foryou">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold">For You</h2>
+          <h2 className="text-lg font-bold">{forYouTitle}</h2>
           <Link to="/radio" data-testid="home-b-foryou-seeall"
             className="text-sm font-semibold text-accent-electric hover:underline flex items-center gap-1">
             See all listening <ChevronRight size={15} />
@@ -133,6 +166,26 @@ export default function HomeB() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* C · Do more while you listen — Earn / Play / Shop / Social rails */}
+      <section data-testid="home-b-rails">
+        <h2 className="text-lg font-bold mb-3">Do more while you listen</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {HOME_RAILS.map((r) => (
+            <Link key={r.key} to={r.to} data-testid={`home-b-rail-${r.key}`}
+              className="group flex items-center gap-3 rounded-token-card border border-white/[0.08] bg-bg-elevated p-4 hover:border-accent-electric/40 transition-colors">
+              <div className="w-10 h-10 rounded-token-md grid place-items-center bg-accent-electric/15 text-accent-electric shrink-0">
+                <r.icon size={19} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] font-bold truncate">{r.label}</div>
+                <div className="text-[11px] text-text-secondary truncate">{r.sub}</div>
+              </div>
+              <ChevronRight size={15} className="text-text-secondary group-hover:text-accent-electric transition-colors" />
+            </Link>
+          ))}
+        </div>
       </section>
     </div>
   );

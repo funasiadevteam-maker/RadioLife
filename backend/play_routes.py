@@ -25,7 +25,10 @@ from pymongo.errors import DuplicateKeyError
 
 from auth import current_user
 from core.db import db  # re-exported for wallet_routes.py to import
-from services.games_v2 import _atomic_claim_prize, _weighted_pick
+from services.games_v2 import (
+    _atomic_claim_prize, _weighted_pick,
+    _rollover_daily_caps, _eligible_prize_query,
+)
 
 logger = logging.getLogger("bigfm.play")
 
@@ -90,18 +93,42 @@ async def resolve_play(req: ResolveRequest,
         raise HTTPException(
             404, f"Game not active: {campaign.get('status')}")
 
+    now = dt.datetime.now(dt.timezone.utc)
+    tpl = await db.game_templates.find_one(
+        {"template_id": campaign.get("template_id")}, {"game_type": 1})
+    game_type = (tpl or {}).get("game_type")
+    is_sponsored = not bool(campaign.get("is_platform_funded"))
+
+    # ---- Daily play policy ----
+    # FREE (platform-funded) games: one play per game TYPE per UTC day.
+    # SPONSORED (advertiser-funded) games: UNLIMITED plays.
+    if not is_sponsored and game_type:
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        played_today = await db.plays.count_documents({
+            "listenerId": listener_id,
+            "gameType": game_type,
+            "isPlatformFunded": True,
+            "playedAtDt": {"$gte": start_of_day},
+        })
+        if played_today >= 1:
+            raise HTTPException(429, {
+                "code": "daily_type_limit_reached",
+                "message": ("You've already played a free game of this type "
+                            "today — come back tomorrow, or play a sponsored "
+                            "game for unlimited plays.")})
+
     play_id = "ply_" + secrets.token_hex(10)
-    now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
+    now_iso = now.isoformat()
 
     # ---- weighted prize lottery (reuses games_v2 helpers). ----
+    # Roll over per-day coupon caps at the UTC boundary before drawing so
+    # daily-capped prizes (e.g. FPK discount tiers) are awardable today.
+    await _rollover_daily_caps(db, req.gameId, now.strftime("%Y-%m-%d"))
     rng = secrets.SystemRandom()
     prize_picked: Optional[dict] = None
     for _ in range(5):
-        prizes = await db.game_prizes.find({
-            "campaign_id": req.gameId,
-            "active": True,
-            "inventory_remaining": {"$gt": 0},
-        }).to_list(50)
+        prizes = await db.game_prizes.find(
+            _eligible_prize_query(req.gameId)).to_list(50)
         if not prizes:
             break
         weights = [int(p["probability_weight"]) for p in prizes]
@@ -136,12 +163,15 @@ async def resolve_play(req: ResolveRequest,
         "listenerId": listener_id,
         "gameId": req.gameId,
         "campaignId": req.gameId,
+        "gameType": game_type,
+        "isPlatformFunded": bool(campaign.get("is_platform_funded")),
         "won": bool(prize_picked),
         "prizeId": prize_id,
         "prizeTitle": prize_title,
         "coupon": coupon,
         "idempotencyKey": req.idempotencyKey,
         "playedAt": now_iso,
+        "playedAtDt": now,
         "balance": balance,
     }
     try:

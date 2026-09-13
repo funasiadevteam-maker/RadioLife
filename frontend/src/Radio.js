@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Radio as RadioIcon, Play, Pause, SkipForward, Volume2, VolumeX, MapPin, Loader2,
   LogOut, User as UserIcon, Shield, Users, Share2, Clock, Crown, Lock, Coins, Sparkles, Award,
+  ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { useAuth, API } from "@/AuthContext";
@@ -113,6 +114,8 @@ export default function Radio() {
 
   const [shareModal, setShareModal] = useState(null);
   const [creatingShare, setCreatingShare] = useState(false);
+  // My Radio signals — which feedback the listener gave on the current track.
+  const [fbSent, setFbSent] = useState(null); // "like" | "less" | null
   // Phase 10c — channel access gating modal state
   const [gate, setGate] = useState(null); // { access, channel }
 
@@ -121,6 +124,7 @@ export default function Radio() {
   // every existing `audioRefs[i].current` reference below still works.
   const audioRefs = [audioElements.a, audioElements.b];
   const prefetchTriggered = useRef(false);
+  const autoStarted = useRef(false);
   const sessionRef = useRef(null);
   useEffect(() => { sessionRef.current = sessionId; }, [sessionId]);
 
@@ -328,6 +332,42 @@ export default function Radio() {
       setStarting(false);
     }
   }, [starting, sessionId, activeChannel, fetchNext, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // My Radio one-tap — auto-start when arriving via `?autoplay=1`
+  // (e.g. from the Listen Hub "Start My Radio" card). Fires once, after
+  // channels resolve `activeChannel` and only if no session is running.
+  useEffect(() => {
+    if (autoStarted.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("autoplay") !== "1") return;
+    if (!activeChannel || sessionId || starting) return;
+    autoStarted.current = true;
+    startRadio(activeChannel);
+  }, [activeChannel, sessionId, starting, startRadio]);
+
+  // Reset the like/less signal when the track changes.
+  useEffect(() => { setFbSent(null); }, [currentSeg?.segment_id]);
+
+  const sendFeedback = async (action) => {
+    if (!currentSeg) return;
+    try {
+      await axios.post(`${API}/radio/feedback`, {
+        action,
+        segment_id: currentSeg.segment_id,
+        track_id: currentSeg.track_id,
+        track_title: currentSeg.track_title,
+        track_artist: currentSeg.track_artist,
+        genre: currentSeg.genre,
+        channel_slug: currentSeg.channel_slug || activeChannel,
+      });
+      setFbSent(action);
+      toast.success(action === "like"
+        ? "Nice — we'll play more like this"
+        : "Got it — you'll hear this less");
+    } catch (_e) {
+      toast.error("Could not save your preference");
+    }
+  };
 
   const switchChannel = async (slug) => {
     if (!sessionId) { setActiveChannel(slug); return; }
@@ -772,6 +812,24 @@ export default function Radio() {
               >
                 {creatingShare ? <Loader2 size={16} className="spin" /> : <Share2 size={16} />}
                 <span className="lbl">Share break</span>
+              </button>
+              <button
+                className={`ctrl-btn ghost icon-only ${fbSent === "like" ? "is-active" : ""}`}
+                onClick={() => sendFeedback("like")}
+                disabled={!currentSeg}
+                data-testid="radio-like-btn"
+                title="Like this — play more like it"
+                aria-label="Like this track">
+                <ThumbsUp size={16} fill={fbSent === "like" ? "currentColor" : "none"} />
+              </button>
+              <button
+                className={`ctrl-btn ghost icon-only ${fbSent === "less" ? "is-active" : ""}`}
+                onClick={() => sendFeedback("less")}
+                disabled={!currentSeg}
+                data-testid="radio-less-btn"
+                title="Less like this"
+                aria-label="Less like this track">
+                <ThumbsDown size={16} fill={fbSent === "less" ? "currentColor" : "none"} />
               </button>
               <div className="vol-wrap">
                 <button className="ctrl-btn ghost icon-only" onClick={() => setMuted((m) => !m)}

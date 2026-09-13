@@ -172,6 +172,12 @@ async def listener_start(campaign_id: str, request: Request,
                     "rate_limited"):
             raise HTTPException(403 if msg == "not_unlocked" else 429
                                   if msg == "rate_limited" else 400, msg)
+        if msg == "daily_type_limit_reached":
+            raise HTTPException(429, {
+                "code": "daily_type_limit_reached",
+                "message": ("You've already played a free game of this type "
+                            "today — come back tomorrow, or try a sponsored "
+                            "game for unlimited plays.")})
         # Phase Stabilization (Mobile games P0) — trivia session was
         # about to be created with 0 questions. Return a typed 503 so
         # the listener UI can render an empty-state pane instead of a
@@ -618,6 +624,8 @@ async def adv_create_campaign(payload: dict, request: Request,
             "inventory_remaining": int(p.get("inventory_total") or 0),
             "max_per_user": int(p.get("max_per_user") or 0),
             "redemption_method": p.get("redemption_method") or "in_app_wallet",
+            "daily_quantity_cap": int(p.get("daily_quantity_cap") or 0),
+            "daily_issued": 0, "daily_issued_date": None,
             "requires_location": bool(p.get("requires_location")),
             "requires_staff_validation": bool(p.get("requires_staff_validation")),
             "expiration_policy_json": p.get("expiration_policy_json") or
@@ -1135,7 +1143,7 @@ async def admin_unlock_grant(payload: dict, request: Request,
         "played": False, "played_at": None,
     }
     await db.user_game_unlocks.insert_one(doc)
-    return {"ok": True, "unlock_id": doc["_id"]}
+    return {"ok": True, "unlock_id": str(doc["_id"])}
 
 
 __all__ = ["games_v2_router"]

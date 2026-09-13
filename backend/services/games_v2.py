@@ -628,6 +628,167 @@ async def seed_extra_house_games(db, actor_user_id: str = "system") -> dict:
 
 
 # =====================================================================
+# FPK sponsored coupon games — one per game type, UNLIMITED plays.
+# Coupon tiers 10–50% off, higher % rarer (lower weight), each with a
+# configurable per-day coupon cap (daily_quantity_cap). Idempotent boot.
+# =====================================================================
+FPK_ADVERTISER_ID = "adv_fpk"
+FPK_SPONSOR_NAME = "FPK"
+FPK_BRAND = {"primary": "#0aa54b", "secondary": "#0a0a0b"}
+
+# (percent_off, probability_weight, daily_quantity_cap)
+# Weights make higher discounts progressively rarer; caps limit how many
+# of each tier can be issued per UTC day (0 = unlimited).
+FPK_COUPON_TIERS = [
+    (10, 50, 200),
+    (20, 25, 100),
+    (30, 13, 40),
+    (40, 8, 15),
+    (50, 4, 5),
+]
+
+# One FPK game per game type (reuses the same templates as the house games).
+FPK_GAMES = [
+    {"id": "cmp_fpk_spin",    "template_id": "tpl_spin_wheel",   "title": "FPK Spin & Save"},
+    {"id": "cmp_fpk_scratch", "template_id": "tpl_scratch_card", "title": "FPK Scratch & Save"},
+    {"id": "cmp_fpk_quiz",    "template_id": "tpl_quiz",         "title": "FPK Quiz & Save"},
+    {"id": "cmp_fpk_mystery", "template_id": "tpl_mystery_box",  "title": "FPK Mystery Discount"},
+    {"id": "cmp_fpk_memory",  "template_id": "tpl_memory_match", "title": "FPK Memory Match & Save"},
+    {"id": "cmp_fpk_word",    "template_id": "tpl_word_puzzle",  "title": "FPK Word Puzzle & Save"},
+    {"id": "cmp_fpk_card",    "template_id": "tpl_pick_a_card",  "title": "FPK Pick a Card"},
+]
+
+
+def _fpk_game_config(game_type: str, tpl_cfg: dict | None) -> dict:
+    """Customize the template's play config so the on-screen graphic reflects
+    the FPK discount-coupon tiers (e.g. spin-wheel segments show % off)."""
+    cfg = dict(tpl_cfg or {})
+    if game_type == "spin_wheel":
+        colors = ["#0aa54b", "#5dbcff", "#ffb547", "#a16cff", "#ff2d95"]
+        cfg["segments"] = [
+            {"label": f"{pct}% OFF", "color": colors[i % len(colors)],
+             "probability_weight": weight}
+            for i, (pct, weight, _cap) in enumerate(FPK_COUPON_TIERS)
+        ]
+    elif game_type == "scratch_card":
+        cfg["prize_text_template"] = "You won {prize_title}!"
+    return cfg
+
+
+def _fpk_coupon_prizes() -> list[dict]:
+    prizes = []
+    for pct, weight, cap in FPK_COUPON_TIERS:
+        prizes.append({
+            "prize_type": "coupon",
+            "title": f"FPK {pct}% off",
+            "description": f"{pct}% off your next purchase at FPK.",
+            "value_amount": pct,
+            "value_currency": "percent",
+            "probability_weight": weight,
+            "inventory_total": 1_000_000,
+            "max_per_user": 0,
+            "redemption_method": "qr_code",
+            "daily_quantity_cap": cap,
+        })
+    return prizes
+
+
+async def seed_fpk_sponsored_games(db, actor_user_id: str = "system") -> dict:
+    """Idempotent — seed one FPK-sponsored coupon game per game type.
+    Sponsored (advertiser-funded) games are UNLIMITED to play. Safe to call
+    on every boot."""
+    summary = {"created": 0, "existing": 0, "advertiser": "ok"}
+    # Minimal advertiser record so lookups/branding resolve.
+    await db.advertisers_v2.update_one(
+        {"advertiser_id": FPK_ADVERTISER_ID},
+        {"$setOnInsert": {
+            "_id": FPK_ADVERTISER_ID, "advertiser_id": FPK_ADVERTISER_ID,
+            "name": FPK_SPONSOR_NAME, "logo_url": None,
+            "status": "active", "created_at": _now(),
+        }},
+        upsert=True,
+    )
+    for g in FPK_GAMES:
+        existing = await db.game_campaigns.find_one({"campaign_id": g["id"]})
+        if existing:
+            summary["existing"] += 1
+            tpl = await db.game_templates.find_one({"template_id": g["template_id"]})
+            updates = {"updated_at": _now(),
+                       "game_config_json": _fpk_game_config(
+                           (tpl or {}).get("game_type"),
+                           (tpl or {}).get("default_config_json"))}
+            if existing.get("end_at") is not None:
+                updates["end_at"] = None
+            await db.game_campaigns.update_one(
+                {"campaign_id": g["id"]}, {"$set": updates})
+            continue
+        tpl = await db.game_templates.find_one({"template_id": g["template_id"]})
+        if not tpl:
+            continue
+        cfg = _fpk_game_config(tpl.get("game_type"), tpl.get("default_config_json"))
+        await db.game_campaigns.insert_one({
+            "_id": g["id"], "campaign_id": g["id"],
+            "advertiser_id": FPK_ADVERTISER_ID, "business_id": None,
+            "template_id": g["template_id"], "title": g["title"],
+            "description": "Play as many times as you like — win FPK discount coupons.",
+            "sponsor_name": FPK_SPONSOR_NAME, "sponsor_logo_url": None,
+            "brand_colors_json": FPK_BRAND,
+            "game_config_json": cfg,
+            "objective": "coupon_save",
+            "budget_cents": None,
+            "bid_type": "flat", "bid_amount_cents": 0,
+            "start_at": _now() - timedelta(days=1), "end_at": None,
+            "targeting_json": {"open_to_all": True},
+            "status": "active",
+            "is_platform_funded": False, "funded_source": "fpk_sponsored",
+            "created_by_user_id": actor_user_id,
+            "created_at": _now(), "updated_at": _now(),
+            "approved_by_user_id": "system", "approved_at": _now(),
+            "open_to_all": True, "rejection_reason": None,
+        })
+        for p in _fpk_coupon_prizes():
+            pid = _new_id("prz")
+            await db.game_prizes.insert_one({
+                "_id": pid, "prize_id": pid, "campaign_id": g["id"],
+                "prize_type": p["prize_type"], "title": p["title"],
+                "description": p.get("description"),
+                "value_amount": p["value_amount"], "value_currency": p["value_currency"],
+                "probability_weight": int(p["probability_weight"]),
+                "inventory_total": int(p["inventory_total"]),
+                "inventory_remaining": int(p["inventory_total"]),
+                "max_per_user": int(p.get("max_per_user") or 0),
+                "redemption_method": p["redemption_method"],
+                "daily_quantity_cap": int(p.get("daily_quantity_cap") or 0),
+                "daily_issued": 0, "daily_issued_date": None,
+                "requires_location": False, "requires_staff_validation": False,
+                "expiration_policy_json": {"days_after_award": 30, "hard_expiry_at": None},
+                "linked_offer_id": None, "linked_badge_id": None,
+                "active": True, "created_at": _now(),
+            })
+        await db.game_redemption_rules.insert_one({
+            "_id": g["id"], "campaign_id": g["id"],
+            "one_time_use": True, "requires_qr": True,
+            "requires_location": False, "requires_staff_validation": True,
+            "expiration_days": 30, "terms_url": None,
+            "odds_disclosure_text": "Odds vary by discount tier. No purchase necessary.",
+            "no_purchase_necessary_text": "No purchase necessary; void where prohibited.",
+            "age_restriction": None, "geo_restrictions_json": {"allowed_countries": ["*"]},
+            "created_at": _now(), "updated_at": _now(),
+        })
+        await db.game_compliance_settings.insert_one({
+            "_id": g["id"], "campaign_id": g["id"],
+            "terms_text": "FPK sponsored game. Standard RadioLife terms apply.",
+            "odds_disclosure": "Odds vary by discount tier.",
+            "no_purchase_necessary_text": "No purchase necessary; void where prohibited.",
+            "age_restriction": None, "geo_restrictions_json": {"allowed_countries": ["*"]},
+            "approval_status": "approved", "approved_by": "system",
+            "approved_at": _now(), "rejection_notes": None,
+        })
+        summary["created"] += 1
+    return summary
+
+
+# =====================================================================
 # Award engine
 # =====================================================================
 def _weighted_pick(weights: list[int], rng) -> int:
@@ -643,13 +804,45 @@ def _weighted_pick(weights: list[int], rng) -> int:
     return len(weights) - 1
 
 
-async def _atomic_claim_prize(db, prize: dict, session_id: str) -> bool:
-    """Decrement inventory_remaining by 1 iff still > 0.  Returns True iff
-    we held the lock — caller is responsible for awarding."""
-    res = await db.game_prizes.update_one(
-        {"prize_id": prize["prize_id"], "inventory_remaining": {"$gt": 0}},
-        {"$inc": {"inventory_remaining": -1}},
+def _eligible_prize_query(campaign_id: str) -> dict:
+    """Prizes still awardable NOW: active, has global inventory, and (if a
+    per-day cap is configured) hasn't hit today's cap. Daily rollover is
+    performed by the caller before this query is used."""
+    return {
+        "campaign_id": campaign_id, "active": True,
+        "inventory_remaining": {"$gt": 0},
+        "$or": [
+            {"daily_quantity_cap": {"$not": {"$gt": 0}}},
+            {"$expr": {"$lt": ["$daily_issued", "$daily_quantity_cap"]}},
+        ],
+    }
+
+
+async def _rollover_daily_caps(db, campaign_id: str, today: str) -> None:
+    """Reset per-day issuance counters for capped prizes at the UTC day
+    boundary (lazy, idempotent)."""
+    await db.game_prizes.update_many(
+        {"campaign_id": campaign_id,
+         "daily_quantity_cap": {"$gt": 0},
+         "daily_issued_date": {"$ne": today}},
+        {"$set": {"daily_issued": 0, "daily_issued_date": today}},
     )
+
+
+async def _atomic_claim_prize(db, prize: dict, session_id: str) -> bool:
+    """Decrement inventory_remaining by 1 iff still > 0, and (when a
+    per-day cap is set) increment daily_issued iff still under today's cap.
+    Returns True iff we held the lock — caller is responsible for awarding."""
+    cap = int(prize.get("daily_quantity_cap") or 0)
+    today = _now().strftime("%Y-%m-%d")
+    query = {"prize_id": prize["prize_id"], "inventory_remaining": {"$gt": 0}}
+    inc = {"inventory_remaining": -1}
+    if cap > 0:
+        # Rollover already applied by the caller, so daily_issued_date==today.
+        query["daily_issued_date"] = today
+        query["daily_issued"] = {"$lt": cap}
+        inc["daily_issued"] = 1
+    res = await db.game_prizes.update_one(query, {"$inc": inc})
     if res.modified_count == 1:
         await db.game_inventory_ledger.insert_one({
             "_id": _new_id("led"), "campaign_id": prize["campaign_id"],
@@ -771,6 +964,21 @@ async def start_session(db, user: dict, campaign_id: str,
             })
             if played >= max_per_user:
                 raise ValueError("max_per_user_reached")
+    # ── Daily play policy ────────────────────────────────────────────
+    # FREE (platform-funded / house) games: one play per game TYPE per
+    # UTC day. SPONSORED (advertiser-funded) games are UNLIMITED — they
+    # skip this gate entirely.
+    gt_for_limit = (template or {}).get("game_type")
+    if bool(campaign.get("is_platform_funded")) and gt_for_limit:
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        played_type_today = await db.game_sessions.count_documents({
+            "user_id": user["user_id"],
+            "game_type": gt_for_limit,
+            "is_platform_funded": True,
+            "started_at": {"$gte": start_of_day},
+        })
+        if played_type_today >= 1:
+            raise ValueError("daily_type_limit_reached")
     # Phase 8a.1 — TRUE sliding-window rate limit: at most 30 starts per
     # (user, campaign) within any rolling 60-minute interval.  The earlier
     # implementation was a fixed window keyed off the doc's TTL, which
@@ -1004,6 +1212,9 @@ async def start_session(db, user: dict, campaign_id: str,
         "client_seed": client_seed, "server_seed": server_seed,
         "status": "in_progress",
         "claimed_at": None, "redeemed_at": None,
+        # Daily-play accounting (free games = 1/type/day; sponsored = unlimited)
+        "game_type": game_type,
+        "is_platform_funded": bool(campaign.get("is_platform_funded")),
         **extra_session,
     })
 
@@ -1119,10 +1330,10 @@ async def submit_session(db, user: dict, session_id: str,
         # Re-derive a hash from server_seed + client_seed for verifiable
         # fairness (we still use SystemRandom for the actual selection so
         # repeated rolls re-weight properly).
-        prizes = await db.game_prizes.find(
-            {"campaign_id": sess["campaign_id"], "active": True,
-             "inventory_remaining": {"$gt": 0}}
-        ).to_list(50)
+        today = now.strftime("%Y-%m-%d")
+        await _rollover_daily_caps(db, sess["campaign_id"], today)
+        elig_q = _eligible_prize_query(sess["campaign_id"])
+        prizes = await db.game_prizes.find(elig_q).to_list(50)
         if prizes:
             # Up to 5 retries in case the picked prize gets sniped
             for _ in range(5):
@@ -1136,10 +1347,7 @@ async def submit_session(db, user: dict, session_id: str,
                     result = "win"
                     break
                 # Refresh inventory snapshot
-                prizes = await db.game_prizes.find(
-                    {"campaign_id": sess["campaign_id"], "active": True,
-                     "inventory_remaining": {"$gt": 0}}
-                ).to_list(50)
+                prizes = await db.game_prizes.find(elig_q).to_list(50)
                 if not prizes:
                     break
 
@@ -1414,6 +1622,7 @@ async def public_play_and_win(db, user: dict) -> dict:
         if c["campaign_id"] in seen: continue
         seen.add(c["campaign_id"])
         view = await _campaign_public_view(db, c)
+        view["play_eligibility"] = await _play_eligibility(db, uid, c, now)
         unlocked_for_you.append(view)
         if c.get("end_at") and (
             (c["end_at"].tzinfo and c["end_at"] - now < timedelta(hours=24))
@@ -1430,7 +1639,9 @@ async def public_play_and_win(db, user: dict) -> dict:
         for c in un_camps:
             if c["campaign_id"] in seen: continue
             seen.add(c["campaign_id"])
-            unlocked_for_you.append(await _campaign_public_view(db, c))
+            v = await _campaign_public_view(db, c)
+            v["play_eligibility"] = await _play_eligibility(db, uid, c, now)
+            unlocked_for_you.append(v)
     # Played history
     played_cur = db.game_sessions.find(
         {"user_id": uid,
@@ -1517,6 +1728,32 @@ async def save_for_later_unlock(db, user: dict, campaign_id: str,
             "extended": False}
 
 
+async def _play_eligibility(db, uid: str, campaign: dict, now: datetime) -> dict:
+    """Per-user play eligibility for the Play & Win cards.
+    Sponsored (advertiser-funded) games are unlimited. Free (house) games
+    allow one play per game TYPE per UTC day."""
+    if not bool(campaign.get("is_platform_funded")):
+        return {"can_play": True, "unlimited": True, "sponsored": True}
+    tpl = await db.game_templates.find_one(
+        {"template_id": campaign.get("template_id")}, {"game_type": 1})
+    gt = (tpl or {}).get("game_type")
+    if not gt:
+        return {"can_play": True, "unlimited": False, "sponsored": False}
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Source of truth = db.plays (the real play engine, play_routes.resolve_play).
+    played = await db.plays.count_documents({
+        "listenerId": uid, "gameType": gt, "isPlatformFunded": True,
+        "playedAtDt": {"$gte": start_of_day},
+    })
+    if played >= 1:
+        tomorrow = start_of_day + timedelta(days=1)
+        return {"can_play": False, "reason": "played_today",
+                "unlimited": False, "sponsored": False, "game_type": gt,
+                "resets_in_sec": int((tomorrow - now).total_seconds())}
+    return {"can_play": True, "unlimited": False, "sponsored": False,
+            "game_type": gt}
+
+
 async def _campaign_public_view(db, c: dict) -> dict:
     prizes = await db.game_prizes.find(
         {"campaign_id": c["campaign_id"], "active": True}
@@ -1544,7 +1781,8 @@ async def _campaign_public_view(db, c: dict) -> dict:
 
 __all__ = [
     "ensure_games_v2_indexes", "seed_games_v2",
-    "migrate_phase5_games", "seed_extra_house_games", "start_session", "submit_session",
+    "migrate_phase5_games", "seed_extra_house_games", "seed_fpk_sponsored_games",
+    "start_session", "submit_session",
     "claim_to_wallet", "generate_qr", "redeem_qr",
     "public_play_and_win", "validate_prizes", "validate_compliance",
     "save_for_later_unlock",

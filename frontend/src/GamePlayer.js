@@ -139,6 +139,9 @@ export default function GamePlayer() {
         if (err.code === "AUTH") {
           toast.error("Session expired — please log in again");
           navigate("/login");
+        } else if (err.code === "LIMIT") {
+          toast.error(err.message || "You've hit today's play limit — come back tomorrow.");
+          navigate("/play-and-win");
         } else {
           toast.error(`Spin failed: ${err.message}`);
         }

@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 119 — WEB testing of Games feature (FREE house 1/day-per-type vs SPONSORED FPK unlimited). 9/9 backend pytest cases PASS (test_iter119_games_free_vs_sponsored.py) covering: 7 FPK games seeded and active with is_platform_funded=false + funded_source='fpk_sponsored'; FPK prize tiers 10/20/30/40/50% with weights 50/25/13/8/4 and daily caps 200/100/40/15/5 (verified in DB); FPK spin x4 with distinct idempotency keys all return 200 with FPK N% off coupon; daily_issued increments after a play with daily_issued_date=today; free house_spin 1st play returns 200 then 2nd same-type same-day returns HTTP 429 {code:daily_type_limit_reached}; idempotent replay with SAME key returns original play (no double-charge); a sponsored FPK play after a free house play of the same game_type is NOT blocked; GET /api/games_v2/play_and_win returns 7 FPK campaigns each with play_eligibility={sponsored:true, unlimited:true, can_play:true} and house games with can_play:true when fresh. WEB Classic B UI verified live: home rail data-testid='home-b-rail-play' navigates to /play-and-win (not old /play); nav 'Play' tab points at /play-and-win; /play-and-win renders 38 paw-card-* game cards with 7 sponsored-tag-cmp_fpk_* labels reading 'SPONSORED · UNLIMITED' and 31 'RADIOLIFE HOUSE · 1/DAY' labels; play-btn-cmp_fpk_spin shows 'Play now' and is enabled; play-btn-cmp_house_spin shows 'Come back tomorrow' and is disabled for demo user (already played today, expected per note); opening /play-and-win/cmp_fpk_spin renders the GamePlayer wheel with spin-wheel-spin-btn and successfully resolves a play (result page contains 'FPK'/'coupon' strings).",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/games_v2/play_and_win", "issue": "play_eligibility parity bug: after a user plays a free house game via POST /api/play/resolve (the REAL play engine, writes to db.plays), the eligibility check in services.games_v2._play_eligibility STILL returns can_play:true because it queries db.game_sessions (game_type/is_platform_funded/started_at), NOT db.plays. Verified with a fresh TEST_ user: pre-play can_play:true; POST /api/play/resolve on cmp_house_spin succeeds; re-fetch play_and_win → still can_play:true (should be false, reason:played_today). Consequence: the Play & Win card will keep saying 'Play now' until the user clicks and the /api/play/resolve call itself 429s (LIMIT toast). Fix: _play_eligibility must count db.plays with the same filter used by play_routes.resolve_play (listenerId/gameType/isPlatformFunded/playedAtDt≥start_of_day) OR both collections. Reference: /app/backend/services/games_v2.py:1710-1732 vs /app/backend/play_routes.py:105-118.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "FPK Spin wheel segment labels", "issue": "The spin wheel visual segments on /play-and-win/cmp_fpk_spin display generic template-default labels (e.g. 'Concert Tix', 'Try Again', 'Free Spin') instead of the actual FPK coupon tiers (10/20/30/40/50% off). The backend correctly returns FPK N% off in the /api/play/resolve outcome, so the WinReveal is accurate, but the wheel graphic is misleading (user aims for 'Concert Tix', receives 'FPK 30% off'). Root cause: seed_fpk_sponsored_games copies tpl.default_config_json into campaign.game_config_json but never overrides the segment labels to match the actual prize tiers. Fix: at seed time, override game_config_json.segments (or equivalent) with the 5 FPK coupon-tier labels. Reference: /app/backend/services/games_v2.py:707-715.", "affected_selectors": ["[data-testid='spin-wheel-spin-btn']"]}
+      ],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter119_games_free_vs_sponsored.py",
+    "/app/test_reports/pytest/iter119.xml"
+  ],
+  "action_items": [
+    "HIGH: Fix _play_eligibility in /app/backend/services/games_v2.py:1710-1732 to source daily-play state from db.plays (matching play_routes.resolve_play at play_routes.py:105-118), otherwise Play & Win cards will incorrectly show 'Play now' after the free game has already been consumed via /api/play/resolve.",
+    "MEDIUM: Update seed_fpk_sponsored_games to override wheel/scratch/mystery segment labels with the actual FPK coupon tier titles (10/20/30/40/50% off) so the game UI matches the prize inventory. Reference: /app/backend/services/games_v2.py:707-715."
+  ],
+  "critical_code_review_comments": [
+    "Duplication risk: two daily-gate implementations coexist — play_routes.py:105-118 (queries db.plays with gameType/isPlatformFunded) and services.games_v2._play_eligibility:1710-1732 (queries db.game_sessions with game_type/is_platform_funded). These MUST share the same source of truth, otherwise UI and enforcement diverge (as observed). Recommend a single helper: async def _daily_limit_state(db, uid, game_type, now) used by both surfaces.",
+    "services.games_v2._rollover_daily_caps uses today = _now().strftime('%Y-%m-%d'); play_routes.py passes now.strftime('%Y-%m-%d') where now is dt.datetime.now(dt.timezone.utc). Both are effectively UTC but the module-level _now() lack of tz sanity-check makes this brittle. Small consistency fix.",
+    "play_routes.resolve_play:96-100 does a game_templates lookup on every play call — cache templates (game_type) at boot for the small fixed set of 7 templates to shave 1 DB hit per play.",
+    "FPK prize titles are 'FPK 10% off' etc. — 'FPK' means 'Fun Pizza Kitchen' but that is not explicit in the copy; consider spelling out the sponsor name in the title for user clarity."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter119_games_free_vs_sponsored.py",
+    "/app/test_reports/pytest/iter119.xml"
+  ],
+  "success_rate": {"backend": "100% (9/9 pytest) + 1 exploratory parity-check FAIL surfacing a real bug", "frontend": "100% of Classic B Play & Win UI surfaces verified"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (used); fresh TEST_ users auto-registered via POST /api/auth/register for daily-limit tests. Register payload shape: {email, password, name}.",
+  "seed_data_creation": "Auto-registered several TEST_iter119_<hex>@bigfm.dubai listeners for isolation. No admin/production data modified.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 119: house-daily-gate + FPK-unlimited + coupon-cap + play_and_win eligibility all work at the play-engine layer. The one HIGH bug remaining is a source-of-truth divergence in _play_eligibility (reads game_sessions instead of plays) which makes the Play & Win 'Play now' button stay enabled even after a free house type has been consumed via /api/play/resolve. The 429 is still enforced server-side on the next click, but UX will feel like a bait-and-switch. After the fix, re-run test_iter119_games_free_vs_sponsored.py::TestPlayAndWinEligibility::test_house_can_play_false_after_play (currently expected to FAIL — that assertion documents the bug) and it should PASS. FPK wheel segment labels (Concert Tix/Try Again) mismatch the actual FPK % off prize tiers — visual only, not blocking.",
+  "rca of the issue": "play_routes.resolve_play (the real engine) writes plays into db.plays with fields listenerId/gameType/isPlatformFunded/playedAtDt and enforces the 1-per-type daily gate against that collection. Meanwhile services.games_v2._play_eligibility (called by GET /api/games_v2/play_and_win) counts db.game_sessions with fields user_id/game_type/is_platform_funded/started_at. game_sessions is only written by the LEGACY games_v2.start_session flow, which the new /api/play/resolve flow does not touch. Result: after a real play, the Play & Win card eligibility flag is stale until the 2nd click 429s server-side. Reproduction: fresh listener → GET /play_and_win → can_play:true; POST /api/play/resolve gameId=cmp_house_spin → 200; GET /play_and_win → still can_play:true (bug). Mitigation: unify daily-gate source-of-truth to db.plays across both endpoints (single helper) OR query both collections in _play_eligibility."
+}

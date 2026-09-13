@@ -113,6 +113,7 @@ export default function StationAnalytics({ slug, isBusiness }) {
   const series   = data?.daily_series || [];
   const posts    = data?.top_posts || [];
   const cities   = data?.top_listeners_by_city || [];
+  const moods    = data?.mood_top_tracks || [];
   const biz      = isBusiness ? (data?.business_only || {}) : null;
 
   return (
