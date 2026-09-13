@@ -2,6 +2,12 @@
 
 > NOTE (2026-09 fork): This file grew changelog-style. Newest work is now also logged in **CHANGELOG.md** and the backlog lives in **ROADMAP.md**. The dated sections below remain the historical record.
 
+## 🍽️ PREMIUM DINING CLUB — Phase 1 backend COMPLETE (2026-09 fork, tested iter126)
+30-day, Premium-only restaurant meal membership. Customer picks meals/week (3-14) + VEG/NON_VEG only; RadioLife assigns the restaurant via an EQUAL-PROBABILITY wheel (server-decided winner, one optional reroll or "Surprise Me"), identity HIDDEN until the result; fixed $9.99/meal (fast-casual = sit-down). Per-credit FIFO ledger, each credit expires 30 days from its own issuance; 4 weekly grants across a 30-day term. Reuses Premium/BigPoints/Stripe/secure-RNG engines (no duplication).
+- Backend: `services/dining_club.py` + `routes/dining_club.py` (consumer `/api/dining-club/*`, merchant `/api/merchant/dining-club/redeem`, admin `/api/admin/dining-club/*`). Signed single-use QR; equal-probability draw via `secrets.SystemRandom` (no bid/spend/sponsored weighting — LOCKED). 12 demo restaurants seeded.
+- P0 also shipped: game wins now credit the BigPoints wallet + daily streak bonus (+10/day, cap +70).
+- REMAINING: Phase 2 (merchant dashboard), Phase 3 (consumer UI web+mobile), Phase 4 (admin fairness UI + Partner API for restaurants + dining.* webhooks). See ROADMAP.md.
+
 ## ✅ UNIVERSAL ADVERTISING API — PHASES A→F COMPLETE (2026-09 fork)
 The programmatic media/ad platform built by EXTENDING the existing Partner API v1 (`/api/v1`, partner API-key/OAuth2 auth, LIVE/SANDBOX isolation; NO rebuild — reuses the internal ad/game/sponsorship engines) is now fully shipped through Phase F. All phases backend-tested + (F) web-tested.
 

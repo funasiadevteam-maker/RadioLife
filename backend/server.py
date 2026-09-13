@@ -6192,6 +6192,28 @@ app.include_router(play_router)
 app.include_router(wallet_v2_router)
 app.add_event_handler("startup", _ensure_p23s9_indexes)
 
+# ── Premium Dining Club (Phase 1) — consumer + merchant + admin ─────
+try:
+    from routes.dining_club import (router as _dining_router,
+                                     merchant_router as _dining_merchant_router,
+                                     admin_router as _dining_admin_router)
+    from services.dining_club import (ensure_dining_indexes as _ensure_dining_indexes,
+                                       issue_due_grants as _dining_issue_due_grants)
+    app.include_router(_dining_router)
+    app.include_router(_dining_merchant_router)
+    app.include_router(_dining_admin_router)
+
+    async def _dining_boot():
+        try:
+            await _ensure_dining_indexes(db)
+            await _dining_issue_due_grants(db)
+        except Exception as _e:
+            logger.warning("dining_club boot failed: %s", _e)
+    app.add_event_handler("startup", _dining_boot)
+    logger.info("Dining Club routes wired: /api/dining-club/* + merchant + admin")
+except Exception as _e:
+    logger.warning("dining_club routers not loaded: %s", _e)
+
 # Phase 18 UI-cleanup — `/api/me/*` recommendations + favorites.
 try:
     from routes.me_recs import me_recs_router

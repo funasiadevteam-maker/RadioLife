@@ -25,6 +25,7 @@ from pymongo.errors import DuplicateKeyError
 
 from auth import current_user
 from core.db import db  # re-exported for wallet_routes.py to import
+from services import bigcoin
 from services.games_v2 import (
     _atomic_claim_prize, _weighted_pick,
     _rollover_daily_caps, _eligible_prize_query,
@@ -33,6 +34,37 @@ from services.games_v2 import (
 logger = logging.getLogger("bigfm.play")
 
 router = APIRouter(prefix="/api/play", tags=["play"])
+
+STREAK_STEP = 10   # BigPoints earned per consecutive day
+STREAK_CAP = 70    # maximum daily streak bonus
+
+
+async def _award_daily_streak(db, uid: str, now: dt.datetime) -> dict:
+    """Credit a consecutive-day play-streak bonus (+10/day, capped at +70),
+    at most once per UTC day. Atomic via a per-user daily slot so concurrent
+    first-plays can't double-award. Returns {awarded, bonus, streak, balance_after}."""
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+    prev = await db.daily_play_streaks.find_one({"user_id": uid})
+    if prev and prev.get("last_play_day") == today:
+        return {"awarded": False, "bonus": 0,
+                "streak": int(prev.get("current_streak") or 0)}
+    new_streak = (int(prev.get("current_streak") or 0) + 1
+                  if prev and prev.get("last_play_day") == yesterday else 1)
+    bonus = min(new_streak * STREAK_STEP, STREAK_CAP)
+    try:
+        await db.daily_play_streaks.find_one_and_update(
+            {"user_id": uid, "last_play_day": {"$ne": today}},
+            {"$set": {"last_play_day": today, "current_streak": new_streak,
+                      "last_bonus": bonus, "updated_at": now}},
+            upsert=True)
+    except DuplicateKeyError:
+        # Another concurrent first-play already claimed today's slot.
+        return {"awarded": False, "bonus": 0, "streak": new_streak}
+    res = await bigcoin.award(db, uid, bonus, "daily_play_streak",
+                              metadata={"day": today, "streak": new_streak})
+    return {"awarded": True, "bonus": bonus, "streak": new_streak,
+            "balance_after": int(res["balance_after"])}
 
 
 async def get_listener_id(user: dict = Depends(current_user)) -> str:
@@ -60,6 +92,9 @@ class ResolveResponse(BaseModel):
     coupon: Optional[CouponOut] = None
     balance: int
     playedAt: str
+    bigcoinAwarded: int = 0
+    streakBonus: int = 0
+    streakCount: int = 0
 
 
 def _shape(row: dict) -> ResolveResponse:
@@ -71,6 +106,9 @@ def _shape(row: dict) -> ResolveResponse:
         coupon=CouponOut(**row["coupon"]) if row.get("coupon") else None,
         balance=int(row.get("balance") or 0),
         playedAt=row["playedAt"],
+        bigcoinAwarded=int(row.get("bigcoinAwarded") or 0),
+        streakBonus=int(row.get("streakBonus") or 0),
+        streakCount=int(row.get("streakCount") or 0),
     )
 
 
@@ -186,6 +224,34 @@ async def resolve_play(req: ResolveRequest,
             return _shape(existing)
         raise HTTPException(409, "duplicate idempotency key")
 
+    # ---- Credit the wallet (runs once, only on a fresh insert). ----
+    # A won BigPoints prize actually mutates the listener's balance now;
+    # previously the prize was resolved but never credited.
+    bigcoin_awarded = 0
+    if prize_picked and prize_picked.get("prize_type") == "bigcoin":
+        amt = int(prize_picked.get("value_amount") or 0)
+        if amt > 0:
+            res = await bigcoin.award(
+                db, listener_id, amt, "game_win",
+                metadata={"playId": play_id, "gameId": req.gameId,
+                          "prizeId": prize_id})
+            balance = int(res["balance_after"])
+            bigcoin_awarded = amt
+
+    # ---- Daily play-streak bonus (+10/day, capped +70; once per UTC day). ----
+    streak = await _award_daily_streak(db, listener_id, now)
+    if streak.get("awarded"):
+        balance = int(streak.get("balance_after") or balance)
+
+    doc["balance"] = balance
+    doc["bigcoinAwarded"] = bigcoin_awarded
+    doc["streakBonus"] = int(streak.get("bonus") or 0)
+    doc["streakCount"] = int(streak.get("streak") or 0)
+    await db.plays.update_one(
+        {"_id": play_id},
+        {"$set": {"balance": balance, "bigcoinAwarded": bigcoin_awarded,
+                  "streakBonus": doc["streakBonus"], "streakCount": doc["streakCount"]}})
+
     return _shape(doc)
 
 
@@ -197,6 +263,8 @@ async def ensure_play_wallet_indexes() -> None:
     await db.plays.create_index(
         [("listenerId", 1), ("idempotencyKey", 1)],
         unique=True, name="plays_listener_idem_unique")
+    await db.daily_play_streaks.create_index(
+        [("user_id", 1)], unique=True, name="daily_play_streaks_user_unique")
     await db.wallet_items.create_index(
         [("playId", 1), ("listenerId", 1)],
         unique=True, name="wallet_items_play_listener_unique")
@@ -205,4 +273,30 @@ async def ensure_play_wallet_indexes() -> None:
         name="wallet_items_listener_recent")
     logger.info(
         "Phase 23 Session 9 indexes ready: plays.(listenerId,idempotencyKey), "
+        "daily_play_streaks.user_id, "
         "wallet_items.(playId,listenerId), wallet_items.(listenerId,savedAt)")
+
+
+@router.get("/streak")
+async def play_streak_status(user: dict = Depends(current_user)):
+    """Current consecutive-day play streak + next-day bonus preview."""
+    now = dt.datetime.now(dt.timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+    doc = await db.daily_play_streaks.find_one({"user_id": user["user_id"]})
+    last_day = (doc or {}).get("last_play_day")
+    streak = int((doc or {}).get("current_streak") or 0)
+    # Streak is broken if the last play wasn't today or yesterday.
+    active = last_day in (today, yesterday)
+    current = streak if active else 0
+    claimed_today = last_day == today
+    # Bonus you'd earn on your next qualifying play-day (today or tomorrow).
+    next_bonus = min((current + 1) * STREAK_STEP, STREAK_CAP)
+    return {
+        "streak": current,
+        "claimedToday": claimed_today,
+        "todayBonus": int((doc or {}).get("last_bonus") or 0) if claimed_today else 0,
+        "nextBonus": next_bonus,
+        "step": STREAK_STEP,
+        "cap": STREAK_CAP,
+    }

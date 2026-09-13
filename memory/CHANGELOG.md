@@ -2,6 +2,12 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09 — P0 wallet crediting + daily streak, and Premium Dining Club (Phase 1 backend)
+
+**P0 (consumer, verified via curl):** `POST /api/play/resolve` now CREDITS the BigPoints wallet when a `prize_type='bigcoin'` prize is won (was resolved but never credited) via `bigcoin.award`, and awards a consecutive-day play-streak bonus (+10/day, capped +70) once per UTC day (atomic per-day slot, no double-award, idempotent on replay). New `GET /api/play/streak` status. Files: `play_routes.py`.
+
+**Premium Dining Club — Phase 1 backend (validated iter126, 17/17):** 30-day, Premium-only restaurant meal membership. Customer picks meals/week (3-14) + VEG/NON_VEG only; RadioLife assigns the restaurant via an EQUAL-PROBABILITY wheel (server-decided winner, one optional reroll, or Surprise Me), identity HIDDEN until the result; fixed $9.99/meal. NEW `services/dining_club.py` (config, per-credit FIFO+30-day-expiry ledger, subscription + 4 weekly grants/30-day term, equal-probability candidate/spin engine, selection state machine, reservations, signed single-use QR + redemption) and `routes/dining_club.py` (consumer `/api/dining-club/*`, merchant `/api/merchant/dining-club/redeem`, admin `/api/admin/dining-club/*` incl seed/settings/run-grants/fairness/mark-paid). Reuses Premium (`premium_gate`/`grant_premium`), BigPoints, Stripe (billing pattern; live returns cs_test_ URL, admin mark-paid for QA), secure RNG. 12 demo restaurants seeded.
+
 ## 2026-09 — Universal Advertising API: Phases D, E, F (Partner API v1 extension)
 Extended the existing `/api/v1` Partner API (no rebuild; reuses internal ad/game/sponsorship engines). LIVE/SANDBOX isolation; Idempotency-Key + external_id dedup + cursor pagination + normalized error envelope + X-RadioLife-API-Version/X-Request-ID everywhere.
 
