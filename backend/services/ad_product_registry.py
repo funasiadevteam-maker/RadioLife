@@ -368,8 +368,8 @@ def inventory() -> list[dict]:
 
 # ─────────────────────────── capabilities ──────────────────────────────
 FEATURE_FLAGS = {
-    "multi_format_campaigns": False,   # Phase C
-    "creative_library": False,         # Phase C
+    "multi_format_campaigns": True,     # Phase C
+    "creative_library": True,          # Phase C
     "idempotency_keys": True,          # Phase B
     "external_id": True,               # Phase B
     "quotes": True,                    # Phase B

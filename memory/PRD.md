@@ -1,5 +1,19 @@
 # RadioLife — PRD (Phase H v1 · Commute Mode MVP · 2026-07-24)
 
+## PROGRAMMATIC API — PHASE C: CREATIVE LIBRARY + MULTI-FORMAT LINE ITEMS (2026-09 fork) — testing iter122 41/41 PASS, A+B regression intact
+Extended /api/v1 (no rebuild). Backend only:
+- **Creative Library** (`backend/services/partner_creatives.py` NEW + endpoints in `partner_api_v1.py`): `POST/GET/GET{id}/PATCH/DELETE /api/v1/creatives`. Collection `creative_assets`. Types audio/image/video/html; statuses uploading→processing→ready/pending_review/approved/rejected/quarantined/error/deleted. Supports Idempotency-Key + external_id de-dup + cursor pagination + filters.
+- **Signed uploads**: `POST /api/v1/creatives/upload-url` → real Tigris **presigned PUT** (cr.signed_upload) + creative shell (uploading) + `finalize_url`; `POST /api/v1/creatives/{id}/finalize` HEADs the object, validates size/mime → ready (409 asset_not_found if not uploaded yet — leaves status 'uploading' for retry).
+- **Validation** (`cr.validate_metadata`): per-type max bytes (image 5MB/audio 15MB/video 100MB/html 512KB) + mime + audio/video max duration.
+- **SSRF-safe import**: `POST /api/v1/creatives/import` — https-only, blocks localhost/private/link-local/reserved IPs, size-capped, then upload_bytes to Tigris → ready.
+- **Multi-format campaigns** (`_create_multiformat`): `POST /api/v1/campaigns` with `line_items:[{type,creative_ids,...}]` (no top-level product) → parent container (`api_parent_campaigns`) + one underlying ad campaign per line item via existing `ad1_advertiser_service.create_campaign`, linked by `parent_campaign_id`, stored in `campaign_line_items`. Partial success (bad line item → status error/unsupported, parent + others still created). Line items inherit parent pricing_model/bids. `GET /api/v1/campaigns/{parent_id}/line-items`. Single-format still works; neither product nor line_items → 400 product_required.
+- FEATURE_FLAGS creative_library + multi_format_campaigns = true. Indexes seeded on boot (`ensure_creative_indexes`).
+- Fixed 2 testing-agent findings: line items now inherit parent pricing (no spurious 'error'); finalize no longer poisons retries. Deferred non-blocking hardening: HEAD-probe caller-supplied asset_url; block deleted creatives from new line items; move creative/campaign/sponsorship cursoring into DB queries (currently .limit(500) in-memory); local-dev signed_upload fallback.
+- Files: `services/partner_creatives.py` (NEW), `routes/partner_api_v1.py`, `services/ad_product_registry.py`, `server.py`. Test: `/app/test_reports/iteration_122.json`.
+- NEXT: Phase D (booking APIs: sponsored games/trivia/predict&win/AI-RJ/audio/display reusing engines) → E → F. Paused consumer items still pending: game-win crediting, /store storefront, coupon-cap dashboard, daily streak bonus, BigPoints DB migration.
+
+
+
 ## PROGRAMMATIC API — PHASE B: WRITE-SAFETY + QUOTES (2026-09 fork) — testing iter121 33/33 PASS, no bugs, Phase A regression intact
 Extended /api/v1 (no rebuild). Backend only:
 - **POST /api/v1/quotes** (`ad_product_registry.compute_quote`) — server-authoritative pricing from RATE_CARD: base_rate × market × daypart × premium × (1+0.1·targeting_dims). Returns quote_id (stored in `api_quotes`, 24h TTL), effective_rate_cents, multipliers_applied, estimated_volume (impr/clicks/actions/plays/entries by model), minimum_spend_cents. Invalid model→400 invalid_pricing_model_for_product; unknown product→400 unknown_product. External clients can't submit arbitrary prices.

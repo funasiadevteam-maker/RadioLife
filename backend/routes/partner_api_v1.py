@@ -29,6 +29,7 @@ from services import partner_api as pa
 from services import partner_marketplace as mkt
 from services import ad_product_registry as reg
 from services import partner_api_ext as ext
+from services import partner_creatives as cr
 from services.partner_api import Caller, require_scopes
 
 log = logging.getLogger("bigfm.partner_api.v1")
@@ -418,9 +419,21 @@ class Creative(BaseModel):
     sponsored_game_campaign_id: Optional[str] = None
 
 
+class LineItem(BaseModel):
+    type: str = Field(..., description="Product key (e.g. audio_preroll, display_banner, sponsored_game)")
+    creative_ids: list[str] = []
+    name: Optional[str] = None
+    budget_total_cents: Optional[int] = None
+    pricing_model: Optional[str] = None
+    cpm_bid_cents: Optional[int] = None
+    cpc_bid_cents: Optional[int] = None
+    targeting: Optional[Targeting] = None
+    sponsored_game_campaign_id: Optional[str] = None
+
+
 class CampaignCreate(BaseModel):
     advertiser_id: str
-    product: str = Field(..., description="Product key from GET /products (e.g. audio_preroll, display_banner)")
+    product: Optional[str] = Field(None, description="Product key from GET /products (single-format). Omit when using line_items.")
     name: str
     budget_total_cents: int = Field(..., ge=1)
     pricing_model: str = "cpm"
@@ -429,8 +442,10 @@ class CampaignCreate(BaseModel):
     daily_cap_cents: Optional[int] = None
     start_at: Optional[str] = None
     end_at: Optional[str] = None
+    objective: Optional[str] = None
     targeting: Targeting = Field(default_factory=Targeting)
     creative: Creative = Field(default_factory=Creative)
+    line_items: Optional[list[LineItem]] = Field(None, description="Multi-format: one parent campaign holding several media line items.")
     external_id: Optional[str] = Field(None, description="Your own id for this campaign (de-dupes retries)")
 
 
@@ -474,6 +489,87 @@ async def create_quote(body: QuoteRequest, request: Request,
     return q
 
 
+async def _create_multiformat(db, caller: Caller, body: "CampaignCreate", adv: dict) -> dict:
+    """Create a parent campaign container plus one underlying campaign per line
+    item, reusing the existing ad engine for each bookable media type."""
+    parent_id = "pcmp_" + uuid.uuid4().hex[:18]
+    now = pa._now()
+    n = len(body.line_items)
+    default_budget = max(1, int(body.budget_total_cents // n)) if body.budget_total_cents else None
+    line_docs = []
+    for li in body.line_items:
+        li_id = "cli_" + uuid.uuid4().hex[:16]
+        prod = pa.product_by_key(li.type)
+        rec = {"_id": li_id, "line_item_id": li_id, "parent_id": parent_id,
+               "partner_id": caller.partner_id, "environment": caller.environment,
+               "type": li.type, "creative_ids": li.creative_ids,
+               "name": li.name or f"{body.name} · {li.type}",
+               "budget_total_cents": li.budget_total_cents or default_budget,
+               "underlying_campaign_id": None, "status": "pending",
+               "error": None, "created_at": now, "updated_at": now}
+        if not prod or not prod.get("bookable") or not prod.get("campaign_type"):
+            rec["status"] = "unsupported"
+            rec["error"] = {"code": "product_not_bookable_via_api", "status": (prod or {}).get("status")}
+            await db.campaign_line_items.insert_one(rec)
+            line_docs.append(rec)
+            continue
+        # resolve first library creative → engine creative payload
+        creative: dict = {}
+        if li.creative_ids:
+            crv = await db.creative_assets.find_one(
+                {"creative_id": li.creative_ids[0], "partner_id": caller.partner_id,
+                 "environment": caller.environment})
+            if crv:
+                creative = _creative_to_payload(crv)
+        if li.sponsored_game_campaign_id:
+            creative["sponsored_game_campaign_id"] = li.sponsored_game_campaign_id
+        payload = {
+            "campaign_type": prod["campaign_type"], "name": rec["name"],
+            "budget_total_cents": rec["budget_total_cents"] or 1,
+            "pricing_model": li.pricing_model or body.pricing_model or "cpm",
+            "cpm_bid_cents": li.cpm_bid_cents if li.cpm_bid_cents is not None else body.cpm_bid_cents,
+            "cpc_bid_cents": li.cpc_bid_cents if li.cpc_bid_cents is not None else body.cpc_bid_cents,
+            "start_at": body.start_at, "end_at": body.end_at,
+            "targeting": (li.targeting or body.targeting).model_dump(),
+            "creative": creative, "parent_campaign_id": parent_id,
+        }
+        try:
+            camp = await ad.create_campaign(db, advertiser_id=body.advertiser_id,
+                                            payload=payload, user=_svc_user(caller))
+            cid = camp["campaign_id"]
+            if caller.is_sandbox:
+                await db.ad_campaigns_v2.update_one(
+                    {"campaign_id": cid},
+                    {"$set": {"status": "active", "approved_at": now,
+                              "approved_by": "sandbox", "parent_campaign_id": parent_id,
+                              "updated_at": now}})
+            else:
+                await db.ad_campaigns_v2.update_one(
+                    {"campaign_id": cid}, {"$set": {"parent_campaign_id": parent_id}})
+            rec["underlying_campaign_id"] = cid
+            rec["status"] = "active" if caller.is_sandbox else "draft"
+        except Exception as e:  # partial success — one bad line item shouldn't sink the campaign
+            rec["status"] = "error"
+            rec["error"] = {"code": "line_item_create_failed", "message": str(e)}
+        await db.campaign_line_items.insert_one(rec)
+        line_docs.append(rec)
+
+    created = sum(1 for r in line_docs if r["underlying_campaign_id"])
+    parent = {"_id": parent_id, "parent_id": parent_id, "partner_id": caller.partner_id,
+              "environment": caller.environment, "advertiser_id": body.advertiser_id,
+              "name": body.name, "objective": body.objective,
+              "budget_total_cents": body.budget_total_cents,
+              "start_at": body.start_at, "end_at": body.end_at,
+              "line_item_ids": [r["line_item_id"] for r in line_docs],
+              "status": "active" if (caller.is_sandbox and created) else "draft",
+              "created_at": now, "updated_at": now}
+    await db.api_parent_campaigns.insert_one(parent)
+    return {"parent_campaign_id": parent_id, "multi_format": True,
+            "status": parent["status"], "objective": body.objective,
+            "external_id": body.external_id, "environment": caller.environment,
+            "line_items": [cr._clean(r) for r in line_docs]}
+
+
 @partner_app.post("/campaigns", tags=["campaigns"], status_code=201)
 async def create_campaign(body: CampaignCreate, request: Request,
                           caller: Caller = Depends(require_scopes("campaigns:write"))):
@@ -487,6 +583,21 @@ async def create_campaign(body: CampaignCreate, request: Request,
         await ext.idem_save(db, caller, "create_campaign", idem, dup)
         return dup
     adv = await _assert_adv(db, caller, body.advertiser_id)
+    if adv.get("status") != "active":
+        raise HTTPException(409, {"code": "advertiser_not_active", "status": adv.get("status")})
+
+    # ── Multi-format: one parent campaign holding several media line items ──
+    if body.line_items:
+        result = await _create_multiformat(db, caller, body, adv)
+        if body.external_id:
+            await ext.external_save(db, caller, "campaign", body.external_id,
+                                    result["parent_campaign_id"], result)
+        await ext.idem_save(db, caller, "create_campaign", idem, result)
+        return result
+
+    if not body.product:
+        raise HTTPException(400, {"code": "product_required",
+                                  "message": "provide `product` (single-format) or `line_items` (multi-format)"})
     prod = pa.product_by_key(body.product)
     if not prod:
         raise HTTPException(400, {"code": "unknown_product", "product": body.product})
@@ -494,9 +605,6 @@ async def create_campaign(body: CampaignCreate, request: Request,
         raise HTTPException(409, {"code": "product_not_bookable_via_api",
                                   "product": body.product, "status": prod.get("status"),
                                   "hint": "Contact RadioLife to onboard this product."})
-    if adv.get("status") != "active":
-        raise HTTPException(409, {"code": "advertiser_not_active",
-                                  "status": adv.get("status")})
     creative = body.creative.model_dump(exclude_none=True)
     if prod["campaign_type"] == "audio_preroll_stub" and body.creative.audio_url:
         creative["image_url"] = creative.get("image_url") or body.creative.audio_url
@@ -548,6 +656,22 @@ async def list_campaigns(request: Request, advertiser_id: str,
             "has_more": page["has_more"]}
 
 
+@partner_app.get("/campaigns/{parent_id}/line-items", tags=["campaigns"])
+async def list_line_items(parent_id: str, request: Request,
+                          caller: Caller = Depends(require_scopes("campaigns:read"))):
+    db = request.app.state.db
+    parent = await db.api_parent_campaigns.find_one(
+        {"parent_id": parent_id, "partner_id": caller.partner_id,
+         "environment": caller.environment})
+    if not parent:
+        raise HTTPException(404, {"code": "parent_campaign_not_found"})
+    items = [cr._clean(x) async for x in
+             db.campaign_line_items.find({"parent_id": parent_id}).sort("created_at", 1)]
+    return {"parent_campaign_id": parent_id, "parent": cr._clean(parent),
+            "line_items": items, "count": len(items)}
+
+
+
 @partner_app.get("/campaigns/{campaign_id}", tags=["campaigns"])
 async def get_campaign(campaign_id: str, request: Request, advertiser_id: str,
                        caller: Caller = Depends(require_scopes("campaigns:read"))):
@@ -576,6 +700,280 @@ async def upload_creative(campaign_id: str, body: CreativePatch, request: Reques
     except Exception as e:
         raise _map_error(e)
     return {"campaign": camp}
+
+
+# ══════════════════════════ creative library (Phase C) ═════════════
+def _creative_to_payload(crv: dict) -> dict:
+    """Map a library creative to the underlying engine's creative dict."""
+    t = crv.get("type")
+    p: dict = {"headline": crv.get("name"), "click_url": crv.get("click_url")}
+    if t == "image":
+        p["image_url"] = crv.get("asset_url")
+    elif t == "audio":
+        p["audio_url"] = crv.get("asset_url")
+    else:  # video / html — best-effort thumbnail slot
+        p["image_url"] = crv.get("asset_url")
+    return {k: v for k, v in p.items() if v is not None}
+
+
+class CreativeCreate(BaseModel):
+    type: str = Field(..., description="audio | image | video | html")
+    name: Optional[str] = None
+    asset_url: Optional[str] = None
+    mime: Optional[str] = None
+    size_bytes: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    duration_seconds: Optional[float] = None
+    click_url: Optional[str] = None
+    advertiser_id: Optional[str] = None
+    external_id: Optional[str] = None
+
+
+class UploadUrlBody(BaseModel):
+    type: str
+    filename: str
+    content_type: str
+    advertiser_id: Optional[str] = None
+
+
+class ImportBody(BaseModel):
+    type: str
+    url: str
+    name: Optional[str] = None
+    click_url: Optional[str] = None
+    advertiser_id: Optional[str] = None
+    external_id: Optional[str] = None
+
+
+class CreativePatchBody(BaseModel):
+    name: Optional[str] = None
+    click_url: Optional[str] = None
+    status: Optional[str] = None
+
+
+def _asset_key(caller: Caller, creative_id: str, filename: str) -> str:
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    return f"creatives/{caller.partner_id}/{caller.environment.lower()}/{creative_id}.{ext}"
+
+
+@partner_app.post("/creatives", tags=["creatives"], status_code=201)
+async def create_creative(body: CreativeCreate, request: Request,
+                          caller: Caller = Depends(require_scopes("creatives:write"))):
+    db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "create_creative", idem)
+    if cached is not None:
+        return cached
+    dup = await ext.external_get(db, caller, "creative", body.external_id)
+    if dup is not None:
+        await ext.idem_save(db, caller, "create_creative", idem, dup)
+        return dup
+    err = cr.validate_metadata(body.type, size_bytes=body.size_bytes, mime=body.mime,
+                               duration_seconds=body.duration_seconds)
+    if err:
+        raise HTTPException(400, err)
+    cid = cr._cid()
+    now = cr._now()
+    status = "ready" if body.asset_url else "processing"
+    doc = {"_id": cid, "creative_id": cid, "partner_id": caller.partner_id,
+           "environment": caller.environment, "advertiser_id": body.advertiser_id,
+           "type": body.type, "name": body.name, "status": status,
+           "asset_url": body.asset_url, "asset_key": None, "mime": body.mime,
+           "size_bytes": body.size_bytes, "width": body.width, "height": body.height,
+           "duration_seconds": body.duration_seconds, "click_url": body.click_url,
+           "external_id": body.external_id, "created_at": now, "updated_at": now}
+    await db.creative_assets.insert_one(doc)
+    result = {"creative": cr._clean(doc)}
+    await ext.external_save(db, caller, "creative", body.external_id, cid, result)
+    await ext.idem_save(db, caller, "create_creative", idem, result)
+    return result
+
+
+@partner_app.post("/creatives/upload-url", tags=["creatives"], status_code=201)
+async def creative_upload_url(body: UploadUrlBody, request: Request,
+                              caller: Caller = Depends(require_scopes("creatives:write"))):
+    db = request.app.state.db
+    err = cr.validate_metadata(body.type, mime=body.content_type, filename=body.filename)
+    if err:
+        raise HTTPException(400, err)
+    cid = cr._cid()
+    now = cr._now()
+    key = _asset_key(caller, cid, body.filename)
+    try:
+        signed = cr.signed_upload(key, body.content_type)
+    except Exception as e:
+        raise HTTPException(502, {"code": "upload_url_unavailable", "message": str(e)})
+    doc = {"_id": cid, "creative_id": cid, "partner_id": caller.partner_id,
+           "environment": caller.environment, "advertiser_id": body.advertiser_id,
+           "type": body.type, "name": body.filename, "status": "uploading",
+           "asset_url": None, "asset_key": key, "mime": body.content_type,
+           "size_bytes": None, "click_url": None, "external_id": None,
+           "created_at": now, "updated_at": now}
+    await db.creative_assets.insert_one(doc)
+    return {"creative_id": cid, "asset_key": key, "expires_in": cr.UPLOAD_URL_TTL,
+            "finalize_url": f"/api/v1/creatives/{cid}/finalize", **signed}
+
+
+@partner_app.post("/creatives/{creative_id}/finalize", tags=["creatives"])
+async def finalize_creative(creative_id: str, request: Request,
+                            caller: Caller = Depends(require_scopes("creatives:write"))):
+    db = request.app.state.db
+    crv = await db.creative_assets.find_one({"creative_id": creative_id,
+                                             "partner_id": caller.partner_id,
+                                             "environment": caller.environment})
+    if not crv:
+        raise HTTPException(404, {"code": "creative_not_found"})
+    key = crv.get("asset_key")
+    if not key:
+        raise HTTPException(409, {"code": "no_asset_key", "message": "creative was not created via upload-url"})
+    from services.object_storage import get_storage
+    try:
+        head = get_storage().head(key=key)
+    except Exception:
+        head = None
+    if not head:
+        # Object not uploaded yet — leave status 'uploading' so the client can retry.
+        raise HTTPException(409, {"code": "asset_not_found", "message": "no object uploaded to the signed URL yet"})
+    err = cr.validate_metadata(crv["type"], size_bytes=head.get("size"),
+                               mime=head.get("content_type"))
+    if err:
+        await db.creative_assets.update_one({"creative_id": creative_id},
+            {"$set": {"status": "rejected", "reject_reason": err, "updated_at": cr._now()}})
+        raise HTTPException(400, err)
+    try:
+        asset_url = get_storage().get_signed_url(key=key, expires_in=7 * 24 * 3600)
+    except Exception:
+        asset_url = f"/api/storage/local/{key}"
+    await db.creative_assets.update_one({"creative_id": creative_id},
+        {"$set": {"status": "ready", "asset_url": asset_url,
+                  "size_bytes": head.get("size"), "mime": head.get("content_type"),
+                  "updated_at": cr._now()}})
+    return {"creative": cr._clean(await db.creative_assets.find_one({"creative_id": creative_id}))}
+
+
+@partner_app.post("/creatives/import", tags=["creatives"], status_code=201)
+async def import_creative(body: ImportBody, request: Request,
+                          caller: Caller = Depends(require_scopes("creatives:write"))):
+    db = request.app.state.db
+    idem = request.headers.get("Idempotency-Key")
+    cached = await ext.idem_get(db, caller, "import_creative", idem)
+    if cached is not None:
+        return cached
+    if body.type not in cr.CREATIVE_TYPES:
+        raise HTTPException(400, {"code": "invalid_creative_type"})
+    try:
+        cr.assert_safe_url(body.url)
+    except ValueError as e:
+        raise HTTPException(400, {"code": str(e)})
+    import httpx
+    rule = cr.RULES[body.type]
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+            resp = await client.get(body.url)
+    except Exception as e:
+        raise HTTPException(400, {"code": "import_fetch_failed", "message": str(e)})
+    if resp.status_code != 200:
+        raise HTTPException(400, {"code": "import_fetch_failed", "message": f"status {resp.status_code}"})
+    data = resp.content
+    if len(data) > rule["max_bytes"]:
+        raise HTTPException(400, {"code": "file_too_large"})
+    mime = resp.headers.get("content-type", "").split(";")[0].strip()
+    err = cr.validate_metadata(body.type, size_bytes=len(data), mime=mime or None)
+    if err:
+        raise HTTPException(400, err)
+    cid = cr._cid()
+    ext_map = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp",
+               "audio/mpeg": "mp3", "audio/mp3": "mp3", "video/mp4": "mp4", "text/html": "html"}
+    key = f"creatives/{caller.partner_id}/{caller.environment.lower()}/{cid}.{ext_map.get(mime, 'bin')}"
+    from services.object_storage import get_storage
+    try:
+        get_storage().upload_bytes(key=key, data=data, content_type=mime or "application/octet-stream")
+        asset_url = get_storage().get_signed_url(key=key, expires_in=7 * 24 * 3600)
+    except Exception as e:
+        raise HTTPException(502, {"code": "storage_write_failed", "message": str(e)})
+    now = cr._now()
+    doc = {"_id": cid, "creative_id": cid, "partner_id": caller.partner_id,
+           "environment": caller.environment, "advertiser_id": body.advertiser_id,
+           "type": body.type, "name": body.name, "status": "ready",
+           "asset_url": asset_url, "asset_key": key, "mime": mime,
+           "size_bytes": len(data), "click_url": body.click_url,
+           "external_id": body.external_id, "created_at": now, "updated_at": now}
+    await db.creative_assets.insert_one(doc)
+    result = {"creative": cr._clean(doc)}
+    await ext.external_save(db, caller, "creative", body.external_id, cid, result)
+    await ext.idem_save(db, caller, "import_creative", idem, result)
+    return result
+
+
+@partner_app.get("/creatives", tags=["creatives"])
+async def list_creatives(request: Request, type: Optional[str] = None,
+                         status: Optional[str] = None, advertiser_id: Optional[str] = None,
+                         external_id: Optional[str] = None,
+                         cursor: Optional[str] = None, limit: int = 50,
+                         caller: Caller = Depends(require_scopes("creatives:read"))):
+    db = request.app.state.db
+    q = {"partner_id": caller.partner_id, "environment": caller.environment}
+    if type:
+        q["type"] = type
+    if status:
+        q["status"] = status
+    if advertiser_id:
+        q["advertiser_id"] = advertiser_id
+    if external_id:
+        q["external_id"] = external_id
+    items = [cr._clean(x) async for x in
+             db.creative_assets.find(q).sort("created_at", -1).limit(500)]
+    try:
+        page = ext.paginate(items, cursor, limit)
+    except ValueError:
+        raise HTTPException(400, {"code": "invalid_cursor"})
+    return {"data": page["data"], "count": page["count"],
+            "next_cursor": page["next_cursor"], "has_more": page["has_more"]}
+
+
+@partner_app.get("/creatives/{creative_id}", tags=["creatives"])
+async def get_creative(creative_id: str, request: Request,
+                       caller: Caller = Depends(require_scopes("creatives:read"))):
+    db = request.app.state.db
+    crv = await db.creative_assets.find_one({"creative_id": creative_id,
+                                             "partner_id": caller.partner_id,
+                                             "environment": caller.environment})
+    if not crv:
+        raise HTTPException(404, {"code": "creative_not_found"})
+    return {"creative": cr._clean(crv)}
+
+
+@partner_app.patch("/creatives/{creative_id}", tags=["creatives"])
+async def patch_creative(creative_id: str, body: CreativePatchBody, request: Request,
+                         caller: Caller = Depends(require_scopes("creatives:write"))):
+    db = request.app.state.db
+    patch = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    if "status" in patch and patch["status"] not in cr.CREATIVE_STATUSES:
+        raise HTTPException(400, {"code": "invalid_status"})
+    if not patch:
+        raise HTTPException(400, {"code": "empty_patch"})
+    patch["updated_at"] = cr._now()
+    r = await db.creative_assets.update_one(
+        {"creative_id": creative_id, "partner_id": caller.partner_id,
+         "environment": caller.environment}, {"$set": patch})
+    if r.matched_count == 0:
+        raise HTTPException(404, {"code": "creative_not_found"})
+    return {"creative": cr._clean(await db.creative_assets.find_one({"creative_id": creative_id}))}
+
+
+@partner_app.delete("/creatives/{creative_id}", tags=["creatives"])
+async def delete_creative(creative_id: str, request: Request,
+                          caller: Caller = Depends(require_scopes("creatives:write"))):
+    db = request.app.state.db
+    r = await db.creative_assets.update_one(
+        {"creative_id": creative_id, "partner_id": caller.partner_id,
+         "environment": caller.environment},
+        {"$set": {"status": "deleted", "updated_at": cr._now()}})
+    if r.matched_count == 0:
+        raise HTTPException(404, {"code": "creative_not_found"})
+    return {"deleted": True, "creative_id": creative_id}
+
 
 
 @partner_app.post("/campaigns/{campaign_id}/submit", tags=["campaigns"])
