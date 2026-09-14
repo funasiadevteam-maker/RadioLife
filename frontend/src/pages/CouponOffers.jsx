@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import {
-  Ticket, Store, MapPin, Loader2, Check, X, Zap, ArrowRight, Sparkles, QrCode,
+  Ticket, Store, MapPin, Loader2, Check, X, Zap, ArrowRight, Sparkles, QrCode, BellRing,
 } from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
@@ -125,7 +125,8 @@ export default function CouponOffers() {
 
       <div className="max-w-7xl xl:max-w-[1400px] mx-auto px-4 py-8">
         {tab === "mine" ? (
-          <MyCouponsView light={light} mine={mine} mineErr={mineErr} user={user} />
+          <MyCouponsView light={light} mine={mine} mineErr={mineErr} user={user}
+                         header={<WaitlistBlock light={light} user={user} />} />
         ) : (<>
         {items === null && !error ? (
           <div className="flex items-center gap-2 py-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading offers…</div>
@@ -259,7 +260,7 @@ export default function CouponOffers() {
 
 
 // P1 — "My Coupons": the user's owned coupons unified across engines.
-function MyCouponsView({ light, mine, mineErr, user }) {
+function MyCouponsView({ light, mine, mineErr, user, header }) {
   const muted = light ? "text-slate-500" : "text-slate-400";
   const cardCls = light
     ? "bg-white border border-slate-200 shadow-sm"
@@ -298,18 +299,19 @@ function MyCouponsView({ light, mine, mineErr, user }) {
       </div>
     );
   }
+  const SOURCE_LABEL = { game_win: "Game win", saved: "Saved", wallet: "Wallet" };
+
+  let body;
   if (mineErr) {
-    return (
+    body = (
       <div className="rounded-xl px-4 py-3 bg-red-500/10 border border-red-500/40 text-red-400 text-sm" data-testid="mycoupons-error">
         {String(mineErr)}
       </div>
     );
-  }
-  if (mine === null) {
-    return <div className="flex items-center gap-2 py-8" data-testid="mycoupons-loading"><Loader2 className="w-4 h-4 animate-spin" /> Loading your coupons…</div>;
-  }
-  if (mine.length === 0) {
-    return (
+  } else if (mine === null) {
+    body = <div className="flex items-center gap-2 py-8" data-testid="mycoupons-loading"><Loader2 className="w-4 h-4 animate-spin" /> Loading your coupons…</div>;
+  } else if (mine.length === 0) {
+    body = (
       <div className={`text-center py-16 ${muted}`} data-testid="mycoupons-empty">
         <Ticket className="w-12 h-12 mx-auto opacity-40" />
         <div className="mt-3 font-bold">No coupons yet.</div>
@@ -321,58 +323,61 @@ function MyCouponsView({ light, mine, mineErr, user }) {
         </Link>
       </div>
     );
+  } else {
+    body = (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="mycoupons-grid">
+        {mine.map((c) => {
+          const redeemed = c.status === "redeemed";
+          return (
+            <div key={c.id} className={`${cardCls} rounded-2xl p-4 flex flex-col`} data-testid={`mycoupon-${c.id}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] font-black uppercase tracking-widest ${light ? "text-purple-600" : "text-amber-400"}`}>
+                  {SOURCE_LABEL[c.source] || "Coupon"}
+                </span>
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  redeemed ? "bg-slate-500/20 text-slate-400" : "bg-emerald-500/15 text-emerald-500"}`}
+                  data-testid={`mycoupon-${c.id}-status`}>
+                  {redeemed ? "Redeemed" : "Active"}
+                </span>
+              </div>
+              <div className="mt-2 font-black text-lg leading-tight">{c.title}</div>
+              {c.sponsor_name && <div className={`text-xs mt-0.5 ${muted}`}>{c.sponsor_name}</div>}
+              {c.description && <div className={`text-xs mt-1 line-clamp-2 ${muted}`}>{c.description}</div>}
+              <div className="flex-1" />
+              {c.code && (
+                <button onClick={() => copy(c.code)} disabled={redeemed}
+                        data-testid={`mycoupon-${c.id}-code`}
+                        className={`mt-3 flex items-center justify-between gap-2 px-3 py-2 rounded-lg font-mono text-sm border transition ${
+                          light ? "bg-slate-50 border-slate-200 hover:bg-slate-100" : "bg-slate-950/60 border-slate-700 hover:border-slate-500"} ${redeemed ? "opacity-50" : ""}`}>
+                  <span className="truncate">{c.code}</span>
+                  {copied === c.code
+                    ? <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                    : <span className="text-[10px] uppercase tracking-wider opacity-60 shrink-0">Copy</span>}
+                </button>
+              )}
+              {c.expires_at && (
+                <div className={`text-[11px] mt-2 ${muted}`}>
+                  Expires {new Date(c.expires_at).toLocaleDateString()}
+                </div>
+              )}
+              <button onClick={() => openPass(c)} disabled={redeemed}
+                      data-testid={`mycoupon-${c.id}-showqr`}
+                      className={`mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-black transition ${
+                        redeemed ? "opacity-50 cursor-not-allowed bg-slate-500/20" :
+                        (light ? "bg-purple-600 text-white hover:bg-purple-700" : "bg-amber-500 text-slate-900 hover:bg-amber-400")}`}>
+                <QrCode className="w-4 h-4" /> {redeemed ? "Redeemed" : "Show QR"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
   }
-
-  const SOURCE_LABEL = { game_win: "Game win", saved: "Saved", wallet: "Wallet" };
 
   return (
     <>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="mycoupons-grid">
-      {mine.map((c) => {
-        const redeemed = c.status === "redeemed";
-        return (
-          <div key={c.id} className={`${cardCls} rounded-2xl p-4 flex flex-col`} data-testid={`mycoupon-${c.id}`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-[10px] font-black uppercase tracking-widest ${light ? "text-purple-600" : "text-amber-400"}`}>
-                {SOURCE_LABEL[c.source] || "Coupon"}
-              </span>
-              <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                redeemed ? "bg-slate-500/20 text-slate-400" : "bg-emerald-500/15 text-emerald-500"}`}
-                data-testid={`mycoupon-${c.id}-status`}>
-                {redeemed ? "Redeemed" : "Active"}
-              </span>
-            </div>
-            <div className="mt-2 font-black text-lg leading-tight">{c.title}</div>
-            {c.sponsor_name && <div className={`text-xs mt-0.5 ${muted}`}>{c.sponsor_name}</div>}
-            {c.description && <div className={`text-xs mt-1 line-clamp-2 ${muted}`}>{c.description}</div>}
-            <div className="flex-1" />
-            {c.code && (
-              <button onClick={() => copy(c.code)} disabled={redeemed}
-                      data-testid={`mycoupon-${c.id}-code`}
-                      className={`mt-3 flex items-center justify-between gap-2 px-3 py-2 rounded-lg font-mono text-sm border transition ${
-                        light ? "bg-slate-50 border-slate-200 hover:bg-slate-100" : "bg-slate-950/60 border-slate-700 hover:border-slate-500"} ${redeemed ? "opacity-50" : ""}`}>
-                <span className="truncate">{c.code}</span>
-                {copied === c.code
-                  ? <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                  : <span className="text-[10px] uppercase tracking-wider opacity-60 shrink-0">Copy</span>}
-              </button>
-            )}
-            {c.expires_at && (
-              <div className={`text-[11px] mt-2 ${muted}`}>
-                Expires {new Date(c.expires_at).toLocaleDateString()}
-              </div>
-            )}
-            <button onClick={() => openPass(c)} disabled={redeemed}
-                    data-testid={`mycoupon-${c.id}-showqr`}
-                    className={`mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-black transition ${
-                      redeemed ? "opacity-50 cursor-not-allowed bg-slate-500/20" :
-                      (light ? "bg-purple-600 text-white hover:bg-purple-700" : "bg-amber-500 text-slate-900 hover:bg-amber-400")}`}>
-              <QrCode className="w-4 h-4" /> {redeemed ? "Redeemed" : "Show QR"}
-            </button>
-          </div>
-        );
-      })}
-    </div>
+    {header}
+    {body}
     {pass && (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
            data-testid="mycoupon-qr-modal" onClick={() => setPass(null)}>
@@ -406,5 +411,55 @@ function MyCouponsView({ light, mine, mineErr, user }) {
       </div>
     )}
     </>
+  );
+}
+
+// P1 — "Waitlisted" inbox row on My Coupons: games the user is waiting on.
+function WaitlistBlock({ light, user }) {
+  const [wl, setWl] = useState(null);
+  const [leaving, setLeaving] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    axios.get(`${API}/me/waitlist`)
+      .then((r) => setWl(r.data.items || []))
+      .catch(() => setWl([]));
+  }, [user]);
+
+  const leave = async (e) => {
+    setLeaving(e.campaign_id);
+    try {
+      await axios.post(`${API}/store/${e.advertiser_id}/waitlist/leave`, { campaign_id: e.campaign_id });
+      setWl((cur) => (cur || []).filter((x) => x.campaign_id !== e.campaign_id));
+    } catch (_e) { /* ignore */ } finally { setLeaving(null); }
+  };
+
+  if (!user || !wl || wl.length === 0) return null;
+  const card = light ? "bg-white border-slate-200" : "bg-slate-900/60 border-slate-800";
+  const muted = light ? "text-slate-500" : "text-slate-400";
+  return (
+    <div className={`mb-6 rounded-2xl border p-4 ${card}`} data-testid="waitlist-block">
+      <div className="flex items-center gap-2">
+        <BellRing className={`w-4 h-4 ${light ? "text-purple-600" : "text-amber-400"}`} />
+        <span className="font-black text-sm">Waiting on {wl.length} restock{wl.length > 1 ? "s" : ""}</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {wl.map((e) => (
+          <div key={e.campaign_id} className="flex items-center justify-between gap-3" data-testid={`waitlist-item-${e.campaign_id}`}>
+            <div className="min-w-0">
+              <div className="text-sm font-bold truncate">{e.campaign_title || e.campaign_id}</div>
+              <div className={`text-[11px] ${muted}`}>We'll ping you when it's back</div>
+            </div>
+            <button onClick={() => leave(e)} disabled={leaving === e.campaign_id}
+                    data-testid={`waitlist-leave-${e.campaign_id}`}
+                    className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-black px-3 py-1.5 rounded-full border transition ${
+                      light ? "border-slate-200 text-slate-600 hover:bg-slate-100" : "border-slate-700 text-slate-300 hover:bg-slate-800"}`}>
+              {leaving === e.campaign_id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+              Stop
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

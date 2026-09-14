@@ -2,6 +2,12 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09 — Waitlist Inbox + Restock Teaser (validated iter133, web + mobile)
+
+- **Waitlist Inbox**: a "Waitlisted" row on the My Coupons view (web `CouponOffers.jsx` `WaitlistBlock`, mobile `coupons.tsx` `waitlistSection`) lists the FPK games the user is waiting on with a Stop/Leave action. Reuses `GET /api/me/waitlist` + `POST /api/store/{id}/waitlist/leave` (no backend change). Rendered as the My Coupons header so it shows even with zero coupons.
+- **Restock Teaser**: sold-out storefront game cards (web `StorePage.jsx`, mobile `store/[id].tsx`) show "🔔 Fresh coupons drop at {local reset time}" derived from the store's `resets_at`.
+- Refactors: web `MyCouponsView` now takes a `header` prop + builds a `body` var; mobile `MyCouponsList` uses a `body` var + outer-wrapper QR Modal. QR pass modal + all My Coupons states regression-verified.
+
 ## 2026-09 — Coupon QR Passes + Contextual Store Links (Pair 1, validated iter131)
 
 - **Coupon QR Passes** (web + mobile): every owned coupon (from any of the 3 engines — games_v2 wallet items, ad-saved `db.coupons`, `/play` game wins) can mint ONE scannable QR pass and be settled in-store via a single redeem path. NEW `routes/coupon_pass.py`: `POST /api/me/coupons/pass {source,id}` (idempotent, returns a `clp_` token + PNG `qr_data_uri`), `GET /api/coupons/pass/{token}` (merchant preview), `POST /api/coupons/redeem/{token}` (staff-only: admin/advertiser/merchant; one-time; syncs the underlying source record). Web: "Show QR" modal in My Coupons (`CouponOffers.jsx`). Mobile: RN Modal QR in `coupons.tsx`.

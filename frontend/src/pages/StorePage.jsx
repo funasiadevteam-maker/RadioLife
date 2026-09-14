@@ -65,6 +65,9 @@ export default function StorePage() {
 
   const { brand, games, coupons_left_today, resets_at } = data;
   const accent = brand.primary || "#0aa54b";
+  const restockLabel = resets_at
+    ? new Date(resets_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white" data-testid="store-page">
@@ -163,6 +166,12 @@ export default function StorePage() {
                       </span>
                     )}
                   </div>
+                  {soldOut && restockLabel && (
+                    <div className="mt-2 text-[11px] text-white/50 flex items-center gap-1"
+                         data-testid={`store-game-${g.campaign_id}-restock`}>
+                      🔔 Fresh coupons drop at {restockLabel}
+                    </div>
+                  )}
                 </>
               );
               const cardCls = "group relative rounded-2xl overflow-hidden bg-slate-900/70 border border-white/10 hover:border-white/25 transition p-5 flex flex-col";

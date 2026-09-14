@@ -62,6 +62,9 @@ export default function StoreScreen() {
 
   const { brand, games, coupons_left_today, resets_at } = data;
   const accent = brand.primary || COLORS.primary;
+  const restockLabel = resets_at
+    ? new Date(resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : null;
 
   return (
     <SafeAreaView style={st.screen} testID="store-page">
@@ -140,6 +143,11 @@ export default function StoreScreen() {
                       </View>
                     )}
                   </View>
+                  {soldOut && restockLabel ? (
+                    <Text style={st.restock} testID={`store-game-${g.campaign_id}-restock`}>
+                      🔔 Fresh coupons drop at {restockLabel}
+                    </Text>
+                  ) : null}
                 </TouchableOpacity>
               );
             })}
@@ -186,6 +194,7 @@ const st = StyleSheet.create({
   remindText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.xs },
   waitlistedPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.full, backgroundColor: 'rgba(22,163,74,0.15)' },
   waitlistedText: { color: COLORS.green, fontWeight: '800', fontSize: FONT.xs },
+  restock: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 8 },
   emptyWrap: { alignItems: 'center', padding: SPACING.xl },
   emptyText: { color: COLORS.textDim, fontSize: FONT.sm, marginTop: SPACING.sm },
   viewCoupons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: SPACING.lg, paddingVertical: 12, borderRadius: RADIUS.full, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },

@@ -1,0 +1,39 @@
+{
+  "summary": "Pair-2 follow-on extensions (Waitlist Inbox + Restock Teaser) tested end-to-end on web + mobile plus the My Coupons post-refactor regression. All target flows PASS on BOTH surfaces. Web (/offers?tab=mine): waitlist-block renders above the coupons grid with 'Waiting on 1 restock', waitlist-item-cmp_fpk_spin + waitlist-leave-cmp_fpk_spin present; clicking Stop removes the row AND removes the whole waitlist-block since it was the only entry. QR modal (mycoupon-qr-modal / -img / -close) still opens/closes cleanly for an Active coupon. Mobile (/coupons -> coupons-tab-mine): identical parity — waitlist-block/item/leave testids, Stop removes the row; the outer-wrapper Modal QR pass still works end-to-end after the refactor. Restock teaser on /store/adv_fpk: sold-out cmp_fpk_spin card shows store-game-cmp_fpk_spin-restock '🔔 Fresh coupons drop at 12:00 AM'; non-sold-out cards (cmp_fpk_scratch/quiz/mystery) do NOT render a restock teaser on either surface — verified. Backend reused endpoints unchanged (GET /api/me/waitlist returns items with campaign_title, POST /api/store/adv_fpk/waitlist(/leave) idempotent). Waitlist was cleared during Stop tests and re-added via POST /api/store/adv_fpk/waitlist so demo@ is left on the waitlist again (final GET /api/me/waitlist -> cmp_fpk_spin). No new bugs found in these extensions. No regression detected in My Coupons refactor.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CouponOffers.jsx WaitlistBlock returns null when wl is null/empty — good UX (renders nothing before load). If GET /api/me/waitlist is slow this could briefly flash the coupons above the eventual block; consider a subtle skeleton if desired (non-blocking).",
+    "CouponOffers.jsx MyCouponsView passes header prop into every branch (loading/empty/error/grid) — verified in code, so the waitlist block appears even with zero coupons or an error state (spec-compliant).",
+    "mobile/app/coupons.tsx: Modal was moved to the OUTER wrapper so it's rendered regardless of body branch — good. The overlay's onPress={()=>setPass(null)} + inner View onStartShouldSetResponder pattern correctly prevents backdrop-tap-through when tapping the sheet.",
+    "StorePage.jsx: restockLabel uses toLocaleTimeString([]) so the label is server-timezone-agnostic on the client; sold-out gate is `soldOut && restockLabel` which correctly hides the teaser for non-sold-out cards. Same logic mirrored in mobile/app/store/[id].tsx. Good parity.",
+    "Pre-existing (iter132) mobile deprecation warnings still present in the app in general (shadow* style props, props.pointerEvents) — not touched by this diff; leaving as known hygiene."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (reused endpoints re-verified)", "frontend": "web 100% (waitlist + restock + QR regression); mobile 100% (waitlist + restock + QR regression)"},
+  "test_credentials": "web: demo@bigfm.dubai / DemoPass123! (POST /api/auth/login sets cookie). mobile: demo-login-btn -> demo@bigfm.dubai bearer.",
+  "seed_data_creation": "Did NOT re-run any seed script. Post-test waitlist state was restored via POST /api/store/adv_fpk/waitlist {campaign_id:'cmp_fpk_spin'} for demo@ so the next agent still sees demo@ on the waitlist for cmp_fpk_spin (final GET /api/me/waitlist confirmed campaign_ids=['cmp_fpk_spin']).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Waitlist Inbox + Restock Teaser are green on both surfaces. Refactored MyCouponsView (web) + MyCouponsList (mobile) do NOT regress QR pass modal, coupons grid, empty state, or the Deals tab entry (offers-fpk-store on web / coupons-fpk-store banner on mobile Deals tab). demo@ is on the waitlist for cmp_fpk_spin (restored). If re-testing Stop, remember to re-POST /api/store/adv_fpk/waitlist to restore state. Restock teaser text is client-local; in this env it renders '12:00 AM' because backend resets_at is next UTC midnight and the preview browser locale is UTC.",
+  "rca of the issue": ""
+}

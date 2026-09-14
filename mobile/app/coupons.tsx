@@ -203,11 +203,48 @@ function MyCouponsList({ mine, loading, router }: { mine: any[] | null; loading:
     }
   };
 
+  const [wl, setWl] = useState<any[] | null>(null);
+  const [leaving, setLeaving] = useState<string | null>(null);
+  useEffect(() => {
+    api.get('/me/waitlist').then(r => setWl(r.data.items || [])).catch(() => setWl([]));
+  }, []);
+  const leaveWaitlist = async (e: any) => {
+    setLeaving(e.campaign_id);
+    try {
+      await api.post(`/store/${e.advertiser_id}/waitlist/leave`, { campaign_id: e.campaign_id });
+      setWl(cur => (cur || []).filter(x => x.campaign_id !== e.campaign_id));
+    } catch { /* ignore */ } finally { setLeaving(null); }
+  };
+
+  const waitlistSection = wl && wl.length > 0 ? (
+    <View style={st.wlBlock} testID="waitlist-block">
+      <View style={st.wlHead}>
+        <Ionicons name="notifications" size={15} color={COLORS.primary} />
+        <Text style={st.wlHeadText}>Waiting on {wl.length} restock{wl.length > 1 ? 's' : ''}</Text>
+      </View>
+      {wl.map((e: any) => (
+        <View key={e.campaign_id} style={st.wlRow} testID={`waitlist-item-${e.campaign_id}`}>
+          <View style={{ flex: 1 }}>
+            <Text style={st.wlTitle} numberOfLines={1}>{e.campaign_title || e.campaign_id}</Text>
+            <Text style={st.wlSub}>We&apos;ll ping you when it&apos;s back</Text>
+          </View>
+          <TouchableOpacity style={st.wlLeave} onPress={() => leaveWaitlist(e)}
+            disabled={leaving === e.campaign_id} testID={`waitlist-leave-${e.campaign_id}`}>
+            {leaving === e.campaign_id
+              ? <ActivityIndicator size="small" color={COLORS.textDim} />
+              : <Ionicons name="close" size={13} color={COLORS.textDim} />}
+            <Text style={st.wlLeaveText}>Stop</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  ) : null;
+
+  let body;
   if (loading || mine === null) {
-    return <View style={st.emptyWrap} testID="mycoupons-loading"><ActivityIndicator color={COLORS.primary} /></View>;
-  }
-  if (mine.length === 0) {
-    return (
+    body = <View style={st.emptyWrap} testID="mycoupons-loading"><ActivityIndicator color={COLORS.primary} /></View>;
+  } else if (mine.length === 0) {
+    body = (
       <View style={st.emptyWrap} testID="mycoupons-empty">
         <Ionicons name="ticket-outline" size={36} color={COLORS.textMuted} />
         <Text style={st.emptyText}>No coupons yet.</Text>
@@ -217,8 +254,8 @@ function MyCouponsList({ mine, loading, router }: { mine: any[] | null; loading:
         </TouchableOpacity>
       </View>
     );
-  }
-  return (
+  } else {
+    body = (
     <View testID="mycoupons-list">
       {mine.map((c) => {
         const redeemed = c.status === 'redeemed';
@@ -253,7 +290,14 @@ function MyCouponsList({ mine, loading, router }: { mine: any[] | null; loading:
           </View>
         );
       })}
+    </View>
+    );
+  }
 
+  return (
+    <View>
+      {waitlistSection}
+      {body}
       <Modal visible={!!pass} transparent animationType="fade" onRequestClose={() => setPass(null)}>
         <TouchableOpacity style={st.qrOverlay} activeOpacity={1} onPress={() => setPass(null)} testID="mycoupon-qr-modal">
           <View style={st.qrSheet} onStartShouldSetResponder={() => true}>
@@ -360,4 +404,12 @@ const st = StyleSheet.create({
   qrError: { color: '#dc2626', fontSize: FONT.sm, marginVertical: 30, textAlign: 'center' },
   qrClose: { marginTop: SPACING.lg, paddingHorizontal: 28, paddingVertical: 10, borderRadius: RADIUS.full, backgroundColor: '#0a0a0b' },
   qrCloseText: { color: '#fff', fontWeight: '800', fontSize: FONT.sm },
+  wlBlock: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.primary + '44' },
+  wlHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACING.sm },
+  wlHeadText: { color: COLORS.text, fontWeight: '900', fontSize: FONT.sm },
+  wlRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: 6 },
+  wlTitle: { color: COLORS.text, fontWeight: '700', fontSize: FONT.sm },
+  wlSub: { color: COLORS.textMuted, fontSize: FONT.xs, marginTop: 1 },
+  wlLeave: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.cardBorder },
+  wlLeaveText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
 });
