@@ -119,7 +119,7 @@ export default function GlobalAudio() {
           songs_played_in_session: songsSinceMidstreamRef.current },
         { withCredentials: true, timeout: 8000 });
       if (r.data?.has_ad && r.data?.ad) {
-        return r.data.ad;
+        return { ...r.data.ad, impression_id: r.data.impression_id || null };
       }
     } catch (_e) { /* swallow — non-critical */ }
     return null;
@@ -133,6 +133,22 @@ export default function GlobalAudio() {
     const audioUrl = ad?.audio_url || ad?.creative_url || ad?.url;
     if (!rjEl || !audioUrl) { resolve(); return; }
     midstreamPlayingRef.current = true;
+    // Phase COMPANION.1 — surface the ad's companion offer above the
+    // player (synced) for the duration of the audio ad, when present.
+    const comp = (ad?.attached_offer_id || ad?.companion_image_url
+                                || ad?.companion_cta_url)
+      ? {
+          impression_id: ad.impression_id || null,
+          source: ad.source || "local",
+          advertiser_name: ad.advertiser_name || null,
+          name: ad.name || null,
+          cta_text: ad.companion_cta_text || null,
+          cta_url: ad.companion_cta_url || null,
+          image_url: ad.companion_image_url || null,
+          offer_id: ad.attached_offer_id || null,
+        }
+      : null;
+    if (comp) usePlayerStore.getState().setActiveCompanion(comp);
     rjEl.src = audioUrl.startsWith("http") ? audioUrl
                             : `${BACKEND_URL}${audioUrl}`;
     rjEl.volume = 1.0;
@@ -140,6 +156,7 @@ export default function GlobalAudio() {
       rjEl.removeEventListener("ended", onDone);
       rjEl.removeEventListener("error", onDone);
       midstreamPlayingRef.current = false;
+      usePlayerStore.getState().setActiveCompanion(null);
       resolve();
     };
     const onDone = () => cleanup();

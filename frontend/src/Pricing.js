@@ -31,7 +31,7 @@ const FREE_FEATURES = [
 const PREMIUM_HEADLINE_FEATURES = [
   { icon: Zap,         copy: "6 skips per hour" },
   { icon: Crown,       copy: "2 exclusive VIP channels" },
-  { icon: ShieldCheck, copy: "Ad-free listening" },
+  { icon: ShieldCheck, copy: "Ad-free listening (no RadioLife ads)" },
   { icon: Sparkles,    copy: "VIP badge on your profile" },
 ];
 
@@ -247,7 +247,7 @@ export default function Pricing() {
           <dt>What's a VIP channel?</dt>
           <dd>VIP Lounge (mellow, late-night) and Premium Mehfil (deep Bollywood cuts) — only premium can tune in.</dd>
           <dt>Does premium remove ads?</dt>
-          <dd>Yes, the ad-free flag is set on your account. (Phase 4 adds the actual ad inventory.)</dd>
+          <dd>Yes — no RadioLife-inserted audio ads (pre-roll / mid-roll) or display banners. Third-party live radio stations may still carry their own broadcast advertising inside their stream. Opt-in extras like local offers, Dining Club and games stay available.</dd>
           <dt>Is this billing in test mode?</dt>
           <dd>{config?.mode === "test" ? "Yes — no real cards will be charged during Phase 3 testing." : "We are live. Real charges apply."}</dd>
         </dl>

@@ -96,6 +96,16 @@ export default function PremiumScreen() {
           </View>
         </View>
 
+        <View style={s.adNote} testID="premium-adfree-note">
+          <Ionicons name="shield-checkmark" size={15} color={COLORS.green} />
+          <Text style={s.adNoteText}>
+            No RadioLife-inserted audio or display ads. Third-party live stations
+            may carry their own broadcast advertising. Opt-in extras like local
+            offers, Dining Club and games stay available.
+          </Text>
+        </View>
+
+
         {!data.is_premium && (
           <>
             {data.monthly_price != null && (
@@ -144,4 +154,10 @@ const s = StyleSheet.create({
   cta: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 14, alignItems: 'center', marginTop: SPACING.sm },
   ctaText: { color: '#fff', fontSize: FONT.md, fontWeight: '800' },
   fine: { color: COLORS.textMuted, fontSize: FONT.xs, textAlign: 'center', marginTop: 6 },
+  adNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1,
+    borderColor: COLORS.cardBorder, padding: SPACING.md, marginTop: SPACING.md,
+  },
+  adNoteText: { color: COLORS.textDim, fontSize: FONT.xs, lineHeight: 17, flex: 1 },
 });

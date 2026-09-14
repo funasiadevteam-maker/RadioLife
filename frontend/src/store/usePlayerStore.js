@@ -67,6 +67,10 @@ const initialState = {
   rjCadence: null,
   songsPlayedSinceRj: 0,
   currentRjSegment: null,        // {persona_id, voice_id, transcript, audio_url, duration_seconds}
+  // Phase COMPANION.1 — synced audio-ad companion. Non-null ONLY while an
+  // audio ad (mid-roll) with a companion offer is playing; OnAirOfferCard
+  // docks it above the player and clears it when the ad ends.
+  activeCompanion: null,         // {impression_id, source, advertiser_name, name, cta_text, cta_url, image_url, offer_id}
 };
 
 export const usePlayerStore = create((set, get) => ({
@@ -82,6 +86,7 @@ export const usePlayerStore = create((set, get) => ({
       activeChannelThumb: thumb ?? get().activeChannelThumb,
     }),
   setCurrentSeg: (seg) => set({ currentSeg: seg }),
+  setActiveCompanion: (c) => set({ activeCompanion: c || null }),
   setNextSeg: (seg) => set({ nextSeg: seg }),
   setHistory: (h) => set({ history: h }),
   pushHistory: (seg) => set((s) => ({ history: [...s.history, seg].slice(-6) }),

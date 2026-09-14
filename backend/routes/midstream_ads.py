@@ -104,7 +104,9 @@ async def midstream_ad_request(payload: dict, request: Request,
                       "cadence": await get_cadence(db),
                       "songs_played_in_session": songs_played}
     ad = chain[0]
-    return {"has_ad": True, "ad": ad,
+    imp_id = (res.get("impression_id")
+                  or (res.get("impression_ids") or [None])[0])
+    return {"has_ad": True, "ad": ad, "impression_id": imp_id,
                   "station_id": station_id, "session_id": session_id,
                   "songs_played_in_session": songs_played,
                   "cadence": await get_cadence(db)}

@@ -140,6 +140,19 @@ async def _resolved_chain_count_async(db) -> int:
         return _resolved_chain_count()
 
 
+async def _resolved_hop_cooldown_async(db) -> int:
+    """Phase COMPANION.1 — session-wide pre-roll cooldown (seconds).
+    Admin-tunable via system_config; env default 90. 0 disables."""
+    try:
+        from routes.admin_preroll import get_effective_hop_cooldown
+        return await get_effective_hop_cooldown(db)
+    except Exception:
+        try:
+            return int(os.environ.get("PREROLL_HOP_COOLDOWN_SECONDS", "90"))
+        except (TypeError, ValueError):
+            return 90
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -262,6 +275,26 @@ async def select_ad_for_play(db,
     # 1. Premium short-circuit.
     if await _user_is_premium_and_ad_free(db, user):
         return {"has_preroll": False, "reason": "premium"}
+
+    # 1.5 Session-wide HOP COOLDOWN — once a pre-roll has played, don't
+    #     fire another for `hop_cd` seconds regardless of station, so
+    #     rapid station-hopping never re-triggers a pre-roll (spec #7:
+    #     "use listening-session rules, not route-change rules").
+    hop_cd = await _resolved_hop_cooldown_async(db)
+    if hop_cd > 0:
+        cd_key_field = "user_id" if user_id else "session_id"
+        cd_key_value = user_id or session_id
+        if cd_key_value:
+            recent = await db.live_radio_ad_impressions.find_one(
+                {cd_key_field: cd_key_value, "placement": "preroll",
+                 "started_at": {"$gte": _now() - timedelta(seconds=hop_cd)}},
+                sort=[("started_at", -1)])
+            if recent:
+                started = recent.get("started_at")
+                nxt = ((started + timedelta(seconds=hop_cd)).isoformat()
+                       if isinstance(started, datetime) else None)
+                return {"has_preroll": False, "reason": "hop_cooldown",
+                        "next_eligible_at": nxt}
 
     # 2. Frequency / grace caps.  Grace is station-aware (Phase K.9) so
     #     switching to a new station within 60s triggers a fresh ad.

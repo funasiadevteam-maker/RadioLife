@@ -19,6 +19,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from auth import current_user
+from services.premium_gate import is_premium_or_trial
 
 router = APIRouter(prefix="/api/ads", tags=["banner-ads-v2"])
 log = logging.getLogger("bigfm.banner_ads_v2")
@@ -187,8 +188,14 @@ async def banner_decision(request: Request,
                            page_route: str,
                            user: dict = Depends(current_user)):
     """Waterfall: direct-sold → AdSense backfill (if configured) → house.
-    Premium users STILL see banners (only audio is suppressed for them)."""
+    Premium (ad-free) users get NO RadioLife-inserted display banners —
+    only opt-in offers/games/Dining remain for them."""
     db = request.app.state.db
+    # Premium ad-free short-circuit (Phase COMPANION.1). Mirrors the audio
+    # pre/mid-roll suppression so Premium is banner-free across the app.
+    if is_premium_or_trial(user) and \
+            (user.get("ad_settings") or {}).get("ad_free_enabled", True):
+        return {"source": "none", "reason": "premium"}
     slot = await db.banner_ad_slots.find_one({"slot_key": slot_key,
                                                 "active": True})
     if not slot:

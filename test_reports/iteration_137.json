@@ -1,0 +1,43 @@
+{
+  "summary": "Iter 137 — Phase 3 audio-ads (hop-cooldown / mid-roll / Premium ad-free / synced companion) E2E across BACKEND + WEB + MOBILE. Backend pytest 18/18 PASS (test_iter137_ads_phase3.py) — (1) GET /api/admin/preroll/hop-cooldown returns full shape {effective_seconds, override_seconds, env_default:90, min:0, max:600}; PATCH {seconds:120} persists+reflects; PATCH 700 and -1 both 422; anon 401; free-user 403; final restore to 90 verified. (2) Anon fresh session_id: 1st /preroll/request → has_preroll:true + impression_id, 2nd within 90s → has_preroll:false reason:hop_cooldown. Free user same behaviour. (3) POST /midstream-ad/request fresh session, songs=4 → has_ad:true + impression_id; premium user → has_ad:false reason:premium_user. (4) GET /ads/banner/decision?slot_key=mid_horizontal&page_route=/ → premium@ and demo@ both {source:'none',reason:'premium'}; free user → source:house (real fill). (5) /api/shell/home is_premium=true for premium@ and demo@ (Premium via trial), false for free@; native_offer + dining always present. WEB (Chromium 1920x4000): /pricing when authed as premium loads Pricing.js (data-testid=pricing-page) — FAQ 'Does premium remove ads?' contains all 3 honest-wording phrases ('no RadioLife-inserted audio ads', 'display banners', 'Third-party live radio stations') ✓, 'Ad-free listening (no RadioLife ads)' bullet renders in pricing-headlines 'WHAT YOU UNLOCK' tiles ✓. Home as PREMIUM: home-b present, home-b-display-ad ABSENT, 0 banner-ad slots, ad-leaderboard absent, no red screen. Home as FREE (freeuser@): home-b present, home-b-display-ad PRESENT ('Listen, earn rewards' house creative), contextual mid_horizontal banner rendered ('Coffee on your route — 30% off Starbucks'). Toggled play/pause after starting radio — OnAirOfferCard did NOT crash, no 'rendered fewer hooks' error, no 'Something went wrong' text (Rules-of-Hooks fix verified — useEffect for geo-offer is declared BEFORE the conditional SyncedCompanion return at /app/frontend/src/shell/OnAirOfferCard.jsx:117 vs 132). Companion could not be triggered in this env because SSP/house fill has no attached_offer_id — non-blocking per spec. 5-tab sidebar nav (Home/Listen/Shop/Play/Social) visible on both premium and free. MOBILE (Expo web preview 390x844, demo-login → demo@ Premium-via-trial): /premium renders premium-root; premium-adfree-note present with exact text 'No RadioLife-inserted audio or display ads. Third-party live stations may carry their own broadcast advertising. Opt-in extras like local offers, Dining Club and games stay available.' — all 3 checks pass. 'You're a Premium member' state shown; benefits list rendered fully. /home renders home-header, and the 5 bottom-tab labels (Home, Listen, Shop, Play, Social) all visible = regression clean. Final hop-cooldown restored to 90s (verified post-run).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter137_ads_phase3.py",
+    "/app/test_reports/pytest/iter137.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/preroll_ad_service.py:283-297 — hop-cooldown query uses live_radio_ad_impressions with placement='preroll' filter but the MIDROLL insertion also writes there with placement='midroll'; verify hop-cooldown scope is by design (currently only pre-roll impressions gate future pre-rolls; mid-rolls don't extend the cooldown). If the intent per spec 'must NEVER re-fire on quick station hops' includes mid-rolls extending the cooldown, broaden the placement filter. Otherwise it's fine — spec says the cooldown blocks re-firing PRE-ROLLS.",
+    "services/preroll_ad_service.py:290 — the hop-cooldown check uses only started_at >= cutoff without an index hint. There is an index (session_id/user_id, started_at DESC) so the query will be fast, but consider adding {'placement':'preroll'} to the compound index if placement filtering becomes hot.",
+    "routes/admin_preroll.py:126-156 — hop-cooldown endpoints share the same router prefix as chain-count. Consider extracting into a dedicated router file (or at least a section header) once a 3rd tunable lands — this file is currently 156 lines and mixes two concerns.",
+    "frontend/src/shell/OnAirOfferCard.jsx:117-128 — Rules-of-Hooks fix confirmed correct: useEffect runs unconditionally; if activeCompanion truthy the effect early-returns. Consider extracting SyncedCompanion into its own file (100 LOC in one .jsx file with 2 default exports is fine, but future companion features would benefit from separation).",
+    "frontend/src/shell/OnAirOfferCard.jsx:118 — the `if (activeCompanion) return;` inside useEffect is fine but if activeCompanion later becomes falsy again (ad ended), the effect will re-fire and re-fetch offers. That's actually desired behaviour, but note that `offer` state persists (only cleared on unmount) so the geo-fallback shows the same merchant even after a subsequent ad. Minor UX only.",
+    "mobile/app/premium.tsx:99-106 — premium-adfree-note is always shown regardless of Premium status. Free users viewing /premium (during upsell flow) will also see it, which is fine as marketing copy but confirm this is intentional (the note reads 'No RadioLife-inserted audio or display ads' — technically only true after they upgrade). Consider prefixing with 'With Premium:' for clarity."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter137_ads_phase3.py (NEW — 18 tests, 18/18 pass)"],
+  "success_rate": {
+    "backend": "100% (18/18)",
+    "frontend": "web 100% (pricing FAQ + headline bullet + premium/free home banner gates + rules-of-hooks fix verified); mobile 100% (premium screen + adfree-note + home regression + 5-tab nav)"
+  },
+  "test_credentials": "admin@bigfm.dubai/AdminPass123!, freeuser@bigfm.dubai/FreePass123!, premium@bigfm.dubai/PremiumTest123!, demo@bigfm.dubai/DemoPass123!. Cookie auth on web via POST /api/auth/login. Mobile demo-login-btn → demo@ Premium-via-trial.",
+  "seed_data_creation": "None. Restored hop-cooldown override to 90 (env default) at end of run — verified via GET.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 3 audio-ads shipped correctly. Key testIDs: pricing-page + pricing-faq + pricing-headlines (web /pricing when authed — MarketingPricing renders when anon). Home-b + home-b-display-ad (present for FREE, absent for Premium). player-companion + player-companion-claim + player-companion-image (SYNCED companion) fall back to player-contextual-offer + player-offer-claim + player-offer-dismiss (geo fallback). Backend endpoints: GET/PATCH /api/admin/preroll/hop-cooldown (admin only, seconds 0-600, env default 90); POST /api/live-radio/preroll/request (returns has_preroll + reason='hop_cooldown'|'grace_period'|'frequency_cap'|'no_eligible_ad'|'premium'); POST /api/live-radio/midstream-ad/request (returns has_ad + impression_id or reason='premium_user'); GET /api/ads/banner/decision?slot_key=..&page_route=.. (returns source='none'|'house'|'direct'|'adsense' + reason). To trigger a mid-roll audio ad with a companion offer in preview (currently SSP/house has no companion), seed preroll_ads doc with status='active', attached_offer_id, companion_image_url — then a fresh FREE session at imp_fun_beat_978_uae will surface player-companion. Rules-of-Hooks fix in OnAirOfferCard.jsx is correct (useEffect at line 117, conditional return at 132).",
+  "rca of the issue": ""
+}

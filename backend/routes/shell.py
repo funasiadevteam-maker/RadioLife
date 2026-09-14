@@ -416,9 +416,13 @@ async def shell_home(request: Request, city: str = ""):
     Rails first (for_you, live_now, listening_reward, dining), then the
     single native sponsored placement + premium flag for display gating."""
     from services.dining_club import get_subscription as _dc_get_subscription
+    from services.premium_gate import is_premium_or_trial
     db = request.app.state.db
     user = await current_user_optional(request)
-    is_premium = bool((user or {}).get("is_premium"))
+    # Match the banner endpoint's ad-free rule so the Home display banner
+    # hides for exactly the users the ad decision blocks (premium + ad_free).
+    is_premium = bool(user and is_premium_or_trial(user)
+                      and (user.get("ad_settings") or {}).get("ad_free_enabled", True))
 
     cards = await _flagship_stations(db, 12)
     for_you = (await _personalize(db, user, [dict(c) for c in cards]))[:6]

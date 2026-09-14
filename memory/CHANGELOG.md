@@ -2,6 +2,16 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09 — Home Audio V2 Phase 3: audio ads + Premium ad-free + synced companion (web + backend; mobile Premium wording)
+
+Reuses the EXISTING pre-roll / mid-roll / banner / companion engines — no second ad engine. Verified via curl (admin CRUD, hop cooldown, premium gate, mid-roll impression_id); UI verified by testing agent.
+
+- **Audio Ads (never on quick station hops)**: pre-roll (`preroll_ad_service`) + admin-paced mid-roll (`midstream-ad`, song-count) already served Free listeners. Added a **session-wide pre-roll HOP COOLDOWN** (default 90s, admin-tunable): once a pre-roll plays, no further pre-roll fires for N seconds regardless of station (keyed by user_id / session_id) — so rapid station hopping never re-triggers one. New admin endpoints `GET/PATCH /api/admin/preroll/hop-cooldown` (system_config `_id=preroll_hop_cooldown_seconds`, env `PREROLL_HOP_COOLDOWN_SECONDS`, clamp 0–600). Service: `_resolved_hop_cooldown_async` + a check in `select_ad_for_play` after the premium short-circuit.
+- **Premium Ad-Free**: `GET /api/ads/banner/decision` now short-circuits to `{source:"none"}` for premium+ad_free (BannerAdSlot already renders nothing on `source:"none"`) — so Premium loses RadioLife-inserted display banners app-wide (audio pre/mid-roll already suppressed; mobile `AdBanner` already premium-gated). `/api/shell/home` `is_premium` re-aligned to the same `is_premium_or_trial + ad_free` rule so the Home display banner hides for exactly those users while opt-in native offer + Dining stay. Honest wording added on the Premium page (web `Pricing.js` FAQ + mobile `premium.tsx` note testID `premium-adfree-note`): "No RadioLife-inserted audio or display ads. Third-party live stations may carry their own broadcast advertising."
+- **Synced Companion**: `midstream-ad/request` now returns `impression_id`; `GlobalAudio.playMidstreamAd` publishes the playing ad's companion to `usePlayerStore.activeCompanion` (cleared on end); `OnAirOfferCard` docks a labelled synced companion above the player (`player-companion` / `player-companion-claim`, Save-to-wallet via the impression endpoint, `companion_impression`/`companion_click` → `/api/shell/home-events`), falling back to the geo on-air offer when no audio-ad companion is active.
+- Scope: audio ads + companion are inherently web (mobile has no audio-ad pipeline — needs a native build). Deferred: mobile audio ads; deeper attribution dashboards / A/B reporting.
+
+
 ## 2026-09 — Home Audio V2: audio-first Home unified as default + advertising strategy (validated iter136, web + mobile + backend)
 
 Made the audio-first Home the UNIVERSAL default on both surfaces, enforced the 5-destination IA (Home · Listen · Shop · Play · Social), and applied the "value-before-advertising" monetization layout. Reuses the existing ad/campaign/marketplace/flagship-boost engines — no second ad engine.
