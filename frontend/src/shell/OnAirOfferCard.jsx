@@ -19,7 +19,7 @@ import { useGeoStore } from "@/store/useGeoStore";
 function fireHomeEvent(event, extra) {
   try {
     axios.post(`${API}/shell/home-events`,
-      { event, surface: "web", kind: "companion", ...extra },
+      { event, surface: "web", variant: "audio_v2", kind: "companion", ...extra },
       { withCredentials: true }).catch(() => {});
   } catch (_e) { /* noop */ }
 }

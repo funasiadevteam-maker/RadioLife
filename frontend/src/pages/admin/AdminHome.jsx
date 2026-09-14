@@ -367,6 +367,8 @@ function QuickLinks() {
     { to: "/admin/news",                      label: "News Radio",            tid: "admin-home-ql-news" },
     { to: "/admin/flagship-boosts",  label: "Flagship Boosts",      tid: "admin-home-ql-flagship" },
     { to: "/admin/coupon-charges",    label: "Coupon Charges",      tid: "admin-home-ql-coupons" },
+    { to: "/admin/ad-pacing",            label: "Ad Pacing",              tid: "admin-home-ql-adpacing" },
+    { to: "/admin/ad-revenue",          label: "Home Ad Revenue",      tid: "admin-home-ql-adrevenue" },
     { to: "/admin/retargeting",          label: "Retargeting",            tid: "admin-home-ql-retargeting" },
   ];
   return (

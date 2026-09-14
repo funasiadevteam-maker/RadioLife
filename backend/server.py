@@ -1370,6 +1370,14 @@ async def _deferred_bootstrap(app_: FastAPI):
     except Exception as e:
         logger.warning(f"phase 4 bootstrap: {e}")
 
+    # Phase COMPANION.1 — demo companion pre-roll + live sponsored station.
+    try:
+        from services.home_audio_v2_seed import seed_home_audio_v2_demo
+        hav2 = await seed_home_audio_v2_demo(db)
+        logger.info(f"Home Audio V2 demo seeded: {hav2}")
+    except Exception as e:
+        logger.warning(f"home-audio-v2 demo seed: {e}")
+
     # Phase 4.5 — SSP partners + OpenRTB auction infra + Stripe Connect indexes
     try:
         from services.openrtb_auction import ensure_openrtb_indexes, seed_ssp_partners
@@ -5643,6 +5651,13 @@ try:
         logger.info("Phase H'.4 admin pre-roll routes mounted")
     except Exception as _e:
         logger.warning("Phase H'.4 admin preroll not loaded: %s", _e)
+    # Phase COMPANION.1 — admin Home Audio V2 ad-revenue report.
+    try:
+        from routes.admin_ad_revenue import router as _admin_ad_revenue_router
+        app.include_router(_admin_ad_revenue_router)
+        logger.info("Phase COMPANION.1 admin ad-revenue report mounted")
+    except Exception as _e:
+        logger.warning("Phase COMPANION.1 admin ad-revenue not loaded: %s", _e)
     # Phase H'.3 — AI-RJ segment shim + cache.
     try:
         from routes.ai_rj_segments import (

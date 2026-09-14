@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09 — Home Audio V2 follow-ups: Demo Companion + Ad Revenue Report + Ad Pacing Panel + Sponsored Station (validated iter138, web + mobile + backend)
+
+- **Demo Companion (seed)**: `services/home_audio_v2_seed.py` (idempotent, run in server.py deferred startup) upserts an active companion-bearing pre-roll ad "The Grill House — 2X BigPoints" (wildcard targeting, `attached_offer_id=offer_demo_companion`, companion image), a matching `offers` row (so pre-roll Save-to-wallet snapshots a real title), and a LIVE `flagship_boost_activations` row. So Free listeners now hear a real pre-roll with a saveable companion, and the synced mid-roll companion has content to show.
+- **Ad Revenue Report**: `GET /api/admin/ad-revenue/home-report?days=` (admin) aggregates real signals — listening minutes (`listening_heartbeat_minutes`, ~24h TTL), audio-ad impressions/completes, native/sponsored/companion funnel from `home_ad_events` (grouped by `variant`), display banner impressions/clicks — plus an estimated-revenue proxy from house CPMs and revenue/listening-hour. Admin page `AdminAdRevenueReport` at `/admin/ad-revenue` (metric cards + audio_v2-vs-legacy variant split + 1/7/30-day toggle). Home events now tagged `variant:"audio_v2"`.
+- **Ad Pacing Panel**: admin page `AdminAdPacing` at `/admin/ad-pacing` — one screen wiring the three EXISTING endpoints: pre-roll hop cooldown (`/admin/preroll/hop-cooldown`), mid-roll cadence (`/admin/midstream-ad/cadence`), pre-roll chain count (`/admin/preroll/chain-count`), each with range-validated save. Linked from AdminHome QuickLinks.
+- **Sponsored Station**: the reserved "Sponsored" slot in Live Right Now now lights up from the seeded live flagship-boost (`_pick_sponsored_station` reads `flagship_boost_activations` status:live). Web (`home-b-live-sponsored`) + mobile (`home-live-sponsored`) render the SPONSORED badge and fire `sponsored_station_impression`/`start`. No organic ranking manipulation — only the labelled slot is reserved.
+
+
 ## 2026-09 — Home Audio V2 Phase 3: audio ads + Premium ad-free + synced companion (web + backend; mobile Premium wording)
 
 Reuses the EXISTING pre-roll / mid-roll / banner / companion engines — no second ad engine. Verified via curl (admin CRUD, hop cooldown, premium gate, mid-roll impression_id); UI verified by testing agent.

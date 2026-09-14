@@ -301,6 +301,8 @@ import { Toaster as _ShellToaster_ } from "sonner";
 import Home from "@/Home";
 import HomeB from "@/HomeB";
 import AdminSkipRules from "@/pages/admin/AdminSkipRules";
+import AdminAdPacing from "@/pages/admin/AdminAdPacing";  // Phase COMPANION.1 — audio-ad pacing panel
+import AdminAdRevenueReport from "@/pages/admin/AdminAdRevenueReport";  // Phase COMPANION.1 — Home ad revenue report
 import Trivia from "@/Trivia";
 import TriviaPlay from "@/TriviaPlay";
 import { TriviaRoomCreate, TriviaJoin, TriviaRoom } from "@/TriviaRoom";
@@ -492,6 +494,12 @@ function AppRouter() {
       } />
       <Route path="/admin/promotions" element={
         <ProtectedRoute requireAdmin><Promotions /></ProtectedRoute>
+      } />
+      <Route path="/admin/ad-pacing" element={
+        <ProtectedRoute requireAdmin><AdminAdPacing /></ProtectedRoute>
+      } />
+      <Route path="/admin/ad-revenue" element={
+        <ProtectedRoute requireAdmin><AdminAdRevenueReport /></ProtectedRoute>
       } />
       <Route path="/admin/predict-win/self-serve" element={
         <ProtectedRoute requireAdmin><AdminPredictWinSelfServe /></ProtectedRoute>

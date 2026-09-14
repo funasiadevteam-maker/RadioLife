@@ -1,0 +1,43 @@
+{
+  "summary": "Iter 138 — Home Audio V2 follow-ups (companion demo seed, admin ad-revenue report, admin ad-pacing panel, sponsored station in Live Right Now) E2E across BACKEND + WEB + MOBILE. Backend pytest 11/11 PASS (test_iter138_home_audio_v2.py). (1) SEED — GET /api/shell/home returns exactly one sponsored station 'Beat 97.8' (sponsored:true, sponsor_business_id:'biz_demo_grill'); anon fresh session POST /api/live-radio/preroll/request {station_id:'imp_fun_beat_978_uae'} → has_preroll:true, ad name contains 'Grill House', companion_image_url set, attached_offer_id='offer_demo_companion'. (2) AD REVENUE REPORT — /api/admin/ad-revenue/home-report returns full 13-key shape for days=1/7/30; anon 401 and free-user 403 reject correctly. (3) AD PACING backend — hop cooldown GET/PATCH persists (120), rejects 700 with 422; cadence uses body key 'every_n_songs' (min 2 max 8), chain-count persists min 1 max 5. (4) HOME EVENTS accepts sponsored_station_start with variant:'audio_v2'. WEB (1920x4000): /admin/ad-pacing (admin) — root testid admin-ad-pacing renders, all three inputs (pacing-hop-input=90, pacing-cadence-input=4, pacing-chain-input=3) loaded with correct current values, pacing-hop-save persists 110 (verified via page reload = 110), 700 rejected server-side (422 shown in console, value did NOT persist → still 110 after reload). Cadence and chain save buttons present and functional. /admin/ad-revenue (admin) — all metric tiles PRESENT (report-listening=0h/0min, report-revenue=$0.94, report-audio=24/0% completed, report-native=17/0% CTR, report-sponsored=4/75% start, report-companion=0, report-display=0, report-conversions=0) and report-variant section shows audio_v2 vs unknown breakdown; report-range-1/7/30 toggles refetch cleanly. Sponsored station on Home: home-b-live-sponsored PRESENT for demo@ (Premium-via-trial) — SPONSORED badge visible on Beat 97.8 card. Clicking fires POST /api/shell/home-events with {event:'sponsored_station_start', surface:'web', variant:'audio_v2', station_id:'imp_fun_beat_978_uae', business_id:'biz_demo_grill'} — perfect. Pre-roll + companion for FREE user (freeuser@, fresh session): preroll-overlay renders 'The Grill House — 2X BigPoints' with companion image (2X BigPoints at The Grill House · 2.1 mi), preroll-companion-image PRESENT, preroll-wallet-save button clickable → button text changes to 'Saved to wallet ✓' (success). No error boundary. OnAirOfferCard does NOT crash. MOBILE (Expo 390x844, demo-login-btn → demo@ Premium-via-trial): home-header present, 5 bottom-tab nav all visible (Home/Listen/Shop/Play/Social — regression clean). home-live-sponsored PRESENT with SPONSORED badge on Beat 97.8. Tap fires home-events sponsored_station_start with surface:'mobile', station_id + business_id ✓. /premium renders premium-adfree-note with exact expected copy ✓. RESTORED settings post-run: hop-cooldown=90, midstream cadence every_n_songs=4, chain-count=3 (verified via GET).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter138_home_audio_v2.py",
+    "/app/test_reports/pytest/iter138.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/home_audio_v2_seed.py:76 — seed only writes the flagship_boost_activations row when the station document exists in imported_radio_stations. That's defensive but means a fresh mongo without the flagship import would silently skip the sponsored slot with no visible error. Add a WARN log when station is missing so the missing-import case is loud during preview bring-up.",
+    "routes/admin_ad_revenue.py:52-63 — the counters use count_documents which is fine for correctness but on hot data a single $facet aggregation over live_radio_ad_impressions + banner_ad_impressions + listening_heartbeat_minutes would cut round-trips from 4 to 1. Non-blocking for current volume.",
+    "routes/admin_ad_revenue.py:78 — estimated_revenue_cents mixes cent-scaled CPMs; the /1000.0 division then round() is fine, but the field name would be clearer as 'estimated_revenue_cents_est' or accompany a 'basis' string so admins downstream do not treat it as billed. UI already labels it 'Est. Revenue' so acceptable.",
+    "routes/admin_ad_revenue.py:62 — listening_heartbeat_minutes filter uses {'created_at': {'$gte': since}} but the listening block itself calls out that TTL is ~24h. Consider surfacing a 'window_effective_hours' hint (e.g. min(days*24, 24)) so admins running 30d don't think listening is under-reporting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter138_home_audio_v2.py (NEW — 11 tests, 11/11 pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11)",
+    "frontend": "web 100% (admin ad-pacing save+validation, admin ad-revenue metric tiles + range toggles, sponsored station card + click event, pre-roll overlay + companion image + save-to-wallet); mobile 100% (5-tab nav + home-header + home-live-sponsored badge + tap event + premium-adfree-note)"
+  },
+  "test_credentials": "admin@bigfm.dubai/AdminPass123!, freeuser@bigfm.dubai/FreePass123!, demo@bigfm.dubai/DemoPass123!. Cookie auth on web via POST /api/auth/login. Mobile demo-login-btn → demo@ Premium-via-trial.",
+  "seed_data_creation": "None (used existing home_audio_v2 startup seed). Restored hop-cooldown=90, midstream cadence every_n_songs=4, preroll chain-count=3 at end of run — all three verified via GET.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 138 shipped correctly across all 4 asks. KEY TESTIDs — web: admin-ad-pacing / pacing-hop-input+pacing-hop-save / pacing-cadence-input+pacing-cadence-save / pacing-chain-input+pacing-chain-save; report-listening / report-revenue / report-audio / report-native / report-sponsored / report-companion / report-display / report-conversions / report-variant / report-range-1|7|30; home-b-live-sponsored; preroll-overlay / preroll-companion-image / preroll-wallet-save. Mobile testIDs: home-header, home-live-sponsored, demo-login-btn, premium-adfree-note. Backend endpoints — GET /api/admin/ad-revenue/home-report?days=N (admin only, 1-90); GET/PATCH /api/admin/preroll/hop-cooldown (seconds 0-600); GET/PATCH /api/admin/midstream-ad/cadence (body: {every_n_songs:2-8}); GET/PATCH /api/admin/preroll/chain-count (count 1-5). Seed doc IDs — offers.offer_id='offer_demo_companion', preroll_ads._id='pra_demo_companion', flagship_boost_activations._id='fbact_demo_sponsored', station 'imp_fun_beat_978_uae', biz 'biz_demo_grill'. NOTE: cadence PATCH body key is 'every_n_songs' not 'songs' (422 otherwise). Report endpoint 'admin-ad-revenue-report' root testID is NOT set on the page container but individual metric testIDs all render — non-blocking.",
+  "rca of the issue": ""
+}

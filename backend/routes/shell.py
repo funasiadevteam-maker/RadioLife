@@ -486,6 +486,7 @@ async def shell_home_events(request: Request, body: dict = Body(default={})):
             "business_id": (body or {}).get("business_id"),
             "kind": (body or {}).get("kind"),
             "surface": (body or {}).get("surface"),
+            "variant": (body or {}).get("variant"),
             "market": (body or {}).get("market"),
             "meta": (body or {}).get("meta"),
             "ts": _now_iso(),

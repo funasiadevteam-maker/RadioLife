@@ -10,7 +10,8 @@ import { ChevronRight, MapPin, Coins } from "lucide-react";
 
 export function fireHomeEvent(event, extra = {}) {
   try {
-    axios.post(`${API}/shell/home-events`, { event, surface: "web", ...extra },
+    axios.post(`${API}/shell/home-events`,
+      { event, surface: "web", variant: "audio_v2", ...extra },
       { withCredentials: true }).catch(() => {});
   } catch (_e) { /* noop */ }
 }
