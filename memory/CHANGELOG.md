@@ -2,6 +2,17 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09 — NEW LOOK V2: premium dark cinematic design variant (web, validated iter139 + fixes)
+
+Additive web design variant `new_look_v2` — a premium, dark, cinematic, audio-first streaming/lifestyle homepage matching the user's mockup. Existing looks (legacy / classic_b / radiolife) untouched; classic_b stays the default.
+
+- **Variant plumbing**: added `new_look_v2` to `useDesignVariant` (VALID set; `?design=new_look_v2` deep-link already generic + persisted), added it to `VariantSwitcher` ("New Look V2 — Premium dark streaming"), and wired `App.js` Shell selection + `RootGate`.
+- **New files** (`/app/frontend/src/design_v2/`): `AppShellV2` (integrated top nav: logo + "Listen · Earn · Shop · Play · Social" tagline, center Home/Listen/Shop/Play/Social with icons + active purple underline, gold BigPoints pill, bell, VariantSwitcher, avatar "Hi,{name}/Premium"; sticky `PlayerDockV2` reusing MiniPlayer + OnAirOfferCard), `HomeNewLookV2`, `HeroNewLookV2` (gradient "Ready to listen?", 2 CTAs, stat strip, cinematic AI-generated headphones hero image + "Music Connects Us" + "Today's Vibe"), `ContinueListeningRowV2` (continue / +BigPoints reward / Dining Club), `RailV2` (shared For You + Live Right Now, image-led, SPONSORED badge + analytics), `ActionCardsV2` (Shop/Play/Social gradient cards), `PremiumBannerRowV2` (Upgrade-to-Premium + Discover-Dining-Club), `newlookv2.css` (scoped dark palette, glows, glass, gradient text — also overrides shared tokens inside `.nlv2` so reused components render dark), `analytics.js`.
+- **Data/logic reuse (no new engines)**: `/api/shell/home`, `/api/bigcoin/me`, `/api/shell/home-events` (events tagged `variant:"new_look_v2"`), `usePlayerStore`, `BannerAdSlot`, `OnAirOfferCard`. Ads sprinkled: one SPONSORED For-You card (native offer) + one SPONSORED Live station, Dining native promo, Premium/Dining banner row, one display slot (Free only), companion above player. Premium suppression respected (premium hides Upgrade banner + display ad).
+- **Testing**: iter139 passed 13/14. Fixed the 1 HIGH bug (switcher options were unclickable on V2 + the fixed player dock was un-fixed — both caused by a blanket `.nlv2 > * {position:relative;z-index:1}` rule that clobbered the sticky header's z-index and the dock's `position:fixed`). Fix: scoped stacking to `header`(z-40)/`main`(z-10) only + `pointer-events:none` on hero decorative overlays. Self-verified via screenshot: dock fixed, switching V2→Classic B works.
+- Scope: web only (mobile keeps its audio-first 5-tab home). Home is the pixel-matched showcase; other routes render inside the V2 shell with their existing bodies (restyle = future follow-up).
+
+
 ## 2026-09 — Home Audio V2 follow-ups: Demo Companion + Ad Revenue Report + Ad Pacing Panel + Sponsored Station (validated iter138, web + mobile + backend)
 
 - **Demo Companion (seed)**: `services/home_audio_v2_seed.py` (idempotent, run in server.py deferred startup) upserts an active companion-bearing pre-roll ad "The Grill House — 2X BigPoints" (wildcard targeting, `attached_offer_id=offer_demo_companion`, companion image), a matching `offers` row (so pre-roll Save-to-wallet snapshots a real title), and a LIVE `flagship_boost_activations` row. So Free listeners now hear a real pre-roll with a saveable companion, and the synced mid-roll companion has content to show.

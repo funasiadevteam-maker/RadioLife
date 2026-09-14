@@ -300,6 +300,8 @@ import { Toaster as _ShellToaster_ } from "sonner";
 // Phase 15b — Home dashboard, Trivia, Search.
 import Home from "@/Home";
 import HomeB from "@/HomeB";
+import AppShellV2 from "@/design_v2/AppShellV2";
+import HomeNewLookV2 from "@/design_v2/HomeNewLookV2";
 import AdminSkipRules from "@/pages/admin/AdminSkipRules";
 import AdminAdPacing from "@/pages/admin/AdminAdPacing";  // Phase COMPANION.1 — audio-ad pacing panel
 import AdminAdRevenueReport from "@/pages/admin/AdminAdRevenueReport";  // Phase COMPANION.1 — Home ad revenue report
@@ -389,7 +391,8 @@ function ReferralCapture() {
 function AppRouter() {
   const location = useLocation();
   const designVariant = useDesignVariantStore((s) => s.variant);
-  const Shell = designVariant === "classic_b" ? AppShellB : AppShell;
+  const Shell = designVariant === "new_look_v2" ? AppShellV2
+    : designVariant === "classic_b" ? AppShellB : AppShell;
   if (location.hash?.includes("session_id=")) {
     return <AuthCallback />;
   }
@@ -1095,7 +1098,8 @@ export function RootGate() {
   const designVariant = useDesignVariantStore((s) => s.variant);
   if (loading) return null;
   if (!user) return <Landing />;
-  return designVariant === "classic_b" ? <HomeB /> : <Home />;
+  return designVariant === "new_look_v2" ? <HomeNewLookV2 />
+    : designVariant === "classic_b" ? <HomeB /> : <Home />;
 }
 
 // `/pricing` is a single URL with two faces:

@@ -11,7 +11,7 @@ import { create } from "zustand";
 
 const LS_KEY = "bigfm_design_variant";
 const QP_KEY = "design";
-const VALID = new Set(["legacy", "classic_b", "radiolife"]);
+const VALID = new Set(["legacy", "classic_b", "radiolife", "new_look_v2"]);
 
 function _clamp(v) {
   return VALID.has(v) ? v : "classic_b";

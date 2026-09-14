@@ -9,6 +9,7 @@ const OPTIONS = [
   { key: "legacy",    label: "Classic A", hint: "Original shell" },
   { key: "classic_b", label: "Classic B", hint: "New consumer nav" },
   { key: "radiolife", label: "New Look",  hint: "RadioLife design" },
+  { key: "new_look_v2", label: "New Look V2", hint: "Premium dark streaming" },
 ];
 
 export default function VariantSwitcher() {

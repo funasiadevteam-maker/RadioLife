@@ -1,0 +1,45 @@
+{
+  "summary": "Web frontend-only validation of the additive new_look_v2 design variant. Deep link, all V2 home sections (hero + CTAs + stat strip, continue-listening trio, For You + Live Right Now rails, action cards, banner row, sticky player dock), sponsored labelling with SPONSORED impression + click analytics to /api/shell/home-events (variant='new_look_v2'), premium/free gating (nlv2-banner-premium + nlv2-display-ad hidden for premium demo@, shown for free freeuser@), V2 header nav routing to /listen /shop /play-and-win /community with shell-v2+dock preserved, avatar Premium/Free label, BigPoints pill balance, and REGRESSION default-to-Classic-B on fresh login — all PASS. One HIGH-severity bug: while ON the V2 shell, real mouse clicks on the switcher menu options (variant-opt-legacy / classic_b / radiolife) are intercepted by the hero's absolute-inset-0 overlay so users cannot switch OFF new_look_v2 from the UI (they are trapped on V2). Switching INTO V2 from classic_b works fine. Sponsored analytics are correctly plumbed (native_offer_impression, sponsored_station_impression, native_offer_click observed on the wire).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {
+          "component": "VariantSwitcher (on AppShellV2)",
+          "issue": "Menu opens visually but options are UNCLICKABLE for real users on the V2 shell — an overlay (<div class='absolute inset-0'> inside nlv2-hero's inner .nlv2-glass card) is painted above the dropdown at y≈150-200px and steals the mouse click. Verified with document.elementFromPoint at each option's centre returning the hero overlay div (position:absolute, z-index:auto) instead of the option button. Real-user impact: once a user selects 'New Look V2' they cannot switch back to Classic A / Classic B / New Look via the UI — only via localStorage clear or ?design= deep link. JS-triggered .click() works, proving the handler is fine — it is a pure stacking-context / clipping issue. Suspected cause: the parent header container has overflow-hidden (or the .nlv2 root creates a stacking context) that clips the z-50 dropdown menu when it extends below the header's 68px band into <main class='... relative z-1'>. Fix ideas: (a) portal the switcher menu to document.body, or (b) raise the menu to z-[9999] and ensure header/.nlv2 uses overflow-visible, or (c) mark the hero's 'absolute inset-0' overlays as pointer-events:none. Reference: /app/frontend/src/design_v2/AppShellV2.jsx:82-83 (header), /app/frontend/src/shell/VariantSwitcher.jsx:47-73 (menu), /app/frontend/src/design_v2/HeroNewLookV2.jsx (hero overlay).",
+          "selector": "[data-testid='variant-switcher-menu'] > [data-testid^='variant-opt-']",
+          "priority": "HIGH"
+        }
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {
+          "screen": "shell-v2-header (V2 avatar)",
+          "issues": [
+            "Avatar initial letter is duplicated with the greeting text (renders as 'DHi, Demo Premium' / 'FHi, Free Free'). The 'D' / 'F' badge sits flush against 'Hi, {name}' with no whitespace, and for the free user 'Free' collides with its status label producing 'FreeFree'. Add gap or ensure avatar and text nodes are visually separated. Reference: /app/frontend/src/design_v2/AppShellV2.jsx:119-131."
+          ]
+        }
+      ]
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "HIGH: Fix VariantSwitcher menu z-index / clipping on AppShellV2 so options are clickable by real users. Preferred: render the dropdown in a React portal to document.body (or raise z-index above the hero overlay AND ensure no ancestor has overflow-hidden). Verified elementFromPoint on the option centre returns the hero's 'absolute inset-0' overlay — a real mouse click never reaches the option button.",
+    "LOW: Add whitespace between the round avatar letter and 'Hi, {name}' / status in the V2 header (currently reads as 'DHi, Demo Premium' / 'FHi, FreeFree')."
+  ],
+  "critical_code_review_comments": [
+    "AppShellV2.jsx re-renders the ShellV2Header on every route change and re-fetches /api/bigcoin/me only on mount, but the header useEffect has [] deps — balance won't update after in-app earn events. Consider re-fetching on visibility or when navigating back to '/'.",
+    "HomeNewLookV2 injects the native_offer into forYouItems on EVERY render (splice into a spread copy). It's safe because the copy is fresh, but the ID collision with an actual home item is possible — consider guarding by unique key.",
+    "RailV2 fires only the FIRST sponsored impression (firedRef gate) — correct today because home has one sponsored per rail, but if a rail later contains multiple sponsored cards only the first will fire impression."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "93% (13/14 flows pass; 1 HIGH bug on switcher click-through while on V2)"},
+  "seed_data_creation": "None. Pre-seeded Beat 97.8 (imp_fun_beat_978_uae) sponsored station + The Grill House (biz_demo_grill) native offer both observed on wire.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Everything specified for new_look_v2 works end-to-end except the switcher's menu options are not clickable while on the V2 shell (overlay intercept). To reproduce: login as demo@bigfm.dubai / DemoPass123!, visit /?design=new_look_v2, click [data-testid=variant-switcher-btn], observe menu opens, then try clicking [data-testid=variant-opt-legacy] — no change occurs; localStorage stays 'new_look_v2' and shell-v2 remains. Confirm via document.elementFromPoint(x,y) at the option's centre — returns a div with className 'absolute inset-0' inside nlv2-hero. Switching INTO V2 from Classic B works because the hero doesn't exist on that page. Backend home-events endpoint accepts and receives events with variant='new_look_v2' for native_offer_impression, sponsored_station_impression, native_offer_click.",
+  "rca of the issue": "V2 shell has a stacking-context / clipping bug that prevents the VariantSwitcher dropdown from receiving real mouse events. Reproduction: (1) login demo@bigfm.dubai/DemoPass123!, (2) GET /?design=new_look_v2 → home-new-look-v2 + shell-v2 render, (3) click variant-switcher-btn → menu opens (variant-switcher-menu present in DOM at y≈100-260), (4) try to click variant-opt-legacy with page.mouse.click at the option's centre coords → click lands on <div class='absolute inset-0'> inside nlv2-hero's card (verified via document.elementFromPoint). elementFromPoint ancestry: div.absolute.inset-0 → div.relative.rounded-[26px].overflow-hidden.min-h-[340px].nlv2-glass → section[data-testid=nlv2-hero] → div[data-testid=home-new-look-v2] → main[flex-1 ... relative z-1] → div[data-testid=shell-v2] (position:relative, z:auto). Header is z-40, main is z-1, so header + descendants (menu z-50) should paint on top — but the menu never appears in elementFromPoint at the click coords, indicating the menu is being clipped by an ancestor's overflow rule (likely the .nlv2 root or the sticky header) OR the header's stacking context is being defeated by main's newer stacking context in DOM order. JS-invoked .click() on the option works and updates localStorage + shell — confirming the handler is intact and the defect is purely a paint/hit-testing problem. Fix (any one): (a) portal the switcher menu to document.body via ReactDOM.createPortal — the safest, avoids all ancestor clipping/z-index inheritance; (b) raise the menu's z-index to a very high value AND remove overflow-hidden from all ancestors up to <body>; (c) add pointer-events:none to the hero's decorative absolute overlays."
+}

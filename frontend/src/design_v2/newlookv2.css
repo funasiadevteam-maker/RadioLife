@@ -1,0 +1,101 @@
+/* New Look V2 — premium dark cinematic streaming theme. Scoped under .nlv2
+   so it never leaks into other design variants. Also overrides the shared
+   design tokens inside the scope so reused components (MiniPlayer,
+   BannerAdSlot, OnAirOfferCard) render dark-premium regardless of the
+   global light/dark theme. */
+
+.nlv2 {
+  /* token overrides for reused components */
+  --bg-base: #080b1a;
+  --bg-elevated: #121737;
+  --bg-glass: rgba(255, 255, 255, 0.06);
+  --line: rgba(255, 255, 255, 0.10);
+  --text-primary: #f6f8ff;
+  --text-secondary: #97a3c2;
+  --accent-electric: #6ea8fe;
+  --accent-gold: #f5c563;
+  --accent-magenta: #ec4899;
+
+  position: relative;
+  min-height: 100vh;
+  background: #070a17;
+  color: var(--text-primary);
+  font-family: "Space Grotesk", "Sora", system-ui, sans-serif;
+}
+
+/* Layered cinematic glow behind everything */
+.nlv2::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(55% 40% at 12% -5%, rgba(124, 58, 237, 0.30), transparent 60%),
+    radial-gradient(45% 40% at 88% 6%, rgba(236, 72, 153, 0.22), transparent 62%),
+    radial-gradient(70% 55% at 50% 108%, rgba(59, 130, 246, 0.20), transparent 60%),
+    linear-gradient(180deg, #0a0e20 0%, #070a17 55%, #05060f 100%);
+}
+/* Stacking: keep content above the fixed ::before glow WITHOUT clobbering
+   the sticky header's z-index (its dropdown must stay clickable) or the
+   fixed player dock. Do NOT apply a blanket position/z-index to all
+   children — that previously flattened the header and un-fixed the dock. */
+.nlv2 > header { position: sticky; z-index: 40; }
+.nlv2 > main { position: relative; z-index: 10; }
+
+.nlv2-grad {
+  background: linear-gradient(100deg, #f9a8d4 0%, #c084fc 42%, #60a5fa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nlv2-glass {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.nlv2-glass-strong {
+  background: rgba(19, 24, 56, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.nlv2-btn {
+  background: linear-gradient(100deg, #a855f7, #ec4899);
+  color: #fff;
+  box-shadow: 0 10px 34px rgba(168, 85, 247, 0.35);
+  transition: filter .15s ease, transform .15s ease;
+}
+.nlv2-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.nlv2-btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  transition: background .15s ease, transform .15s ease;
+}
+.nlv2-btn-ghost:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-1px); }
+
+.nlv2-card-hover { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.nlv2-card-hover:hover { transform: translateY(-4px); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45); }
+
+.nlv2-underline {
+  position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%);
+  width: 26px; height: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, #c084fc, #ec4899);
+  box-shadow: 0 0 14px rgba(192, 132, 252, 0.8);
+}
+
+.nlv2-scroll { scrollbar-width: none; }
+.nlv2-scroll::-webkit-scrollbar { display: none; }
+
+.nlv2-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+@media (max-width: 900px) {
+  .nlv2-hero-grid { grid-template-columns: 1fr !important; }
+}
