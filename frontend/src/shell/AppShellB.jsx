@@ -148,7 +148,9 @@ function DesktopShell({ children }) {
         <div className="flex-1 flex flex-col overflow-hidden"
           style={isAdminRoute ? { paddingLeft: 220 } : undefined}>
           <TopBar onHamburger={onToggle} />
-          {!isAdminRoute && <AdLeaderboard />}
+          {/* Value-before-advertising: no leaderboard above the audio-first
+              Home (/). Kept on every other page. */}
+          {!isAdminRoute && pathname !== "/" && <AdLeaderboard />}
           {!isAdminRoute && <FilterChips />}
           <main className={`flex-1 overflow-y-auto py-6 animate-fade-up pb-32 ${isAdminRoute ? "px-4" : "px-6 xl:px-10 2xl:px-16"}`}>
             {children}

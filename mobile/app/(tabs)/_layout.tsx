@@ -30,10 +30,12 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* Primary IA — Home · Listen · Shop · Play · Social */}
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
+          tabBarButtonTestID: 'tab-home',
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
@@ -41,6 +43,7 @@ export default function TabLayout() {
         name="listen"
         options={{
           title: 'Listen',
+          tabBarButtonTestID: 'tab-listen',
           tabBarIcon: ({ color, size }) => <Ionicons name="radio-outline" size={size} color={color} />,
         }}
       />
@@ -48,39 +51,32 @@ export default function TabLayout() {
         name="shop"
         options={{
           title: 'Shop',
+          tabBarButtonTestID: 'tab-shop',
           tabBarIcon: ({ color, size }) => <Ionicons name="storefront-outline" size={size} color={color} />,
         }}
-      />
-      <Tabs.Screen
-        name="radio"
-        options={{ href: null }}
       />
       <Tabs.Screen
         name="games"
         options={{
           title: 'Play',
+          tabBarButtonTestID: 'tab-play',
           tabBarIcon: ({ color, size }) => <Ionicons name="game-controller-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="wallet"
+        name="social"
         options={{
-          title: 'Wallet',
-          tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} />,
+          title: 'Social',
+          tabBarButtonTestID: 'tab-social',
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="podcasts"
-        options={{ href: null }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'More',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
-        }}
-      />
-      {/* Hidden tabs — still accessible as screens but not in tab bar */}
+      {/* Hidden screens — still navigable, not in the tab bar. Wallet is
+          reached via the Home points pill; profile/more via the Home drawer. */}
+      <Tabs.Screen name="radio" options={{ href: null }} />
+      <Tabs.Screen name="wallet" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="podcasts" options={{ href: null }} />
       <Tabs.Screen name="trivia" options={{ href: null }} />
       <Tabs.Screen name="passport" options={{ href: null }} />
       <Tabs.Screen name="news" options={{ href: null }} />

@@ -269,3 +269,223 @@ async def claim_clip_offer(request: Request, body: dict = Body(default={})):
         "claimed_at": _now_iso(),
     })
     return {"ok": True, "code": code, "already": False, "offer": camp.get("name")}
+
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Audio-first Home (Classic-B / Home Audio V2) aggregator + analytics.
+# "Value before advertising": one call returns the listening rails first,
+# then the native/sponsored placements. Reuses the EXISTING ad / campaign /
+# marketplace / flagship-boost engines — no second ad engine.
+# ─────────────────────────────────────────────────────────────────────
+
+HOME_EVENT_ALLOWLIST = {
+    "home_ad_request", "home_ad_fill", "home_ad_impression", "home_ad_click",
+    "sponsored_station_impression", "sponsored_station_start",
+    "native_offer_impression", "native_offer_click",
+    "companion_impression", "companion_click",
+    "audio_ad_start", "audio_ad_complete", "attributed_conversion",
+}
+
+
+def _station_card(s: dict) -> dict:
+    art_url, art_source = _resolve_art(s)
+    return {
+        "id": s.get("id") or s.get("station_id"),
+        "slug": s.get("flagship_slug") or s.get("slug"),
+        "name": s.get("name"),
+        "city": s.get("country"),
+        "art": art_url,
+        "art_source": art_source,
+        "live": bool(s.get("is_live")),
+        "listeners": int(s.get("listeners") or 0),
+        "sponsored": False,
+    }
+
+
+async def _flagship_stations(db, limit: int = 12) -> list:
+    out = []
+    async for s in db.imported_radio_stations.find(
+            {"flagship_slug": {"$ne": None}}).limit(limit):
+        out.append(_station_card(s))
+    return out
+
+
+async def _personalize(db, user, cards):
+    """Reorder station cards so the user's recently-played / preferred ones
+    surface first. Best-effort; falls back to the input order."""
+    if not user or not cards:
+        return cards
+    recent_ids = set()
+    try:
+        cur = db.playback_logs.find(
+            {"user_id": user["user_id"]},
+            {"station_id": 1, "channel_id": 1}).sort("_id", -1).limit(60)
+        async for p in cur:
+            sid = p.get("station_id") or p.get("channel_id")
+            if sid:
+                recent_ids.add(sid)
+    except Exception:
+        recent_ids = set()
+    fav_genres = set()
+    try:
+        pv = (user.get("preference_vector") or {})
+        fav_genres = {str(g).lower() for g in (pv.get("favorite_genres") or [])}
+    except Exception:
+        fav_genres = set()
+    if not recent_ids and not fav_genres:
+        return cards
+
+    def _score(c):
+        s = 0
+        if c["id"] in recent_ids:
+            s -= 10
+        name = (c.get("name") or "").lower()
+        if fav_genres and any(g in name for g in fav_genres):
+            s -= 3
+        if c.get("live"):
+            s -= 1
+        return s
+    return sorted(cards, key=_score)
+
+
+async def _pick_sponsored_station(db):
+    """Return (station_id, advertiser_business_id) for a LIVE flagship-boost
+    activation, else (None, None). Truthful — only paid inventory; never
+    manipulates organic ranking beyond reserving the labelled slot."""
+    try:
+        act = await db.flagship_boost_activations.find_one({"status": "live"})
+        if act and act.get("station_id"):
+            return act.get("station_id"), act.get("advertiser_business_id")
+    except Exception:
+        pass
+    return None, None
+
+
+async def _native_offer(db, city: str):
+    """One labelled native sponsored card. Prefers a promoted marketplace
+    business, then an active advertiser campaign. None when no paid/native
+    inventory exists (client hides the block)."""
+    try:
+        promoted_ids = await db.marketplace_promotions.distinct(
+            "business_id", {"status": "active"})
+    except Exception:
+        promoted_ids = []
+    if promoted_ids:
+        p = await db.marketplace_profiles.find_one(
+            {"business_id": {"$in": promoted_ids}, "status": "approved", **_NON_TEST})
+        if p:
+            bp = p.get("bigpoints") or {}
+            cat = p.get("category")
+            return {
+                "kind": "shop",
+                "sponsored": True,
+                "business_id": p.get("business_id"),
+                "title": p.get("public_name"),
+                "subtitle": (f"Earn {bp.get('default_points')} BigPoints"
+                             if bp.get("default_points")
+                             else _CAT_LABEL.get(cat, "Local offer")),
+                "image": (p.get("cover_urls") or [None])[0] or p.get("logo_url"),
+                "cta": "View offer",
+                "to": f"/shop/{p.get('business_id')}",
+            }
+    camp = await db.campaigns.find_one(
+        {"status": "active", "clip_image_url": {"$nin": [None, ""]}},
+        sort=[("created_at", -1)])
+    if camp:
+        name = camp.get("name") or "Sponsored"
+        sponsor, _, offer = name.partition("—")
+        return {
+            "kind": "offer",
+            "sponsored": True,
+            "campaign_id": camp.get("campaign_id"),
+            "business_id": camp.get("business_id"),
+            "title": (offer.strip() or name),
+            "subtitle": (sponsor.strip() or "Sponsored offer"),
+            "image": camp.get("clip_image_url"),
+            "cta": "View offer",
+            "to": (f"/shop/{camp.get('business_id')}"
+                   if camp.get("business_id") else "/offers"),
+        }
+    return None
+
+
+@router.get("/home")
+async def shell_home(request: Request, city: str = ""):
+    """Audio-first Home payload (platform-agnostic — web + mobile).
+    Rails first (for_you, live_now, listening_reward, dining), then the
+    single native sponsored placement + premium flag for display gating."""
+    from services.dining_club import get_subscription as _dc_get_subscription
+    db = request.app.state.db
+    user = await current_user_optional(request)
+    is_premium = bool((user or {}).get("is_premium"))
+
+    cards = await _flagship_stations(db, 12)
+    for_you = (await _personalize(db, user, [dict(c) for c in cards]))[:6]
+
+    # Live Right Now — live-first; reserve ONE labelled sponsored slot.
+    live_sorted = sorted(
+        cards, key=lambda c: (0 if c["live"] else 1, -(c["listeners"] or 0)))
+    live_now = [dict(c) for c in live_sorted[:6]]
+    sp_station_id, sp_biz = await _pick_sponsored_station(db)
+    if sp_station_id:
+        idx = next((i for i, c in enumerate(live_now)
+                    if c["id"] == sp_station_id), None)
+        card = None
+        if idx is not None:
+            card = live_now.pop(idx)
+        else:
+            s = await db.imported_radio_stations.find_one(
+                {"$or": [{"id": sp_station_id}, {"station_id": sp_station_id}]})
+            if s:
+                card = _station_card(s)
+        if card:
+            card["sponsored"] = True
+            card["sponsor_business_id"] = sp_biz
+            live_now.insert(min(3, len(live_now)), card)
+
+    native_offer = await _native_offer(db, city)
+
+    dining = {"member": False}
+    if user:
+        try:
+            sub = await _dc_get_subscription(db, user["user_id"])
+            dining = {"member": bool(sub and sub.get("status") == "active")}
+        except Exception:
+            dining = {"member": False}
+
+    return {
+        "for_you": for_you,
+        "live_now": live_now,
+        "native_offer": native_offer,
+        "listening_reward": {"points_per_min": 1},
+        "dining": dining,
+        "is_premium": is_premium,
+    }
+
+
+@router.post("/home-events")
+async def shell_home_events(request: Request, body: dict = Body(default={})):
+    """Ingest Home + audio→digital attribution analytics. Fire-and-forget;
+    validated against an allowlist; never mutates listener wallets."""
+    user = await current_user_optional(request)
+    event = (body or {}).get("event")
+    if event not in HOME_EVENT_ALLOWLIST:
+        return {"ok": False, "error": "unknown_event"}
+    db = request.app.state.db
+    try:
+        await db.home_ad_events.insert_one({
+            "event": event,
+            "user_id": (user or {}).get("user_id"),
+            "campaign_id": (body or {}).get("campaign_id"),
+            "station_id": (body or {}).get("station_id"),
+            "business_id": (body or {}).get("business_id"),
+            "kind": (body or {}).get("kind"),
+            "surface": (body or {}).get("surface"),
+            "market": (body or {}).get("market"),
+            "meta": (body or {}).get("meta"),
+            "ts": _now_iso(),
+        })
+    except Exception:
+        return {"ok": False}
+    return {"ok": True}

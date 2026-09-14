@@ -2,6 +2,12 @@
 
 > NOTE (2026-09 fork): This file grew changelog-style. Newest work is now also logged in **CHANGELOG.md** and the backlog lives in **ROADMAP.md**. The dated sections below remain the historical record.
 
+
+## 🎧 HOME AUDIO V2 — audio-first Home unified as default (2026-09 fork, validated iter136 · web + mobile + backend)
+Audio-first Home is now the DEFAULT for all users on both surfaces; strict 5-destination IA `Home · Listen · Shop · Play · Social`; monetization follows a value-before-advertising order (no leaderboard above Home; native SPONSORED card + Free-only display banner placed AFTER the listening rails). Full detail in CHANGELOG.md (2026-09 Home Audio V2). New backend: `GET /api/shell/home`, `POST /api/shell/home-events` (allowlisted analytics → `home_ad_events`). Old Home kept switchable via VariantSwitcher (Classic A / New Look).
+- **Phase 3 backlog (deferred — user reviews Phases 1+2 first):** audio pre-roll/mid-roll driven by listening-SESSION rules (not route changes, cadence from admin/rate-card); full Free-vs-Premium interruption gating + "third-party live stations may carry their own ads" messaging; companion audio-ad sync (evolve OnAirOfferCard); deeper audio→digital attribution reporting/dashboards; A/B (audio_v2 vs old Home) analytics.
+- **Non-blocking hygiene:** cache `/api/shell/home` (currently hits ~5 collections/render); add a TTL index on `home_ad_events`; `_native_offer(city)` param currently unused.
+
 ## 🍽️ PREMIUM DINING CLUB — Phase 1 backend COMPLETE (2026-09 fork, tested iter126)
 30-day, Premium-only restaurant meal membership. Customer picks meals/week (3-14) + VEG/NON_VEG only; RadioLife assigns the restaurant via an EQUAL-PROBABILITY wheel (server-decided winner, one optional reroll or "Surprise Me"), identity HIDDEN until the result; fixed $9.99/meal (fast-casual = sit-down). Per-credit FIFO ledger, each credit expires 30 days from its own issuance; 4 weekly grants across a 30-day term. Reuses Premium/BigPoints/Stripe/secure-RNG engines (no duplication).
 - Backend: `services/dining_club.py` + `routes/dining_club.py` (consumer `/api/dining-club/*`, merchant `/api/merchant/dining-club/redeem`, admin `/api/admin/dining-club/*`). Signed single-use QR; equal-probability draw via `secrets.SystemRandom` (no bid/spend/sponsored weighting — LOCKED). 12 demo restaurants seeded.

@@ -102,9 +102,9 @@ function Hero() {
             <br /> before <span className="text-accent-magenta">you do.</span>
           </h1>
           <p className="text-text-secondary text-lg max-w-xl">
-            An AI host, a wallet that pays you to listen, and live trivia at
-            the café down the street. RadioLife is internet radio rebuilt for
-            the next decade.
+            Press play and an AI host builds a station around you — drawing from
+            50,000+ live stations, podcasts and news. A wallet that pays you to
+            listen, local deals and live trivia come along for the ride.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
             <Link to="/login" data-testid="landing-cta-signup"
@@ -112,7 +112,7 @@ function Hero() {
                                       rounded-full bg-accent-electric text-bg-base
                                       font-mono text-xs uppercase tracking-widest
                                       hover:bg-white transition-colors duration-150">
-              Tune in now <ChevronRight size={14} />
+              Start listening free <ChevronRight size={14} />
             </Link>
             <Link to="/login?demo=1" data-testid="landing-cta-demo"
                       className="px-6 h-12 inline-flex items-center gap-2

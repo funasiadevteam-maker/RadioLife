@@ -10,52 +10,48 @@ import { Image } from 'expo-image';
 import { useAuth } from '../../src/contexts/AuthContext';
 import api, { BACKEND } from '../../src/api/client';
 import TubeDrawer from '../../src/components/TubeDrawer';
+import AdBanner from '../../src/components/AdBanner';
 import { TUBE, TSPACE, TRADIUS, TFONT } from '../../src/constants/tube';
+import { usePlayerStore } from '../../src/stores/usePlayerStore';
+import { playImportedStation } from '../../src/services/playStation';
 
 const resolveImg = (u?: string | null) =>
   u ? (u.startsWith('http') ? u : `${BACKEND}${u}`) : null;
 
-const CHIPS = [
-  { key: 'all', label: 'All', path: null },
-  { key: 'radio', label: 'Radio', path: '/(tabs)/listen' },
-  { key: 'shop', label: 'Shop & Eat', path: '/(tabs)/shop' },
-  { key: 'games', label: 'Play', path: '/(tabs)/games' },
-  { key: 'news', label: 'News', path: '/(tabs)/news' },
-  { key: 'trivia', label: 'Trivia', path: '/(tabs)/trivia' },
+const SCOPE_CHIPS = [
+  { key: 'foryou', label: 'For You' },
+  { key: 'live', label: 'Live' },
+  { key: 'trending', label: 'Trending' },
 ];
+
+const fireEvent = (event: string, extra: Record<string, any> = {}) => {
+  api.post('/shell/home-events', { event, surface: 'mobile', ...extra }).catch(() => {});
+};
 
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [channels, setChannels] = useState<any[]>([]);
-  const [clips, setClips] = useState<any[]>([]);
-  const [venues, setVenues] = useState<any[]>([]);
-  const [news, setNews] = useState<any[]>([]);
+  const { activeChannelName, activeChannelThumb, currentSeg, playing } = usePlayerStore();
+
+  const [home, setHome] = useState<any>(null);
   const [points, setPoints] = useState<number | null>(null);
   const [cityLabel, setCityLabel] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [drawer, setDrawer] = useState(false);
-  const [chip, setChip] = useState('all');
-  const [claimCode, setClaimCode] = useState<string | null>(null);
+  const [chip, setChip] = useState('foryou');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!authLoading && !user) router.replace('/login'); }, [user, authLoading]);
 
   const load = async () => {
     try {
-      const [ch, cl, ve, nw, wl] = await Promise.allSettled([
-        api.get('/channels'),
-        api.get('/shell/clips', { params: { limit: 10 } }),
-        api.get('/shell/venues', { params: { limit: 12 } }),
-        api.get('/news/headlines', { params: { limit: 6 } }),
+      const [hm, wl] = await Promise.allSettled([
+        api.get('/shell/home'),
         api.get('/bigcoin/me'),
       ]);
-      if (ch.status === 'fulfilled') setChannels((ch.value as any).data?.channels || []);
-      if (cl.status === 'fulfilled') setClips((cl.value as any).data?.items || []);
-      if (ve.status === 'fulfilled') setVenues((ve.value as any).data?.items || []);
-      if (nw.status === 'fulfilled') setNews((nw.value as any).data?.items || []);
+      if (hm.status === 'fulfilled') setHome((hm.value as any).data || {});
       if (wl.status === 'fulfilled') setPoints((wl.value as any).data?.balance ?? null);
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
@@ -71,24 +67,39 @@ export default function HomeScreen() {
     }).catch(() => {});
   }, [user]);
 
-  const openClip = (c: any) => {
-    if (c.sponsored && c.campaign_id) {
-      api.post('/shell/clips/claim', { campaign_id: c.campaign_id })
-        .then((r) => setClaimCode(r.data?.code || 'CLAIMED'))
-        .catch(() => setClaimCode('Try again later'));
-      return;
-    }
-    if (c.business_id) { router.push('/(tabs)/shop'); return; }
-    router.push({ pathname: '/(tabs)/radio', params: { channel: c.slug } });
-  };
-
-  const onChip = (c: any) => { setChip(c.key); if (c.path) router.push(c.path); };
-
   if (authLoading || loading) {
     return <View style={s.center}><ActivityIndicator size="large" color={TUBE.electric} /></View>;
   }
 
   const firstName = user?.name?.split(' ')[0] || '';
+  const hasSession = !!activeChannelName;
+  const forYouRaw: any[] = home?.for_you || [];
+  const liveNow: any[] = home?.live_now || [];
+  const nativeOffer = home?.native_offer;
+  const perMin = home?.listening_reward?.points_per_min ?? 1;
+  const isPremium = !!home?.is_premium;
+  const diningMember = !!home?.dining?.member;
+
+  const forYou = chip === 'live'
+    ? forYouRaw.filter((x) => x.live)
+    : chip === 'trending'
+      ? [...forYouRaw].sort((a, b) => (b.live ? 1 : 0) - (a.live ? 1 : 0) || (b.listeners || 0) - (a.listeners || 0))
+      : forYouRaw;
+
+  const playCard = (c: any) => {
+    playImportedStation({ id: c.id, name: c.name, favicon: c.art }, router);
+  };
+  const playSponsored = (c: any) => {
+    fireEvent('sponsored_station_start', { station_id: c.id, business_id: c.sponsor_business_id });
+    playCard(c);
+  };
+  const openNativeOffer = () => {
+    if (!nativeOffer) return;
+    fireEvent('native_offer_click', {
+      campaign_id: nativeOffer.campaign_id, business_id: nativeOffer.business_id, kind: nativeOffer.kind });
+    if (nativeOffer.business_id) router.push(`/store/${nativeOffer.business_id}`);
+    else router.push('/(tabs)/shop');
+  };
 
   return (
     <View style={s.screen}>
@@ -102,30 +113,14 @@ export default function HomeScreen() {
           <Text style={s.brand}>RadioLife</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={s.pointsPill} testID="home-points-pill">
+          <Pressable style={s.pointsPill} testID="home-points-pill" onPress={() => router.push('/(tabs)/wallet')} hitSlop={6}>
             <Ionicons name="diamond" size={12} color={TUBE.gold} />
             <Text style={s.pointsText}>{points != null ? points.toLocaleString() : '—'}</Text>
-          </View>
+          </Pressable>
           <Pressable onPress={() => router.push('/notifications')} testID="home-notif-btn" style={s.iconBtn} hitSlop={8}>
             <Ionicons name="notifications-outline" size={20} color={TUBE.textDim} />
           </Pressable>
         </View>
-      </View>
-
-      {/* Filter chips — single horizontal scroller, no wrap */}
-      <View style={s.chipsWrap}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 8 }}>
-          {CHIPS.map((c) => {
-            const active = chip === c.key;
-            return (
-              <Pressable key={c.key} testID={`home-chip-${c.key}`} onPress={() => onChip(c)}
-                style={[s.chip, active && s.chipActive]}>
-                <Text style={[s.chipText, active && s.chipTextActive]}>{c.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}
@@ -135,119 +130,139 @@ export default function HomeScreen() {
 
         {/* Greeting */}
         <View style={s.greetWrap}>
-          <Text style={s.greet}>Hi{firstName ? `, ${firstName}` : ''} 👋</Text>
-          <Text style={s.greetSub}>DIL SE · {(cityLabel || 'YOUR CITY').toUpperCase()} SE</Text>
+          <Text style={s.greetSub}>{new Date().getHours() < 12 ? 'GOOD MORNING' : new Date().getHours() < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING'}</Text>
+          <Text style={s.greet}>Hi{firstName ? `, ${firstName}` : ''} — ready to listen?</Text>
         </View>
 
-        {claimCode && (
-          <Pressable style={s.claimBanner} testID="home-claim-banner" onPress={() => setClaimCode(null)}>
-            <Ionicons name="ticket" size={16} color={TUBE.onAccent} />
-            <Text style={s.claimText}>Offer claimed · code {claimCode}</Text>
-            <Ionicons name="close" size={16} color={TUBE.onAccent} />
+        {/* A · Continue Listening / Start My Radio */}
+        {hasSession ? (
+          <Pressable style={s.continueCard} testID="home-continue" onPress={() => router.push('/now-playing')}>
+            <Image source={{ uri: resolveImg(activeChannelThumb) || undefined }} style={s.continueImg} contentFit="cover" transition={200} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.continueLabel}>{playing ? 'NOW PLAYING' : 'PAUSED'}</Text>
+              <Text style={s.continueName} numberOfLines={1}>{activeChannelName}</Text>
+              <Text style={s.continueSub} numberOfLines={1}>{currentSeg?.track_artist || 'AI radio'}</Text>
+            </View>
+            <View style={s.continuePlay}><Ionicons name={playing ? 'pause' : 'play'} size={22} color={TUBE.onAccent} /></View>
+          </Pressable>
+        ) : (
+          <Pressable style={s.startCard} testID="home-start" onPress={() => router.push('/(tabs)/radio')}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.startKicker}>YOUR RADIO, ONE TAP AWAY</Text>
+              <Text style={s.startTitle}>Start My Radio</Text>
+              <Text style={s.startSub}>AI-personalized radio built around what you love</Text>
+            </View>
+            <View style={s.startPlay}><Ionicons name="play" size={26} color={TUBE.onAccent} /></View>
           </Pressable>
         )}
 
-        {/* Your stations */}
-        {channels.length > 0 && (
-          <Shelf title="Your stations" suffix={`${channels.length} LIVE`}
-            onSeeAll={() => router.push('/(tabs)/listen')}>
-            {channels.slice(0, 12).map((ch) => (
-              <Pressable key={ch.slug} testID={`home-station-${ch.slug}`} style={s.stationTile}
-                onPress={() => router.push({ pathname: '/(tabs)/radio', params: { channel: ch.slug } })}>
-                <Image source={{ uri: resolveImg(ch.cover_image_url || ch.thumbnail_url) || undefined }}
-                  style={s.stationImg} contentFit="cover" transition={200} />
-                <Text style={s.tileName} numberOfLines={1}>{ch.name}</Text>
-                <Text style={s.tileSub} numberOfLines={1}>{ch.vibe || (ch.language_tags || []).join(', ') || 'Live'}</Text>
-              </Pressable>
-            ))}
-          </Shelf>
-        )}
-
-        {/* Clips — 9:16 with sponsored first */}
-        {clips.length > 0 && (
-          <Shelf title="Clips" suffix="RJ MOMENTS">
-            {clips.map((c) => (
-              <Pressable key={c.id} testID={`home-clip-${c.id}`} style={s.clipCard} onPress={() => openClip(c)}>
-                <Image source={{ uri: resolveImg(c.image) || undefined }} style={s.clipImg} contentFit="cover" transition={200} />
-                <View style={s.clipOverlay} />
-                {c.sponsored && (
-                  <View style={s.sponsorBadge} testID={`home-clip-sponsored-${c.id}`}>
-                    <Text style={s.sponsorBadgeText}>SPONSORED</Text>
-                  </View>
-                )}
-                <View style={s.clipMeta}>
-                  <Text style={s.clipTitle} numberOfLines={2}>{c.title}</Text>
-                  <Text style={s.clipChannel} numberOfLines={1}>{c.channel}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </Shelf>
-        )}
-
-        {/* Eat & earn near you */}
-        {venues.length > 0 && (
-          <Shelf title="Eat & earn near you"
-            suffix={`${venues.length} VENUES${cityLabel ? ' · ' + cityLabel.toUpperCase() : ''}`}
-            onSeeAll={() => router.push('/(tabs)/shop')}>
-            {venues.slice(0, 10).map((v, idx) => (
-              <Pressable key={v.business_id} testID={`home-venue-${v.business_id}`} style={s.venueCard}
-                onPress={() => router.push('/(tabs)/shop')}>
-                <Image source={{ uri: resolveImg(v.image) || undefined }} style={s.venueImg} contentFit="cover" transition={200} />
-                {idx === 0 && v.sponsored && (
-                  <View style={s.sponsorBadge}><Text style={s.sponsorBadgeText}>SPONSORED</Text></View>
-                )}
-                <View style={s.venueBody}>
-                  <Text style={s.venueName} numberOfLines={1}>{v.name}</Text>
-                  <View style={s.venueRow}>
-                    <Text style={s.venueCat} numberOfLines={1}>{v.category_label}</Text>
-                    {v.rating ? (
-                      <View style={s.ratingChip}>
-                        <Ionicons name="star" size={9} color={TUBE.gold} />
-                        <Text style={s.ratingText}>{v.rating}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  {v.earn ? <Text style={s.earnText}>Earn {v.earn} BigPoints</Text> : null}
-                </View>
-              </Pressable>
-            ))}
-          </Shelf>
-        )}
-
-        {/* Top headlines */}
-        {news.length > 0 && (
-          <Shelf title="Top headlines" suffix="NEWS" onSeeAll={() => router.push('/(tabs)/news')}>
-            {news.slice(0, 6).map((n, idx) => (
-              <Pressable key={n.id || idx} testID={`home-news-${idx}`} style={s.newsCard}
-                onPress={() => router.push('/(tabs)/news')}>
-                {resolveImg(n.image_url) ? (
-                  <Image source={{ uri: resolveImg(n.image_url) || undefined }} style={s.newsImg} contentFit="cover" transition={200} />
-                ) : <View style={[s.newsImg, { backgroundColor: TUBE.glass }]} />}
-                <Text style={s.newsTitle} numberOfLines={3}>{n.headline_text || n.title || n.headline}</Text>
-              </Pressable>
-            ))}
-          </Shelf>
-        )}
-
-        {/* Ways to earn CTA */}
-        <Pressable style={s.earnCta} testID="home-earn-cta" onPress={() => router.push('/(tabs)/games')}>
-          <View style={s.earnIcon}><Ionicons name="sparkles" size={20} color={TUBE.onAccent} /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.earnTitle}>Play & earn BigPoints</Text>
-            <Text style={s.earnSub}>Spin, predict and win every day</Text>
+        {/* B · For You */}
+        <View style={s.shelf}>
+          <View style={s.shelfHead}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.shelfTitle}>For You</Text>
+              <Text style={s.shelfSuffix}>AI RADIO · LIVE RADIO · PODCASTS</Text>
+            </View>
+            <Pressable onPress={() => router.push('/(tabs)/listen')} hitSlop={8}>
+              <Text style={s.seeAll}>See all</Text>
+            </Pressable>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={TUBE.textMuted} />
+          <View style={s.scopeRow}>
+            {SCOPE_CHIPS.map((c) => {
+              const active = chip === c.key;
+              return (
+                <Pressable key={c.key} testID={`home-scope-${c.key}`} onPress={() => setChip(c.key)}
+                  style={[s.scopeChip, active && s.scopeChipActive]}>
+                  <Text style={[s.scopeChipText, active && s.scopeChipTextActive]}>{c.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {forYou.length === 0 ? (
+            <Text style={s.emptyRail}>Start listening and your picks will appear here.</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 12 }}>
+              {forYou.map((st) => (
+                <Pressable key={st.slug || st.id} testID={`home-foryou-${st.slug || st.id}`} style={s.stationTile}
+                  onPress={() => playCard(st)}>
+                  <Image source={{ uri: resolveImg(st.art) || undefined }} style={s.stationImg} contentFit="cover" transition={200} />
+                  {st.live && <View style={s.liveBadge}><Text style={s.liveBadgeText}>LIVE</Text></View>}
+                  <Text style={s.tileName} numberOfLines={1}>{st.name}</Text>
+                  <Text style={s.tileSub} numberOfLines={1}>{st.city || 'Radio'}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* C · Live Right Now — one labelled sponsored slot */}
+        {liveNow.length > 0 && (
+          <View style={s.shelf}>
+            <View style={s.shelfHead}>
+              <Text style={s.shelfTitle}>Live right now</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 12 }}>
+              {liveNow.map((st) => (
+                <Pressable key={`${st.slug || st.id}-${st.sponsored ? 'sp' : 'org'}`}
+                  testID={st.sponsored ? 'home-live-sponsored' : `home-live-${st.slug || st.id}`}
+                  style={s.stationTile}
+                  onPress={() => (st.sponsored ? playSponsored(st) : playCard(st))}>
+                  <Image source={{ uri: resolveImg(st.art) || undefined }} style={s.stationImg} contentFit="cover" transition={200} />
+                  {st.sponsored
+                    ? <View style={s.sponsorBadge}><Text style={s.sponsorBadgeText}>SPONSORED</Text></View>
+                    : st.live && <View style={s.liveBadge}><Text style={s.liveBadgeText}>LIVE</Text></View>}
+                  <Text style={s.tileName} numberOfLines={1}>{st.name}</Text>
+                  <Text style={s.tileSub} numberOfLines={1}>{st.city || 'Radio'}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* D · Listening Reward */}
+        <Pressable style={s.rewardCard} testID="home-reward" onPress={() => router.push('/(tabs)/wallet')}>
+          <View style={s.rewardIcon}><Ionicons name="diamond" size={18} color={TUBE.gold} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.rewardTitle}>Earn +{perMin} BigPoint{perMin === 1 ? '' : 's'} every minute you listen</Text>
+            <Text style={s.rewardSub}>Your BigPoints stack up in the background</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={TUBE.gold} />
         </Pressable>
 
-        {/* Dining Club CTA */}
-        <Pressable style={s.earnCta} testID="home-dining-cta" onPress={() => router.push('/dining')}>
-          <View style={s.earnIcon}><Ionicons name="restaurant" size={20} color={TUBE.onAccent} /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.earnTitle}>RadioLife Dining Club</Text>
-            <Text style={s.earnSub}>Spin the wheel · $9.99 meals near you</Text>
+        {/* E · Do More While You Listen */}
+        <View style={s.shelf}>
+          <View style={s.shelfHead}><Text style={s.shelfTitle}>Do more while you listen</Text></View>
+          <View style={s.doMoreRow}>
+            <DoMore icon="storefront" label="Shop & Eat" sub="Deals near you" onPress={() => router.push('/(tabs)/shop')} testID="home-domore-shop" />
+            <DoMore icon="game-controller" label="Play & Win" sub="Games · trivia" onPress={() => router.push('/(tabs)/games')} testID="home-domore-play" />
+            <DoMore icon="people" label="Social" sub="Community" onPress={() => router.push('/(tabs)/social')} testID="home-domore-social" />
           </View>
-          <Ionicons name="chevron-forward" size={18} color={TUBE.textMuted} />
+        </View>
+
+        {/* F · Native sponsored card */}
+        {nativeOffer && (
+          <NativeOffer offer={nativeOffer} onPress={openNativeOffer} />
+        )}
+
+        {/* G · Contextual Dining Club */}
+        <Pressable style={diningMember ? s.diningMember : s.diningPromo} testID="home-dining"
+          onPress={() => router.push('/dining')}>
+          <View style={s.diningIcon}><Ionicons name="restaurant" size={18} color={TUBE.electric} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.diningTitle}>{diningMember ? 'Your Dining Club' : 'RadioLife Dining Club'}</Text>
+            <Text style={s.diningSub}>{diningMember ? "Pick this week's meals · spin for tonight" : 'Spin the wheel · $9.99 meals near you'}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={TUBE.textMuted} />
         </Pressable>
+
+        {/* H · Display ad — Free listeners only */}
+        {!isPremium && (
+          <View style={{ marginTop: TSPACE.lg }} testID="home-display-ad">
+            <AdBanner zone="browse_row" />
+          </View>
+        )}
       </ScrollView>
 
       <TubeDrawer open={drawer} onClose={() => setDrawer(false)} />
@@ -255,26 +270,32 @@ export default function HomeScreen() {
   );
 }
 
-function Shelf({ title, suffix, onSeeAll, children }:
-  { title: string; suffix?: string; onSeeAll?: () => void; children: React.ReactNode }) {
+function DoMore({ icon, label, sub, onPress, testID }:
+  { icon: any; label: string; sub: string; onPress: () => void; testID: string }) {
   return (
-    <View style={s.shelf}>
-      <View style={s.shelfHead}>
-        <View style={{ flex: 1 }}>
-          <Text style={s.shelfTitle}>{title}</Text>
-          {!!suffix && <Text style={s.shelfSuffix}>{suffix}</Text>}
-        </View>
-        {onSeeAll && (
-          <Pressable onPress={onSeeAll} hitSlop={8}>
-            <Text style={s.seeAll}>See all</Text>
-          </Pressable>
-        )}
+    <Pressable style={s.doMoreCard} onPress={onPress} testID={testID}>
+      <View style={s.doMoreIcon}><Ionicons name={icon} size={18} color={TUBE.electric} /></View>
+      <Text style={s.doMoreLabel} numberOfLines={1}>{label}</Text>
+      <Text style={s.doMoreSub} numberOfLines={1}>{sub}</Text>
+    </Pressable>
+  );
+}
+
+function NativeOffer({ offer, onPress }: { offer: any; onPress: () => void }) {
+  useEffect(() => {
+    fireEvent('native_offer_impression', {
+      campaign_id: offer.campaign_id, business_id: offer.business_id, kind: offer.kind });
+  }, [offer]);
+  return (
+    <Pressable style={s.nativeCard} testID="home-native-offer" onPress={onPress}>
+      <Image source={{ uri: resolveImg(offer.image) || undefined }} style={s.nativeImg} contentFit="cover" transition={200} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={s.nativeBadge}><Text style={s.nativeBadgeText}>SPONSORED</Text></View>
+        <Text style={s.nativeTitle} numberOfLines={1}>{offer.title}</Text>
+        <Text style={s.nativeSub} numberOfLines={1}>{offer.subtitle}</Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 12 }}>
-        {children}
-      </ScrollView>
-    </View>
+      <View style={s.nativeCta}><Text style={s.nativeCtaText}>{offer.cta || 'View'}</Text></View>
+    </Pressable>
   );
 }
 
@@ -296,67 +317,86 @@ const s = StyleSheet.create({
   },
   pointsText: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
 
-  chipsWrap: { paddingVertical: 10, backgroundColor: TUBE.bg, borderBottomWidth: 1, borderBottomColor: TUBE.line },
-  chip: {
-    height: 34, paddingHorizontal: 14, borderRadius: TRADIUS.full, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: TUBE.glass, borderWidth: 1, borderColor: TUBE.line,
-  },
-  chipActive: { backgroundColor: TUBE.text, borderColor: TUBE.text },
-  chipText: { color: TUBE.textDim, fontSize: TFONT.sm, fontWeight: '700' },
-  chipTextActive: { color: TUBE.bg, fontWeight: '800' },
-
   greetWrap: { paddingHorizontal: TSPACE.md, paddingTop: TSPACE.lg, paddingBottom: TSPACE.sm },
+  greetSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 3, marginBottom: 4 },
   greet: { color: TUBE.text, fontSize: TFONT.xxl, fontWeight: '900', letterSpacing: -0.5 },
-  greetSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 3, marginTop: 4 },
 
-  claimBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: TSPACE.md, marginTop: 6,
-    paddingHorizontal: 14, paddingVertical: 12, borderRadius: TRADIUS.md, backgroundColor: TUBE.gold,
+  continueCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: 6,
+    padding: TSPACE.sm + 2, borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line,
   },
-  claimText: { flex: 1, color: TUBE.onAccent, fontSize: TFONT.sm, fontWeight: '800' },
+  continueImg: { width: 64, height: 64, borderRadius: TRADIUS.md, backgroundColor: TUBE.glass },
+  continueLabel: { color: TUBE.electric, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  continueName: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 2 },
+  continueSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
+  continuePlay: { width: 46, height: 46, borderRadius: 23, backgroundColor: TUBE.electric, alignItems: 'center', justifyContent: 'center' },
+
+  startCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: 6,
+    padding: TSPACE.md, borderRadius: TRADIUS.xl, backgroundColor: TUBE.magenta,
+  },
+  startKicker: { color: 'rgba(255,255,255,0.85)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  startTitle: { color: '#fff', fontSize: TFONT.xl, fontWeight: '900', marginTop: 2 },
+  startSub: { color: 'rgba(255,255,255,0.9)', fontSize: TFONT.xs, fontWeight: '600', marginTop: 3 },
+  startPlay: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
 
   shelf: { marginTop: TSPACE.lg },
   shelfHead: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: TSPACE.md, marginBottom: TSPACE.sm },
   shelfTitle: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900', letterSpacing: -0.3 },
   shelfSuffix: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 2, marginTop: 2 },
   seeAll: { color: TUBE.electric, fontSize: TFONT.sm, fontWeight: '700' },
+  emptyRail: { color: TUBE.textMuted, fontSize: TFONT.sm, paddingHorizontal: TSPACE.md, paddingVertical: 12 },
+
+  scopeRow: { flexDirection: 'row', gap: 8, paddingHorizontal: TSPACE.md, marginBottom: TSPACE.sm },
+  scopeChip: { height: 32, paddingHorizontal: 14, borderRadius: TRADIUS.full, alignItems: 'center', justifyContent: 'center', backgroundColor: TUBE.glass, borderWidth: 1, borderColor: TUBE.line },
+  scopeChipActive: { backgroundColor: TUBE.text, borderColor: TUBE.text },
+  scopeChipText: { color: TUBE.textDim, fontSize: TFONT.sm, fontWeight: '700' },
+  scopeChipTextActive: { color: TUBE.bg, fontWeight: '800' },
 
   stationTile: { width: 116 },
   stationImg: { width: 116, height: 116, borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated },
   tileName: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800', marginTop: 6 },
   tileSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
-
-  clipCard: { width: 132, height: 216, borderRadius: TRADIUS.lg, overflow: 'hidden', backgroundColor: TUBE.elevated },
-  clipImg: { ...StyleSheet.absoluteFillObject },
-  clipOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.28)' },
-  clipMeta: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 10 },
-  clipTitle: { color: '#fff', fontSize: TFONT.sm, fontWeight: '800' },
-  clipChannel: { color: 'rgba(255,255,255,0.8)', fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
-  sponsorBadge: {
-    position: 'absolute', top: 8, left: 8, backgroundColor: TUBE.gold,
-    borderRadius: TRADIUS.full, paddingHorizontal: 8, paddingVertical: 3, zIndex: 2,
-  },
+  liveBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: TUBE.live, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
+  liveBadgeText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+  sponsorBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: TUBE.gold, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
   sponsorBadgeText: { color: TUBE.onAccent, fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
 
-  venueCard: { width: 240, borderRadius: TRADIUS.lg, overflow: 'hidden', backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line },
-  venueImg: { width: 240, height: 120, backgroundColor: TUBE.glass },
-  venueBody: { padding: 12 },
-  venueName: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800' },
-  venueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  venueCat: { color: TUBE.textDim, fontSize: TFONT.xs, fontWeight: '600', flex: 1 },
-  ratingChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: TUBE.glass, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
-  ratingText: { color: TUBE.text, fontSize: TFONT.xs, fontWeight: '800' },
-  earnText: { color: TUBE.green, fontSize: TFONT.xs, fontWeight: '800', marginTop: 6 },
+  rewardCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
+    padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: 'rgba(245,158,11,0.06)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)',
+  },
+  rewardIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(245,158,11,0.15)', alignItems: 'center', justifyContent: 'center' },
+  rewardTitle: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
+  rewardSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
 
-  newsCard: { width: 220 },
-  newsImg: { width: 220, height: 124, borderRadius: TRADIUS.md, backgroundColor: TUBE.elevated },
-  newsTitle: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '700', marginTop: 8, lineHeight: 18 },
+  doMoreRow: { flexDirection: 'row', gap: 10, paddingHorizontal: TSPACE.md },
+  doMoreCard: { flex: 1, padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line },
+  doMoreIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(34,211,238,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  doMoreLabel: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
+  doMoreSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
 
-  earnCta: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.xl,
+  nativeCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
+    padding: TSPACE.sm + 2, borderRadius: TRADIUS.lg, backgroundColor: 'rgba(245,158,11,0.05)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)',
+  },
+  nativeImg: { width: 64, height: 64, borderRadius: TRADIUS.md, backgroundColor: TUBE.glass },
+  nativeBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(245,158,11,0.16)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  nativeBadgeText: { color: TUBE.gold, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  nativeTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 4 },
+  nativeSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
+  nativeCta: { backgroundColor: TUBE.gold, borderRadius: TRADIUS.full, paddingHorizontal: 14, paddingVertical: 8 },
+  nativeCtaText: { color: TUBE.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
+
+  diningMember: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
+    padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: 'rgba(34,211,238,0.06)', borderWidth: 1, borderColor: 'rgba(34,211,238,0.3)',
+  },
+  diningPromo: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
     padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line,
   },
-  earnIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: TUBE.electric, alignItems: 'center', justifyContent: 'center' },
-  earnTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800' },
-  earnSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
+  diningIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: 'rgba(34,211,238,0.12)', alignItems: 'center', justifyContent: 'center' },
+  diningTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800' },
+  diningSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
 });

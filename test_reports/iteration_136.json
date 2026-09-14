@@ -1,0 +1,50 @@
+{
+  "summary": "Iter 136: E2E testing of RadioLife audio-first Home overhaul across WEB + MOBILE + shared BACKEND. Backend pytest 10/10 PASS (test_iter136_shell_home.py): GET /api/shell/home anon returns all 6 required keys (for_you, live_now, native_offer, listening_reward, dining, is_premium) with is_premium=false and listening_reward={points_per_min:1}; live_now is live-first (organic subset ordering verified); no sponsored station present (no flagship_boost_activation → truthful all-organic); native_offer, when returned, is labelled sponsored=true with title/cta/to; authed demo@bigfm.dubai (Premium + active Dining) → is_premium=true, dining.member=true. POST /api/shell/home-events allowlist enforced: home_ad_request/native_offer_impression/sponsored_station_start → {ok:true}; unknown/missing event → {ok:false, error:'unknown_event'}. WEB (Chromium 1920x4000, demo@ cookie login): anon `/` shows landing-cta-signup='Start listening free' and NO ad-leaderboard above landing; authed `/` renders data-testid=home-b (HomeB Audio V2 = default variant, classic_b) with all sections present and correct order — home-b-continue, home-b-foryou (with 'AI Radio · Live Radio · Podcasts' sub-label rendered in DOM per screenshot), home-b-live-now, home-b-listening-reward, home-b-rails (only shop/play/social — Earn rail CONFIRMED gone), home-b-native-offer with visible SPONSORED badge + home-b-native-offer-card, home-b-dining-member (demo@ is enrolled); home-b-display-ad correctly ABSENT because demo@ is Premium; ad-leaderboard suppressed on `/` but rendered on other pages (Premium suppression hides it site-wide for Premium users which is correct); 5-primary sidebar nav present (nav-home, nav-listen, nav-shop, nav-play, nav-social); variant-switcher-btn present; /listen shows listen-hub-clips + listen-hub-news. MOBILE (Expo web preview 390x844, demo-login-btn → demo@): /home renders home-header, home-points-pill (592 pts, navigates to /wallet on tap ✓), Start My Radio (home-start), For You (home-foryou-* with 'AI RADIO · LIVE RADIO · PODCASTS' sub-label), Live right now (home-live-*), home-reward (Earn +1 BigPoint), home-domore-shop/play/social, home-native-offer with SPONSORED label, home-dining, home-display-ad correctly absent (Premium). Bottom tab bar renders exactly 5 tabs (Home · Listen · Shop · Play · Social) — screenshot confirms; Wallet/Profile removed from tab bar but reachable (points pill→/wallet works). /listen shows 11 listen-clip-* and 6 listen-news-* rails; /social renders social-screen with all 5 hubs (Lobbies, Leaderboard, Passport, Trivia rooms, Predict & Win). Perfect parity between web HomeB and mobile Home. TESTABILITY GAP (non-blocking): expo-router Tabs.Screen entries in /app/mobile/app/(tabs)/_layout.tsx lack tabBarButtonTestID → the 5 tab buttons have no data-testid in the rendered web preview (tabs work + are visible, just not selectable by testID). Deprecation warnings noted in console but no red screen and no functional impact.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [
+        {"component": "TabLayout", "issue": "Bottom tabs missing tabBarButtonTestID — cannot select tabs via testID in tests. Tabs render/work correctly. Reference: /app/mobile/app/(tabs)/_layout.tsx:34-68 (add tabBarButtonTestID:'tab-home' etc)", "testID": "tab-home,tab-listen,tab-shop,tab-play,tab-social", "priority": "LOW"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' — appears across multiple mobile screens. Non-blocking on web preview but should be migrated per RN 0.76+ guidance."},
+        {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' — likely in a shared component (login/home). Non-blocking."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter136_shell_home.py",
+    "/app/test_reports/pytest/iter136.xml"
+  ],
+  "action_items": [
+    "(LOW) Add tabBarButtonTestID:'tab-home'|'tab-listen'|'tab-shop'|'tab-play'|'tab-social' to the five Tabs.Screen entries in /app/mobile/app/(tabs)/_layout.tsx so automated tests can select them by testID (they currently render + work correctly but are unselectable).",
+    "(LOW) Migrate shadow* style props → boxShadow across mobile components (RN 0.76+ deprecation). Grep '\\bshadow(Color|Offset|Opacity|Radius)' in /app/mobile/app and /app/mobile/src.",
+    "(LOW) Migrate props.pointerEvents → style.pointerEvents on the component still using the old form."
+  ],
+  "critical_code_review_comments": [
+    "routes/shell.py:413-464 — GET /api/shell/home has NO caching; every home render hits imported_radio_stations (200 profiles for /venues equivalent), campaigns, marketplace_promotions, marketplace_profiles, flagship_boost_activations, plus per-user playback_logs (60 rows) + dining_club subscription. With 12 flagships × frequent Home visits, consider a 15-30s in-memory or Redis cache per (user_id, city) — especially for anon which is fully cacheable.",
+    "routes/shell.py:314-349 (_personalize) — playback_logs sort by _id descending assumes MongoDB ObjectId ordering, which is monotonically-increasing but NOT strictly time-ordered under sharded clusters. Prefer sort('created_at', -1) with a compound index if this collection scales.",
+    "routes/shell.py:467-491 — home-events writer has no index hint / TTL; home_ad_events will grow unbounded. Add TTL index on 'ts' (e.g. 90 days) or move ingest to a queue.",
+    "HomeB.jsx:62-68 — /shell/home fetched on every mount with no in-flight guard or SWR-style dedupe; a fast route toggle can fire duplicate GETs. Non-blocking but wasteful; consider useShellData-style store.",
+    "HomeB.jsx:29-43 (scopeByChip) — 'trending' sort is stable-ish but re-sorts on every render because forYou is derived inline; memoize with useMemo(([stationSet, chip, city])).",
+    "AppShellB.jsx:151-153 — value-before-advertising: correctly hides AdLeaderboard on '/'. Ensure this remains keyed on pathname === '/' exactly (not startsWith) so /home routes on mobile stay clean.",
+    "AppShellB.jsx:378-386 (AdLeaderboard) — hides for Premium AND on '/'. Good, but this means Premium users NEVER see any banner; the display-ad section on HomeB is also gated by is_premium. Confirmed: Premium sees zero display ads app-wide, which matches value-before-advertising doctrine.",
+    "shell.py native_offer prefers marketplace_promotions but does not filter by city/market despite receiving city — the parameter is dead code. Either wire it into the marketplace_profiles query or drop it from the signature."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter136_shell_home.py (NEW — 10 tests, 10/10 pass)"],
+  "success_rate": {
+    "backend": "100% (10/10)",
+    "frontend": "web 100% (HomeB default variant + full section order + 5-nav + variant-switcher + Listen hub + landing CTA); mobile 100% (home-header + points-pill→wallet + full section order + 5-tab bar visible + Listen clips/news + Social 5-hub)"
+  },
+  "test_credentials": "Used demo@bigfm.dubai / DemoPass123! on web (cookie login) and demo-login-btn on mobile (bearer). demo@ is Premium + Dining member per /app/memory/test_credentials.md.",
+  "seed_data_creation": "None. Existing seed intact.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 136 verifies the audio-first Home rollout end-to-end. Key testIDs: WEB HomeB uses data-testid='home-b' + section IDs home-b-{continue,foryou,live-now,listening-reward,rails,native-offer,dining-member|promo,display-ad}; live-now uses home-b-live-sponsored for the (currently absent) reserved sponsored slot and home-b-live-<slug> for organic. WEB nav: nav-home/nav-listen/nav-shop/nav-play/nav-social; mobile-web bottom-tabs (AppShellB MobileShell) use tab-home/tab-listen/tab-shop/tab-play/tab-social. MOBILE Expo Home uses testIDs home-header/home-points-pill/home-start (or home-continue)/home-foryou-*/home-live-*/home-reward/home-domore-{shop,play,social}/home-native-offer/home-dining/home-display-ad. Backend endpoints: GET /api/shell/home (anon+authed), POST /api/shell/home-events (allowlist=8 events, unknown→ok:false). To make a sponsored station appear in live_now: insert a flagship_boost_activations doc {status:'live', station_id:<id>, advertiser_business_id:<biz>}. To make native_offer show, ensure marketplace_promotions has {status:'active', business_id:<biz>} pointing at an approved non-TEST marketplace_profile, OR an active campaign with clip_image_url. WEB `/` correctly suppresses AdLeaderboard (isAdminRoute false && pathname!=='/'), and BannerAdSlot suppresses for Premium — meaning Premium users see no banner ads app-wide (confirmed).",
+  "rca of the issue": ""
+}

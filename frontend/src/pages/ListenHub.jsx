@@ -2,18 +2,31 @@
 // My Radio one-tap lives at the top; the classic Radio hub is kept as a
 // secondary "option 2" link on top; below are the live flagship stations
 // plus quick links to Browse / News Radio / Podcasts.
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Play, Pause, Radio as RadioIcon, Sparkles, ChevronRight,
-  Newspaper, Podcast, Search, Headphones,
+  Newspaper, Podcast, Search, Headphones, Film,
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useShellSummary, fmtCount } from "@/shell/useShellData";
+import axios from "axios";
+import { API } from "@/AuthContext";
 
 export default function ListenHub() {
   const navigate = useNavigate();
   const summary = useShellSummary();
+  const [clips, setClips] = useState([]);
+  const [news, setNews] = useState([]);
+
+  useEffect(() => {
+    let cancel = false;
+    axios.get(`${API}/shell/clips`, { params: { limit: 10 }, withCredentials: true })
+      .then((r) => { if (!cancel) setClips(r.data?.items || []); }).catch(() => {});
+    axios.get(`${API}/news/headlines`, { params: { limit: 6 }, withCredentials: true })
+      .then((r) => { if (!cancel) setNews(r.data?.items || []); }).catch(() => {});
+    return () => { cancel = true; };
+  }, []);
 
   const currentSeg = usePlayerStore((s) => s.currentSeg);
   const importedStation = usePlayerStore((s) => s.importedStation);
@@ -142,6 +155,64 @@ export default function ListenHub() {
                 <div className="p-2">
                   <div className="text-[13px] font-semibold truncate">{s.name}</div>
                 </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Clips — RJ moments (moved off Home) */}
+      {clips.length > 0 && (
+        <section data-testid="listen-hub-clips">
+          <div className="flex items-center gap-2 mb-3">
+            <Film size={17} className="text-accent-electric" />
+            <h2 className="text-lg font-bold">Clips</h2>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-text-secondary">RJ moments</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1" data-testid="listen-hub-clips-row">
+            {clips.map((c) => (
+              <button type="button" key={c.id}
+                onClick={() => (c.business_id ? navigate("/shop") : navigate(`/radio?ch=${encodeURIComponent(c.slug || "")}`))}
+                data-testid={`listen-hub-clip-${c.id}`}
+                className="group relative shrink-0 w-[132px] h-[216px] rounded-token-md overflow-hidden border border-white/[0.06] bg-bg-elevated text-left">
+                {c.image
+                  ? <img src={c.image} alt="" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  : <div className="absolute inset-0 grid place-items-center"><RadioIcon size={24} className="text-text-secondary" /></div>}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                {c.sponsored && (
+                  <span className="absolute top-2 left-2 text-[8px] font-black px-1.5 py-0.5 rounded-full bg-accent-gold text-black tracking-widest">SPONSORED</span>
+                )}
+                <div className="absolute inset-x-0 bottom-0 p-2.5">
+                  <div className="text-[13px] font-bold text-white line-clamp-2">{c.title}</div>
+                  <div className="text-[11px] text-white/80 truncate">{c.channel}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* News — headlines (moved off Home) */}
+      {news.length > 0 && (
+        <section data-testid="listen-hub-news">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Newspaper size={17} className="text-accent-electric" />
+              <h2 className="text-lg font-bold">News</h2>
+            </div>
+            <Link to="/radio/news" data-testid="listen-hub-news-seeall"
+              className="text-sm font-semibold text-accent-electric hover:underline flex items-center gap-1">
+              News Radio <ChevronRight size={15} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" data-testid="listen-hub-news-grid">
+            {news.slice(0, 6).map((n, idx) => (
+              <Link key={n.id || idx} to="/news" data-testid={`listen-hub-news-${idx}`}
+                className="flex items-center gap-3 rounded-token-md border border-white/[0.06] bg-bg-elevated p-3 hover:border-accent-electric/40 transition-colors">
+                {n.image_url
+                  ? <img src={n.image_url} alt="" className="w-14 h-14 rounded-token-sm object-cover shrink-0" />
+                  : <div className="w-14 h-14 rounded-token-sm bg-black/30 grid place-items-center shrink-0"><Newspaper size={18} className="text-text-secondary" /></div>}
+                <div className="text-[13.5px] font-semibold line-clamp-2">{n.headline_text || n.title || n.headline}</div>
               </Link>
             ))}
           </div>

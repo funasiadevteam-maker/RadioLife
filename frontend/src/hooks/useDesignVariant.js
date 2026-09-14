@@ -14,7 +14,7 @@ const QP_KEY = "design";
 const VALID = new Set(["legacy", "classic_b", "radiolife"]);
 
 function _clamp(v) {
-  return VALID.has(v) ? v : "legacy";
+  return VALID.has(v) ? v : "classic_b";
 }
 
 function readQueryVariant() {
@@ -47,7 +47,7 @@ function readInitial() {
     const v = typeof window !== "undefined" && window.localStorage.getItem(LS_KEY);
     return _clamp(v);
   } catch {
-    return "legacy";
+    return "classic_b";
   }
 }
 

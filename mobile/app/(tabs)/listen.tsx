@@ -41,15 +41,19 @@ export default function ListenScreen() {
   const [rails, setRails] = useState<Record<string, any[]>>({});
   const [aiChannels, setAiChannels] = useState<any[]>([]);
   const [podcasts, setPodcasts] = useState<any[]>([]);
+  const [clips, setClips] = useState<any[]>([]);
+  const [news, setNews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
-      const [disc, chans, pods] = await Promise.allSettled([
+      const [disc, chans, pods, cl, nw] = await Promise.allSettled([
         api.get('/radio/discover'),
         api.get('/channels'),
         api.get('/podcasts/discover'),
+        api.get('/shell/clips', { params: { limit: 10 } }),
+        api.get('/news/headlines', { params: { limit: 6 } }),
       ]);
       if (disc.status === 'fulfilled') {
         const map: Record<string, any[]> = {};
@@ -58,6 +62,8 @@ export default function ListenScreen() {
       }
       if (chans.status === 'fulfilled') setAiChannels(chans.value.data.channels || []);
       if (pods.status === 'fulfilled') setPodcasts(pods.value.data.channels || []);
+      if (cl.status === 'fulfilled') setClips((cl.value as any).data?.items || []);
+      if (nw.status === 'fulfilled') setNews((nw.value as any).data?.items || []);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -197,6 +203,56 @@ export default function ListenScreen() {
                   ))}
                 </ScrollView>
               </>
+            )}
+
+            {/* Clips — RJ moments (moved off Home) */}
+            {clips.length > 0 && (
+              <View testID="listen-clips">
+                <View style={s.sectionHeader}>
+                  <Ionicons name="film" size={16} color={COLORS.primary} />
+                  <Text style={s.sectionTitle}>Clips</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.railContent}>
+                  {clips.map((c) => (
+                    <TouchableOpacity key={c.id} testID={`listen-clip-${c.id}`} activeOpacity={0.85}
+                      style={{ width: 128, height: 210, borderRadius: RADIUS.lg, overflow: 'hidden', backgroundColor: COLORS.card }}
+                      onPress={() => (c.business_id ? router.push('/(tabs)/shop') : router.push('/(tabs)/radio'))}>
+                      <SafeImage uri={resolveImg(c.image)} fallbackText={c.title} size={128} borderRadius={0} style={{ position: 'absolute', width: 128, height: 210 }} />
+                      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 9, backgroundColor: 'rgba(0,0,0,0.45)' }}>
+                        {c.sponsored && (
+                          <View style={{ alignSelf: 'flex-start', backgroundColor: COLORS.gold, borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2, marginBottom: 4 }}>
+                            <Text style={{ color: '#0a0a0c', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 }}>SPONSORED</Text>
+                          </View>
+                        )}
+                        <Text style={{ color: '#fff', fontSize: FONT.sm, fontWeight: '800' }} numberOfLines={2}>{c.title}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: FONT.xs, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>{c.channel}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* News — headlines (moved off Home) */}
+            {news.length > 0 && (
+              <View testID="listen-news">
+                <View style={s.sectionHeader}>
+                  <Ionicons name="newspaper" size={16} color={COLORS.primary} />
+                  <Text style={s.sectionTitle}>News</Text>
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/news')} testID="listen-more-news"><Text style={s.more}>News Radio</Text></TouchableOpacity>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.railContent}>
+                  {news.slice(0, 6).map((n, idx) => (
+                    <TouchableOpacity key={n.id || idx} testID={`listen-news-${idx}`} activeOpacity={0.85}
+                      style={{ width: 220 }} onPress={() => router.push('/(tabs)/news')}>
+                      <SafeImage uri={resolveImg(n.image_url)} fallbackText={n.headline_text || n.title || 'News'} size={220} borderRadius={RADIUS.md} style={{ height: 124 }} />
+                      <Text style={{ color: COLORS.text, fontSize: FONT.sm, fontWeight: '700', marginTop: 8, lineHeight: 18 }} numberOfLines={3}>
+                        {n.headline_text || n.title || n.headline}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
             )}
           </>
         )}
