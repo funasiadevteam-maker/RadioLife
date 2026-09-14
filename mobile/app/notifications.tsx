@@ -52,7 +52,16 @@ export default function NotificationsScreen() {
   const notifIcon = (type: string) =>
     type === 'giveaway_winner' ? 'trophy'
     : type === 'new_comment' ? 'chatbubble'
+    : type === 'coupon_restock' ? 'game-controller'
     : type === 'post_reaction_milestone' ? 'heart' : 'notifications';
+
+  const openNotif = (n: any) => {
+    markRead(n);
+    const p = n.payload || {};
+    if (n.type === 'coupon_restock') {
+      router.push((p.play_route || (p.campaign_id ? `/game/${p.campaign_id}` : '/store/adv_fpk')) as any);
+    }
+  };
 
   const notifText = (n: any): { title: string; body: string } => {
     const p = n.payload || {};
@@ -62,6 +71,10 @@ export default function NotificationsScreen() {
     }
     if (n.type === 'new_comment') {
       return { title: `New comment on ${p.station_name || 'your station'}`, body: p.comment_excerpt || '' };
+    }
+    if (n.type === 'coupon_restock') {
+      return { title: `“${p.campaign_title || 'Coupons'}” just restocked 🎟️`,
+               body: 'Tap to play now before it sells out again!' };
     }
     if (n.type === 'post_reaction_milestone') {
       return { title: `${p.total_reactions} reactions on ${p.station_name || 'your post'}`, body: `Milestone: ${p.milestone}` };
@@ -108,7 +121,7 @@ export default function NotificationsScreen() {
             const { title, body } = notifText(n);
             const unread = !n.read_at;
             return (
-              <TouchableOpacity key={n.id} onPress={() => markRead(n)} activeOpacity={0.8}
+              <TouchableOpacity key={n.id} onPress={() => openNotif(n)} activeOpacity={0.8}
                 testID={`notif-item-${n.id}`}
                 style={[st.feedRow, i < feed.length - 1 && st.prefBorder]}>
                 <View style={[st.feedIcon, unread && { backgroundColor: COLORS.primary + '22' }]}>

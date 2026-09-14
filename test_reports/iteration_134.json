@@ -1,0 +1,43 @@
+{
+  "summary": "Iter 134: Pair-2 follow-on extensions (Restock Countdown + Waitlist Auto-Play) tested end-to-end on web + mobile. ALL flows PASS on both surfaces with full parity. Backend regression (test_iter134_restock_ext.py) 4/4 green: (a) GET /api/store/adv_fpk exposes resets_at and cmp_fpk_spin sold-out; (b) GET /api/me/notifications returns coupon_restock with payload.campaign_id='cmp_fpk_spin', payload.play_url='/play/cmp_fpk_spin', payload.play_route='/game/cmp_fpk_spin'; (c) GET /api/user/notifications/inbox returns the same as a merged non-sponsored row with target_url='/play/cmp_fpk_spin'; (d) POST /api/admin/waitlist/dispatch idempotent. WEB /store/adv_fpk: sold-out card store-game-cmp_fpk_spin shows store-game-cmp_fpk_spin-restock '🔔 Restocks in 18:20:28' and ticked to 18:20:26 after ~2s. Non-sold-out cards (cmp_fpk_scratch/quiz/mystery) do NOT render a restock line. WEB /notifications: found notification-inbox-row-notif_6b182c7ffceb45 titled '“FPK Spin & Save” just restocked 🎟️', href='/play/cmp_fpk_spin', data-sponsored='false' — clicking navigated to /play/cmp_fpk_spin ✅. MOBILE /store/adv_fpk (Expo web preview after demo-login-btn): store-game-cmp_fpk_spin-restock '🔔 Restocks in 18:19:33' -> 18:19:31 (tick verified). MOBILE /notifications (notif-inbox): notif-item-notif_6b182c7ffceb45 with '“FPK Spin & Save” just restocked 🎟️' text and game-controller icon — tap navigated router.push to /game/cmp_fpk_spin ✅. No new bugs. No parity issues. Same notif_id across surfaces confirms shared inbox.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter134_restock_ext.py",
+    "/app/test_reports/pytest/iter134.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "StorePage.jsx + mobile/app/store/[id].tsx: fmtHMS is duplicated across web and mobile (identical body). Consider extracting to a shared util if you accumulate more time formatters — non-blocking.",
+    "StorePage.jsx: interval runs at 1000ms whenever the page is mounted; if user leaves the tab open for hours the countdown will (correctly) show 00:00:00 past midnight — no auto-refresh of /api/store data at that boundary. If desired, main agent could re-fetch when restockMs crosses 0 to hydrate the new day's remaining_today. Non-blocking for this iteration.",
+    "Notifications.jsx FullRow: for non-sponsored coupon_restock rows the click still opens in the same tab via <Link> (correct); no analytics fire on click (only sponsored rows POST /click). If product wants CTR on organic waitlist auto-play, add a fire-and-forget click ping. Non-blocking.",
+    "mobile notifications.tsx openNotif: relies on p.play_route ?? `/game/{campaign_id}` — payload confirmed to include play_route so the fallback is defensive. Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter134_restock_ext.py (NEW — 4 tests, 4/4 pass)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "web 100% (restock countdown ticks; non-soldout cards no restock; /notifications row href=/play/cmp_fpk_spin; click navigates); mobile 100% (restock countdown ticks; notif-item tap navigates to /game/cmp_fpk_spin)"},
+  "test_credentials": "web: demo@bigfm.dubai / DemoPass123! (cookie via POST /api/auth/login); admin@bigfm.dubai / AdminPass123! for /api/admin/waitlist/dispatch. mobile: demo-login-btn -> demo@bigfm.dubai bearer.",
+  "seed_data_creation": "None. Tests re-add demo@ to the cmp_fpk_spin waitlist via POST /api/store/adv_fpk/waitlist and, if the coupon_restock notification is missing, call POST /api/admin/waitlist/dispatch to (re)generate it before assertions. Notification id notif_6b182c7ffceb45 was consumed (marked read) by the mobile flow — the row still exists in the inbox (dedupe per user+campaign+day).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Restock Countdown + Waitlist Auto-Play are green on both surfaces. demo@ remains on the cmp_fpk_spin waitlist and has the coupon_restock notification (id shared across web/mobile). Countdown label uses client-local resets_at (next UTC midnight) and format fmtHMS(ms) -> HH:MM:SS; tick verified across ~2s. Non-sold-out cards correctly omit the restock line (soldOut && restockMs != null gate). No changes needed by main agent.",
+  "rca of the issue": ""
+}

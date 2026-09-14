@@ -81,6 +81,8 @@ async def _notify_waiter(db, entry: dict) -> None:
                 "campaign_title": title,
                 "advertiser_id": entry.get("advertiser_id"),
                 "store_url": store_url,
+                "play_url": f"/play/{camp_id}",
+                "play_route": f"/game/{camp_id}",
                 "message": f"“{title}” just restocked — play now before it sells out again!",
             },
             dedupe_key=f"restock:{uid}:{camp_id}:{_today_str()}",
@@ -94,7 +96,8 @@ async def _notify_waiter(db, entry: dict) -> None:
             [uid],
             {"title": "Coupons back in stock 🎟️",
              "message": f"“{title}” just restocked — play now!",
-             "action_url": store_url},
+             "action_url": store_url,
+             "deeplink": f"/game/{camp_id}"},
             idempotency_key=f"restock:{uid}:{camp_id}:{_today_str()}",
         )
     except Exception as e:

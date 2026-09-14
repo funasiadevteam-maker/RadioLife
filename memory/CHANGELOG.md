@@ -2,6 +2,11 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09 — Restock Countdown + Waitlist Auto-Play (validated iter134, web + mobile)
+
+- **Restock Countdown**: sold-out storefront game cards now show a LIVE ticking "🔔 Restocks in HH:MM:SS" to the daily UTC-midnight reset (1s ticker in web `StorePage.jsx` + mobile `store/[id].tsx`, driven by the store's `resets_at`).
+- **Waitlist Auto-Play**: the restock notification deep-links straight into the game in one tap. Backend enriches the `coupon_restock` payload with `play_url` (`/play/{id}`, web) + `play_route` (`/game/{id}`, mobile) and the push `data.deeplink`; `ad12_notification_service._system_*` maps `coupon_restock` into the merged web inbox with `target_url=/play/{id}` (the inbox row is already a Link); mobile `notifications.tsx` renders the item (game-controller icon) and navigates on tap.
+
 ## 2026-09 — Waitlist Inbox + Restock Teaser (validated iter133, web + mobile)
 
 - **Waitlist Inbox**: a "Waitlisted" row on the My Coupons view (web `CouponOffers.jsx` `WaitlistBlock`, mobile `coupons.tsx` `waitlistSection`) lists the FPK games the user is waiting on with a Stop/Leave action. Reuses `GET /api/me/waitlist` + `POST /api/store/{id}/waitlist/leave` (no backend change). Rendered as the My Coupons header so it shows even with zero coupons.

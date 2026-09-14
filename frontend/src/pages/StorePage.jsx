@@ -16,12 +16,27 @@ const GAME_ICON = {
   mystery_box: "🎁", memory_match: "🧠", word_puzzle: "🔤", pick_a_card: "🃏",
 };
 
+function fmtHMS(ms) {
+  if (ms == null || ms <= 0) return "00:00:00";
+  const s = Math.floor(ms / 1000);
+  const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+  const ss = String(s % 60).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
+
 export default function StorePage() {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [waitlisted, setWaitlisted] = useState(new Set());
   const [joining, setJoining] = useState(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     setData(null); setError(null);
@@ -65,9 +80,7 @@ export default function StorePage() {
 
   const { brand, games, coupons_left_today, resets_at } = data;
   const accent = brand.primary || "#0aa54b";
-  const restockLabel = resets_at
-    ? new Date(resets_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : null;
+  const restockMs = resets_at ? new Date(resets_at).getTime() - now : null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white" data-testid="store-page">
@@ -166,10 +179,10 @@ export default function StorePage() {
                       </span>
                     )}
                   </div>
-                  {soldOut && restockLabel && (
-                    <div className="mt-2 text-[11px] text-white/50 flex items-center gap-1"
+                  {soldOut && restockMs != null && (
+                    <div className="mt-2 text-[11px] text-amber-400/90 font-black flex items-center gap-1 tabular-nums"
                          data-testid={`store-game-${g.campaign_id}-restock`}>
-                      🔔 Fresh coupons drop at {restockLabel}
+                      🔔 Restocks in {fmtHMS(restockMs)}
                     </div>
                   )}
                 </>

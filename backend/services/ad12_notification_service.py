@@ -372,6 +372,9 @@ def _system_title(n: dict) -> str:
     if n.get("type") == "post_reaction_milestone":
         m = (n.get("payload") or {}).get("milestone")
         return f"Your post hit {m} reactions"
+    if n.get("type") == "coupon_restock":
+        t = (n.get("payload") or {}).get("campaign_title") or "Coupons"
+        return f"“{t}” just restocked 🎟️"
     return "New activity"
 
 
@@ -381,11 +384,15 @@ def _system_body(n: dict) -> str:
         return (p.get("comment_excerpt") or "")[:120]
     if n.get("type") == "post_reaction_milestone":
         return f"{p.get('total_reactions') or ''} total reactions"
+    if n.get("type") == "coupon_restock":
+        return "Play now before it sells out again!"
     return ""
 
 
 def _system_deeplink(n: dict) -> str:
     p = n.get("payload") or {}
+    if n.get("type") == "coupon_restock":
+        return p.get("play_url") or (f"/play/{p.get('campaign_id')}" if p.get("campaign_id") else "/play")
     slug = n.get("station_slug")
     pid = p.get("post_id") or n.get("related_post_id")
     if pid:
