@@ -2,6 +2,18 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09 — Coupon QR Passes + Contextual Store Links (Pair 1, validated iter131)
+
+- **Coupon QR Passes** (web + mobile): every owned coupon (from any of the 3 engines — games_v2 wallet items, ad-saved `db.coupons`, `/play` game wins) can mint ONE scannable QR pass and be settled in-store via a single redeem path. NEW `routes/coupon_pass.py`: `POST /api/me/coupons/pass {source,id}` (idempotent, returns a `clp_` token + PNG `qr_data_uri`), `GET /api/coupons/pass/{token}` (merchant preview), `POST /api/coupons/redeem/{token}` (staff-only: admin/advertiser/merchant; one-time; syncs the underlying source record). Web: "Show QR" modal in My Coupons (`CouponOffers.jsx`). Mobile: RN Modal QR in `coupons.tsx`.
+- **Contextual "Shop this sponsor" links** (web + mobile): NEW `/api/sponsors/{advertiser_id}/store` resolver + `store` object injected into `/api/ads/current` (web ActionCard `ad-shop-sponsor`) and `/api/banner/serve` (mobile `AdBanner` chip) — appears only for sponsors whose advertiser runs an active storefront (games).
+
+## 2026-09 — Sold-Out Waitlist + Picture-in-Picture (Pair 2, validated iter132 + fixes)
+
+- **Sold-Out Waitlist "Remind me"** (web + mobile): when an FPK coupon game is sold out for the day, listeners tap "Remind me" to join a per-campaign waitlist and are pinged on restock via an in-app notification (`station_notifications` `coupon_restock`) AND a best-effort mobile push. NEW `routes/coupon_waitlist.py`: `POST /api/store/{advertiser_id}/waitlist`, `/waitlist/leave`, `GET /api/me/waitlist`, `POST /api/admin/waitlist/dispatch` (force-notify by default). Auto-dispatch piggybacks (rate-limited) on the public scarcity poll so restocks after the UTC-midnight reset ping on first traffic — no cron. Storefront cards (web `StorePage.jsx` + mobile `store/[id].tsx`) swap the Play CTA for Remind-me / "On waitlist" when `remaining_today==0`.
+- **Picture-in-Picture for video podcasts**: WEB — NEW `components/PipVideoPlayer.jsx` floating player using `HTMLVideoElement.requestPictureInPicture()`, wired into the mounted `pages/PodcastDetail.jsx` (+ RadioLife variant) via a per-episode "Watch" button that lazy-loads `/api/podcasts/episodes/{id}/media`. MOBILE — expo-video `VideoView` PiP (`mobile-episode-pip-btn`, `allowsPictureInPicture`, `app.json supportsPictureInPicture:true`) was already present; added the hint testID.
+- **⚠️ BUILD-ONLY**: mobile push (waitlist restock) and mobile PiP only work on a Published native build — NOT in Expo Go / web preview. Mobile push additionally needs the user's Firebase `google-services.json`. Push send reuses the existing Emergent relay (`services/push_service.send_push`); registration (`_layout.tsx` + `registerForPush` + app.json plugin) was already wired.
+- QA seed: `scripts/seed_pair2_testdata.py` marks `cmp_fpk_spin` sold-out for the day + gives episode `ep_ui_demo` (channel `ch_ui_demo`) a sample video.
+
 ## 2026-09 — P1 Consumer Storefront & Discovery (web + mobile, validated iter130 FULL GREEN)
 
 Built on the existing FPK sponsored-coupon games engine (advertiser `adv_fpk`, 7 games `cmp_fpk_*`, 5 coupon tiers 10/20/30/40/50% off with per-day caps 200/100/40/15/5). NEW `backend/routes/storefront.py` (read-only, platform-agnostic) wired in `server.py`:

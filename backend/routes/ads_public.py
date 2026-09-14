@@ -199,9 +199,18 @@ async def current_ad(request: Request, session_id: str = Query(...)):
     cmp = await db.campaigns.find_one({"campaign_id": pod["campaign_id"]})
     biz = await db.businesses.find_one({"business_id": cmp.get("business_id") if cmp else None})
     actions = await db.ad_action_cards.find({"campaign_id": pod["campaign_id"], "enabled": True}).sort([("display_order", 1)]).to_list(length=20)
+    # P1.2 — contextual "Shop this sponsor" store link (if the sponsor runs a storefront)
+    store = None
+    try:
+        from routes.storefront import resolve_sponsor_store
+        adv_id = (cmp or {}).get("advertiser_id") or (cr or {}).get("advertiser_id")
+        store = await resolve_sponsor_store(db, adv_id)
+    except Exception:
+        store = None
     return {"has_ad": True,
             "ad_pod": _ser(pod), "creative": _ser(cr),
             "campaign": _ser(cmp), "business": _ser(biz),
+            "store": store,
             "action_cards": [_ser(a) for a in actions]}
 
 

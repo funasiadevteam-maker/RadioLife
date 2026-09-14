@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TouchableOpacity, Image, StyleSheet, Linking, View, Text } from 'react-native';
+import { useRouter } from 'expo-router';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
@@ -17,6 +18,7 @@ export default function AdBanner({ zone, country, language, style }: {
   zone: string; country?: string | null; language?: string | null; style?: any;
 }) {
   const { user } = useAuth();
+  const router = useRouter();
   const isPremium = !!(user?.is_premium || (user?.premium_tier && user.premium_tier !== 'free'));
   const [ad, setAd] = useState<any>(null);
 
@@ -50,6 +52,15 @@ export default function AdBanner({ zone, country, language, style }: {
     <TouchableOpacity style={[s.wrap, style]} onPress={onPress} activeOpacity={0.9} testID={`ad-banner-${zone}`}>
       <Image source={{ uri: ad.creative_url }} style={s.img} resizeMode="cover" />
       <View style={s.adTag}><Text style={s.adTagText}>AD{ad.cta_text ? ` · ${ad.cta_text}` : ''}</Text></View>
+      {ad.store?.has_store && (
+        <TouchableOpacity
+          style={s.shopChip}
+          onPress={() => router.push(ad.store.store_url)}
+          testID={`ad-shop-sponsor-${zone}`}
+        >
+          <Text style={s.shopChipText}>Shop {ad.store.name} ›</Text>
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
@@ -63,4 +74,6 @@ const s = StyleSheet.create({
   img: { width: '100%', height: 96 },
   adTag: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: RADIUS.sm, paddingHorizontal: 6, paddingVertical: 2 },
   adTagText: { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  shopChip: { position: 'absolute', bottom: 6, right: 6, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 4 },
+  shopChipText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 });

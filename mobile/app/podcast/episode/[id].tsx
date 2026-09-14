@@ -351,7 +351,7 @@ function EpisodeVideoBlock({ media }: { media: any }) {
         <Ionicons name="scan-outline" size={16} color={COLORS.primary} />
         <Text style={st.pipText}>Picture-in-Picture</Text>
       </TouchableOpacity>
-      <Text style={st.pipHint}>Available on the installed app (not the web preview).</Text>
+      <Text style={st.pipHint} testID="mobile-episode-pip-hint">Available on the installed app (not the web preview).</Text>
       {chapters.length > 0 && (
         <View testID="mobile-episode-chapters" style={{ marginTop: SPACING.md }}>
           <Text style={common.sectionTitle}>Chapters</Text>

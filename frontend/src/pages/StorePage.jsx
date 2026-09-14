@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import axios from "axios";
 import {
-  Loader2, Gamepad2, ArrowRight, Ticket, ChevronLeft, Store as StoreIcon,
+  Loader2, Gamepad2, ArrowRight, Ticket, ChevronLeft, Store as StoreIcon, BellRing, Check,
 } from "lucide-react";
 import { CouponScarcityStrip } from "@/components/CouponScarcityStrip";
 
@@ -20,13 +20,26 @@ export default function StorePage() {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [waitlisted, setWaitlisted] = useState(new Set());
+  const [joining, setJoining] = useState(null);
 
   useEffect(() => {
     setData(null); setError(null);
     axios.get(`${API}/store/${id}`)
       .then((r) => setData(r.data))
       .catch((e) => setError(e?.response?.data?.detail?.code || e?.response?.data?.detail || e.message));
+    axios.get(`${API}/me/waitlist`)
+      .then((r) => setWaitlisted(new Set(r.data.campaign_ids || [])))
+      .catch(() => {});
   }, [id]);
+
+  const joinWaitlist = async (campaignId) => {
+    setJoining(campaignId);
+    try {
+      await axios.post(`${API}/store/${id}/waitlist`, { campaign_id: campaignId });
+      setWaitlisted((s) => new Set(s).add(campaignId));
+    } catch (e) { /* ignore */ } finally { setJoining(null); }
+  };
 
   if (error) {
     return (
@@ -107,13 +120,9 @@ export default function StorePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="store-games">
             {games.map((g) => {
               const soldOut = g.is_coupon_game && g.remaining_today !== null && g.remaining_today <= 0;
-              return (
-                <Link
-                  key={g.campaign_id}
-                  to={g.play_route}
-                  data-testid={`store-game-${g.campaign_id}`}
-                  className="group relative rounded-2xl overflow-hidden bg-slate-900/70 border border-white/10 hover:border-white/25 transition p-5 flex flex-col"
-                >
+              const onWaitlist = waitlisted.has(g.campaign_id);
+              const inner = (
+                <>
                   <div className="text-4xl mb-3">{GAME_ICON[g.game_type] || "🎮"}</div>
                   <div className="font-black text-lg leading-tight">{g.title}</div>
                   <div className="text-xs text-white/50 mt-1 line-clamp-2 flex-1">{g.description}</div>
@@ -129,11 +138,42 @@ export default function StorePage() {
                         </span>
                       )
                     ) : <span className="text-[11px] text-white/40">BigPoints</span>}
-                    <span className="inline-flex items-center gap-1 text-sm font-black px-3 py-1.5 rounded-full transition"
-                          style={{ background: accent, color: "#0a0a0b" }}>
-                      Play <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
+                    {soldOut ? (
+                      onWaitlist ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400"
+                              data-testid={`store-game-${g.campaign_id}-waitlisted`}>
+                          <Check className="w-3.5 h-3.5" /> On waitlist
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => joinWaitlist(g.campaign_id)}
+                          disabled={joining === g.campaign_id}
+                          data-testid={`store-game-${g.campaign_id}-remindme`}
+                          className="inline-flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 transition">
+                          {joining === g.campaign_id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <BellRing className="w-3.5 h-3.5" />} Remind me
+                        </button>
+                      )
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-sm font-black px-3 py-1.5 rounded-full transition"
+                            style={{ background: accent, color: "#0a0a0b" }}>
+                        Play <ArrowRight className="w-3.5 h-3.5" />
+                      </span>
+                    )}
                   </div>
+                </>
+              );
+              const cardCls = "group relative rounded-2xl overflow-hidden bg-slate-900/70 border border-white/10 hover:border-white/25 transition p-5 flex flex-col";
+              return soldOut ? (
+                <div key={g.campaign_id} data-testid={`store-game-${g.campaign_id}`} className={cardCls}>
+                  {inner}
+                </div>
+              ) : (
+                <Link key={g.campaign_id} to={g.play_route}
+                      data-testid={`store-game-${g.campaign_id}`} className={cardCls}>
+                  {inner}
                 </Link>
               );
             })}

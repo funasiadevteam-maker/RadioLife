@@ -260,6 +260,12 @@ async def serve(request: Request,
         session_id=session_id)
     if not out:
         return {"banner": None, "zone": zone}
+    # P1.2 — attach sponsor store link if the advertiser runs a storefront
+    try:
+        from routes.storefront import resolve_sponsor_store
+        out["store"] = await resolve_sponsor_store(db, out.get("advertiser_id"))
+    except Exception:
+        out["store"] = None
     return {"banner": out, "zone": zone}
 
 

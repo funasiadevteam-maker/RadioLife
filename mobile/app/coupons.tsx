@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
-  SafeAreaView, Alert, RefreshControl,
+  SafeAreaView, Alert, RefreshControl, Modal, Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -191,6 +191,18 @@ export default function CouponsScreen() {
 // P1 — "My Coupons": the user's owned coupons unified across engines.
 function MyCouponsList({ mine, loading, router }: { mine: any[] | null; loading: boolean; router: any }) {
   const SOURCE_LABEL: Record<string, string> = { game_win: 'Game win', saved: 'Saved', wallet: 'Wallet' };
+  const [pass, setPass] = useState<any>(null); // {loading, data, error, coupon}
+
+  const openPass = async (c: any) => {
+    setPass({ loading: true, coupon: c });
+    try {
+      const r = await api.post('/me/coupons/pass', { source: c.source, id: c.id });
+      setPass({ loading: false, data: r.data, coupon: c });
+    } catch (e: any) {
+      setPass({ loading: false, error: e?.response?.data?.detail || 'Could not load QR', coupon: c });
+    }
+  };
+
   if (loading || mine === null) {
     return <View style={st.emptyWrap} testID="mycoupons-loading"><ActivityIndicator color={COLORS.primary} /></View>;
   }
@@ -230,9 +242,44 @@ function MyCouponsList({ mine, loading, router }: { mine: any[] | null; loading:
             {c.expires_at ? (
               <Text style={st.myExpiry}>Expires {new Date(c.expires_at).toLocaleDateString()}</Text>
             ) : null}
+            <TouchableOpacity
+              style={[st.qrBtn, redeemed && st.qrBtnDisabled]}
+              disabled={redeemed}
+              onPress={() => openPass(c)}
+              testID={`mycoupon-${c.id}-showqr`}>
+              <Ionicons name="qr-code" size={16} color="#fff" />
+              <Text style={st.qrBtnText}>{redeemed ? 'Redeemed' : 'Show QR'}</Text>
+            </TouchableOpacity>
           </View>
         );
       })}
+
+      <Modal visible={!!pass} transparent animationType="fade" onRequestClose={() => setPass(null)}>
+        <TouchableOpacity style={st.qrOverlay} activeOpacity={1} onPress={() => setPass(null)} testID="mycoupon-qr-modal">
+          <View style={st.qrSheet} onStartShouldSetResponder={() => true}>
+            <Text style={st.qrEyebrow}>SHOW AT CHECKOUT</Text>
+            <Text style={st.qrTitle}>{pass?.coupon?.title}</Text>
+            {pass?.loading ? (
+              <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 40 }} />
+            ) : pass?.error ? (
+              <Text style={st.qrError} testID="mycoupon-qr-error">{String(pass.error)}</Text>
+            ) : pass?.data ? (
+              <>
+                <Image source={{ uri: pass.data.qr_data_uri }} style={st.qrImg} testID="mycoupon-qr-img" />
+                {pass.data.code ? <Text style={st.qrCode} testID="mycoupon-qr-code">{pass.data.code}</Text> : null}
+                <View style={[st.myStatus, pass.data.status === 'redeemed' && st.myStatusRedeemed, { marginTop: SPACING.sm }]}>
+                  <Text style={[st.myStatusText, pass.data.status === 'redeemed' && { color: COLORS.textMuted }]} testID="mycoupon-qr-status">
+                    {pass.data.status === 'redeemed' ? 'Redeemed' : 'Active'}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+            <TouchableOpacity style={st.qrClose} onPress={() => setPass(null)} testID="mycoupon-qr-close">
+              <Text style={st.qrCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -301,4 +348,16 @@ const st = StyleSheet.create({
   fpkBadgeText: { color: '#fff', fontWeight: '900', fontSize: FONT.sm },
   fpkTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800' },
   fpkSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 1 },
+  qrBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: SPACING.sm, paddingVertical: 10, borderRadius: RADIUS.md, backgroundColor: COLORS.primary },
+  qrBtnDisabled: { backgroundColor: 'rgba(148,163,184,0.25)' },
+  qrBtnText: { color: '#fff', fontWeight: '800', fontSize: FONT.sm },
+  qrOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
+  qrSheet: { backgroundColor: '#fff', borderRadius: RADIUS.xl, padding: SPACING.lg, alignItems: 'center', width: '100%', maxWidth: 340 },
+  qrEyebrow: { color: COLORS.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  qrTitle: { color: '#0a0a0b', fontSize: FONT.lg, fontWeight: '900', marginTop: 4, textAlign: 'center' },
+  qrImg: { width: 220, height: 220, marginTop: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: '#e2e8f0' },
+  qrCode: { marginTop: SPACING.md, fontSize: FONT.md, fontWeight: '800', letterSpacing: 1, color: '#0a0a0b', backgroundColor: '#f1f5f9', paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.md, fontVariant: ['tabular-nums'] },
+  qrError: { color: '#dc2626', fontSize: FONT.sm, marginVertical: 30, textAlign: 'center' },
+  qrClose: { marginTop: SPACING.lg, paddingHorizontal: 28, paddingVertical: 10, borderRadius: RADIUS.full, backgroundColor: '#0a0a0b' },
+  qrCloseText: { color: '#fff', fontWeight: '800', fontSize: FONT.sm },
 });

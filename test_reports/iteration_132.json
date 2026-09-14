@@ -1,0 +1,66 @@
+{
+  "summary": "Pair 2 (Sold-Out Waitlist + PiP) tested on backend + web + mobile. Waitlist join/idempotent/leave/my-waitlist/wrong-advertiser-404/storefront-regression/episode-media all PASS (8/9 backend). One CRITICAL frontend bug: the WEB /podcasts/:podcast_id route renders pages/PodcastDetail.jsx (testids like podcast-episode-play-<id>), NOT design_radiolife/screens/PodcastDetailRadioLife.jsx where the new Watch button + PiP overlay were added (rl-podcast-episode-watch-<id>). Result: on the live web podcast page there is NO Watch button and NO PiP overlay is reachable — the entire WEB PiP feature is unreachable end-to-end. Mobile PiP button + hint render correctly. Store Remind-me works end-to-end on BOTH web and mobile (remindme→waitlisted transition verified fresh on both). Also: admin dispatch returns notified=0 because seed keeps cmp_fpk_spin sold-out — spec expected notified>=1; either seed must un-sold-out before dispatch, or dispatch must force-notify on manual admin call. Additionally, the podcast channel ch_ui_demo was NOT published in seed (missing active:true + approval_status:'approved'); testing agent flipped these directly in Mongo to unblock UI testing — the main agent should update scripts/seed_pair2_testdata.py to include this.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/admin/waitlist/dispatch", "issue": "Spec expects {notified>=1} after a waiter joins for cmp_fpk_spin, but dispatch_waitlist() skips waiters when remaining_today==0 (sold out). Because scripts/seed_pair2_testdata.py maxes cmp_fpk_spin's daily_issued to cap, dispatch always returns {checked:1, notified:0} and the entry stays waiting; /api/me/notifications never gets a coupon_restock item. Either (a) auto-un-sold-out before dispatch in the seed / a test-only endpoint, or (b) make admin dispatch force-notify (ignore capacity) since a manual admin flush implies restock. RCA in routes/coupon_waitlist.py:120 -> `available = (not is_coupon) or (remaining is None) or (remaining > 0)` returns False when remaining==0.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "GET /api/podcasts/channels/ch_ui_demo", "issue": "Seed channel is missing active=True and approval_status='approved', so the public read returns 404 channel_not_published and the web PodcastDetail page shows an empty state. Fixed in-DB during testing; update scripts/seed_pair2_testdata.py to also set these fields."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "PodcastDetail (route /podcasts/:podcast_id)", "issue": "The Watch button + PipVideoPlayer were added to /app/frontend/src/design_radiolife/screens/PodcastDetailRadioLife.jsx but the route in App.js:601 mounts /app/frontend/src/pages/PodcastDetail.jsx which does NOT include the Watch button, videoEp state, openVideo() call, or the PipVideoPlayer render. Actual DOM testids: podcast-episode-play-<id>, podcast-episode-title-<id> — NO rl-podcast-episode-watch-<id> and NO pip-video-overlay anywhere. WEB PiP feature is fully unreachable.", "selector": "[data-testid='rl-podcast-episode-watch-ep_ui_demo']", "priority": "CRITICAL"}
+      ],
+      "integration_issues": [
+        {"flow": "Watch → PiP overlay", "issue": "Cannot exercise: watch button not rendered by the mounted component (see ui_bugs).", "affected_selectors": ["rl-podcast-episode-watch-ep_ui_demo", "pip-video-overlay", "pip-video-el", "pip-video-toggle", "pip-video-close"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Deprecation warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\"'. Pre-existing hygiene item (also seen in iter131). Reference: search /app/mobile for shadowColor/shadowOffset/shadowOpacity/shadowRadius."},
+        {"component": "props.pointerEvents", "issue": "Deprecation warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Pre-existing hygiene item (also seen in iter131)."},
+        {"component": "mobile-episode-pip-hint testid missing", "issue": "The hint text 'Available on the installed app (not the web preview).' renders (verified visually), but there is NO data-testid='mobile-episode-pip-hint' anchor on that Text node. Review request specifically references this testid; add testID='mobile-episode-pip-hint' on the hint <Text> in /app/mobile/app/podcast/episode/[id].tsx for reliable automated verification."}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "PiP video watch", "platform": "web", "issue": "Web PiP feature unreachable (Watch button not rendered by mounted component); mobile shows PiP button + hint correctly. Parity broken.", "expected": "Both surfaces expose a Watch/PiP affordance for the seeded video episode.", "actual": "Mobile: OK (button + hint render, deferred-to-build documented). Web: no Watch button in DOM."},
+    {"flow": "Store Remind-me → Waitlisted", "platform": "both", "issue": "Full parity — verified fresh transition on BOTH web and mobile from remindme testid to waitlisted testid.", "expected": "Same testids on both", "actual": "same"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter132_pair2_waitlist_pip.py",
+    "/app/test_reports/pytest/iter132.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Move the Watch button + PipVideoPlayer wiring from design_radiolife/screens/PodcastDetailRadioLife.jsx into /app/frontend/src/pages/PodcastDetail.jsx (which is the actual component mounted at /podcasts/:podcast_id per App.js:601). Include: import PipVideoPlayer + openVideo helper, videoEp useState, the Watch button next to podcast-episode-play-<id> with testid rl-podcast-episode-watch-<id> (or update the spec to use podcast-episode-watch-<id>), and render <PipVideoPlayer> when videoEp is set.",
+    "HIGH: Decide waitlist dispatch semantics. Either (a) update scripts/seed_pair2_testdata.py to clear daily_issued on cmp_fpk_spin (make it 'restocked') just before dispatch, or (b) make POST /api/admin/waitlist/dispatch force-notify regardless of capacity (or accept a ?force=true query flag). Currently dispatch swallows the notify silently when the campaign is sold out — the spec expected notified>=1.",
+    "LOW: Update scripts/seed_pair2_testdata.py to also set podcast_channels.ch_ui_demo -> active:true, approval_status:'approved' so the web PodcastDetail page can actually load the channel.",
+    "LOW: Add testID='mobile-episode-pip-hint' to the hint <Text> in /app/mobile/app/podcast/episode/[id].tsx so testers can anchor on the exact selector called out in the review request.",
+    "HYGIENE (pre-existing): audit /app/mobile for shadow* style props and props.pointerEvents deprecations."
+  ],
+  "critical_code_review_comments": [
+    "routes/coupon_waitlist.py — join is idempotent via a (user,campaign,waiting) find+insert (no unique index, so a race could double-insert; consider a partial unique index on (user_id,campaign_id) where status='waiting').",
+    "routes/coupon_waitlist.py:120 — availability gate silently drops the notify when sold out. Manual admin dispatch should probably override this (log & always notify).",
+    "routes/coupon_waitlist.py — _notify_waiter dedupe key includes _today_str(); on the SAME UTC day a re-join after dispatch will be de-duped by the notification enqueue — this is desired but worth documenting.",
+    "frontend App.js — route /podcasts/:podcast_id points at pages/PodcastDetail (legacy) while the new PiP work was done in design_radiolife/screens/PodcastDetailRadioLife.jsx. Either route to the new screen or port the new UI into the mounted one. This is the single blocking bug for WEB PiP.",
+    "PipVideoPlayer.jsx — cleanly guards on document.pictureInPictureEnabled, catches requestPictureInPicture errors, and shows a pip-video-unsupported / pip-video-error node. Code itself is correct; it's just not reachable."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter132_pair2_waitlist_pip.py (new)",
+    "MongoDB: podcast_channels.ch_ui_demo -> {active:true, approval_status:'approved'} (patched in DB only — main agent must also update the seed script)."
+  ],
+  "success_rate": {"backend": "89% (8/9)", "frontend": "web 50% (store OK, PiP unreachable); mobile 100% (store + PiP button + hint render)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (waitlist join); admin@bigfm.dubai / AdminPass123! (dispatch); mobile demo-login-btn -> bsess_ bearer.",
+  "seed_data_creation": "Ran /app/backend/scripts/seed_pair2_testdata.py — set cmp_fpk_spin daily_issued=cap for today and set podcast episode ep_ui_demo video_url. Additionally, testing agent had to patch podcast_channels.ch_ui_demo (active:true, approval_status:'approved') in Mongo to unblock the web PodcastDetail page — this fix should be added to the seed script by the main agent.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Waitlist store UI (web+mobile) verified end-to-end for the remindme→waitlisted transition. Backend waitlist CRUD verified. Two blockers remain for full pair-2 acceptance: (1) WEB PiP is wired to the wrong PodcastDetail component — port PipVideoPlayer + Watch button into /app/frontend/src/pages/PodcastDetail.jsx. (2) admin dispatch returns notified=0 while the seed keeps the campaign sold out — reconcile the spec vs. dispatch semantics. Mobile PiP is correctly deferred to a native build (button + hint render only). Push send is a no-op in preview (EMERGENT_PUSH_KEY=placeholder) — do NOT flag this as a bug.",
+  "rca of the issue": "1) WEB PiP unreachable: App.js:601 mounts import from '@/pages/PodcastDetail' but the Watch button + PipVideoPlayer import + openVideo() were only added to '@/design_radiolife/screens/PodcastDetailRadioLife'. Verified by DOM dump — actual testids are 'podcast-episode-play-*' (from PodcastDetail.jsx line 247), not 'rl-podcast-episode-*' (from PodcastDetailRadioLife.jsx line 247). 2) Waitlist dispatch: coupon_waitlist.py:118-122 checks _remaining_today and skips when remaining==0; because the seed sets daily_issued=daily_quantity_cap for cmp_fpk_spin, dispatch always reports notified=0."
+}

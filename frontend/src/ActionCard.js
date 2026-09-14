@@ -146,6 +146,17 @@ export default function ActionCard({ sessionId, currentSegmentId, isPremium }) {
         )}
       </div>
       <div className="action-card-buttons">
+        {adData.store?.has_store && (
+          <a
+            className="action-btn"
+            href={adData.store.store_url}
+            data-testid="ad-shop-sponsor"
+            style={{ textDecoration: "none" }}
+          >
+            <ShoppingBag size={14} />
+            <span>Shop {adData.store.name}</span>
+          </a>
+        )}
         {(adData.action_cards || []).map((a) => (
           <button
             key={a.action_type}

@@ -7,11 +7,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
 import { Play, Pause, Loader2, BookHeadphones, ChevronLeft,
-                  CheckCircle2 } from "lucide-react";
+                  CheckCircle2, Video } from "lucide-react";
 import { API, useAuth } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { toast } from "sonner";
 import SafeImage from "@/components/SafeImage";
+import PipVideoPlayer, { useEpisodeVideo } from "@/components/PipVideoPlayer";
 
 function _fmtDuration(sec) {
   if (!sec || !Number.isFinite(sec)) return "";
@@ -45,6 +46,7 @@ export default function PodcastDetailRadioLife() {
   const setPodcastEpisode = usePlayerStore((s) => s.setPodcastEpisode);
   const currentEpisode = usePlayerStore((s) => s.podcastEpisode);
   const podcastPlaying = usePlayerStore((s) => s.podcastPlaying);
+  const { videoEp, setVideoEp, loadingId, open: openVideo } = useEpisodeVideo(API);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -236,12 +238,28 @@ export default function PodcastDetailRadioLife() {
                         ? ` · ${_fmtDuration(ep.duration_seconds)}` : ""}
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => openVideo(ep, axios, () => toast("This episode is audio-only"))}
+                    className="w-9 h-9 rounded-full flex-shrink-0 flex items-center
+                                    justify-center bg-slate-100 text-slate-600
+                                    hover:bg-violet-100 hover:text-violet-600 transition"
+                    data-testid={`rl-podcast-episode-watch-${ep.id}`}
+                    aria-label="Watch video (Picture-in-Picture)">
+                    {loadingId === ep.id
+                      ? <Loader2 size={15} className="animate-spin" />
+                      : <Video size={15} />}
+                  </button>
                 </li>
               );
             })}
           </ul>
         )}
       </section>
+      {videoEp && (
+        <PipVideoPlayer videoUrl={videoEp.videoUrl} title={videoEp.title}
+                        onClose={() => setVideoEp(null)} />
+      )}
     </div>
   );
 }

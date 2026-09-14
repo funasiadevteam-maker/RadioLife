@@ -24,6 +24,7 @@ from auth import current_user, require_admin
 store_router = APIRouter(prefix="/api/store", tags=["storefront"])
 me_coupons_router = APIRouter(prefix="/api/me", tags=["storefront"])
 admin_caps_router = APIRouter(prefix="/api/admin/fpk", tags=["storefront-admin"])
+sponsor_router = APIRouter(prefix="/api/sponsors", tags=["storefront"])
 
 FPK_ADVERTISER_ID = "adv_fpk"
 
@@ -164,6 +165,14 @@ async def storefront(advertiser_id: str, request: Request):
 @store_router.get("/{advertiser_id}/scarcity")
 async def storefront_scarcity(advertiser_id: str, request: Request):
     db = request.app.state.db
+    # Opportunistic, rate-limited flush of the sold-out waitlist so restocks
+    # after the UTC-midnight reset get pinged on the first poll (no cron).
+    try:
+        import asyncio
+        from routes.coupon_waitlist import maybe_auto_dispatch
+        asyncio.create_task(maybe_auto_dispatch(db))
+    except Exception:
+        pass
     games = await _load_store_games(db, advertiser_id)
     total_remaining = 0
     any_unlimited = False
@@ -275,7 +284,7 @@ async def my_coupons(request: Request, user: dict = Depends(current_user)):
             "description": None,
             "code": coupon.get("code"),
             "discount_label": None,
-            "status": "active",
+            "status": "redeemed" if pl.get("coupon_redeemed_at") else "active",
             "expires_at": None,
             "campaign_id": pl.get("gameId"),
             "qr_token": None,
@@ -348,4 +357,39 @@ async def fpk_coupon_caps(request: Request, _u: dict = Depends(require_admin)):
     }
 
 
-__all__ = ["store_router", "me_coupons_router", "admin_caps_router"]
+# ======================================================================
+# Sponsor → store link (contextual "Shop this sponsor" from the player)
+# ======================================================================
+async def resolve_sponsor_store(db, advertiser_id: Optional[str]) -> Optional[dict]:
+    """Compact store descriptor for a sponsor, or None when the advertiser
+    runs no active storefront (games). Safe to call inline from ad/banner
+    serve paths — returns None on any missing input."""
+    if not advertiser_id:
+        return None
+    has = await db.game_campaigns.find_one(
+        {"advertiser_id": advertiser_id, "status": "active"}, {"_id": 1})
+    if not has:
+        return None
+    adv = (await db.advertisers_v2.find_one({"advertiser_id": advertiser_id})
+           or await db.advertisers.find_one({"advertiser_id": advertiser_id})
+           or {})
+    return {
+        "has_store": True,
+        "advertiser_id": advertiser_id,
+        "store_url": f"/store/{advertiser_id}",
+        "name": adv.get("name") or advertiser_id,
+    }
+
+
+@sponsor_router.get("/{advertiser_id}/store")
+async def sponsor_store(advertiser_id: str, request: Request):
+    db = request.app.state.db
+    store = await resolve_sponsor_store(db, advertiser_id)
+    if not store:
+        return {"has_store": False, "advertiser_id": advertiser_id,
+                "store_url": None, "name": None}
+    return store
+
+
+__all__ = ["store_router", "me_coupons_router", "admin_caps_router",
+           "sponsor_router", "resolve_sponsor_store"]

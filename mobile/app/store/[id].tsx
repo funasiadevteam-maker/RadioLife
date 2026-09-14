@@ -20,6 +20,8 @@ export default function StoreScreen() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [waitlisted, setWaitlisted] = useState<Set<string>>(new Set());
+  const [joining, setJoining] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -31,6 +33,16 @@ export default function StoreScreen() {
     }
   };
   useEffect(() => { load(); }, [id]);
+  useEffect(() => {
+    api.get('/me/waitlist').then(r => setWaitlisted(new Set(r.data.campaign_ids || []))).catch(() => {});
+  }, [id]);
+  const joinWaitlist = async (campaignId: string) => {
+    setJoining(campaignId);
+    try {
+      await api.post(`/store/${id}/waitlist`, { campaign_id: campaignId });
+      setWaitlisted(s => new Set(s).add(campaignId));
+    } catch { /* ignore */ } finally { setJoining(null); }
+  };
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   if (error) {
@@ -106,10 +118,27 @@ export default function StoreScreen() {
                           : `${g.remaining_today.toLocaleString()} left today`}
                       </Text>
                     ) : <Text style={st.gameLeftMuted}>BigPoints</Text>}
-                    <View style={[st.playBtn, { backgroundColor: accent }]}>
-                      <Text style={st.playText}>Play</Text>
-                      <Ionicons name="arrow-forward" size={13} color="#0a0a0b" />
-                    </View>
+                    {soldOut ? (
+                      waitlisted.has(g.campaign_id) ? (
+                        <View style={st.waitlistedPill} testID={`store-game-${g.campaign_id}-waitlisted`}>
+                          <Ionicons name="checkmark" size={13} color={COLORS.green} />
+                          <Text style={st.waitlistedText}>On waitlist</Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity style={st.remindBtn} onPress={() => joinWaitlist(g.campaign_id)}
+                          disabled={joining === g.campaign_id} testID={`store-game-${g.campaign_id}-remindme`}>
+                          {joining === g.campaign_id
+                            ? <ActivityIndicator size="small" color={COLORS.primary} />
+                            : <Ionicons name="notifications-outline" size={13} color={COLORS.primary} />}
+                          <Text style={st.remindText}>Remind me</Text>
+                        </TouchableOpacity>
+                      )
+                    ) : (
+                      <View style={[st.playBtn, { backgroundColor: accent }]}>
+                        <Text style={st.playText}>Play</Text>
+                        <Ionicons name="arrow-forward" size={13} color="#0a0a0b" />
+                      </View>
+                    )}
                   </View>
                 </TouchableOpacity>
               );
@@ -153,6 +182,10 @@ const st = StyleSheet.create({
   gameLeftMuted: { fontSize: FONT.xs, fontWeight: '700', color: COLORS.textMuted },
   playBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: RADIUS.full },
   playText: { color: '#0a0a0b', fontWeight: '900', fontSize: FONT.sm },
+  remindBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.full, backgroundColor: COLORS.primary + '18', borderWidth: 1, borderColor: COLORS.primary + '55' },
+  remindText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT.xs },
+  waitlistedPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.full, backgroundColor: 'rgba(22,163,74,0.15)' },
+  waitlistedText: { color: COLORS.green, fontWeight: '800', fontSize: FONT.xs },
   emptyWrap: { alignItems: 'center', padding: SPACING.xl },
   emptyText: { color: COLORS.textDim, fontSize: FONT.sm, marginTop: SPACING.sm },
   viewCoupons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: SPACING.lg, paddingVertical: 12, borderRadius: RADIUS.full, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },

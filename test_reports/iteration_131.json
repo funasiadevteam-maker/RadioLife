@@ -1,0 +1,57 @@
+{
+  "summary": "P1 QR Coupon Passes + Store Links validated end-to-end on backend + web + mobile. 9/10 backend tests pass. Coupon-pass mint/preview/idempotency, staff-only redeem gating, admin redeem + replay-blocked all work. Sponsor store endpoint returns correct shape for known/unknown advertisers. Store key injection is wired on /api/ads/current + /api/banner/serve (verified schema; live ad/banner not present in test env, treated as acceptable). Web My-Coupons QR modal (mycoupon-qr-modal + img/code/status/close) works. Mobile Expo My-Coupons QR modal works with the same testIDs. ActionCard + AdBanner store-link code paths render correctly on has_store=true and route to store_url. ONE real bug found: after admin redeems a game_win-source coupon, /api/me/wallet-coupons still reports status='active' (routes/storefront.py line 279 hardcodes 'active' for game_win, ignoring plays.coupon_redeemed_at) — pass status DOES flip to 'redeemed' correctly, and wallet/saved sources DO sync — only the display-side game_win branch is wrong.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/me/wallet-coupons", "issue": "game_win-source coupons never surface status='redeemed' after admin redeems the pass. plays.coupon_redeemed_at IS set correctly by /api/coupons/redeem/{token}, but the my_coupons unifier at /app/backend/routes/storefront.py:279 hard-codes status='active' for game_win entries. Fix: change to `'redeemed' if pl.get('coupon_redeemed_at') else 'active'`. Wallet + saved sources are unaffected."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "My Coupons list status badge (game_win)", "issue": "A game_win coupon that has already been redeemed still displays the green 'Active' badge in the list because the backend my_coupons unifier reports status='active'. The QR modal itself correctly shows 'Redeemed'. Root cause is backend (see backend.minor).", "affected_selectors": ["mycoupon-qr-status"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "My Coupons list status badge (game_win)", "issue": "Same as web — list card shows 'Active' for a game_win coupon whose pass modal correctly shows 'Redeemed'. Same backend root cause.", "affected_testIDs": ["mycoupon-qr-status"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "props.pointerEvents", "issue": "Deprecation warning surfaced during mobile testing: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Not from the new coupon/store code — flagged for hygiene (source unknown; grep the app for pointerEvents prop usage)."},
+        {"component": "shadow* style props", "issue": "Deprecation warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\"'. Not from new coupon/store code — hygiene item."}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "My Coupons QR modal", "platform": "both", "issue": "Both platforms exhibit the identical game_win list-status bug; the QR modal itself is correct on both. No divergent behavior between web and mobile.", "expected": "list status matches modal status", "actual": "list shows Active, modal shows Redeemed (game_win only)"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter131_coupon_pass_storefront.py",
+    "/app/test_reports/pytest/iter131.xml"
+  ],
+  "action_items": [
+    "FIX /app/backend/routes/storefront.py:279 — for the game_win branch use `'status': 'redeemed' if pl.get('coupon_redeemed_at') else 'active'` so redeemed game-win coupons display correctly in My Coupons.",
+    "OPTIONAL hygiene: audit mobile source for RN deprecations (props.pointerEvents, shadow* style props) — not blocking, not from Pair 1."
+  ],
+  "critical_code_review_comments": [
+    "coupon_pass.py — solid: idempotency via unique index (user_id,source,ref_id), status is captured at mint time and preserved on replay, redeem uses atomic update guarded by {redeemed_at: None}, staff role check covers admin/advertiser/merchant.",
+    "storefront.py resolve_sponsor_store — has_store gated on an ACTIVE game_campaigns row for the advertiser, so it correctly excludes advertisers with no live storefront. Safe on missing advertiser_id.",
+    "ads_public.py / ad11_banners.py store injection — wrapped in try/except that silently sets store=None on any error; won't break current_ad / banner/serve.",
+    "Bug: routes/storefront.py:279 hardcodes 'active' for game_win coupons; must consult plays.coupon_redeemed_at."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter131_coupon_pass_storefront.py (new)"
+  ],
+  "success_rate": {"backend": "90% (9/10 — 1 bug found)", "frontend": "100% for the new UI paths tested"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (consumer, ~8 owned coupons post-redeem); admin@bigfm.dubai / AdminPass123! (staff for redeem).",
+  "seed_data_creation": "None — used existing seeded demo coupons. Note: one game_win coupon (BIGFM-3B03541D, play ply_c927eda52dc142b05124) is now permanently in redeemed state on the demo account after this test run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Pair 1 (QR Passes + Store Links) is functionally complete; ONLY the my_coupons game_win status branch needs the 1-line fix noted above. Store-link UI cannot be exercised end-to-end without seeding a live sponsored ad/banner whose advertiser runs a storefront (e.g. adv_fpk running an audio ad_pod or a live banner_campaign in zone=now_playing). If you seed one, verify the response JSON has store.has_store=true and the frontend renders the [data-testid=ad-shop-sponsor] / [data-testid=ad-shop-sponsor-<zone>] element correctly. Otherwise the code path was inspected and confirmed correct.",
+  "rca of the issue": "In /app/backend/routes/storefront.py my_coupons() the third block (game_win / db.plays) constructs each item with a literal `\"status\": \"active\"` regardless of whether pl.get('coupon_redeemed_at') is set. Because /api/coupons/redeem/{token} DOES set plays.coupon_redeemed_at (verified in mongo — ply_c927eda52dc142b05124 has coupon_redeemed_at set post-redeem and the coupon_passes row is status='redeemed'), the redemption itself works — only the read-model rendering ignores it. Fix: `'status': 'redeemed' if pl.get('coupon_redeemed_at') else 'active'`. Reproduction: (1) demo login, (2) POST /api/me/coupons/pass with a game_win coupon, (3) admin POST /api/coupons/redeem/{token} -> 200 redeemed, (4) demo GET /api/me/wallet-coupons -> that item still shows status='active'."
+}

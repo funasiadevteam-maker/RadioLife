@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import {
-  Ticket, Store, MapPin, Loader2, Check, X, Zap, ArrowRight, Sparkles,
+  Ticket, Store, MapPin, Loader2, Check, X, Zap, ArrowRight, Sparkles, QrCode,
 } from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
@@ -265,6 +265,17 @@ function MyCouponsView({ light, mine, mineErr, user }) {
     ? "bg-white border border-slate-200 shadow-sm"
     : "bg-slate-900/60 border border-slate-800";
   const [copied, setCopied] = useState(null);
+  const [pass, setPass] = useState(null); // {loading, data, error, coupon}
+
+  const openPass = async (c) => {
+    setPass({ loading: true, coupon: c });
+    try {
+      const r = await axios.post(`${API}/me/coupons/pass`, { source: c.source, id: c.id });
+      setPass({ loading: false, data: r.data, coupon: c });
+    } catch (e) {
+      setPass({ loading: false, error: e?.response?.data?.detail || "Could not load QR", coupon: c });
+    }
+  };
 
   const copy = (code) => {
     if (!code) return;
@@ -315,6 +326,7 @@ function MyCouponsView({ light, mine, mineErr, user }) {
   const SOURCE_LABEL = { game_win: "Game win", saved: "Saved", wallet: "Wallet" };
 
   return (
+    <>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="mycoupons-grid">
       {mine.map((c) => {
         const redeemed = c.status === "redeemed";
@@ -350,9 +362,49 @@ function MyCouponsView({ light, mine, mineErr, user }) {
                 Expires {new Date(c.expires_at).toLocaleDateString()}
               </div>
             )}
+            <button onClick={() => openPass(c)} disabled={redeemed}
+                    data-testid={`mycoupon-${c.id}-showqr`}
+                    className={`mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-black transition ${
+                      redeemed ? "opacity-50 cursor-not-allowed bg-slate-500/20" :
+                      (light ? "bg-purple-600 text-white hover:bg-purple-700" : "bg-amber-500 text-slate-900 hover:bg-amber-400")}`}>
+              <QrCode className="w-4 h-4" /> {redeemed ? "Redeemed" : "Show QR"}
+            </button>
           </div>
         );
       })}
     </div>
+    {pass && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+           data-testid="mycoupon-qr-modal" onClick={() => setPass(null)}>
+        <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center text-slate-900 relative"
+             onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => setPass(null)} data-testid="mycoupon-qr-close"
+                  className="absolute top-3 right-3 text-slate-400 hover:text-slate-700">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="text-xs font-black uppercase tracking-widest text-purple-600">Show at checkout</div>
+          <div className="mt-1 font-black text-lg leading-tight">{pass.coupon?.title}</div>
+          {pass.loading && <div className="py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" /></div>}
+          {pass.error && <div className="py-8 text-sm text-red-600" data-testid="mycoupon-qr-error">{String(pass.error)}</div>}
+          {pass.data && (
+            <>
+              <img src={pass.data.qr_data_uri} alt="Coupon QR" data-testid="mycoupon-qr-img"
+                   className="w-52 h-52 mx-auto mt-3 rounded-xl border border-slate-200" />
+              {pass.data.code && (
+                <div className="mt-3 font-mono text-sm bg-slate-100 rounded-lg px-3 py-2" data-testid="mycoupon-qr-code">
+                  {pass.data.code}
+                </div>
+              )}
+              <div className={`mt-3 text-xs font-black uppercase tracking-wider px-2 py-1 rounded-full inline-block ${
+                pass.data.status === "redeemed" ? "bg-slate-200 text-slate-500" : "bg-emerald-100 text-emerald-700"}`}
+                data-testid="mycoupon-qr-status">
+                {pass.data.status === "redeemed" ? "Redeemed" : "Active"}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

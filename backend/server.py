@@ -6218,13 +6218,53 @@ except Exception as _e:
 try:
     from routes.storefront import (store_router as _store_router,
                                     me_coupons_router as _me_coupons_router,
-                                    admin_caps_router as _fpk_caps_router)
+                                    admin_caps_router as _fpk_caps_router,
+                                    sponsor_router as _sponsor_router)
     app.include_router(_store_router)
     app.include_router(_me_coupons_router)
     app.include_router(_fpk_caps_router)
-    logger.info("Storefront routes wired: /api/store/* + /api/me/coupons + /api/admin/fpk/coupon-caps")
+    app.include_router(_sponsor_router)
+    logger.info("Storefront routes wired: /api/store/* + /api/me/coupons + /api/admin/fpk/coupon-caps + /api/sponsors/*")
 except Exception as _e:
     logger.warning("storefront routers not loaded: %s", _e)
+
+# ── P1.1 Coupon Passes — unified QR + in-store redeem for any owned coupon ─────
+try:
+    from routes.coupon_pass import (me_pass_router as _me_pass_router,
+                                     pass_router as _pass_router,
+                                     ensure_coupon_pass_indexes as _ensure_pass_idx)
+    app.include_router(_me_pass_router)
+    app.include_router(_pass_router)
+
+    @app.on_event("startup")
+    async def _coupon_pass_indexes():
+        try:
+            await _ensure_pass_idx(app.state.db)
+        except Exception as _ie:
+            logger.warning("coupon_pass indexes: %s", _ie)
+    logger.info("Coupon Pass routes wired: /api/me/coupons/pass + /api/coupons/{pass,redeem}")
+except Exception as _e:
+    logger.warning("coupon_pass routers not loaded: %s", _e)
+
+# ── P1.3 Sold-Out Waitlist — remind-me + in-app/push restock pings ─────────────
+try:
+    from routes.coupon_waitlist import (store_waitlist_router as _sw_router,
+                                         me_waitlist_router as _mw_router,
+                                         admin_waitlist_router as _aw_router,
+                                         ensure_waitlist_indexes as _ensure_wl_idx)
+    app.include_router(_sw_router)
+    app.include_router(_mw_router)
+    app.include_router(_aw_router)
+
+    @app.on_event("startup")
+    async def _waitlist_indexes():
+        try:
+            await _ensure_wl_idx(app.state.db)
+        except Exception as _ie:
+            logger.warning("waitlist indexes: %s", _ie)
+    logger.info("Coupon Waitlist routes wired: /api/store/*/waitlist + /api/me/waitlist + /api/admin/waitlist/dispatch")
+except Exception as _e:
+    logger.warning("coupon_waitlist routers not loaded: %s", _e)
 
 # Phase 18 UI-cleanup — `/api/me/*` recommendations + favorites.
 try:

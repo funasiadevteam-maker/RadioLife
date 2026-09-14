@@ -8,11 +8,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import { Play, Pause, Loader2, BookHeadphones, Rss,
-                  CheckCircle2, ChevronLeft } from "lucide-react";
+                  CheckCircle2, ChevronLeft, Video } from "lucide-react";
 import { API, useAuth } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { toast } from "sonner";
 import SafeImage from "@/components/SafeImage";
+import PipVideoPlayer, { useEpisodeVideo } from "@/components/PipVideoPlayer";
 
 function _fmtDuration(sec) {
   if (!sec || !Number.isFinite(sec)) return "";
@@ -41,6 +42,7 @@ export default function PodcastDetail() {
   const setPodcastEpisode = usePlayerStore((s) => s.setPodcastEpisode);
   const currentEpisode = usePlayerStore((s) => s.podcastEpisode);
   const podcastPlaying = usePlayerStore((s) => s.podcastPlaying);
+  const { videoEp, setVideoEp, loadingId, open: openVideo } = useEpisodeVideo(API);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -270,6 +272,18 @@ export default function PodcastDetail() {
                         )}
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => openVideo(ep, axios, () => toast("This episode is audio-only"))}
+                      className="w-9 h-9 rounded-full flex-shrink-0 flex items-center
+                                      justify-center bg-white/10 text-white/70
+                                      hover:bg-violet-500 hover:text-white transition"
+                      data-testid={`podcast-episode-watch-${ep.id}`}
+                      aria-label="Watch video (Picture-in-Picture)">
+                      {loadingId === ep.id
+                        ? <Loader2 size={15} className="animate-spin" />
+                        : <Video size={15} />}
+                    </button>
                   </li>
                 );
               })}
@@ -277,6 +291,10 @@ export default function PodcastDetail() {
           )}
         </section>
       </div>
+      {videoEp && (
+        <PipVideoPlayer videoUrl={videoEp.videoUrl} title={videoEp.title}
+                        onClose={() => setVideoEp(null)} />
+      )}
     </div>
   );
 }
