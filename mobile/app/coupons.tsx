@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
   SafeAreaView, Alert, RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS } from '../src/constants/theme';
 import api from '../src/api/client';
@@ -20,6 +20,21 @@ export default function CouponsScreen() {
   const [cat, setCat] = useState('all');
   const [claiming, setClaiming] = useState<string | null>(null);
   const [bizMap, setBizMap] = useState<Record<string, any>>({});
+
+  // P1 — Deals / My Coupons tabs
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<'deals' | 'mine'>(params.tab === 'mine' ? 'mine' : 'deals');
+  const [mine, setMine] = useState<any[] | null>(null);
+  const [mineLoading, setMineLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab !== 'mine' || mine !== null) return;
+    setMineLoading(true);
+    api.get('/me/wallet-coupons')
+      .then(r => setMine(r.data.items || []))
+      .catch(() => setMine([]))
+      .finally(() => setMineLoading(false));
+  }, [tab]);
 
   useEffect(() => { if (!authLoading && !user) router.replace('/login'); }, [user, authLoading]);
 
@@ -81,6 +96,28 @@ export default function CouponsScreen() {
         <Text style={st.title}>Nearby Deals</Text>
         <Text style={st.sub}>Deals from businesses near you. Claim → redeem in-store.</Text>
 
+        {/* P1 — Deals / My Coupons tabs */}
+        <View style={st.tabRow} testID="coupons-tabs">
+          {(['deals', 'mine'] as const).map(t => (
+            <TouchableOpacity key={t} onPress={() => setTab(t)}
+              style={[st.tabBtn, tab === t && st.tabBtnActive]} testID={`coupons-tab-${t}`}>
+              <Text style={[st.tabText, tab === t && st.tabTextActive]}>
+                {t === 'deals' ? 'Nearby Deals' : 'My Coupons'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {tab === 'mine' ? <MyCouponsList mine={mine} loading={mineLoading} router={router} /> : (<>
+        {/* P1 — FPK store entry point */}
+        <TouchableOpacity style={st.fpkBanner} onPress={() => router.push('/store/adv_fpk')} testID="coupons-fpk-store">
+          <View style={st.fpkBadge}><Text style={st.fpkBadgeText}>FPK</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={st.fpkTitle}>Play &amp; win FPK coupons</Text>
+            <Text style={st.fpkSub}>Up to 50% off · limited daily drops</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color={COLORS.primary} />
+        </TouchableOpacity>
         {/* Filter chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.md }}>
           <View style={st.chipRow} testID="offer-category-filters">
@@ -145,8 +182,58 @@ export default function CouponsScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
         ))}
+        </>)}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// P1 — "My Coupons": the user's owned coupons unified across engines.
+function MyCouponsList({ mine, loading, router }: { mine: any[] | null; loading: boolean; router: any }) {
+  const SOURCE_LABEL: Record<string, string> = { game_win: 'Game win', saved: 'Saved', wallet: 'Wallet' };
+  if (loading || mine === null) {
+    return <View style={st.emptyWrap} testID="mycoupons-loading"><ActivityIndicator color={COLORS.primary} /></View>;
+  }
+  if (mine.length === 0) {
+    return (
+      <View style={st.emptyWrap} testID="mycoupons-empty">
+        <Ionicons name="ticket-outline" size={36} color={COLORS.textMuted} />
+        <Text style={st.emptyText}>No coupons yet.</Text>
+        <TouchableOpacity style={st.storeCta} onPress={() => router.push('/store/adv_fpk')} testID="mycoupons-store-cta">
+          <Ionicons name="game-controller" size={14} color="#fff" />
+          <Text style={st.storeCtaText}>Play &amp; win at FPK</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  return (
+    <View testID="mycoupons-list">
+      {mine.map((c) => {
+        const redeemed = c.status === 'redeemed';
+        return (
+          <View key={c.id} style={st.myCard} testID={`mycoupon-${c.id}`}>
+            <View style={st.myCardHead}>
+              <Text style={st.mySource}>{SOURCE_LABEL[c.source] || 'Coupon'}</Text>
+              <View style={[st.myStatus, redeemed && st.myStatusRedeemed]}>
+                <Text style={[st.myStatusText, redeemed && { color: COLORS.textMuted }]} testID={`mycoupon-${c.id}-status`}>
+                  {redeemed ? 'Redeemed' : 'Active'}
+                </Text>
+              </View>
+            </View>
+            <Text style={st.myTitle}>{c.title}</Text>
+            {c.sponsor_name ? <Text style={st.mySponsor}>{c.sponsor_name}</Text> : null}
+            {c.code ? (
+              <View style={st.myCode} testID={`mycoupon-${c.id}-code`}>
+                <Text style={st.myCodeText}>{c.code}</Text>
+              </View>
+            ) : null}
+            {c.expires_at ? (
+              <Text style={st.myExpiry}>Expires {new Date(c.expires_at).toLocaleDateString()}</Text>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -190,4 +277,28 @@ const st = StyleSheet.create({
   offerActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   claimBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: RADIUS.md, backgroundColor: COLORS.primary },
   claimText: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
+  /* P1 — tabs + My Coupons */
+  tabRow: { flexDirection: 'row', gap: 6, backgroundColor: COLORS.surface, borderRadius: RADIUS.full, padding: 4, marginBottom: SPACING.md, alignSelf: 'flex-start' },
+  tabBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: RADIUS.full },
+  tabBtnActive: { backgroundColor: COLORS.primary },
+  tabText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
+  tabTextActive: { color: '#fff' },
+  myCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.cardBorder },
+  myCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  mySource: { color: COLORS.gold, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  myStatus: { backgroundColor: 'rgba(22,163,74,0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: RADIUS.full },
+  myStatusRedeemed: { backgroundColor: 'rgba(148,163,184,0.18)' },
+  myStatusText: { color: COLORS.green, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  myTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '800', marginTop: 6 },
+  mySponsor: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 },
+  myCode: { marginTop: SPACING.sm, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 10 },
+  myCodeText: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800', letterSpacing: 1, fontVariant: ['tabular-nums'] },
+  myExpiry: { color: COLORS.textMuted, fontSize: FONT.xs, marginTop: 6 },
+  storeCta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.md, paddingHorizontal: 20, paddingVertical: 12, borderRadius: RADIUS.full, backgroundColor: COLORS.primary },
+  storeCtaText: { color: '#fff', fontWeight: '800', fontSize: FONT.sm },
+  fpkBanner: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: '#0aa54b18', borderWidth: 1, borderColor: '#0aa54b55', borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
+  fpkBadge: { width: 40, height: 40, borderRadius: RADIUS.md, backgroundColor: '#0aa54b', alignItems: 'center', justifyContent: 'center' },
+  fpkBadgeText: { color: '#fff', fontWeight: '900', fontSize: FONT.sm },
+  fpkTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800' },
+  fpkSub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 1 },
 });

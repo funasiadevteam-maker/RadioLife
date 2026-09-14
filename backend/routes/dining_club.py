@@ -24,6 +24,7 @@ from services import premium_gate
 from services.billing_service import grant_premium
 from services.stripe_setup import get_price_for_currency
 from services.stripe_client import stripe_mode
+from services import stripe_connect_service as scs
 
 logger = logging.getLogger("bigfm.dining.routes")
 
@@ -48,6 +49,29 @@ def _premium_price() -> dict:
                 "currency": (p.get("currency") or "USD").upper()}
     except Exception:
         return {"amount_cents": 0, "currency": "USD"}
+
+
+async def _charge_id_for_session(session_id: str) -> Optional[str]:
+    """Resolve the platform charge id behind a hosted Checkout session, so the
+    deferred restaurant transfer can use it as source_transaction."""
+    import asyncio as _a
+    import stripe as _stripe
+    _stripe.api_key = STRIPE_API_KEY
+
+    def _sync():
+        s = _stripe.checkout.Session.retrieve(session_id, expand=["payment_intent"])
+        pi = s.get("payment_intent")
+        if isinstance(pi, str):
+            pi = _stripe.PaymentIntent.retrieve(pi, expand=["latest_charge"])
+        if not pi:
+            return None
+        lc = pi.get("latest_charge") if isinstance(pi, dict) else getattr(pi, "latest_charge", None)
+        return lc.get("id") if isinstance(lc, dict) else lc
+
+    try:
+        return await _a.to_thread(_sync)
+    except Exception:
+        return None
 
 
 # ══════════════════════════ CONSUMER ═══════════════════════════════════
@@ -260,6 +284,16 @@ async def selection_reroll(session_id: str, request: Request,
         raise HTTPException(400, {"code": str(e)})
 
 
+@router.get("/selection/{session_id}")
+async def selection_view(session_id: str, request: Request,
+                         user: dict = Depends(current_user)):
+    v = await dc.get_session_view(request.app.state.db,
+                                  customer_id=user["user_id"], session_id=session_id)
+    if not v:
+        raise HTTPException(404, {"code": "session_not_found"})
+    return v
+
+
 @router.post("/selection/{session_id}/abandon")
 async def selection_abandon(session_id: str, request: Request,
                             user: dict = Depends(current_user)):
@@ -341,8 +375,10 @@ async def meal_checkout_status(session_id: str, request: Request,
     stripe = _stripe_client(request)
     status = await stripe.get_checkout_status(session_id)
     if status.payment_status == "paid" and status.status == "complete":
+        charge_id = await _charge_id_for_session(session_id)
         res = await dc.finalize_paid_order(db, order=order, program=program,
-                                           stripe_session_id=session_id)
+                                           stripe_session_id=session_id,
+                                           stripe_charge_id=charge_id)
         return {"status": "paid", **res}
     return {"status": status.status, "payment_status": status.payment_status}
 
@@ -368,6 +404,20 @@ async def merchant_redeem(body: RedeemBody, request: Request,
                           user: dict = Depends(current_user)):
     db = request.app.state.db
     program = await dc.get_program(db)
+    # Merchant-role guard: only the restaurant that owns the meal's location
+    # (or an admin) may redeem its QR.
+    is_admin = (user.get("role") == "admin") or bool(user.get("is_admin"))
+    if not is_admin:
+        redm = await db.dining_redemptions.find_one({"qr_token": body.qr_token},
+                                                    {"location_id": 1})
+        if not redm:
+            raise HTTPException(404, {"code": "invalid_qr"})
+        loc = await db.dining_locations.find_one({"location_id": redm["location_id"]},
+                                                 {"merchant_id": 1})
+        merch = await db.dining_merchants.find_one(
+            {"merchant_id": (loc or {}).get("merchant_id")}, {"owner_user_id": 1})
+        if not merch or merch.get("owner_user_id") != user["user_id"]:
+            raise HTTPException(403, {"code": "not_meal_merchant"})
     try:
         return await dc.redeem_qr(db, qr_token=body.qr_token, program=program,
                                   merchant_location_id=body.location_id)
@@ -379,6 +429,183 @@ async def merchant_redeem(body: RedeemBody, request: Request,
         raise HTTPException(403, {"code": str(e)})
     except ValueError as e:
         raise HTTPException(409, {"code": str(e)})
+
+
+# ── merchant self-serve: enroll + Stripe Connect + catalog + analytics ──
+class MerchantEnroll(BaseModel):
+    name: str
+    cuisine: str = "american"
+    restaurant_class: str = "FAST_CASUAL"
+    origin_url: Optional[str] = None
+
+
+class LocationBody(BaseModel):
+    name: str
+    address: str
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    veg_available: bool = True
+    nonveg_available: bool = True
+    hours: str = "11:00–22:00"
+
+
+class CapacityBody(BaseModel):
+    capacity: dict = Field(default_factory=dict, description='{"LUNCH:VEG":20,"DINNER:NON_VEG":30}')
+
+
+class MealsBody(BaseModel):
+    meals: list[dict] = Field(default_factory=list)
+
+
+class ConnectLinkBody(BaseModel):
+    origin_url: str
+
+
+class DiningWebhookBody(BaseModel):
+    url: str
+    events: Optional[list[str]] = None
+
+
+async def _owned(db, user: dict) -> dict:
+    m = await dc.get_owned_merchant(db, user["user_id"])
+    if not m:
+        raise HTTPException(400, {"code": "not_a_dining_merchant"})
+    return m
+
+
+@merchant_router.post("/enroll")
+async def merchant_enroll(body: MerchantEnroll, request: Request,
+                          user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await dc.create_owned_merchant(
+        db, owner_user_id=user["user_id"], name=body.name, cuisine=body.cuisine,
+        restaurant_class=body.restaurant_class)
+    # Stripe Connect onboarding so the restaurant can receive its $8.99/meal.
+    onboarding_url = None
+    try:
+        if not m.get("stripe_account_id"):
+            acct = await scs.create_connected_account(
+                merchant_id=m["merchant_id"],
+                email=user.get("email") or f"{user['user_id']}@dining.local")
+            await dc.set_merchant_connect(db, merchant_id=m["merchant_id"],
+                                          stripe_account_id=acct["stripe_account_id"],
+                                          status="onboarding_in_progress")
+            m["stripe_account_id"] = acct["stripe_account_id"]
+        origin = (body.origin_url or str(request.base_url)).rstrip("/")
+        onboarding_url = await scs.create_onboarding_link(
+            stripe_account_id=m["stripe_account_id"],
+            return_url=f"{origin}/dining/merchant?connected=1",
+            refresh_url=f"{origin}/dining/merchant?refresh=1")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("dining connect onboarding failed: %s", e)
+    return {"merchant": m, "connect_onboarding_url": onboarding_url}
+
+
+@merchant_router.get("/me")
+async def merchant_me(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    v = await dc.merchant_view(db, user["user_id"])
+    if not v:
+        return {"enrolled": False}
+    return {"enrolled": True, **v}
+
+
+@merchant_router.post("/connect/link")
+async def merchant_connect_link(body: ConnectLinkBody, request: Request,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    if not m.get("stripe_account_id"):
+        acct = await scs.create_connected_account(
+            merchant_id=m["merchant_id"],
+            email=user.get("email") or f"{user['user_id']}@dining.local")
+        await dc.set_merchant_connect(db, merchant_id=m["merchant_id"],
+                                      stripe_account_id=acct["stripe_account_id"],
+                                      status="onboarding_in_progress")
+        m["stripe_account_id"] = acct["stripe_account_id"]
+    origin = body.origin_url.rstrip("/")
+    url = await scs.create_onboarding_link(
+        stripe_account_id=m["stripe_account_id"],
+        return_url=f"{origin}/dining/merchant?connected=1",
+        refresh_url=f"{origin}/dining/merchant?refresh=1")
+    return {"connect_onboarding_url": url}
+
+
+@merchant_router.post("/locations")
+async def merchant_add_location(body: LocationBody, request: Request,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    return {"location": await dc.add_location(
+        db, merchant_id=m["merchant_id"], name=body.name, address=body.address,
+        lat=body.lat, lng=body.lng, veg_available=body.veg_available,
+        nonveg_available=body.nonveg_available, hours=body.hours)}
+
+
+@merchant_router.patch("/locations/{location_id}")
+async def merchant_patch_location(location_id: str, patch: dict, request: Request,
+                                  user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    loc = await dc.update_location(db, merchant_id=m["merchant_id"],
+                                   location_id=location_id, patch=patch)
+    if not loc:
+        raise HTTPException(404, {"code": "location_not_found"})
+    return {"location": dc._clean(loc)}
+
+
+@merchant_router.put("/locations/{location_id}/capacity")
+async def merchant_set_capacity(location_id: str, body: CapacityBody, request: Request,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    if not await dc.set_capacity(db, merchant_id=m["merchant_id"],
+                                 location_id=location_id, capacity=body.capacity):
+        raise HTTPException(404, {"code": "location_not_found"})
+    return {"ok": True, "capacity": {k: int(v) for k, v in body.capacity.items()}}
+
+
+@merchant_router.post("/locations/{location_id}/meals")
+async def merchant_set_meals(location_id: str, body: MealsBody, request: Request,
+                             user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    return {"meals": await dc.set_meals(db, merchant_id=m["merchant_id"],
+                                        location_id=location_id, meals=body.meals)}
+
+
+@merchant_router.get("/analytics")
+async def merchant_analytics(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    return await dc.merchant_analytics(db, m["merchant_id"])
+
+
+@merchant_router.post("/webhooks")
+async def merchant_add_webhook(body: DiningWebhookBody, request: Request,
+                               user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    return {"webhook": await dc.register_dining_webhook(
+        db, merchant_id=m["merchant_id"], url=body.url, events=body.events)}
+
+
+@merchant_router.get("/webhooks")
+async def merchant_list_webhooks(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    return {"events": dc.DINING_EVENTS,
+            "webhooks": await dc.list_dining_webhooks(db, m["merchant_id"])}
+
+
+@merchant_router.delete("/webhooks/{webhook_id}")
+async def merchant_delete_webhook(webhook_id: str, request: Request,
+                                  user: dict = Depends(current_user)):
+    db = request.app.state.db
+    m = await _owned(db, user)
+    if not await dc.delete_dining_webhook(db, m["merchant_id"], webhook_id):
+        raise HTTPException(404, {"code": "webhook_not_found"})
+    return {"deleted": True}
 
 
 # ══════════════════════════ ADMIN ══════════════════════════════════════

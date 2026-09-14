@@ -13,10 +13,13 @@ The Universal Advertising API (Partner API v1, Phases A→F) is COMPLETE (see CH
 - **Phase 4 — Admin + Partner API + Webhooks**: admin fairness dashboard + settings UI; extend Partner API v1 for restaurant systems; dining.* webhooks.
 - Non-blocking hardening (iter126): merchant-role guard on `/merchant/redeem`, https origin_url, wider abandon cooldown, batch merchant lookups, don't echo raw QR token in `/pass`.
 
-## P1 — Consumer storefront & scarcity (deferred, resume after Dining Club)
-- **`/store/:id` branded coupon landing** + `my-coupons` (FPK storefront).
-- **FPK coupon-cap dashboard** (admin) + player "coupons left today" scarcity strip with live midnight countdown.
-- **Public landing page focus**: refactor logged-out marketing Home to sell the consumer listening proposition first.
+## P1 — ✅ DONE (2026-09): Consumer storefront & scarcity (web + mobile, iter130)
+- **`/store/:id` branded coupon landing** ✅ (web `StorePage.jsx` + mobile `app/store/[id].tsx`) — brand header + games + play CTAs.
+- **`my-coupons`** ✅ — unified owned coupons via `GET /api/me/wallet-coupons`; surfaced as a "My Coupons" tab in the existing web `CouponOffers.jsx` (`/offers`) and mobile `app/coupons.tsx`.
+- **FPK coupon-cap dashboard** ✅ (admin `/admin/fpk-caps`) + **player "coupons left today" scarcity strip** ✅ with live UTC-midnight countdown (`CouponScarcityStrip`, both surfaces), backed by `GET /api/store/{id}` + `/scarcity` + `GET /api/admin/fpk/coupon-caps`.
+- **Public landing page focus** ✅ — `marketing/Landing.jsx` now leads with a consumer "For listeners" section before the B2B sections.
+
+## P1 — remaining (deferred)
 - **Contextual commerce & play**: surface Shop/Play contextually from audio; normalize Social/Play/Shop deep links; remove internal labels.
 - **Voice Match Art**: suggest an anchor voice for station genres.
 

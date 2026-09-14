@@ -35,6 +35,7 @@ DEFAULTS = {
     "program_id": PROGRAM_ID,
     "meal_price_cents": 999,          # fixed $9.99 per redeemed meal
     "access_fee_cents": 0,            # 30-day Dining Club access fee (Premium => $0)
+    "platform_fee_cents": 100,        # kept by platform per redeemed meal (restaurant net = meal - fee)
     "min_meals_week": 3,
     "max_meals_week": 14,
     "term_days": 30,
@@ -543,8 +544,17 @@ async def spin(db, *, customer_id: str, session_id: str, method: str,
                        "second_result_restaurant_id": result["winner_restaurant_id"]})
     await db.dining_selection_sessions.update_one(
         {"session_id": session_id}, {"$set": fields})
+    try:
+        winner_index = result["restaurant_ids"].index(result["winner_restaurant_id"])
+    except ValueError:
+        winner_index = 0
+    mid = await _merchant_id_for_location(db, result["winner_restaurant_id"])
+    await emit_dining_event(db, merchant_id=mid, event_type="restaurant.selected",
+                            data={"session_id": session_id, "attempt": attempt,
+                                  "location_id": result["winner_restaurant_id"]})
     return {"session_id": session_id, "attempt": attempt,
             "status": fields["status"], "candidate_count": result["count"],
+            "segments": result["count"], "winner_index": winner_index,
             "can_reroll": attempt == 1, "winner": winner,
             "meal_price_cents": int(program["meal_price_cents"])}
 
@@ -602,6 +612,10 @@ async def accept(db, *, customer_id: str, session_id: str, program: dict) -> dic
         {"$set": {"status": "ACCEPTED", "accepted_restaurant_id": winner_id,
                   "reserved_credit_id": credit["credit_id"],
                   "order_id": order_id, "updated_at": now}})
+    mid = await _merchant_id_for_location(db, winner_id)
+    await emit_dining_event(db, merchant_id=mid, event_type="restaurant.accepted",
+                            data={"order_id": order_id, "location_id": winner_id,
+                                  "amount_cents": int(program["meal_price_cents"])})
     return {"session_id": session_id, "status": "ACCEPTED", "order_id": order_id,
             "credit_id": credit["credit_id"], "restaurant_id": winner_id,
             "amount_cents": int(program["meal_price_cents"])}
@@ -632,8 +646,11 @@ async def _issue_qr(db, *, order: dict, program: dict) -> dict:
 
 
 async def finalize_paid_order(db, *, order: dict, program: dict,
-                              stripe_session_id: Optional[str] = None) -> dict:
-    """Mark an order paid → issue the QR (idempotent)."""
+                              stripe_session_id: Optional[str] = None,
+                              stripe_charge_id: Optional[str] = None) -> dict:
+    """Mark an order paid → issue the QR (idempotent). The restaurant is NOT paid
+    here — the net share ($8.99) is transferred to its Stripe Connect account on
+    QR redemption (see _settle_redemption)."""
     if order.get("status") == "paid":
         existing = await db.dining_redemptions.find_one({"order_id": order["order_id"]})
         return {"order_id": order["order_id"], "status": "paid",
@@ -641,8 +658,16 @@ async def finalize_paid_order(db, *, order: dict, program: dict,
     await db.dining_orders.update_one(
         {"order_id": order["order_id"]},
         {"$set": {"status": "paid", "stripe_session_id": stripe_session_id,
+                  "stripe_charge_id": stripe_charge_id,
                   "paid_at": _now(), "updated_at": _now()}})
     qr = await _issue_qr(db, order=order, program=program)
+    mid = await _merchant_id_for_location(db, order["location_id"])
+    await emit_dining_event(db, merchant_id=mid, event_type="payment.completed",
+                            data={"order_id": order["order_id"],
+                                  "amount_cents": int(order.get("amount_cents") or 0)})
+    await emit_dining_event(db, merchant_id=mid, event_type="qr.issued",
+                            data={"order_id": order["order_id"],
+                                  "redemption_id": qr["redemption_id"]})
     return {"order_id": order["order_id"], "status": "paid", "qr": qr}
 
 
@@ -693,16 +718,305 @@ async def redeem_qr(db, *, qr_token: str, program: dict,
                             metadata={"redemption_id": redm["redemption_id"]})
     except Exception:
         pass
+    # Settle the restaurant's share ($8.99) via Stripe Connect transfer on redemption.
+    settlement = await _settle_redemption(db, redm=redm, program=program)
+    mid = await _merchant_id_for_location(db, redm["location_id"])
+    loc = await db.dining_locations.find_one({"location_id": redm["location_id"]})
+    left = await _capacity_left(db, redm["location_id"], redm["day"],
+                                redm["meal_period"], redm["veg_preference"], loc or {})
+    await emit_dining_event(db, merchant_id=mid, event_type="redeemed",
+                            data={"redemption_id": redm["redemption_id"],
+                                  "location_id": redm["location_id"],
+                                  "credit_id": redm["credit_id"], **settlement})
+    if left <= 0:
+        await emit_dining_event(db, merchant_id=mid, event_type="capacity.sold_out",
+                                data={"location_id": redm["location_id"],
+                                      "meal_period": redm["meal_period"],
+                                      "veg_preference": redm["veg_preference"]})
+    elif left <= 3:
+        await emit_dining_event(db, merchant_id=mid, event_type="capacity.low",
+                                data={"location_id": redm["location_id"], "left": left,
+                                      "meal_period": redm["meal_period"],
+                                      "veg_preference": redm["veg_preference"]})
     return {"redemption_id": redm["redemption_id"], "status": "REDEEMED",
-            "credit_id": redm["credit_id"], "location_id": redm["location_id"]}
+            "credit_id": redm["credit_id"], "location_id": redm["location_id"],
+            **settlement}
+
+
+# ══════════ Stripe Connect payout on redemption (spec §40) ═════════════
+async def get_session_view(db, *, customer_id: str, session_id: str) -> Optional[dict]:
+    """Resume view for an in-progress selection (used by the app to rehydrate
+    the wheel/reveal after navigation or reload)."""
+    s = await db.dining_selection_sessions.find_one(
+        {"session_id": session_id, "customer_id": customer_id})
+    if not s:
+        return None
+    out = {"session_id": s["session_id"], "status": s["status"],
+           "veg_preference": s.get("veg_preference"),
+           "meal_period": s.get("meal_period"),
+           "attempt": int(s.get("attempt_count") or 0),
+           "can_reroll": s["status"] == "FIRST_RESULT",
+           "pre_spin": s.get("pre_spin")}
+    result_id = s.get("second_result_restaurant_id") or s.get("first_result_restaurant_id")
+    if s["status"] in ("FIRST_RESULT", "FINAL_RESULT") and result_id:
+        out["winner"] = await _restaurant_public(db, result_id)
+        prog = await get_program(db)
+        out["meal_price_cents"] = int(prog["meal_price_cents"])
+    if s["status"] == "ACCEPTED":
+        order = await db.dining_orders.find_one({"session_id": session_id})
+        if order:
+            out["order_id"] = order["order_id"]
+    return out
+
+
+async def _settle_redemption(db, *, redm: dict, program: dict) -> dict:
+    """On QR redemption, transfer the restaurant's net ($8.99) to its connected
+    account, retaining the platform fee ($1). Records a dining_payouts ledger row.
+    If the merchant hasn't finished Stripe Connect onboarding, the payout is
+    ledgered as pending (nothing lost) rather than failing the redemption."""
+    order = await db.dining_orders.find_one({"order_id": redm["order_id"]})
+    gross = int((order or {}).get("amount_cents") or program["meal_price_cents"])
+    fee = int(program.get("platform_fee_cents") or 100)
+    net = max(0, gross - fee)
+    loc = await db.dining_locations.find_one(
+        {"location_id": redm["location_id"]}, {"merchant_id": 1})
+    merchant = (await db.dining_merchants.find_one(
+        {"merchant_id": (loc or {}).get("merchant_id")})) if loc else None
+    payout = {"payout_id": _gen("dpay"), "redemption_id": redm["redemption_id"],
+              "order_id": redm["order_id"],
+              "merchant_id": (merchant or {}).get("merchant_id"),
+              "location_id": redm["location_id"], "gross_cents": gross,
+              "platform_fee_cents": fee, "net_cents": net, "currency": "usd",
+              "stripe_transfer_id": None, "created_at": _now()}
+    acct = (merchant or {}).get("stripe_account_id")
+    charge = (order or {}).get("stripe_charge_id")
+    if acct and net > 0:
+        try:
+            from services import stripe_connect_service as scs
+            tr = await scs.create_transfer(
+                amount_cents=net, destination_account_id=acct,
+                source_transaction=charge,
+                transfer_group=f"dining_{redm['order_id']}",
+                metadata={"redemption_id": redm["redemption_id"],
+                          "order_id": redm["order_id"]},
+                idempotency_key=f"dining_transfer_{redm['redemption_id']}")
+            payout["stripe_transfer_id"] = tr["transfer_id"]
+            payout["status"] = "transferred"
+        except Exception as e:  # noqa: BLE001
+            payout["status"] = "transfer_failed"
+            payout["error"] = str(e)[:200]
+    else:
+        payout["status"] = "pending_no_connect" if not acct else "pending_no_charge"
+    await db.dining_payouts.insert_one(payout)
+    return {"gross_cents": gross, "platform_fee_cents": fee, "net_cents": net,
+            "settlement": payout["status"],
+            "stripe_transfer_id": payout.get("stripe_transfer_id")}
+
+
+# ══════════ merchant self-serve (Phase 2) ═════════════════════════════
+async def _merchant_id_for_location(db, location_id: str) -> Optional[str]:
+    loc = await db.dining_locations.find_one(
+        {"location_id": location_id}, {"merchant_id": 1})
+    return (loc or {}).get("merchant_id")
+
+
+async def create_owned_merchant(db, *, owner_user_id: str, name: str, cuisine: str,
+                                restaurant_class: str,
+                                stripe_account_id: Optional[str] = None) -> dict:
+    existing = await db.dining_merchants.find_one({"owner_user_id": owner_user_id})
+    if existing:
+        return _clean(existing)
+    doc = {"merchant_id": _gen("dmerch"), "owner_user_id": owner_user_id,
+           "name": name, "cuisine": (cuisine or "").lower(),
+           "restaurant_class": restaurant_class or "FAST_CASUAL", "status": "ACTIVE",
+           "participation_fee_cents": 50000, "billing_frequency": "monthly",
+           "logo_url": None, "stripe_account_id": stripe_account_id,
+           "stripe_onboarding_status": "not_started", "created_at": _now()}
+    await db.dining_merchants.insert_one(dict(doc))
+    return _clean(doc)
+
+
+async def get_owned_merchant(db, owner_user_id: str) -> Optional[dict]:
+    return await db.dining_merchants.find_one({"owner_user_id": owner_user_id})
+
+
+async def set_merchant_connect(db, *, merchant_id: str, stripe_account_id: str,
+                               status: str) -> None:
+    await db.dining_merchants.update_one(
+        {"merchant_id": merchant_id},
+        {"$set": {"stripe_account_id": stripe_account_id,
+                  "stripe_onboarding_status": status, "updated_at": _now()}})
+
+
+async def add_location(db, *, merchant_id: str, name: str, address: str,
+                       lat: Optional[float], lng: Optional[float],
+                       veg_available: bool, nonveg_available: bool,
+                       hours: str = "11:00–22:00") -> dict:
+    doc = {"location_id": _gen("dloc"), "merchant_id": merchant_id, "name": name,
+           "status": "ACTIVE", "address": address, "market": DEFAULT_MARKET["market"],
+           "lat": lat if lat is not None else DEFAULT_MARKET["lat"],
+           "lng": lng if lng is not None else DEFAULT_MARKET["lng"],
+           "veg_available": bool(veg_available), "nonveg_available": bool(nonveg_available),
+           "hours": hours, "blackout_dates": [], "capacity": {}, "created_at": _now()}
+    await db.dining_locations.insert_one(dict(doc))
+    return _clean(doc)
+
+
+async def update_location(db, *, merchant_id: str, location_id: str, patch: dict):
+    allowed = {"name", "address", "lat", "lng", "veg_available", "nonveg_available",
+               "hours", "blackout_dates", "status"}
+    clean = {k: v for k, v in (patch or {}).items() if k in allowed}
+    if not clean:
+        return await db.dining_locations.find_one(
+            {"location_id": location_id, "merchant_id": merchant_id})
+    return await db.dining_locations.find_one_and_update(
+        {"location_id": location_id, "merchant_id": merchant_id},
+        {"$set": clean}, return_document=True)
+
+
+async def set_capacity(db, *, merchant_id: str, location_id: str, capacity: dict) -> bool:
+    clean = {k: max(0, int(v)) for k, v in (capacity or {}).items()}
+    r = await db.dining_locations.update_one(
+        {"location_id": location_id, "merchant_id": merchant_id},
+        {"$set": {"capacity": clean}})
+    return r.matched_count > 0
+
+
+async def set_meals(db, *, merchant_id: str, location_id: str, meals: list) -> list:
+    """Set/rotate the daily Veg/Non-Veg meal offers for a location."""
+    await db.dining_meal_offers.update_many(
+        {"location_id": location_id, "merchant_id": merchant_id},
+        {"$set": {"active": False}})
+    out = []
+    for m in meals or []:
+        if m.get("veg_preference") not in ("VEG", "NON_VEG"):
+            continue
+        doc = {"offer_id": _gen("doff"), "location_id": location_id,
+               "merchant_id": merchant_id, "veg_preference": m["veg_preference"],
+               "meal_period": m.get("meal_period", "LUNCH"),
+               "customer_title": m.get("customer_title") or "Chef's selected meal",
+               "customer_description": m.get("customer_description"),
+               "active": True, "updated_at": _now()}
+        await db.dining_meal_offers.insert_one(dict(doc))
+        out.append(_clean(doc))
+    return out
+
+
+async def merchant_view(db, owner_user_id: str) -> Optional[dict]:
+    m = await get_owned_merchant(db, owner_user_id)
+    if not m:
+        return None
+    locs = [_clean(l) for l in await db.dining_locations.find(
+        {"merchant_id": m["merchant_id"]}).to_list(100)]
+    offers = [_clean(o) for o in await db.dining_meal_offers.find(
+        {"merchant_id": m["merchant_id"], "active": True}).to_list(200)]
+    return {"merchant": _clean(m), "locations": locs, "meals": offers}
+
+
+async def merchant_analytics(db, merchant_id: str) -> dict:
+    locs = [l["location_id"] async for l in db.dining_locations.find(
+        {"merchant_id": merchant_id}, {"location_id": 1})]
+    lset = set(locs)
+    appearances = wins = 0
+    async for cs in db.dining_candidate_sets.find(
+            {}, {"restaurant_ids": 1, "winner_restaurant_id": 1}):
+        for rid in cs.get("restaurant_ids") or []:
+            if rid in lset:
+                appearances += 1
+        if cs.get("winner_restaurant_id") in lset:
+            wins += 1
+    accepts = await db.dining_selection_sessions.count_documents(
+        {"accepted_restaurant_id": {"$in": locs}})
+    redemptions = await db.dining_redemptions.count_documents(
+        {"location_id": {"$in": locs}, "status": "REDEEMED"})
+    agg = await db.dining_payouts.aggregate([
+        {"$match": {"location_id": {"$in": locs}}},
+        {"$group": {"_id": None, "gross": {"$sum": "$gross_cents"},
+                    "net": {"$sum": "$net_cents"}, "fee": {"$sum": "$platform_fee_cents"},
+                    "n": {"$sum": 1}}}]).to_list(1)
+    p = agg[0] if agg else {}
+    return {"locations": len(locs), "appearances": appearances, "wins": wins,
+            "acceptances": accepts, "redemptions": redemptions,
+            "acceptance_rate": round(accepts / wins, 3) if wins else 0,
+            "reroll_rejection_rate": round((wins - accepts) / wins, 3) if wins else 0,
+            "earnings": {"gross_cents": int(p.get("gross") or 0),
+                         "net_cents": int(p.get("net") or 0),
+                         "platform_fee_cents": int(p.get("fee") or 0),
+                         "meals_settled": int(p.get("n") or 0)}}
+
+
+# ══════════ restaurant-facing webhooks (Phase 4, spec §77-78) ══════════
+DINING_EVENTS = ["restaurant.selected", "restaurant.accepted", "payment.completed",
+                 "qr.issued", "redeemed", "capacity.low", "capacity.sold_out"]
+
+
+def _wh_sign(secret: str, body: str) -> str:
+    return hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+
+
+async def _deliver_dining_webhook(url: str, secret: str, event: dict) -> None:
+    import json
+    import httpx
+    body = json.dumps(event, default=str)
+    try:
+        async with httpx.AsyncClient(timeout=8) as c:
+            await c.post(url, content=body, headers={
+                "Content-Type": "application/json",
+                "X-RadioLife-Dining-Signature": _wh_sign(secret, body),
+                "X-RadioLife-Event": event["type"]})
+    except Exception:
+        pass
+
+
+async def emit_dining_event(db, *, merchant_id: Optional[str], event_type: str,
+                            data: dict) -> None:
+    if not merchant_id:
+        return
+    import asyncio as _a
+    now = _now()
+    async for wh in db.dining_webhooks.find(
+            {"merchant_id": merchant_id, "status": "active", "events": event_type}):
+        ev = {"id": _gen("devt"), "type": f"dining.{event_type}",
+              "created": now.isoformat(), "merchant_id": merchant_id, "data": data}
+        _a.create_task(_deliver_dining_webhook(wh["url"], wh["secret"], ev))
+        await db.dining_webhook_deliveries.insert_one({
+            "delivery_id": _gen("dwd"), "webhook_id": wh["webhook_id"],
+            "merchant_id": merchant_id, "event_type": ev["type"], "url": wh["url"],
+            "event": ev, "ts": now})
+
+
+async def register_dining_webhook(db, *, merchant_id: str, url: str,
+                                  events: list) -> dict:
+    evs = [e for e in (events or []) if e in DINING_EVENTS] or list(DINING_EVENTS)
+    doc = {"webhook_id": _gen("dwh"), "merchant_id": merchant_id, "url": url,
+           "events": evs, "secret": "dwhsec_" + secrets.token_urlsafe(24),
+           "status": "active", "created_at": _now()}
+    await db.dining_webhooks.insert_one(dict(doc))
+    return _clean(doc)
+
+
+async def list_dining_webhooks(db, merchant_id: str) -> list:
+    return [_clean(w) for w in await db.dining_webhooks.find(
+        {"merchant_id": merchant_id}).to_list(100)]
+
+
+async def delete_dining_webhook(db, merchant_id: str, webhook_id: str) -> bool:
+    r = await db.dining_webhooks.delete_one(
+        {"webhook_id": webhook_id, "merchant_id": merchant_id})
+    return r.deleted_count > 0
 
 
 __all__ = [
-    "PROGRAM_ID", "DEFAULTS", "ensure_dining_indexes",
+    "PROGRAM_ID", "DEFAULTS", "DINING_EVENTS", "ensure_dining_indexes",
     "get_program", "patch_program", "public_program",
     "credit_summary", "list_credits", "expire_credits",
     "get_subscription", "create_subscription", "issue_due_grants",
     "start_session", "spin", "reroll", "abandon", "accept",
     "finalize_paid_order", "get_pass", "redeem_qr",
     "_reserve_oldest_credit", "_release_credit",
+    "create_owned_merchant", "get_owned_merchant", "set_merchant_connect",
+    "add_location", "update_location", "set_capacity", "set_meals",
+    "merchant_view", "merchant_analytics",
+    "register_dining_webhook", "list_dining_webhooks", "delete_dining_webhook",
+    "emit_dining_event",
 ]

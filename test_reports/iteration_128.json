@@ -1,0 +1,59 @@
+{
+  "summary": "Iter128 retest of iter127 fixes. VERIFIED FIXED: (1) All spec test IDs are present on both web (dining-home, dining-use-meal-btn, dining-play, dining-pref-veg/nonveg, dining-period-lunch/dinner, dining-spin-btn, dining-surprise-btn, dining-accept-btn, dining-reroll-btn, dining-merchant-page) and mobile (same testIDs); (2) Merchant-role guard on POST /api/merchant/dining-club/redeem — pytest confirms non-owner authed caller gets HTTP 403 {code:'not_meal_merchant'} and admin bypass works. NOT FIXED (blocker still present): (3) MOBILE CORS on the Expo web preview is STILL BROKEN. The backend `CORSMiddleware` is correctly configured (`allow_origin_regex='.*'` + `allow_credentials=True`), but the Kubernetes / Cloudflare ingress in front of the backend REWRITES the `Origin` request header to the internal cluster hostname (`https://mobile-games-v2.cluster-11.preview.emergentcf.cloud`) before it reaches FastAPI. FastAPI echoes back that rewritten origin as `Access-Control-Allow-Origin`, but the browser's actual origin is `https://mobile-games-v2.expo.preview.emergentagent.com` → mismatch → browser blocks the response. Confirmed live in the Expo web preview: `/api/auth/demo`, `/api/auth/me` all fail with 'The Access-Control-Allow-Origin header has a value that does not match the origin.' As a result, demo login on mobile FAILS, mobile /dining stays on the login screen, and any authenticated API call is unreachable. Web is unaffected because it is same-origin. WEB happy path partially executed: /dining renders with dining-home + dining-use-meal-btn (test@ user); but test@ had 0 available meal credits (previous backend tests consumed all 3), so clicking Use-a-Meal → /dining/play couldn't reach the wheel spin (blocked by backend `no_available_credits`). Wheel payload schema (segments:int + winner_index:int + winner metadata) confirmed via pytest earlier when a credit was available. Merchant dashboard testids (dining-merchant-page) are wired.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "CORS on Expo web preview (mobile)", "issue": "Ingress rewrites the browser Origin header before it reaches FastAPI, so FastAPI's regex-based echo returns the wrong ACAO. Browser blocks ALL /api/* calls from https://mobile-games-v2.expo.preview.emergentagent.com. Backend-level `allow_origin_regex='.*'` alone cannot fix this — either the ingress must preserve the client Origin, OR the mobile Expo web preview must be served under the same host as the API (same-origin), OR the frontend must drop credentials mode for mobile fetches. Verified in-browser (Playwright) with real console errors on /api/auth/demo and /api/auth/me. Reference: /app/backend/server.py:7644-7652.", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/merchant/dining-club/enroll", "issue": "Silently swallows Stripe Connect failures (connect_onboarding_url:null). Same iter127 comment — still open."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Any authenticated call from the Expo web preview", "issue": "CORS-blocked by ingress-rewritten Origin (see backend.critical). demo-login-btn tap does nothing because POST /api/auth/demo is CORS-blocked. Result: mobile QA of the full Dining happy path in the Expo web preview is impossible until the ingress preserves the client Origin. Native EAS/Expo-Go builds are NOT affected — this is a preview-QA-only blocker.", "affected_testIDs": ["demo-login-btn", "home-dining-cta", "dining-home", "dining-use-meal-btn"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Auth + /dining active-membership rendering", "platform": "mobile", "issue": "Web renders /dining with active-membership view (dining-home + dining-use-meal-btn + Meals-available stat) because it is same-origin with the API. Mobile Expo web preview cannot even complete demo login → stays on /login → /dining is unreachable behind the auth gate.", "expected": "Both surfaces render dining-home + dining-use-meal-btn for a subscribed user.", "actual": "Web ✅. Mobile Expo preview ❌ (login CORS-blocked)."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter128_retest.py",
+    "/app/test_reports/pytest/iter128.xml"
+  ],
+  "action_items": [
+    "CRITICAL: fix the ingress/Cloudflare layer in front of the backend so it preserves the client `Origin` header (or add a downstream response-rewrite that swaps the internal cluster hostname back to the client-facing one in the ACAO header). Backend-level CORS middleware cannot fix this alone. Workaround options for the frontend: (a) drop `credentials: 'include'` on mobile-preview fetches (use bearer-only), (b) proxy /api through the Expo dev server so requests are same-origin. This is required before any Playwright happy path can run on the Expo web preview.",
+    "Refill meal credits on test@bigfm.dubai (currently 0 available — consumed in iter127/iter128 backend tests) so the next web Playwright run can exercise the full spin → reveal → reroll → accept → mark-paid → /dining/pass flow end-to-end. Suggestion: admin grant or `POST /api/admin/dining-club/run-grants`.",
+    "(iter127 carry-over) Surface Stripe Connect onboarding failures in POST /api/merchant/dining-club/enroll instead of silently returning connect_onboarding_url:null."
+  ],
+  "critical_code_review_comments": [
+    "server.py CORS is correctly configured, BUT the fix only works when the ingress does not touch the Origin header. Suggestion: on top of `allow_origin_regex`, add a Starlette response middleware that rewrites ACAO to match the incoming `Referer`/`X-Forwarded-Host` when it looks like the Expo preview slug. Or ask platform team to preserve the client Origin. Reference: /app/backend/server.py:7644-7652.",
+    "routes/dining_club.merchant_redeem role/ownership guard is now correct (verified in pytest). Consider making `location_id` in RedeemBody required for defense-in-depth (currently optional). Reference: /app/backend/routes/dining_club.py:397-431.",
+    "services.dining_club.spin returns `segments` as an int slice count (confirmed intentional per the 'blind wheel' spec). Both web (DiningPlay) and mobile (play.tsx) consume it as N slices; parity is fine."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter128_retest.py",
+    "/app/test_reports/pytest/iter128.xml",
+    "/app/test_reports/iteration_128.json"
+  ],
+  "success_rate": {
+    "backend": "Redeem-guard verified (1/1 non-owner-403 pytest passed, 1 skipped due to credit exhaustion). Wheel segments-int schema verified. CORS end-to-end FAILS at the ingress layer (2/2 CORS pytest cases failed and reproduced in the browser).",
+    "frontend": "Web testIDs 100% present, /dining renders correctly for logged-in test@. Mobile testIDs 100% present in code + /dining/play renders (client-only), BUT authenticated flows are CORS-blocked in the Expo web preview so mobile happy-path cannot be exercised."
+  },
+  "test_credentials": "As per /app/memory/test_credentials.md: test@bigfm.dubai / TestUser123! (currently 0 dining credits — refill needed), demo@bigfm.dubai / DemoPass123! (0 credits), admin@bigfm.dubai / AdminPass123!.",
+  "seed_data_creation": "One meal order was created by test@ during the redeem-guard pytest run: session → random → accept → admin mark-paid → QR issued → test@ attempted redeem → 403 not_meal_merchant (guard verified). Test@ credits are now 0 (started at 3, consumed 3 across iter127/iter128 backend runs).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two of three iter127 fixes are verified GREEN in iter128 (testIDs + merchant-role guard). The third — CORS for the Expo web preview — is NOT actually fixed at the ingress layer even though the backend middleware is correct. The K8s/Cloudflare ingress rewrites the incoming Origin to `https://mobile-games-v2.cluster-11.preview.emergentcf.cloud` before it reaches FastAPI. FastAPI echoes that as ACAO. Browser at `https://mobile-games-v2.expo.preview.emergentagent.com` sees the mismatch and blocks. Reproduce: `curl -I -X OPTIONS $BACKEND/api/dining-club -H 'Origin: https://mobile-games-v2.expo.preview.emergentagent.com' -H 'Access-Control-Request-Method: GET'` → ACAO returned is the cluster hostname, NOT the expo hostname. To close this out the ingress must preserve the client Origin (or the mobile app must be served under the same host as the API). Once fixed, the mobile happy path via Playwright will finally be runnable. Web happy path is fully test-id-ready; main agent should first `POST /api/admin/dining-club/run-grants` (or grant test@ meal credits directly) so a fresh Playwright run can exercise spin→reveal→reroll→spin→accept→admin mark-paid→/dining/pass end-to-end.",
+  "rca of the issue": "Root cause of the remaining CORS block: FastAPI's Starlette CORSMiddleware echoes back the incoming `Origin` header when it matches the configured regex. On this deployment the request passes through a Cloudflare/K8s ingress that normalises the `Origin` header to the internal cluster-facing hostname (`https://mobile-games-v2.cluster-11.preview.emergentcf.cloud`). FastAPI dutifully echoes that normalised value into `Access-Control-Allow-Origin`. When the browser receives the response, it compares ACAO to its own actual `Origin` (`https://mobile-games-v2.expo.preview.emergentagent.com`), sees a mismatch, and blocks the response. This is why (a) the backend-level regex fix looks correct in code, (b) curl-level headers already reveal the rewritten origin, and (c) the browser confirms the block. Fix must land at either the ingress layer (preserve/pass-through client Origin) OR the app-network layer (frontend to drop credentials on cross-origin mobile fetches OR proxy /api same-origin under the expo host). Same-origin web is unaffected because no cross-origin CORS check is performed at all."
+}

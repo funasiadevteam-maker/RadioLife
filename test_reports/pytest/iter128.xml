@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="1" tests="5" time="1.768" timestamp="2026-09-13T23:13:38.134510+00:00" hostname="agent-env-24fc5ba4-8742-499e-8d7e-1fc7d9a4ccd6"><testcase classname="tests.test_iter128_retest.TestCORS" name="test_preflight_reflects_expo_origin" time="0.279"><failure message="AssertionError: ACAO must echo origin, got 'https://mobile-games-v2.cluster-11.preview.emergentcf.cloud'&#10;assert 'https://mobi...rgentcf.cloud' == 'https://mobi...gentagent.com'&#10;  &#10;  - https://mobile-games-v2.expo.preview.emergentagent.com&#10;  ?                          ^^^                 ^^^^^   ^&#10;  + https://mobile-games-v2.cluster-11.preview.emergentcf.cloud&#10;  ?                         +++++ ^^^^                 ^^  + ^^">tests/test_iter128_retest.py:55: in test_preflight_reflects_expo_origin
+    assert acao == EXPO_ORIGIN, f"ACAO must echo origin, got {acao!r}"
+E   AssertionError: ACAO must echo origin, got 'https://mobile-games-v2.cluster-11.preview.emergentcf.cloud'
+E   assert 'https://mobi...rgentcf.cloud' == 'https://mobi...gentagent.com'
+E     
+E     - https://mobile-games-v2.expo.preview.emergentagent.com
+E     ?                          ^^^                 ^^^^^   ^
+E     + https://mobile-games-v2.cluster-11.preview.emergentcf.cloud
+E     ?                         +++++ ^^^^                 ^^  + ^^</failure></testcase><testcase classname="tests.test_iter128_retest.TestCORS" name="test_actual_get_with_origin_returns_reflected_header" time="0.289"><failure message="AssertionError: assert 'https://mobi...rgentcf.cloud' == 'https://mobi...gentagent.com'&#10;  &#10;  - https://mobile-games-v2.expo.preview.emergentagent.com&#10;  ?                          ^^^                 ^^^^^   ^&#10;  + https://mobile-games-v2.cluster-11.preview.emergentcf.cloud&#10;  ?                         +++++ ^^^^                 ^^  + ^^">tests/test_iter128_retest.py:61: in test_actual_get_with_origin_returns_reflected_header
+    assert r.headers.get("access-control-allow-origin") == EXPO_ORIGIN
+E   AssertionError: assert 'https://mobi...rgentcf.cloud' == 'https://mobi...gentagent.com'
+E     
+E     - https://mobile-games-v2.expo.preview.emergentagent.com
+E     ?                          ^^^                 ^^^^^   ^
+E     + https://mobile-games-v2.cluster-11.preview.emergentcf.cloud
+E     ?                         +++++ ^^^^                 ^^  + ^^</failure></testcase><testcase classname="tests.test_iter128_retest.TestRedeemGuard" name="test_non_owner_gets_403_not_meal_merchant" time="0.933" /><testcase classname="tests.test_iter128_retest.TestRedeemGuard" name="test_admin_can_redeem" time="0.077"><skipped type="pytest.skip" message="test@ has 0 credits for a fresh order">/app/backend/tests/test_iter128_retest.py:116: test@ has 0 credits for a fresh order</skipped></testcase><testcase classname="tests.test_iter128_retest.TestWheelPayload" name="test_segments_is_int" time="0.079"><failure message="AssertionError: {&quot;detail&quot;:{&quot;code&quot;:&quot;no_available_credits&quot;}}&#10;assert 400 == 200&#10; +  where 400 = &lt;Response [400]&gt;.status_code">tests/test_iter128_retest.py:131: in test_segments_is_int
+    assert r.status_code == 200, r.text[:300]
+E   AssertionError: {"detail":{"code":"no_available_credits"}}
+E   assert 400 == 200
+E    +  where 400 = &lt;Response [400]&gt;.status_code</failure></testcase></testsuite></testsuites>

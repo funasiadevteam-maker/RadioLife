@@ -7,6 +7,10 @@ import RadioDiscover from "@/RadioDiscover";
 import RadioBrowse from "@/RadioBrowse";
 import RadioHome from "@/RadioHome";
 import ListenHub from "@/pages/ListenHub";
+import DiningHome from "@/pages/dining/DiningHome";
+import DiningPlay from "@/pages/dining/DiningPlay";
+import DiningPass from "@/pages/dining/DiningPass";
+import DiningMerchant from "@/pages/dining/DiningMerchant";
 import Admin from "@/Admin";
 import AdminHome from "@/pages/admin/AdminHome";  // Phase T — Admin Home dashboard
 import AdminGlobalSearch from "@/components/AdminGlobalSearch";  // Phase T — Cmd/Ctrl+K palette
@@ -143,6 +147,8 @@ import ScanCheckout from "@/pages/scan/ScanCheckout";
 import SplitInvite from "@/pages/scan/SplitInvite";
 import MySplits from "@/pages/scan/MySplits";
 import MerchantScanToPay from "@/pages/merchant/MerchantScanToPay";import CouponOffers from "@/pages/CouponOffers";
+import StorePage from "@/pages/StorePage";
+import FpkCouponCaps from "@/pages/admin/FpkCouponCaps";
 import AdReview from "@/pages/admin/AdReview";
 import AdvertiserAnalyticsAD1 from "@/pages/advertiser_v2/AdvertiserAnalytics";
 import AdvertiserProfile from "@/pages/advertiser_v2/AdvertiserProfile";
@@ -412,6 +418,13 @@ function AppRouter() {
       <Route path="/listen" element={
         <ProtectedRoute><ListenHub /></ProtectedRoute>
       } />
+      {/* Premium Dining Club (Phase 2/3) */}
+      <Route path="/dining" element={<ProtectedRoute><DiningHome /></ProtectedRoute>} />
+      <Route path="/dining/enrolled" element={<ProtectedRoute><DiningHome /></ProtectedRoute>} />
+      <Route path="/dining/play" element={<ProtectedRoute><DiningPlay /></ProtectedRoute>} />
+      <Route path="/dining/pass" element={<ProtectedRoute><DiningPass /></ProtectedRoute>} />
+      <Route path="/dining/pass/:orderId" element={<ProtectedRoute><DiningPass /></ProtectedRoute>} />
+      <Route path="/dining/merchant" element={<ProtectedRoute><DiningMerchant /></ProtectedRoute>} />
       <Route path="/radio/discover" element={<RadioDiscover />} />
       <Route path="/personas" element={<PersonaLibrary />} />
       <Route path="/privacy" element={<PrivacyCenter />} />
@@ -753,6 +766,9 @@ function AppRouter() {
       <Route path="/advertiser-app/staff/accept/:token" element={<AdvertiserStaffAccept />} />
       {/* Phase AD.4 — customer-facing coupon offers surface. */}
       <Route path="/offers" element={<CouponOffers />} />
+      <Route path="/store/:id" element={<StorePage />} />
+      <Route path="/admin/fpk-caps" element={
+        <ProtectedRoute requireAdmin><FpkCouponCaps /></ProtectedRoute>} />
       {/* Phase ADMOD.1 — Ad Manager · Unified creative approval queue. */}
       <Route path="/admin/ad-review" element={
         <ProtectedRoute><AdReview /></ProtectedRoute>

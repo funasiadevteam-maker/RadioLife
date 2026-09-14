@@ -28,6 +28,19 @@ export default function CouponOffers() {
   const [saved, setSaved] = useState({});   // {campaign_id: {ok, coupon_id, short_code} }
   const [toast, setToast] = useState(null);
 
+  // P1 — "My Coupons" tab (owned coupons unified across all engines).
+  const initialTab = new URLSearchParams(window.location.search).get("tab") === "mine" ? "mine" : "deals";
+  const [tab, setTab] = useState(initialTab);
+  const [mine, setMine] = useState(null);
+  const [mineErr, setMineErr] = useState(null);
+
+  useEffect(() => {
+    if (tab !== "mine" || mine !== null || !user) return;
+    axios.get(`${API}/me/wallet-coupons`)
+      .then((r) => setMine(r.data.items || []))
+      .catch((e) => setMineErr(e?.response?.data?.detail?.code || e.message));
+  }, [tab, mine, user]);
+
   const showToast = (kind, message) => {
     setToast({ kind, message });
     setTimeout(() => setToast(null), 3500);
@@ -90,10 +103,30 @@ export default function CouponOffers() {
           <p className={`mt-2 text-sm ${light ? "text-white/85" : "text-slate-300"}`}>
             Tap Save to add the coupon to your wallet.  Show the QR at checkout.
           </p>
+          {/* P1 — Deals / My Coupons tabs */}
+          <div className="mt-5 inline-flex rounded-full p-1 bg-black/20 border border-white/15" data-testid="offers-tabs">
+            {[["deals", "Deals"], ["mine", "My Coupons"]].map(([key, label]) => (
+              <button key={key} onClick={() => setTab(key)}
+                      data-testid={`offers-tab-${key}`}
+                      className={`px-5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition ${
+                        tab === key ? "bg-white text-slate-900" : "text-white/80 hover:text-white"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-4">
+            <Link to="/store/adv_fpk" data-testid="offers-fpk-store"
+                      className="inline-flex items-center gap-1.5 text-xs font-black underline decoration-dotted underline-offset-4 opacity-90 hover:opacity-100">
+              <Sparkles className="w-3.5 h-3.5" /> Visit the FPK Store →
+            </Link>
+          </div>
         </div>
       </section>
 
       <div className="max-w-7xl xl:max-w-[1400px] mx-auto px-4 py-8">
+        {tab === "mine" ? (
+          <MyCouponsView light={light} mine={mine} mineErr={mineErr} user={user} />
+        ) : (<>
         {items === null && !error ? (
           <div className="flex items-center gap-2 py-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading offers…</div>
         ) : error ? (
@@ -204,6 +237,7 @@ export default function CouponOffers() {
             View my wallet <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
+        </>)}
       </div>
 
       {toast && (
@@ -219,6 +253,106 @@ export default function CouponOffers() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// P1 — "My Coupons": the user's owned coupons unified across engines.
+function MyCouponsView({ light, mine, mineErr, user }) {
+  const muted = light ? "text-slate-500" : "text-slate-400";
+  const cardCls = light
+    ? "bg-white border border-slate-200 shadow-sm"
+    : "bg-slate-900/60 border border-slate-800";
+  const [copied, setCopied] = useState(null);
+
+  const copy = (code) => {
+    if (!code) return;
+    try { navigator.clipboard.writeText(code); } catch {}
+    setCopied(code);
+    setTimeout(() => setCopied(null), 1800);
+  };
+
+  if (!user) {
+    return (
+      <div className={`text-center py-16 ${muted}`} data-testid="mycoupons-signin">
+        <Ticket className="w-12 h-12 mx-auto opacity-40" />
+        <div className="mt-3 font-bold">Sign in to see your coupons.</div>
+        <div className="text-xs mt-1">Your saved deals and game wins live here.</div>
+        <a href="/login?next=/offers?tab=mine" data-testid="mycoupons-signin-cta"
+           className={`inline-flex items-center gap-2 mt-5 px-5 py-2.5 rounded-full text-sm font-black ${
+             light ? "bg-purple-600 text-white" : "bg-amber-500 text-slate-900"}`}>
+          Sign in <ArrowRight className="w-4 h-4" />
+        </a>
+      </div>
+    );
+  }
+  if (mineErr) {
+    return (
+      <div className="rounded-xl px-4 py-3 bg-red-500/10 border border-red-500/40 text-red-400 text-sm" data-testid="mycoupons-error">
+        {String(mineErr)}
+      </div>
+    );
+  }
+  if (mine === null) {
+    return <div className="flex items-center gap-2 py-8" data-testid="mycoupons-loading"><Loader2 className="w-4 h-4 animate-spin" /> Loading your coupons…</div>;
+  }
+  if (mine.length === 0) {
+    return (
+      <div className={`text-center py-16 ${muted}`} data-testid="mycoupons-empty">
+        <Ticket className="w-12 h-12 mx-auto opacity-40" />
+        <div className="mt-3 font-bold">No coupons yet.</div>
+        <div className="text-xs mt-1">Save a deal or play a sponsored game to earn coupons.</div>
+        <Link to="/play" data-testid="mycoupons-play-cta"
+              className={`inline-flex items-center gap-2 mt-5 px-5 py-2.5 rounded-full text-sm font-black ${
+                light ? "bg-purple-600 text-white" : "bg-amber-500 text-slate-900"}`}>
+          <Zap className="w-4 h-4" /> Play &amp; win
+        </Link>
+      </div>
+    );
+  }
+
+  const SOURCE_LABEL = { game_win: "Game win", saved: "Saved", wallet: "Wallet" };
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="mycoupons-grid">
+      {mine.map((c) => {
+        const redeemed = c.status === "redeemed";
+        return (
+          <div key={c.id} className={`${cardCls} rounded-2xl p-4 flex flex-col`} data-testid={`mycoupon-${c.id}`}>
+            <div className="flex items-center justify-between">
+              <span className={`text-[10px] font-black uppercase tracking-widest ${light ? "text-purple-600" : "text-amber-400"}`}>
+                {SOURCE_LABEL[c.source] || "Coupon"}
+              </span>
+              <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                redeemed ? "bg-slate-500/20 text-slate-400" : "bg-emerald-500/15 text-emerald-500"}`}
+                data-testid={`mycoupon-${c.id}-status`}>
+                {redeemed ? "Redeemed" : "Active"}
+              </span>
+            </div>
+            <div className="mt-2 font-black text-lg leading-tight">{c.title}</div>
+            {c.sponsor_name && <div className={`text-xs mt-0.5 ${muted}`}>{c.sponsor_name}</div>}
+            {c.description && <div className={`text-xs mt-1 line-clamp-2 ${muted}`}>{c.description}</div>}
+            <div className="flex-1" />
+            {c.code && (
+              <button onClick={() => copy(c.code)} disabled={redeemed}
+                      data-testid={`mycoupon-${c.id}-code`}
+                      className={`mt-3 flex items-center justify-between gap-2 px-3 py-2 rounded-lg font-mono text-sm border transition ${
+                        light ? "bg-slate-50 border-slate-200 hover:bg-slate-100" : "bg-slate-950/60 border-slate-700 hover:border-slate-500"} ${redeemed ? "opacity-50" : ""}`}>
+                <span className="truncate">{c.code}</span>
+                {copied === c.code
+                  ? <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  : <span className="text-[10px] uppercase tracking-wider opacity-60 shrink-0">Copy</span>}
+              </button>
+            )}
+            {c.expires_at && (
+              <div className={`text-[11px] mt-2 ${muted}`}>
+                Expires {new Date(c.expires_at).toLocaleDateString()}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

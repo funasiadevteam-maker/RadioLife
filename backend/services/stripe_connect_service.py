@@ -37,6 +37,49 @@ def _configure() -> None:
     stripe.api_key = key
 
 
+async def create_transfer(*, amount_cents: int, destination_account_id: str,
+                          source_transaction: Optional[str] = None,
+                          transfer_group: Optional[str] = None,
+                          metadata: Optional[dict] = None,
+                          idempotency_key: Optional[str] = None) -> dict:
+    """Separate-charges-and-transfers payout leg. Moves `amount_cents` from the
+    platform balance to a connected account. `source_transaction` (the original
+    platform charge id) lets a DEFERRED transfer draw from that specific charge
+    so it never fails for insufficient available balance. Idempotent."""
+    _configure()
+
+    def _sync():
+        kwargs: dict[str, Any] = {"amount": int(amount_cents), "currency": "usd",
+                                  "destination": destination_account_id}
+        if source_transaction:
+            kwargs["source_transaction"] = source_transaction
+        if transfer_group:
+            kwargs["transfer_group"] = transfer_group
+        if metadata:
+            kwargs["metadata"] = metadata
+        opts = {"idempotency_key": idempotency_key} if idempotency_key else {}
+        return stripe.Transfer.create(**kwargs, **opts)
+
+    tr = await asyncio.to_thread(_sync)
+    return {"transfer_id": tr.id, "amount": tr.amount, "destination": tr.destination}
+
+
+async def reverse_transfer(*, transfer_id: str, amount_cents: Optional[int] = None,
+                           idempotency_key: Optional[str] = None) -> dict:
+    """Reverse a prior transfer (e.g. redemption voided/refunded)."""
+    _configure()
+
+    def _sync():
+        kwargs: dict[str, Any] = {}
+        if amount_cents is not None:
+            kwargs["amount"] = int(amount_cents)
+        opts = {"idempotency_key": idempotency_key} if idempotency_key else {}
+        return stripe.Transfer.create_reversal(transfer_id, **kwargs, **opts)
+
+    rev = await asyncio.to_thread(_sync)
+    return {"reversal_id": rev.id, "amount": rev.amount}
+
+
 # ─── Status derivation ─────────────────────────────────────────────
 VALID_STATUSES = {
     "not_started", "onboarding_in_progress", "onboarding_incomplete",

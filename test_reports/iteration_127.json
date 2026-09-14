@@ -1,0 +1,71 @@
+{
+  "summary": "Dining Club Phase 2/3/4 backend is GREEN (14/14 pytest cases pass). Merchant self-serve (enroll/me/locations/capacity/meals/analytics/webhooks add-list-delete), non-owner 400 guards, resume endpoint GET /selection/{id}, spin `segments`+`winner_index` payload, and the full redeem → Stripe-Connect payout ledger cycle (gross 999 / platform_fee 100 / net 899 / settlement pending_no_connect for demo-seeded restaurants) are all verified end-to-end. WEB UI: /dining/merchant renders correctly for test@ (Restaurant Portal, Stripe Connect onboarding_in_progress, Performance stats, Locations w/ capacity, Today's Veg/Non-Veg meal editors, Add location, POS WEBHOOKS list w/ delete). MOBILE (Expo web preview): Home shows RadioLife Dining Club CTA, /dining renders enrollment card, /dining/play renders warm-cream themed picker (Veg/Non-Veg + Lunch/Dinner + Find my restaurants). CRITICAL FINDING: virtually ALL spec-required test IDs are ABSENT on BOTH web AND mobile (dining-home, dining-play, dining-merchant-page, dining-use-meal-btn, dining-pref-veg, dining-pref-nonveg, dining-period-lunch, dining-period-dinner, dining-spin-btn, dining-surprise-btn, dining-accept-btn, dining-reroll-btn all count=0). MOBILE preview integration additionally breaks due to CORS (expo.preview.emergentagent.com blocked hitting preview.emergentagent.com/api/* — backend responds with `Access-Control-Allow-Origin: *` which browsers reject when the frontend sends credentials/cookies). As a result, mobile /dining shows the enrollment form even for demo@ (who is already subscribed) because the /api/dining-club fetch was rejected. Phase 1 regression (via iter126) remains fully green. No red-screen or blocking crashes on either surface — pages render, they just lack testids and mobile-preview API integration.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/merchant/dining-club/redeem", "issue": "Currently only requires current_user (cookie) — no merchant-role guard; any authed user with a QR token can redeem. In iter127 the redeem was executed successfully as `admin@` on demo@'s order to verify ledger. Add a guard: (a) require the caller be a dining merchant owner, (b) require location_id belongs to that merchant, and (c) verify location.merchant_id matches the qr_token's redemption target. Reference: /app/backend/routes/dining_club.py:402"},
+      {"endpoint": "POST /api/merchant/dining-club/enroll", "issue": "Stripe Connect onboarding failure is logged as warning and swallowed — enroll always returns 200 with `connect_onboarding_url:null`. Consider surfacing a structured status ('stripe_error'/'network_error') so the merchant dashboard can show a retry CTA instead of silently rendering an incomplete state. Reference: /app/backend/routes/dining_club.py:485"},
+      {"endpoint": "backend CORS", "issue": "Backend advertises `Access-Control-Allow-Origin: *` but the browser rejects * when the frontend sends `credentials: 'include'` (cookies) or `Authorization` with `withCredentials`. This blocks the Expo web preview (origin `https://mobile-games-v2.expo.preview.emergentagent.com`) from calling `preview.emergentagent.com/api/*`. Native mobile builds work; QA-via-web-preview cannot exercise the API flows. Recommend echoing the request `Origin` when it matches an allowlist, plus `Access-Control-Allow-Credentials: true`. Reference: backend CORS middleware configuration (CORS_ORIGINS='*')."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "DiningHome", "issue": "Missing `data-testid='dining-home'` on the /dining container.", "selector": "[data-testid='dining-home']", "priority": "HIGH"},
+        {"component": "DiningHome", "issue": "Missing `data-testid='dining-use-meal-btn'` on the 'Use a Meal' CTA.", "selector": "[data-testid='dining-use-meal-btn']", "priority": "HIGH"},
+        {"component": "DiningPlay", "issue": "Missing testids: `dining-play` container, `dining-pref-veg`, `dining-pref-nonveg`, `dining-period-lunch`, `dining-period-dinner`, `dining-spin-btn`, `dining-surprise-btn`, `dining-accept-btn`, `dining-reroll-btn`.", "selector": "multiple", "priority": "HIGH"},
+        {"component": "DiningMerchant", "issue": "Missing `data-testid='dining-merchant-page'` on the /dining/merchant container (page renders correctly otherwise).", "selector": "[data-testid='dining-merchant-page']", "priority": "HIGH"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "DiningHome (mobile)", "issue": "Missing `testID='dining-home'` and `testID='dining-use-meal-btn'`. Screen also shows the enrollment/onboarding card for demo@ even though demo@ is already subscribed — see integration_issues (CORS blocking /api/dining-club fetch in the Expo web preview).", "testID": "dining-home / dining-use-meal-btn", "priority": "HIGH"},
+        {"component": "DiningPlay (mobile)", "issue": "Missing testIDs: `dining-play`, `dining-pref-veg`, `dining-pref-nonveg`, `dining-period-lunch`, `dining-period-dinner`, `dining-spin-btn`, `dining-surprise-btn`, `dining-accept-btn`, `dining-reroll-btn`. Screen renders correctly (Veg/Non-Veg + Lunch/Dinner pickers, Find my restaurants CTA).", "testID": "multiple", "priority": "HIGH"}
+      ],
+      "integration_issues": [
+        {"flow": "Any mobile → backend request on the Expo web preview", "issue": "CORS blocks XHR to https://mobile-games-v2.preview.emergentagent.com/api/* because backend returns Access-Control-Allow-Origin:* which browsers reject on credentialed requests. Console errors observed on /api/dining-club, /api/auth/me, /api/bigcoin/me, /api/channels, /api/shell/venues, /api/geo/resolve_city, /api/news/headlines, /api/shell/clips. Native builds unaffected — this is a preview-env QA blocker only.", "affected_testIDs": ["home-dining-cta", "dining-home"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Consumer /dining home", "platform": "mobile", "issue": "Web /dining routes an already-subscribed user through the membership+use-meal view (protected route requires login first). Mobile /dining shows the enrollment card even for demo@ (who is subscribed) because the /api/dining-club fetch is CORS-blocked in the Expo web preview.", "expected": "Same active-membership summary + Use-a-meal CTA on both surfaces for demo@.", "actual": "Web: gated by login redirect (test not completed since demo login submit selector failed in Playwright). Mobile: enrollment form shown regardless of membership."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter127_dining_club_phase234.py",
+    "/app/test_reports/pytest/iter127.xml"
+  ],
+  "action_items": [
+    "Add all spec test IDs on WEB (DiningHome, DiningPlay, DiningPass, DiningMerchant): dining-home, dining-use-meal-btn, dining-play, dining-pref-veg, dining-pref-nonveg, dining-period-lunch, dining-period-dinner, dining-spin-btn, dining-surprise-btn, dining-accept-btn, dining-reroll-btn, dining-merchant-page.",
+    "Add the same testIDs on MOBILE (mobile/app/dining/index.tsx, play.tsx, pass.tsx). React-Native testID renders as data-testid in the Expo web preview.",
+    "Fix CORS so the Expo web preview host (https://mobile-games-v2.expo.preview.emergentagent.com) can call the API with credentials: echo Origin from an allowlist + set Access-Control-Allow-Credentials: true (or drop credentials from mobile fetches on the preview).",
+    "Add a merchant-role guard on POST /api/merchant/dining-club/redeem — currently any authed user can redeem a leaked QR (verified in this iter by admin@ redeeming demo@'s QR).",
+    "Surface Stripe Connect onboarding failures in POST /api/merchant/dining-club/enroll instead of swallowing them (connect_onboarding_url:null hides the error)."
+  ],
+  "critical_code_review_comments": [
+    "services.dining_club.spin returns `segments` as an integer count (the slice count), not an array of segment metadata. The web+mobile Wheel components already consume it as N (renders N equal slices). If the review spec expected an array of {restaurant_id,name,color} per segment (for labeled slices), the current implementation only supports blind N-slice rendering — acceptable given the 'hidden until result' contract, but note the API surface deviates from the human-readable spec wording.",
+    "routes/dining_club.merchant_redeem: no role/ownership check on the caller. Any authed cookie can redeem a leaked qr_token. This was successfully exploited as admin@ in iter127's payout-ledger test. Add: `m = await _owned(db, user)` and verify the QR's location.merchant_id == m.merchant_id.",
+    "routes/dining_club.merchant_enroll: silently swallows Stripe Connect exceptions (logger.warning + return with connect_onboarding_url=None). A first-time enrollee whose Stripe call fails gets 200 + null URL with no indication of what went wrong. Return {stripe_error:'…'} in the payload or 502 so the UI can retry.",
+    "The /api/merchant/dining-club/redeem body includes optional `location_id` (used for stronger validation) — but nothing enforces it. Consider making it required for a defense-in-depth check that the scanning location matches the QR's target.",
+    "CORS: `CORS_ORIGINS=\"*\"` combined with credentialed fetches will always be blocked by browsers. Since the mobile Expo web preview host is stable per-slug, add it to an allowlist and set `allow_credentials=True` with an explicit origin echo."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter127_dining_club_phase234.py",
+    "/app/test_reports/pytest/iter127.xml",
+    "/app/test_reports/iteration_127.json"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 pytest cases in iter127; Phase 1 regression from iter126 still passing)",
+    "frontend": "Partial — pages render but ~12 spec-required testIDs missing across web & mobile; mobile Expo web preview API integration blocked by CORS (native builds should be unaffected)."
+  },
+  "test_credentials": "As per /app/memory/test_credentials.md: demo@bigfm.dubai / DemoPass123!, test@bigfm.dubai / TestUser123!, admin@bigfm.dubai / AdminPass123!.",
+  "seed_data_creation": "iter127 side effects: (1) On test@'s dining merchant location, capacity was updated to LUNCH:VEG=25, LUNCH:NON_VEG=30, DINNER:VEG=20, DINNER:NON_VEG=40 (previous unknown baseline). Meals set to 'Grilled Veg Bowl (TEST_iter127)' and 'Grilled Chicken Plate (TEST_iter127)'. (2) Two throwaway webhooks registered+deleted (net zero). (3) demo@ consumed one Dining Club credit via start→spin→accept→admin-mark-paid→redeem — a dining_payouts ledger row was written (gross 999 / fee 100 / net 899 / status pending_no_connect). Demo still has multiple credits available.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Once main agent adds the spec-required data-testid/testID attributes on both web (frontend/src/pages/dining/*.jsx) and mobile (mobile/app/dining/*.tsx), a full Playwright happy path can be scripted: login → /dining (dining-home) → dining-use-meal-btn → /dining/play → dining-pref-veg + dining-period-lunch → dining-spin-btn → reveal card → dining-reroll-btn (allowed once) → dining-spin-btn → dining-accept-btn → checkout redirects to cs_test_… URL (cannot auto-complete card entry — use admin mark-paid then GET /dining/pass/{orderId}). The mobile CORS block also needs a fix (or drop credentials on the Expo web fetches) before Playwright can exercise the mobile web preview past the login screen for authenticated endpoints. Backend Phase 2/3/4 is fully validated by /app/backend/tests/test_iter127_dining_club_phase234.py.",
+  "rca of the issue": "Root cause of missing testIDs: the four /pages/dining/*.jsx web pages and three /mobile/app/dining/*.tsx screens were built with human-readable UI copy but the code review comments' checklist item 'All interactive and key informational elements have a stable test id to facilitate robust automated testing' was not applied. Fix is mechanical — add data-testid (web) / testID (mobile) props to each container/CTA/toggle following the spec identifiers. Root cause of mobile CORS block: `Access-Control-Allow-Origin: *` cannot be combined with credentialed requests (browsers block for security). Since mobile fetches send Authorization: Bearer + include cookies in some paths, the Expo web preview origin (`expo.preview.emergentagent.com`) is refused. Native EAS/Expo Go builds do not enforce browser CORS, so this is a preview-QA-only issue but it prevents pre-launch automated verification via web-preview."
+}

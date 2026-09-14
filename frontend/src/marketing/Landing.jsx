@@ -33,6 +33,7 @@ export default function Landing() {
           limit={6} />
       </section>
       <StationStrip />
+      <ForListeners />
       <ForBusinessCTA urlFor={urlFor} />
       <ForAdvertisersCTA urlFor={urlFor} />
       <AppDownload urlFor={urlFor} />
@@ -127,6 +128,62 @@ function Hero() {
     </section>
   );
 }
+
+// P1 (Slice 3) — consumer-first feature section. Leads with the listening
+// proposition (AI host + free radio) and surfaces Play & Earn as the
+// contextual next step, BEFORE the B2B / advertiser sections below.
+function ForListeners() {
+  const ITEMS = [
+    { icon: Radio, title: "An AI host who knows you",
+      body: "A live radio host that reads the room — your mood, your city, your commute — and never plays the same hour twice." },
+    { icon: Gamepad2, title: "Play & win real coupons",
+      body: "Spin, scratch and quiz your way to discounts from brands near you. Every play is a shot at a real reward." },
+    { icon: Wallet, title: "A wallet that pays you to listen",
+      body: "Earn BigPoints just for tuning in, then stack coupons and perks in a wallet that's always in your pocket." },
+  ];
+  return (
+    <section data-testid="landing-for-listeners"
+                  className="relative py-20 border-t border-white/[0.06]">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10">
+        <SectionEyebrow>For listeners</SectionEyebrow>
+        <SectionTitle>Free to listen. Built to reward you.</SectionTitle>
+        <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
+          {ITEMS.map(({ icon: Icon, title, body }) => (
+            <div key={title}
+                      data-testid={`listener-card-${title.toLowerCase().replace(/\s+/g, "-").slice(0, 20)}`}
+                      className="rounded-token-card border border-white/[0.06]
+                                      bg-bg-elevated p-6">
+              <div className="w-10 h-10 rounded-token-md grid place-items-center
+                                      bg-accent-electric/25 text-accent-electric">
+                <Icon size={18} />
+              </div>
+              <div className="mt-4 font-display font-bold text-lg
+                                      tracking-display-tight">{title}</div>
+              <div className="mt-1 text-sm text-text-secondary">{body}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link to="/login" data-testid="listener-cta-listen"
+                    className="px-6 h-12 inline-flex items-center gap-2
+                                    rounded-full bg-accent-electric text-bg-base
+                                    font-mono text-xs uppercase tracking-widest
+                                    hover:bg-white transition-colors duration-150">
+            <Radio size={14} /> Start listening free
+          </Link>
+          <Link to="/login?demo=1" data-testid="listener-cta-play"
+                    className="px-6 h-12 inline-flex items-center gap-2
+                                    rounded-full border border-white/[0.12] text-white
+                                    font-mono text-xs uppercase tracking-widest
+                                    hover:bg-white/5 transition-colors duration-150">
+            <Gamepad2 size={14} /> Play &amp; earn
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 
 function StationStrip() {
   // Phase 42-D1 — wire the Phase-C AI-generated channel artwork instead of

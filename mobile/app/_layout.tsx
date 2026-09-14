@@ -116,6 +116,9 @@ function AuthGatedStack() {
         <Stack.Screen name="lobbies" />
         <Stack.Screen name="lobby/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="play-and-win" />
+        <Stack.Screen name="dining/index" />
+        <Stack.Screen name="dining/play" />
+        <Stack.Screen name="dining/pass" />
         <Stack.Screen name="games/spin" options={{ presentation: 'modal' }} />
         <Stack.Screen name="games/trivia-game" options={{ presentation: 'modal' }} />
         <Stack.Screen name="games/lyric-game" options={{ presentation: 'modal' }} />

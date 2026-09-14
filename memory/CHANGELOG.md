@@ -2,7 +2,24 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
-## 2026-09 — P0 wallet crediting + daily streak, and Premium Dining Club (Phase 1 backend)
+## 2026-09 — P1 Consumer Storefront & Discovery (web + mobile, validated iter130 FULL GREEN)
+
+Built on the existing FPK sponsored-coupon games engine (advertiser `adv_fpk`, 7 games `cmp_fpk_*`, 5 coupon tiers 10/20/30/40/50% off with per-day caps 200/100/40/15/5). NEW `backend/routes/storefront.py` (read-only, platform-agnostic) wired in `server.py`:
+- `GET /api/store/{advertiser_id}` (public) — branded storefront: brand (name/logo/colors), active games + per-game `remaining_today` (coupon scarcity computed from `daily_quantity_cap`/`daily_issued`/`daily_issued_date` with lazy today-rollover), aggregate `coupons_left_today`, `resets_at` (next UTC midnight). 404 for unknown advertiser.
+- `GET /api/store/{advertiser_id}/scarcity` (public) — per-game + aggregate remaining today + reset time.
+- `GET /api/me/wallet-coupons` (auth) — the user's owned coupons UNIFIED across `user_wallet_items` (coupon), `db.coupons` (ad-saved), and `db.plays` game wins (BigPoints wins excluded).
+- `GET /api/admin/fpk/coupon-caps` (admin only) — per-game per-tier daily cap / issued-today / remaining + totals.
+
+Web (`/app/frontend`): branded `StorePage.jsx` at `/store/:id`; `CouponOffers.jsx` extended with Deals / My Coupons tabs (reads `/api/me/wallet-coupons`, copyable codes, status pills, logged-out sign-in prompt) + FPK store link; admin `FpkCouponCaps.jsx` at `/admin/fpk-caps` (requireAdmin); reusable `CouponScarcityStrip.jsx` (live HH:MM:SS countdown to reset); marketing `Landing.jsx` refocused with a consumer-first "For listeners" section rendered BEFORE the B2B sections. Routes added in `App.js`.
+
+Mobile (`/app/mobile`): branded `app/store/[id].tsx`; `app/coupons.tsx` extended with Deals / My Coupons tabs + FPK store banner (→ `/store/adv_fpk`); reusable `src/components/CouponScarcityStrip.tsx`. Store Play cards → `/game/{campaign_id}`.
+
+Reports: `/app/test_reports/iteration_130.json` (backend 8/8 + web + mobile GREEN).
+
+## 2026-09 — P0 wallet crediting + daily streak, and Premium Dining Club (Phases 1–4, validated iter129 FULL GREEN)
+
+Dining Club final E2E (iter129) GREEN on both surfaces after fixing the Expo-preview CORS block (K8s ingress rewrites the Origin header; since all cross-origin callers use bearer tokens not cookies and web is same-origin, `server.py` CORS now returns a literal `Access-Control-Allow-Origin: *` with `allow_credentials=False` when `CORS_ORIGINS='*'`) and adding the merchant-role guard on `/api/merchant/dining-club/redeem`.
+
 
 **P0 (consumer, verified via curl):** `POST /api/play/resolve` now CREDITS the BigPoints wallet when a `prize_type='bigcoin'` prize is won (was resolved but never credited) via `bigcoin.award`, and awards a consecutive-day play-streak bonus (+10/day, capped +70) once per UTC day (atomic per-day slot, no double-award, idempotent on replay). New `GET /api/play/streak` status. Files: `play_routes.py`.
 

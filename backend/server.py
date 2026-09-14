@@ -6214,6 +6214,18 @@ try:
 except Exception as _e:
     logger.warning("dining_club routers not loaded: %s", _e)
 
+# ── P1 Consumer Storefront & Discovery — store landing + my-coupons + FPK caps ─
+try:
+    from routes.storefront import (store_router as _store_router,
+                                    me_coupons_router as _me_coupons_router,
+                                    admin_caps_router as _fpk_caps_router)
+    app.include_router(_store_router)
+    app.include_router(_me_coupons_router)
+    app.include_router(_fpk_caps_router)
+    logger.info("Storefront routes wired: /api/store/* + /api/me/coupons + /api/admin/fpk/coupon-caps")
+except Exception as _e:
+    logger.warning("storefront routers not loaded: %s", _e)
+
 # Phase 18 UI-cleanup — `/api/me/*` recommendations + favorites.
 try:
     from routes.me_recs import me_recs_router
@@ -7641,13 +7653,22 @@ async def share_ssr_landing(share_id: str, request: Request):
         },
     )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=[o for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+_cors_origins = [o for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o]
+if _cors_origins == ["*"]:
+    # Cross-origin browser callers (the Expo web preview, external Partner API
+    # consumers) authenticate with BEARER TOKENS, never cookies — so credentialed
+    # CORS is not needed. We return a LITERAL "Access-Control-Allow-Origin: *"
+    # regardless of the request Origin, which the browser accepts for
+    # non-credentialed requests. This is robust against the ingress rewriting the
+    # Origin header (echoing it back would never match the browser's real origin).
+    # The web app is SAME-ORIGIN with the backend, so its cookie auth is unaffected
+    # by CORS entirely.
+    _cors_kwargs = {"allow_origins": ["*"], "allow_credentials": False,
+                    "allow_methods": ["*"], "allow_headers": ["*"]}
+else:
+    _cors_kwargs = {"allow_origins": _cors_origins, "allow_credentials": True,
+                    "allow_methods": ["*"], "allow_headers": ["*"]}
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 # Phase Π.2 — Security middleware bundle (CSP + HSTS + per-IP rate limit).
 # Installed AFTER CORS so CORS still runs first inbound (Starlette stacks

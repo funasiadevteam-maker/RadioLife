@@ -238,6 +238,16 @@ export default function HomeScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={TUBE.textMuted} />
         </Pressable>
+
+        {/* Dining Club CTA */}
+        <Pressable style={s.earnCta} testID="home-dining-cta" onPress={() => router.push('/dining')}>
+          <View style={s.earnIcon}><Ionicons name="restaurant" size={20} color={TUBE.onAccent} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.earnTitle}>RadioLife Dining Club</Text>
+            <Text style={s.earnSub}>Spin the wheel · $9.99 meals near you</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={TUBE.textMuted} />
+        </Pressable>
       </ScrollView>
 
       <TubeDrawer open={drawer} onClose={() => setDrawer(false)} />

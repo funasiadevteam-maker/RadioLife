@@ -6,7 +6,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Play, Pause, Radio as RadioIcon, Sparkles, ChevronRight,
-  Coins, Gamepad2, ShoppingBag, Users as UsersIcon,
+  Coins, Gamepad2, ShoppingBag, Users as UsersIcon, UtensilsCrossed,
 } from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -41,6 +41,7 @@ const HOME_RAILS = [
   { key: "earn",   label: "Earn while you listen", sub: "Points every minute",   icon: Coins,        to: "/wallet" },
   { key: "play",   label: "Play & Win",            sub: "Games · trivia · predict", icon: Gamepad2,   to: "/play-and-win" },
   { key: "shop",   label: "Shop & Eat",            sub: "Deals near you",         icon: ShoppingBag,  to: "/shop" },
+  { key: "dining", label: "Dining Club",           sub: "Spin · $9.99 meals",     icon: UtensilsCrossed, to: "/dining" },
   { key: "social", label: "Social",                sub: "Lobbies & community",    icon: UsersIcon,    to: "/community" },
 ];
 
