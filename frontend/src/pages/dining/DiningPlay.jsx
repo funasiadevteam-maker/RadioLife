@@ -24,9 +24,20 @@ export default function DiningPlay() {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [lastPref, setLastPref] = useState(null);
   const revealTimer = useRef(null);
 
   useEffect(() => () => clearTimeout(revealTimer.current), []);
+
+  useEffect(() => {
+    diningApi.home().then((h) => {
+      if (h?.last_pref?.veg_preference) {
+        setLastPref(h.last_pref);
+        setVeg(h.last_pref.veg_preference);
+        setPeriod(h.last_pref.meal_period === "DINNER" ? "DINNER" : "LUNCH");
+      }
+    }).catch(() => {});
+  }, []);
 
   const beginWith = (s) => {
     setSession(s);
@@ -35,10 +46,13 @@ export default function DiningPlay() {
     if (s.status === "STARTED") setPhase("wheel");
   };
 
-  const start = async () => {
+  const start = async (override) => {
+    const v = override?.veg || veg;
+    const p = override?.period || period;
+    if (override) { setVeg(v); setPeriod(p); }
     setBusy(true);
     try {
-      const r = await diningApi.start({ veg_preference: veg, meal_period: period });
+      const r = await diningApi.start({ veg_preference: v, meal_period: p });
       const s = r.session;
       if (r.resumed && ["FIRST_RESULT", "FINAL_RESULT"].includes(s.status)) {
         const v = await diningApi.view(s.session_id);
@@ -111,6 +125,18 @@ export default function DiningPlay() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-3xl font-black mb-1" style={{ color: DINE.text }}>Where are you eating today?</h1>
           <p className="text-sm mb-7" style={{ color: DINE.muted }}>Pick a preference — 10 restaurants are waiting behind the wheel.</p>
+          {lastPref && (
+            <button onClick={() => start({ veg: lastPref.veg_preference, period: lastPref.meal_period === "DINNER" ? "DINNER" : "LUNCH" })}
+              disabled={busy} data-testid="dining-quickplay-btn"
+              className="w-full flex items-center justify-between gap-2 rounded-2xl px-5 py-4 mb-6 font-black transition"
+              style={{ background: `linear-gradient(90deg, ${DINE.pink}22, ${DINE.cyan}22)`, color: DINE.text, border: `1px solid ${DINE.pink}55` }}>
+              <span className="flex items-center gap-2">
+                {busy ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} style={{ color: DINE.gold }} />}
+                Quick play — {lastPref.veg_preference === "VEG" ? "Veg" : "Non-Veg"} · {lastPref.meal_period === "DINNER" ? "Dinner" : "Lunch"}
+              </span>
+              <span className="text-xs font-mono uppercase tracking-wider" style={{ color: DINE.cyan }}>Straight to the wheel →</span>
+            </button>
+          )}
           <span className="text-[11px] font-mono uppercase" style={{ color: DINE.muted, letterSpacing: "0.14em" }}>Preference</span>
           <div className="grid grid-cols-2 gap-3 mt-2 mb-6">
             <Choice active={veg === "VEG"} onClick={() => setVeg("VEG")} color={DINE.cyan} icon={<Leaf size={20} />} text="Veg" testid="dining-pref-veg" />

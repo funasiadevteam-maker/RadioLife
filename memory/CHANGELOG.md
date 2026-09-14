@@ -2,6 +2,12 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09 — One-Tap Reroll Memory + Almost-Gone Warning (validated iter135, web + mobile)
+
+- **One-Tap Reroll Memory**: `POST /api/dining-club/selection/start` now persists the player's veg/non-veg + meal-period pick to a `dining_prefs` doc; `GET /api/dining-club` returns `last_pref`. Both DiningPlay surfaces pre-select the remembered pick and show a "⚡ Quick play — {Veg/Non-Veg} · {Lunch/Dinner}" button that jumps straight to the wheel (`start()` refactored to accept an override).
+- **Almost-Gone Warning**: FPK storefront game cards flash "🔥 Only N left today!" (urgent, pulsing red) when a coupon game's daily stock is low (`remaining_today > 0 && <= max(10, ceil(total_cap*0.15))`) — web `animate-pulse` + `data-low`, mobile `Animated` opacity pulse. Sold-out and normal states unchanged.
+- QA seed (`scripts/seed_pair2_testdata.py`): cmp_fpk_scratch left low (~12), cmp_fpk_spin sold out, cmp_fpk_quiz normal.
+
 ## 2026-09 — Restock Countdown + Waitlist Auto-Play (validated iter134, web + mobile)
 
 - **Restock Countdown**: sold-out storefront game cards now show a LIVE ticking "🔔 Restocks in HH:MM:SS" to the daily UTC-midnight reset (1s ticker in web `StorePage.jsx` + mobile `store/[id].tsx`, driven by the store's `resets_at`).

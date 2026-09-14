@@ -137,6 +137,10 @@ export default function StorePage() {
             {games.map((g) => {
               const soldOut = g.is_coupon_game && g.remaining_today !== null && g.remaining_today <= 0;
               const onWaitlist = waitlisted.has(g.campaign_id);
+              const totalCap = g.total_cap_today || 0;
+              const lowThreshold = totalCap ? Math.max(10, Math.ceil(totalCap * 0.15)) : 20;
+              const low = g.is_coupon_game && g.remaining_today !== null
+                && g.remaining_today > 0 && g.remaining_today <= lowThreshold;
               const inner = (
                 <>
                   <div className="text-4xl mb-3">{GAME_ICON[g.game_type] || "🎮"}</div>
@@ -147,10 +151,13 @@ export default function StorePage() {
                       g.remaining_today === null ? (
                         <span className="text-[11px] font-black" style={{ color: accent }}>Unlimited today</span>
                       ) : (
-                        <span className={`text-[11px] font-black ${soldOut ? "text-slate-500" : ""}`}
-                              style={soldOut ? {} : { color: accent }}
-                              data-testid={`store-game-${g.campaign_id}-left`}>
-                          {soldOut ? "Sold out today" : `${g.remaining_today.toLocaleString()} left today`}
+                        <span className={`text-[11px] font-black ${soldOut ? "text-slate-500" : ""} ${low ? "text-red-400 animate-pulse" : ""}`}
+                              style={soldOut || low ? {} : { color: accent }}
+                              data-testid={`store-game-${g.campaign_id}-left`}
+                              data-low={low ? "true" : "false"}>
+                          {soldOut ? "Sold out today"
+                            : low ? `🔥 Only ${g.remaining_today.toLocaleString()} left today!`
+                            : `${g.remaining_today.toLocaleString()} left today`}
                         </span>
                       )
                     ) : <span className="text-[11px] text-white/40">BigPoints</span>}

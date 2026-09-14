@@ -105,6 +105,10 @@ async def dining_home(request: Request, user: dict = Depends(current_user)):
         end = dc._aware(sub["term_ends_at"])
         if end:
             days_remaining = max(0, (end - dc._now()).days)
+    pref_doc = await db.dining_prefs.find_one({"_id": user["user_id"]})
+    last_pref = ({"veg_preference": pref_doc.get("veg_preference"),
+                  "meal_period": pref_doc.get("meal_period", "LUNCH")}
+                 if pref_doc else None)
     return {
         "program": dc.public_program(program),
         "is_premium": is_prem,
@@ -115,6 +119,7 @@ async def dining_home(request: Request, user: dict = Depends(current_user)):
         "membership": dc._clean(sub) if sub else None,
         "days_remaining": days_remaining,
         "credits": credits,
+        "last_pref": last_pref,
     }
 
 
@@ -230,6 +235,13 @@ async def selection_start(body: StartBody, request: Request,
     summary = await dc.credit_summary(db, user["user_id"], is_prem)
     if summary["available"] < 1:
         raise HTTPException(400, {"code": "no_available_credits"})
+    # Remember this pick so the next visit can jump straight to the wheel.
+    await db.dining_prefs.update_one(
+        {"_id": user["user_id"]},
+        {"$set": {"veg_preference": body.veg_preference,
+                  "meal_period": body.meal_period,
+                  "updated_at": dc._now()}},
+        upsert=True)
     try:
         return await dc.start_session(
             db, customer_id=user["user_id"], veg=body.veg_preference,

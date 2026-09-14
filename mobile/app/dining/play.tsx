@@ -1,5 +1,5 @@
 // Dining Club — mobile Use-a-Meal: pick → spin wheel / surprise → reveal → reroll → accept → pay.
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
   ActivityIndicator, Linking,
@@ -68,11 +68,26 @@ export default function DiningPlay() {
   const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [err, setErr] = useState('');
+  const [lastPref, setLastPref] = useState<any>(null);
 
-  const start = async () => {
+  useEffect(() => {
+    api.get('/dining-club').then((r) => {
+      const lp = r.data?.last_pref;
+      if (lp?.veg_preference) {
+        setLastPref(lp);
+        setVeg(lp.veg_preference === 'NON_VEG' ? 'NON_VEG' : 'VEG');
+        setPeriod(lp.meal_period === 'DINNER' ? 'DINNER' : 'LUNCH');
+      }
+    }).catch(() => {});
+  }, []);
+
+  const start = async (override?: { veg: 'VEG' | 'NON_VEG'; period: 'LUNCH' | 'DINNER' }) => {
+    const v = override?.veg || veg;
+    const p = override?.period || period;
+    if (override) { setVeg(v); setPeriod(p); }
     setBusy(true); setErr('');
     try {
-      const r = await api.post('/dining-club/selection/start', { veg_preference: veg, meal_period: period });
+      const r = await api.post('/dining-club/selection/start', { veg_preference: v, meal_period: p });
       const sess = r.data.session;
       setSession(sess); setPre(sess.pre_spin);
       setSegments(Math.min(10, sess.pre_spin?.restaurants_available || 10));
@@ -149,6 +164,17 @@ export default function DiningPlay() {
           <View style={{ width: '100%' }} testID="play-choose">
             <Text style={s.h1}>Where are you eating today?</Text>
             <Text style={s.sub}>Pick a preference — up to 10 restaurants behind the wheel.</Text>
+            {lastPref ? (
+              <TouchableOpacity style={s.quickPlay} disabled={busy} testID="dining-quickplay-btn"
+                onPress={() => start({ veg: lastPref.veg_preference === 'NON_VEG' ? 'NON_VEG' : 'VEG', period: lastPref.meal_period === 'DINNER' ? 'DINNER' : 'LUNCH' })}>
+                {busy ? <ActivityIndicator color={COLORS.gold} /> : <Ionicons name="flash" size={18} color={COLORS.gold} />}
+                <View style={{ flex: 1 }}>
+                  <Text style={s.quickPlayText}>Quick play — {lastPref.veg_preference === 'VEG' ? 'Veg' : 'Non-Veg'} · {lastPref.meal_period === 'DINNER' ? 'Dinner' : 'Lunch'}</Text>
+                  <Text style={s.quickPlaySub}>Straight to the wheel</Text>
+                </View>
+                <Ionicons name="arrow-forward" size={18} color={COLORS.primary} />
+              </TouchableOpacity>
+            ) : null}
             <Text style={s.label}>PREFERENCE</Text>
             <View style={s.row}>
               <Choice active={veg === 'VEG'} onPress={() => setVeg('VEG')} icon="leaf" label="Veg" color={COLORS.green} />
@@ -159,7 +185,7 @@ export default function DiningPlay() {
               <Choice active={period === 'LUNCH'} onPress={() => setPeriod('LUNCH')} icon="sunny" label="Lunch" color={COLORS.gold} />
               <Choice active={period === 'DINNER'} onPress={() => setPeriod('DINNER')} icon="moon" label="Dinner" color={COLORS.secondary} />
             </View>
-            <TouchableOpacity style={[s.cta, { marginTop: SPACING.lg }]} onPress={start} disabled={busy} testID="play-find">
+            <TouchableOpacity style={[s.cta, { marginTop: SPACING.lg }]} onPress={() => start()} disabled={busy} testID="play-find">
               {busy ? <ActivityIndicator color="#fff" /> : <><Ionicons name="sparkles" size={18} color="#fff" /><Text style={s.ctaText}>Find my restaurants</Text></>}
             </TouchableOpacity>
           </View>
@@ -230,6 +256,9 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', gap: SPACING.sm },
   choice: { flex: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.inputBg },
   choiceText: { fontWeight: '700', color: COLORS.textMuted },
+  quickPlay: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.gold + '18', borderWidth: 1, borderColor: COLORS.gold + '66', borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.lg },
+  quickPlayText: { color: COLORS.text, fontWeight: '900', fontSize: FONT.md },
+  quickPlaySub: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 1 },
   cta: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: 16, width: '100%' },
   ctaText: { color: '#fff', fontWeight: '800', fontSize: FONT.md },
   ghost: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: SPACING.md, paddingVertical: 12 },

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator, SafeAreaView,
-  TouchableOpacity, RefreshControl,
+  TouchableOpacity, RefreshControl, Animated, Easing,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +36,15 @@ export default function StoreScreen() {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 0.35, duration: 650, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
 
   const load = async () => {
     try {
@@ -117,6 +126,10 @@ export default function StoreScreen() {
           <View style={st.grid} testID="store-games">
             {games.map((g: any) => {
               const soldOut = g.is_coupon_game && g.remaining_today !== null && g.remaining_today <= 0;
+              const totalCap = g.total_cap_today || 0;
+              const lowThreshold = totalCap ? Math.max(10, Math.ceil(totalCap * 0.15)) : 20;
+              const low = g.is_coupon_game && g.remaining_today !== null
+                && g.remaining_today > 0 && g.remaining_today <= lowThreshold;
               return (
                 <TouchableOpacity key={g.campaign_id} style={st.gameCard} activeOpacity={0.85}
                   onPress={() => router.push(`/game/${g.campaign_id}`)}
@@ -126,12 +139,15 @@ export default function StoreScreen() {
                   <Text style={st.gameDesc} numberOfLines={2}>{g.description}</Text>
                   <View style={st.gameFooter}>
                     {g.is_coupon_game ? (
-                      <Text style={[st.gameLeft, { color: soldOut ? COLORS.textMuted : accent }]}
-                            testID={`store-game-${g.campaign_id}-left`}>
+                      <Animated.Text
+                        style={[st.gameLeft, { color: soldOut ? COLORS.textMuted : low ? COLORS.red : accent },
+                                low ? { opacity: pulse } : null]}
+                        testID={`store-game-${g.campaign_id}-left`}>
                         {g.remaining_today === null ? 'Unlimited today'
                           : soldOut ? 'Sold out today'
+                          : low ? `🔥 Only ${g.remaining_today.toLocaleString()} left today!`
                           : `${g.remaining_today.toLocaleString()} left today`}
-                      </Text>
+                      </Animated.Text>
                     ) : <Text style={st.gameLeftMuted}>BigPoints</Text>}
                     {soldOut ? (
                       waitlisted.has(g.campaign_id) ? (

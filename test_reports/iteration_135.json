@@ -1,0 +1,32 @@
+{
+  "summary": "Iter 135: Two-feature verification (Reroll Memory + Almost-Gone Warning) on web + mobile. Backend pytest 6/6 PASS (test_iter135_reroll_memory.py): (1) GET /api/dining-club last_pref = {NON_VEG,DINNER} for test@bigfm.dubai (cookie login), (2) last_pref = {VEG,LUNCH} for demo@ (via /api/auth/demo session_token), (3) POST /api/dining-club/selection/start upserts dining_prefs BEFORE credit check → pref persists even when start would 400 (verified by flip-then-restore), (4-6) GET /api/store/adv_fpk exposes scratch=12 (low), spin=0 (sold out), quiz=360 (normal). WEB /store/adv_fpk (public): store-game-cmp_fpk_scratch-left '🔥 Only 12 left today!' with data-low='true' (red animate-pulse), cmp_fpk_spin 'Sold out today' + Remind me + 🔔 Restocks in 17:17:30, cmp_fpk_quiz '360 left today' data-low='false' — all 3 states visible in one grid. WEB /dining/play (test@, cookie): dining-quickplay-btn labeled 'Quick play — Non-Veg · Dinner' rendered on choose phase; Non-Veg + Dinner Choice tiles pre-selected (colored borders); click → dining-wheel + dining-spin-btn visible (jumped straight to wheel, no manual pick). Manual play-find + pref/period toggles still present. MOBILE (Expo preview, demo-login-btn → demo@): /store/adv_fpk cards show scratch '🔥 Only 12 left today!' (COLORS.red + Animated pulse opacity), spin 'Sold out today' + '🔔 Restocks in 17:16:42' + Remind me, quiz '360 left today'; /dining/play shows dining-quickplay-btn '⚡ Quick play — Veg · Lunch / Straight to the wheel', tap → play-wheel + dining-spin-btn visible (10-slice SVG wheel rendered). Perfect parity across surfaces. No new bugs.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter135_reroll_memory.py",
+    "/app/test_reports/pytest/iter135.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/dining_club.py:239-244 — dining_prefs is upserted BEFORE _require_active_sub / credit check runs. Consequence: even a 400 no_available_credits or 403 no_active_membership call still overwrites the user's last_pref. That's actually the intended behavior for the QuickPlay memory (pref shouldn't require successful start) but worth noting: an anonymous test with a bad meal_period could still upsert bad data. Non-blocking — StartBody Pydantic constrains it to a string; consider tightening meal_period to Literal['LUNCH','DINNER','ANY'].",
+    "DiningPlay.jsx:32-40 — home() is called on every mount without an in-flight guard; if the user rapidly navigates in/out you might get stale setLastPref writes. Non-blocking, effect is idempotent.",
+    "mobile/app/store/[id].tsx:39-47 — Animated pulse loop runs continuously for the whole screen lifetime even when NO low card exists. Micro perf non-issue on web preview; on native could add unnecessary bridge traffic. Consider starting the loop only when at least one card matches low.",
+    "StorePage.jsx:141 + mobile [id].tsx:130 — lowThreshold duplicated; matches web+mobile so parity is preserved. If a third surface appears, extract to shared util."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter135_reroll_memory.py (NEW — 6 tests, 6/6 pass)"],
+  "success_rate": {
+    "backend": "100% (6/6)",
+    "frontend": "web 100% (scratch/spin/quiz 3-state Almost-Gone + Quick play — Non-Veg · Dinner → wheel); mobile 100% (3-state Almost-Gone with Animated pulse + Quick play — Veg · Lunch → wheel)"
+  },
+  "test_credentials": "web: test@bigfm.dubai / TestUser123! (cookie via POST /api/auth/login) has last_pref NON_VEG/DINNER + active Dining membership + credits. mobile: demo-login-btn → POST /api/auth/demo returns session_token bearer for demo@bigfm.dubai (last_pref VEG/LUNCH).",
+  "seed_data_creation": "None. Existing seed intact: test@ NON_VEG/DINNER, demo@ VEG/LUNCH, cmp_fpk_scratch=12/cmp_fpk_spin=0/cmp_fpk_quiz=360.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 135 features shipped clean. Reroll Memory back-end lives in routes/dining_club.py (dining_prefs upsert in selection/start + last_pref echo in GET /api/dining-club). Web quickplay button is in DiningPlay.jsx (data-testid='dining-quickplay-btn'); mobile mirror in mobile/app/dining/play.tsx (testID='dining-quickplay-btn'). Almost-Gone UI: low = remaining>0 && <= max(10, ceil(total_cap*0.15)); web uses data-low + text-red animate-pulse, mobile uses Animated.Value pulse opacity + COLORS.red. Note if you re-run: test_start_persists_last_pref temporarily flips test@'s last_pref then restores — if the test crashes mid-run, test@ could end up as VEG/LUNCH; re-hit POST /api/dining-club/selection/start with NON_VEG/DINNER to restore.",
+  "rca of the issue": ""
+}

@@ -36,6 +36,25 @@ async def main():
             n += 1
     print(f"SOLD-OUT: {camp_id} -> maxed {n} coupon tiers for {today}")
 
+    # 1b) Almost-gone FPK game — leave a small remainder so the storefront
+    #     flashes the "Only N left today!" urgency warning.
+    ag_id = "cmp_fpk_scratch"
+    ag_prizes = await db.game_prizes.find(
+        {"campaign_id": ag_id, "active": True, "prize_type": "coupon"}).to_list(50)
+    ag_prizes.sort(key=lambda p: int(p.get("daily_quantity_cap") or 0), reverse=True)
+    left_total = 0
+    for i, p in enumerate(ag_prizes):
+        cap = int(p.get("daily_quantity_cap") or 0)
+        if cap <= 0:
+            continue
+        # Leave 12 on the largest tier, exhaust the rest -> total ~12 remaining.
+        issued = max(0, cap - 12) if i == 0 else cap
+        await db.game_prizes.update_one(
+            {"_id": p["_id"]},
+            {"$set": {"daily_issued": issued, "daily_issued_date": today}})
+        left_total += cap - issued
+    print(f"ALMOST-GONE: {ag_id} -> ~{left_total} coupons left today")
+
     # 2) Podcast episode with a video
     ep = await db.podcast_episodes.find_one(
         {"publish_status": "published"}) or await db.podcast_episodes.find_one({})
