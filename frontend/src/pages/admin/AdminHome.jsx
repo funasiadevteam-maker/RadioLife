@@ -370,6 +370,7 @@ function QuickLinks() {
     { to: "/admin/ad-pacing",            label: "Ad Pacing",              tid: "admin-home-ql-adpacing" },
     { to: "/admin/ad-revenue",          label: "Home Ad Revenue",      tid: "admin-home-ql-adrevenue" },
     { to: "/admin/rail-ads",             label: "Rail Ads · Approve",   tid: "admin-home-ql-railads" },
+    { to: "/admin/landing-analytics",    label: "Landing Analytics",    tid: "admin-home-ql-landing" },
     { to: "/admin/retargeting",          label: "Retargeting",            tid: "admin-home-ql-retargeting" },
   ];
   return (

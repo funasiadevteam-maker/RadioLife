@@ -10,6 +10,7 @@ import { useAuth } from "./AuthContext";
 import SignInWithGoogleButton from "./SignInWithGoogleButton";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
 import { useTheme } from "@/theme/useTheme";
+import { consumeIntent } from "@/utils/intent";
 
 export default function Login() {
   const { user, login, register, demoLogin, loading } = useAuth();
@@ -33,7 +34,7 @@ export default function Login() {
   useEffect(() => {
     if (loading) return;
     if (user) {
-      navigate(user.onboarding_complete ? "/" : "/onboarding", { replace: true });
+      navigate(user.onboarding_complete ? (consumeIntent() || "/") : "/onboarding", { replace: true });
     }
     if (location.state?.authError) {
       toast.error(location.state.authError);
@@ -54,7 +55,7 @@ export default function Login() {
       if (mode === "login") {
         const u = await login(email.trim(), password);
         toast.success(`Welcome back, ${u.name}`);
-        navigate(u.onboarding_complete ? "/" : "/onboarding", { replace: true });
+        navigate(u.onboarding_complete ? (consumeIntent() || "/") : "/onboarding", { replace: true });
       } else {
         const u = await register(email.trim(), password, name.trim() || email.split("@")[0]);
         toast.success(`Account created. Let's set you up, ${u.name}!`);
@@ -268,7 +269,7 @@ export default function Login() {
             try {
               const u = await demoLogin();
               toast.success("Welcome to the RadioLife demo — sign up to save your progress.");
-              navigate(u.onboarding_complete ? "/" : "/onboarding", { replace: true });
+              navigate(u.onboarding_complete ? (consumeIntent() || "/") : "/onboarding", { replace: true });
             } catch (e2) {
               const status = e2?.response?.status;
               if (status === 429) {

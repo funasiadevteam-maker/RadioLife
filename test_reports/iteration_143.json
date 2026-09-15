@@ -1,0 +1,63 @@
+{
+  "summary": "Web-only test for PublicHomeNewLookV2 preserve-intent + station preview + landing analytics + admin analytics page. 8/8 backend tests pass. Web UI flows verified: (a) Create My Radio + Dining CTAs correctly set rl_intent and round-trip through /login → destination for premium@ user; intent is cleared post-login. (b) Station preview bar appears on click and gracefully surfaces the 'Preview ended — sign in to keep listening' state when audio playback fails (autoplay blocked in headless Chromium). (c) Landing-event POSTs are captured anonymously; admin /admin/landing-analytics renders total events / preview_plays / Top CTAs / Top Sections aggregated from live data. (d) AdminHome quicklink 'admin-home-ql-landing' navigates to the page. (e) Regression: anon public-home-v2 renders; logged-in shell-v2 + home-new-look-v2 both mount. Found ONE bug: public-preview-close does not actually hide the preview bar when it is in the 'preview ended' state (stopPreview only clears previewId, not previewEnded/previewStation).",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {
+          "component": "PublicHomeNewLookV2 preview bar (close button)",
+          "issue": "Clicking public-preview-close does NOT hide the preview bar when the bar is in the 'preview ended' state. The bar renders while `previewStation && (previewId || previewEnded)`, but `stopPreview()` only calls `setPreviewId(null)` — it never resets `previewEnded` or `previewStation`. Result: after a failed / 30s-completed preview, tapping the X visually leaves the bar on screen (the spec says close should stop AND hide). Reference: /app/frontend/src/design_v2/PublicHomeNewLookV2.jsx:89-93 and render guard line 452. Fix: in stopPreview, also `setPreviewEnded(false); setPreviewStation(null);` (or the close handler should do so).",
+          "selector": "[data-testid='public-preview-close']",
+          "priority": "MEDIUM"
+        }
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {
+          "screen": "Public landing (anon)",
+          "issues": [
+            "Pre-existing (not new): React warning 'Encountered two children with the same key' fires from an upstream component on every landing load — not from PublicHomeNewLookV2 itself, but worth flagging to main agent for a future de-dup pass.",
+            "Pre-existing (not new): several /api/... requests 401 for anon (banner decision, home badges, etc.) — expected for logged-out but noisy in console."
+          ]
+        }
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_landing_analytics.py",
+    "/app/test_reports/pytest/iter143.xml"
+  ],
+  "action_items": [
+    "In /app/frontend/src/design_v2/PublicHomeNewLookV2.jsx `stopPreview` (or the public-preview-close onClick), also reset `previewEnded=false` and `previewStation=null` so the X actually hides the bar after a failed / completed preview. Currently the bar stays visible in the 'ended' state after close.",
+    "(Optional) Investigate the anon-side 'Encountered two children with the same key' React warning — it's not from PublicHomeNewLookV2 but fires on this landing route."
+  ],
+  "critical_code_review_comments": [
+    "PublicHomeNewLookV2.jsx is ~610 lines and includes multiple sub-components (PublicNav / SectionHeader / StationCard / PreviewSection / B2BCard / PublicFooter) — approaching the 700-line split threshold; consider extracting sub-components to a folder if the page grows further.",
+    "Landing analytics endpoint `/api/shell/landing-event` correctly enforces an allowlist and is anon-friendly; `/api/shell/landing-analytics` correctly returns 403 for non-admin (verified). Aggregation uses `$addToSet` on session_id which is bounded to top 50 keys — fine for now but will grow unbounded per-key; consider a TTL / cap on session sets long-term.",
+    "utils/intent.js consumeIntent uses a module-level cached singleton — that's the right fix for post-auth navigate races, but it also means intent survives a route change until a full page reload. Not a bug for this flow, but worth documenting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_landing_analytics.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8)",
+    "frontend": "~93% — all flows pass except preview-close hide bug"
+  },
+  "test_credentials": "admin@bigfm.dubai/AdminPass123!, premium@bigfm.dubai/PremiumTest123! (both used, both work).",
+  "seed_data_creation": "Test inserted a handful of landing_events (event=cta 'iter143_seed' + 'TEST_hero_start', event=section_view 'iter143_section' + 'TEST_public-airadio', event=preview_play 'iter143_preview'). All safely ignored by the aggregate UI.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "iter143.xml has all 8 backend tests passing. The only functional bug is the preview-close not hiding the bar when previewEnded=true. Preserve-intent round-trip is confirmed end-to-end for premium@ user (login lands on /radio/create, intent cleared). Admin landing-analytics page and quicklink verified. NEW-signup preserve-intent case was NOT run end-to-end (would require a fresh register+onboarding). Anonymous default variant new_look_v2 confirmed after localStorage clear.",
+  "rca of the issue": "public-preview-close bug: `stopPreview` in PublicHomeNewLookV2.jsx only calls `setPreviewId(null)`. The bar render guard is `previewStation && (previewId || previewEnded)`. If the preview transitioned into the 'ended' state (either the 30s timer fired or `.play()` was rejected — which is common in headless / autoplay-blocked contexts), `previewEnded` remains `true` and `previewStation` remains set → the bar stays on screen after the X is clicked. Reproduction: (1) go to /, (2) click any station whose stream fails to autoplay OR wait 30s after a real play, (3) click the X — the bar remains visible with 'Preview ended — sign in to keep listening'. Fix: extend stopPreview to also reset previewEnded and previewStation, OR give public-preview-close a dedicated handler that clears all three."
+}

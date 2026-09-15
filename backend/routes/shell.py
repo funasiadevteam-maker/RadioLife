@@ -5,7 +5,7 @@ with LIVE counts, the "Your stations" flagship list, and a per-user theme
 preference (dark default). Read-only + a tiny prefs writer — no existing
 route, auth, or earn-rate logic is touched.
 """
-from fastapi import APIRouter, Request, Body
+from fastapi import APIRouter, Request, Body, HTTPException
 from auth import current_user, current_user_optional
 from services.station_art import resolve_art as _resolve_art
 from datetime import datetime, timezone
@@ -506,3 +506,62 @@ async def shell_home_events(request: Request, body: dict = Body(default={})):
     except Exception:
         return {"ok": False}
     return {"ok": True}
+
+
+# ─── Public landing analytics (anon capture + admin report) ──────────
+_LANDING_EVENTS = {"cta", "section_view", "preview_play"}
+
+
+@router.post("/landing-event")
+async def landing_event(request: Request, body: dict = Body(default={})):
+    """Anonymous-friendly capture of public V2 landing CTA clicks + views."""
+    ev = str((body or {}).get("event") or "").strip()[:40]
+    if ev not in _LANDING_EVENTS:
+        return {"ok": False, "error": "unknown_event"}
+    db = request.app.state.db
+    try:
+        user = await current_user_optional(request)
+    except Exception:
+        user = None
+    try:
+        await db.landing_events.insert_one({
+            "event": ev,
+            "cta": (str((body or {}).get("cta") or "")[:60] or None),
+            "section": (str((body or {}).get("section") or "")[:60] or None),
+            "session_id": (str((body or {}).get("session_id") or "")[:64] or None),
+            "user_id": (user or {}).get("user_id"),
+            "ts": _now_iso(),
+        })
+    except Exception:
+        return {"ok": False}
+    return {"ok": True}
+
+
+@router.get("/landing-analytics")
+async def landing_analytics(request: Request):
+    """Admin-only aggregated engagement counts for the public V2 landing."""
+    user = await current_user_optional(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(403, {"code": "forbidden"})
+    db = request.app.state.db
+
+    async def _top(match_event: str, key: str):
+        pipeline = [
+            {"$match": {"event": match_event, key: {"$ne": None}}},
+            {"$group": {"_id": f"${key}", "count": {"$sum": 1},
+                        "sessions": {"$addToSet": "$session_id"}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 50},
+        ]
+        rows = []
+        async for r in db.landing_events.aggregate(pipeline):
+            rows.append({"key": r["_id"], "count": r["count"],
+                         "sessions": len([s for s in (r.get("sessions") or []) if s])})
+        return rows
+
+    return {
+        "total_events": await db.landing_events.count_documents({}),
+        "preview_plays": await db.landing_events.count_documents({"event": "preview_play"}),
+        "ctas": await _top("cta", "cta"),
+        "sections": await _top("section_view", "section"),
+    }

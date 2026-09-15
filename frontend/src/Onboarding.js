@@ -9,6 +9,7 @@ import {
 import { Toaster, toast } from "sonner";
 import { API, useAuth } from "./AuthContext";
 import { useGeoStore } from "@/store/useGeoStore";
+import { consumeIntent } from "@/utils/intent";
 import BigFmBrand from "@/components/BigFmBrand";
 
 const LANGUAGES = [
@@ -265,7 +266,7 @@ export default function Onboarding() {
       const r = await axios.post(`${API}/users/preferences`, pv);
       setUser(r.data);
       toast.success(`Sab set, ${r.data.name}!`);
-      navigate("/", { replace: true });
+      navigate(consumeIntent() || "/", { replace: true });
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Could not save preferences");
       await refresh();

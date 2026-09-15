@@ -2,15 +2,17 @@
 // the logged-in V2 home so login simply unlocks the personalized version of
 // the SAME product. Self-contained (own header + footer); rendered bare by
 // AppShellV2 for anonymous `/`.
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
-  Radio, Sparkles, Play, Coins, Utensils, ShoppingBag, Gamepad2, Users,
+  Radio, Sparkles, Play, Pause, Coins, Utensils, ShoppingBag, Gamepad2, Users,
   Crown, ArrowRight, Globe, Trophy, Store, Megaphone, Smartphone, Headphones,
-  Check, ChevronRight, Star,
+  Check, ChevronRight, Star, X,
 } from "lucide-react";
 import { HERO_IMG } from "./analytics";
+import { setIntent } from "@/utils/intent";
+import { toPlayableStreamUrl } from "@/utils/streamUrl";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const CONTAINER = "max-w-[1240px] mx-auto w-full px-4 sm:px-6 lg:px-8";
@@ -56,9 +58,72 @@ export default function PublicHomeNewLookV2() {
   const [stations, setStations] = useState(STATION_FALLBACK);
   const [count, setCount] = useState(0);
   const howRef = useRef(null);
+  const audioRef = useRef(null);
+  const timerRef = useRef(null);
+  const [previewId, setPreviewId] = useState(null);
+  const [previewStation, setPreviewStation] = useState(null);
+  const [previewEnded, setPreviewEnded] = useState(false);
 
-  const go = (path) => () => navigate(path);
-  const toLogin = go("/login");
+  const sessionId = useMemo(() => {
+    try {
+      let s = localStorage.getItem("rl_land_sid");
+      if (!s) { s = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("rl_land_sid", s); }
+      return s;
+    } catch { return "anon"; }
+  }, []);
+
+  // Fire-and-forget landing analytics (CTA clicks, section views, previews).
+  const track = useCallback((event, extra = {}) => {
+    try { axios.post(`${API}/shell/landing-event`, { event, session_id: sessionId, ...extra }).catch(() => {}); }
+    catch (_e) { /* ignore */ }
+  }, [sessionId]);
+
+  // Preserve-intent CTA: remember where they wanted to go, then to /login.
+  const ctaTo = useCallback((label, intentPath) => () => {
+    track("cta", { cta: label });
+    if (intentPath) setIntent(intentPath);
+    navigate("/login");
+  }, [track, navigate]);
+  const toLogin = useCallback(() => { track("cta", { cta: "signin" }); navigate("/login"); }, [track, navigate]);
+
+  const stopPreview = useCallback(() => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (audioRef.current) { try { audioRef.current.pause(); } catch (_e) { /* */ } }
+    setPreviewId(null);
+    setPreviewEnded(false);
+    setPreviewStation(null);
+  }, []);
+
+  // Let logged-out visitors hear a 30s sample before signing up.
+  const playPreview = useCallback((station) => {
+    const id = station.id || station.name;
+    if (previewId === id) { stopPreview(); return; }
+    const src = toPlayableStreamUrl(station.stream_url);
+    setPreviewStation(station);
+    setPreviewEnded(false);
+    if (!src) { setPreviewId(null); setPreviewEnded(true); return; }
+    if (!audioRef.current) audioRef.current = new Audio();
+    const a = audioRef.current;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    a.onerror = () => { setPreviewId(null); setPreviewEnded(true); };
+    try {
+      a.src = src;
+      a.volume = 0.9;
+      a.play().then(() => {
+        setPreviewId(id);
+        track("preview_play", { cta: station.name });
+        timerRef.current = setTimeout(() => {
+          try { a.pause(); } catch (_e) { /* */ }
+          setPreviewId(null); setPreviewEnded(true);
+        }, 30000);
+      }).catch(() => { setPreviewId(null); setPreviewEnded(true); });
+    } catch (_e) { setPreviewId(null); setPreviewEnded(true); }
+  }, [previewId, stopPreview, track]);
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (audioRef.current) { try { audioRef.current.pause(); } catch (_e) { /* */ } }
+  }, []);
 
   useEffect(() => {
     document.title = "RadioLife — Radio that rewards you · Live + AI Radio";
@@ -69,22 +134,44 @@ export default function PublicHomeNewLookV2() {
 
   useEffect(() => {
     let alive = true;
-    axios.get(`${API}/live-radio/stations?limit=8`)
+    axios.get(`${API}/live-radio/stations?limit=40`)
       .then((r) => {
         if (!alive) return;
         const items = r?.data?.items || [];
-        if (items.length) setStations(items);
+        // Prefer https streams — they preview reliably for logged-out
+        // visitors (no mixed-content block / proxy allowlist gap).
+        const isHttps = (s) => String(s.stream_url || "").startsWith("https://");
+        const ordered = [...items.filter(isHttps), ...items.filter((s) => !isHttps(s))];
+        if (ordered.length) setStations(ordered.slice(0, 8));
         setCount(r?.data?.total || 0);
       })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
 
+  // Section-view analytics — observe existing section test-ids (no markup change).
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const NAMES = ["public-live-header", "public-airadio", "public-how-header",
+      "public-bigpoints", "public-dining", "public-shop", "public-play",
+      "public-social", "public-premium", "public-appcta"];
+    const seen = new Set();
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        const name = e.target.getAttribute("data-testid");
+        if (name && !seen.has(name)) { seen.add(name); track("section_view", { section: name }); }
+      });
+    }, { threshold: 0.4 });
+    NAMES.forEach((n) => { const el = document.querySelector(`[data-testid="${n}"]`); if (el) obs.observe(el); });
+    return () => obs.disconnect();
+  }, [track]);
+
   const stationCount = useMemo(() => fmtCount(count), [count]);
 
   return (
     <div className="nlv2" data-testid="public-home-v2">
-      <PublicNav onSignIn={toLogin} onStart={toLogin} />
+      <PublicNav onSignIn={toLogin} onStart={ctaTo("nav_getstarted", "/listen")} />
 
       <main className="relative z-10">
         {/* ─── HERO ─────────────────────────────────────────────── */}
@@ -101,11 +188,11 @@ export default function PublicHomeNewLookV2() {
                 Listen to live stations from around the world, or let AI build a radio experience around what you love. Earn BigPoints while you listen — then play, shop, discover restaurants and connect with friends.
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-3">
-                <button onClick={toLogin} data-testid="public-cta-start"
+                <button onClick={ctaTo("hero_start", "/listen")} data-testid="public-cta-start"
                   className="nlv2-btn inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full">
                   <Play size={16} fill="currentColor" /> START LISTENING
                 </button>
-                <button onClick={toLogin} data-testid="public-cta-explore"
+                <button onClick={ctaTo("hero_explore", "/listen")} data-testid="public-cta-explore"
                   className="nlv2-btn-ghost inline-flex items-center gap-2 font-bold text-sm px-6 py-3 rounded-full">
                   <Radio size={16} /> EXPLORE LIVE RADIO
                 </button>
@@ -150,10 +237,11 @@ export default function PublicHomeNewLookV2() {
 
         {/* ─── LIVE RIGHT NOW ───────────────────────────────────── */}
         <section className={`${CONTAINER} py-8`}>
-          <SectionHeader eyebrow="Live right now" title="Tune in this second" cta="Explore all radio" onCta={toLogin} testid="public-live" />
+          <SectionHeader eyebrow="Live right now" title="Tune in this second" cta="Explore all radio" onCta={ctaTo("explore_all", "/listen")} testid="public-live" />
           <div className="grid grid-flow-col auto-cols-[46%] sm:auto-cols-[30%] lg:grid-flow-row lg:grid-cols-4 gap-4 overflow-x-auto nlv2-scroll pb-2 -mx-1 px-1">
             {stations.slice(0, 8).map((s, i) => (
-              <StationCard key={s.id || s.name} station={s} grad={GRADS[i % GRADS.length]} onClick={toLogin} testid={`public-station-${i}`} />
+              <StationCard key={s.id || s.name} station={s} grad={GRADS[i % GRADS.length]}
+                onPreview={playPreview} previewing={previewId === (s.id || s.name)} testid={`public-station-${i}`} />
             ))}
           </div>
         </section>
@@ -168,7 +256,7 @@ export default function PublicHomeNewLookV2() {
               <p className="mt-4 text-[15px] max-w-md" style={{ color: "#a8b0cc" }}>
                 Tell us what you like — or just start listening. RadioLife learns from your listening, skips and preferences and rebuilds your radio in real time.
               </p>
-              <button onClick={toLogin} data-testid="public-cta-createradio"
+              <button onClick={ctaTo("create_radio", "/radio/create")} data-testid="public-cta-createradio"
                 className="nlv2-btn inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full mt-6">
                 <Sparkles size={16} /> CREATE MY RADIO
               </button>
@@ -217,7 +305,7 @@ export default function PublicHomeNewLookV2() {
               <p className="mt-4 text-[15px] max-w-md" style={{ color: "#c9cfe6" }}>
                 Earn BigPoints when you listen, play and engage. Spend them across RadioLife rewards, offers and participating businesses.
               </p>
-              <button onClick={toLogin} data-testid="public-cta-earn"
+              <button onClick={ctaTo("start_earning", "/wallet")} data-testid="public-cta-earn"
                 className="mt-6 inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full"
                 style={{ background: "linear-gradient(135deg,#f59e0b,#f5c563)", color: "#1a1305" }}>
                 <Coins size={16} /> START EARNING
@@ -249,7 +337,7 @@ export default function PublicHomeNewLookV2() {
               <p className="mt-4 text-[15px] max-w-md" style={{ color: "#a8b0cc" }}>
                 Choose Veg or Non-Veg, spin (or hit Surprise Me) and RadioLife reveals a participating restaurant. A Premium perk that goes way beyond audio.
               </p>
-              <button onClick={toLogin} data-testid="public-cta-dining"
+              <button onClick={ctaTo("dining", "/dining")} data-testid="public-cta-dining"
                 className="nlv2-btn inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full mt-6">
                 <Utensils size={16} /> DISCOVER DINING CLUB
               </button>
@@ -269,13 +357,13 @@ export default function PublicHomeNewLookV2() {
         {/* ─── SHOP / PLAY / SOCIAL previews ────────────────────── */}
         <PreviewSection testid="public-shop" eyebrow="Discover what's around you" title="Shop RadioLife"
           items={[["Local Deals", GRADS[2]], ["Restaurant Pickup", GRADS[0]], ["Services", GRADS[3]], ["Memberships", GRADS[6]], ["Featured Businesses", GRADS[4]]]}
-          cta="Explore Shop" onCta={toLogin} />
+          cta="Explore Shop" onCta={ctaTo("shop", "/shop")} />
         <PreviewSection testid="public-play" eyebrow="Play & win" title="Games, trivia & prizes"
           items={[["Spin & Win", GRADS[6]], ["Trivia", GRADS[1]], ["Predict & Win", GRADS[0]], ["Giveaways", GRADS[2]], ["Sponsored Games", GRADS[4]]]}
-          cta="Explore Play" onCta={toLogin} />
+          cta="Explore Play" onCta={ctaTo("play", "/play-and-win")} />
         <PreviewSection testid="public-social" eyebrow="Do it together" title="Listen. Play. Go out. Earn — together."
           items={[["Listen Together", GRADS[4]], ["Trivia Teams", GRADS[1]], ["Prediction Groups", GRADS[0]], ["Challenges", GRADS[6]], ["Groups & Events", GRADS[3]]]}
-          cta="Join RadioLife" onCta={toLogin} />
+          cta="Join RadioLife" onCta={ctaTo("social", "/community")} />
 
         {/* ─── PREMIUM ──────────────────────────────────────────── */}
         <section className={`${CONTAINER} py-10`}>
@@ -305,7 +393,7 @@ export default function PublicHomeNewLookV2() {
                 </ul>
               </div>
             </div>
-            <button onClick={toLogin} data-testid="public-cta-premium"
+            <button onClick={ctaTo("premium", "/premium")} data-testid="public-cta-premium"
               className="mt-6 inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full"
               style={{ background: "linear-gradient(135deg,#f59e0b,#f5c563)", color: "#1a1305" }}>
               <Crown size={16} /> GO PREMIUM
@@ -343,7 +431,7 @@ export default function PublicHomeNewLookV2() {
               <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#c4b5fd" }}>Take it with you</div>
               <h2 className="mt-2 text-3xl sm:text-4xl font-black text-white leading-tight">Take RadioLife<br />with you.</h2>
               <p className="mt-4 text-[15px] max-w-md" style={{ color: "#a8b0cc" }}>Your radio. Your rewards. Your local life — anywhere you go.</p>
-              <button onClick={toLogin} data-testid="public-cta-app"
+              <button onClick={ctaTo("app", "/listen")} data-testid="public-cta-app"
                 className="nlv2-btn inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full mt-6">
                 <Smartphone size={16} /> GET STARTED
               </button>
@@ -362,6 +450,25 @@ export default function PublicHomeNewLookV2() {
           </div>
         </section>
       </main>
+
+      {previewStation && (previewId || previewEnded) && (
+        <div className="fixed bottom-0 inset-x-0 z-40 nlv2-glass-strong border-t border-white/10" data-testid="public-preview-bar">
+          <div className={`${CONTAINER} py-3 flex items-center gap-3`}>
+            <button onClick={() => playPreview(previewStation)} data-testid="public-preview-toggle"
+              className="nlv2-btn w-10 h-10 rounded-full grid place-items-center shrink-0">
+              {previewId ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="text-white font-bold text-sm truncate">{previewStation.name}</div>
+              <div className="text-[11px]" style={{ color: "#8b96b8" }}>{previewId ? "Previewing · 30-second sample" : "Preview ended — sign in to keep listening"}</div>
+            </div>
+            <button onClick={ctaTo("preview_signup", "/listen")} data-testid="public-preview-signup"
+              className="nlv2-btn font-black text-xs px-4 py-2 rounded-full shrink-0">Keep listening</button>
+            <button onClick={stopPreview} data-testid="public-preview-close"
+              className="w-8 h-8 grid place-items-center shrink-0" style={{ color: "#8b96b8" }}><X size={16} /></button>
+          </div>
+        </div>
+      )}
 
       <PublicFooter />
     </div>
@@ -416,17 +523,20 @@ function SectionHeader({ eyebrow, title, cta, onCta, center, testid }) {
   );
 }
 
-function StationCard({ station, grad, onClick, testid }) {
+function StationCard({ station, grad, onPreview, previewing, testid }) {
   const art = station.logo_url || station.art || station.favicon || "";
   return (
-    <button onClick={onClick} data-testid={testid}
+    <button onClick={() => onPreview(station)} data-testid={testid}
       className="nlv2-glass nlv2-card-hover rounded-2xl p-3 text-left w-full">
       <div className="aspect-square rounded-xl overflow-hidden relative grid place-items-center" style={{ background: grad }}>
         {art
           ? <img src={art} alt={station.name} className="absolute inset-0 w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
           : null}
-        <Radio size={30} className="text-white/85 relative" />
-        <span className="absolute top-2 left-2 text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,0.5)", color: "#fca5a5" }}>● Live</span>
+        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.45))" }} />
+        <span className="w-11 h-11 rounded-full grid place-items-center relative nlv2-glass-strong" data-testid={`${testid}-play`}>
+          {previewing ? <Pause size={18} className="text-white" /> : <Play size={18} className="text-white" fill="currentColor" />}
+        </span>
+        <span className="absolute top-2 left-2 text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,0.5)", color: previewing ? "#86efac" : "#fca5a5" }}>{previewing ? "● Playing" : "● Live"}</span>
       </div>
       <div className="mt-2.5 font-bold text-sm text-white truncate">{station.name}</div>
       <div className="text-[11px] truncate" style={{ color: "#8b96b8" }}>{(station.music_genre || "Radio")}{station.country ? ` · ${station.country}` : ""}</div>

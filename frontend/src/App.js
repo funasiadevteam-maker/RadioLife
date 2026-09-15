@@ -308,6 +308,7 @@ import AdminSkipRules from "@/pages/admin/AdminSkipRules";
 import AdminAdPacing from "@/pages/admin/AdminAdPacing";  // Phase COMPANION.1 — audio-ad pacing panel
 import AdminAdRevenueReport from "@/pages/admin/AdminAdRevenueReport";  // Phase COMPANION.1 — Home ad revenue report
 import AdminRailAds from "@/pages/admin/AdminRailAds";  // V2 — right-rail banner moderation
+import AdminLandingAnalytics from "@/pages/admin/AdminLandingAnalytics";  // V2 — public landing analytics
 import Trivia from "@/Trivia";
 import TriviaPlay from "@/TriviaPlay";
 import { TriviaRoomCreate, TriviaJoin, TriviaRoom } from "@/TriviaRoom";
@@ -538,6 +539,9 @@ function AppRouter() {
       } />
       <Route path="/admin/rail-ads" element={
         <ProtectedRoute requireAdmin><AdminRailAds /></ProtectedRoute>
+      } />
+      <Route path="/admin/landing-analytics" element={
+        <ProtectedRoute requireAdmin><AdminLandingAnalytics /></ProtectedRoute>
       } />
       <Route path="/admin/predict-win/self-serve" element={
         <ProtectedRoute requireAdmin><AdminPredictWinSelfServe /></ProtectedRoute>
