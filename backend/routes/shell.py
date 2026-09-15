@@ -450,14 +450,14 @@ async def shell_home(request: Request, city: str = ""):
 
     native_offer = await _native_offer(db, city)
 
-    # Live Hero Vibe — the listener's top genre (favorite genres first, else
-    # inferred from a preferred station name). Nullable; hero falls back.
+    # Live Hero Vibe — the listener's top genre. Onboarding step 2 saves
+    # `preference_vector.genres`; fall back to `favorite_genres`. Nullable.
     top_genre = None
     try:
         pv = (user or {}).get("preference_vector") or {}
-        gl = pv.get("favorite_genres") or []
-        if gl:
-            top_genre = str(gl[0]).strip().title() or None
+        src = pv.get("genres") or pv.get("favorite_genres") or []
+        if src:
+            top_genre = str(src[0]).replace("_", " ").strip().title() or None
     except Exception:
         top_genre = None
 

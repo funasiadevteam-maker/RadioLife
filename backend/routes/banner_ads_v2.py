@@ -383,8 +383,43 @@ async def patch_banner_campaign(cid: str, request: Request, body: dict,
 
 # ─── admin moderation ────────────────────────────────────────────────
 
+RAIL_SLOT_KEYS = ["right_rail_mpu_1", "right_rail_mpu_2", "right_rail_mpu_3"]
+RAIL_CPM = 8.0  # house CPM (USD per 1000 impressions) used for spend estimate
+
+
+@router.get("/advertiser/rail-analytics")
+async def advertiser_rail_analytics(request: Request,
+                                       user: dict = Depends(current_user)):
+    """Per-slot impressions / clicks / spend for the caller's right-rail campaigns."""
+    db = request.app.state.db
+    advertiser_id = user["user_id"]
+    camp_ids = [c["_id"] async for c in db.banner_ad_campaigns.find(
+        {"advertiser_id": advertiser_id, "slot_keys": {"$in": RAIL_SLOT_KEYS}}, {"_id": 1})]
+    agg = {k: {"impressions": 0, "clicks": 0} for k in RAIL_SLOT_KEYS}
+    if camp_ids:
+        pipeline = [
+            {"$match": {"campaign_id": {"$in": camp_ids}, "slot_key": {"$in": RAIL_SLOT_KEYS}}},
+            {"$group": {"_id": "$slot_key",
+                        "impressions": {"$sum": 1},
+                        "clicks": {"$sum": {"$cond": [{"$eq": ["$was_clicked", True]}, 1, 0]}}}},
+        ]
+        async for row in db.banner_ad_impressions.aggregate(pipeline):
+            if row["_id"] in agg:
+                agg[row["_id"]] = {"impressions": row["impressions"], "clicks": row["clicks"]}
+    slots, ti, tc, ts = [], 0, 0, 0.0
+    for k in RAIL_SLOT_KEYS:
+        i, cl = agg[k]["impressions"], agg[k]["clicks"]
+        spend = round(i / 1000.0 * RAIL_CPM, 2)
+        slots.append({"slot_key": k, "impressions": i, "clicks": cl,
+                      "ctr": round(cl / i, 4) if i else 0.0, "spend": spend})
+        ti += i; tc += cl; ts += spend
+    return {"cpm": RAIL_CPM, "campaigns": len(camp_ids), "slots": slots,
+            "totals": {"impressions": ti, "clicks": tc,
+                       "ctr": round(tc / ti, 4) if ti else 0.0, "spend": round(ts, 2)}}
+
+
 def _require_admin(u: dict):
-    if not u or not u.get("is_admin"):
+    if not u or not (u.get("is_admin") or u.get("role") == "admin"):
         raise HTTPException(403, {"code": "forbidden"})
 
 

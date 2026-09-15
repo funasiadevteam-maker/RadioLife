@@ -369,6 +369,7 @@ function QuickLinks() {
     { to: "/admin/coupon-charges",    label: "Coupon Charges",      tid: "admin-home-ql-coupons" },
     { to: "/admin/ad-pacing",            label: "Ad Pacing",              tid: "admin-home-ql-adpacing" },
     { to: "/admin/ad-revenue",          label: "Home Ad Revenue",      tid: "admin-home-ql-adrevenue" },
+    { to: "/admin/rail-ads",             label: "Rail Ads · Approve",   tid: "admin-home-ql-railads" },
     { to: "/admin/retargeting",          label: "Retargeting",            tid: "admin-home-ql-retargeting" },
   ];
   return (

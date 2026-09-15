@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Cookie, X } from "lucide-react";
 import { Button, Chip } from "@/shell/primitives";
+import { useAuth } from "@/AuthContext";
 
 const COOKIE_KEY  = "bigfm_consent";
 const COOKIE_DAYS = 180;
@@ -25,6 +26,7 @@ function writeConsent(obj) {
 
 export default function CookieBanner() {
   const { pathname } = useLocation();
+  const { user } = useAuth();
   const [open, setOpen]            = useState(false);
   const [customMode, setCustom] = useState(false);
   const [choices, setChoices]    = useState({
@@ -62,11 +64,11 @@ export default function CookieBanner() {
 
   return (
     <div data-testid="cookie-banner"
-            className="fixed bottom-44 left-3 right-3 lg:left-auto lg:right-4
+            className={`fixed ${user ? "bottom-44" : "bottom-4"} left-3 right-3 lg:left-auto lg:right-4
                               lg:bottom-4 lg:max-w-md z-[80] rounded-token-md
                               bg-bg-elevated/95 backdrop-blur-md
                               border border-white/[0.10] shadow-2xl
-                              p-4 space-y-3 text-sm">
+                              p-4 space-y-3 text-sm`}>
       <header className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 text-accent-gold
                                 font-display font-bold tracking-display-tight">

@@ -225,6 +225,7 @@ const RAIL_KEYS = new Set(RAIL_SLOTS.map((s) => s.key));
 function RightRailSlotsPanel({ light }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [form, setForm] = useState({
@@ -244,8 +245,12 @@ function RightRailSlotsPanel({ light }) {
 
   async function load() {
     try {
-      const { data } = await axios.get(`${API}/ads/advertiser/banner-campaigns`, { withCredentials: true });
-      setItems((data.items || []).filter((c) => (c.slot_keys || []).some((k) => RAIL_KEYS.has(k))));
+      const [c, a] = await Promise.all([
+        axios.get(`${API}/ads/advertiser/banner-campaigns`, { withCredentials: true }),
+        axios.get(`${API}/ads/advertiser/rail-analytics`, { withCredentials: true }).catch(() => ({ data: null })),
+      ]);
+      setItems((c.data.items || []).filter((x) => (x.slot_keys || []).some((k) => RAIL_KEYS.has(k))));
+      setAnalytics(a.data);
     } catch (_e) { setItems([]); }
   }
   useEffect(() => { load(); }, []);
@@ -309,6 +314,38 @@ function RightRailSlotsPanel({ light }) {
           </div>
         ))}
       </div>
+
+      {analytics && analytics.campaigns > 0 && (
+        <div className="mt-5" data-testid="advertiser-rail-analytics">
+          <div className={`text-[10px] uppercase tracking-widest font-mono ${muted} mb-2`}>
+            Live performance · est. spend @ ${analytics.cpm} CPM
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {analytics.slots.map((s) => {
+              const label = RAIL_SLOTS.find((x) => x.key === s.slot_key)?.label || s.slot_key;
+              return (
+                <div key={s.slot_key} data-testid={`advertiser-rail-metric-${s.slot_key}`}
+                  className={`rounded-xl p-3 border ${light ? "border-slate-200 bg-slate-50" : "border-slate-800 bg-slate-950"}`}>
+                  <div className="text-xs font-black">{label}</div>
+                  <div className="grid grid-cols-3 gap-2 mt-2 text-center">
+                    <div><div className="text-base font-black">{s.impressions.toLocaleString()}</div><div className={`text-[9px] uppercase ${muted}`}>Impr</div></div>
+                    <div><div className="text-base font-black">{s.clicks.toLocaleString()}</div><div className={`text-[9px] uppercase ${muted}`}>Clicks</div></div>
+                    <div><div className="text-base font-black text-emerald-400">${s.spend.toFixed(2)}</div><div className={`text-[9px] uppercase ${muted}`}>Spend</div></div>
+                  </div>
+                  <div className={`text-[10px] font-mono mt-1 text-center ${muted}`}>CTR {(s.ctr * 100).toFixed(2)}%</div>
+                </div>
+              );
+            })}
+          </div>
+          <div data-testid="advertiser-rail-analytics-total"
+            className={`flex items-center justify-between flex-wrap gap-2 mt-3 px-3 py-2 rounded-lg ${light ? "bg-slate-100" : "bg-slate-800/50"}`}>
+            <span className="text-xs font-bold">Total</span>
+            <span className="text-xs font-mono">
+              {analytics.totals.impressions.toLocaleString()} impr · {analytics.totals.clicks} clicks · CTR {(analytics.totals.ctr * 100).toFixed(2)}% · <span className="text-emerald-400 font-bold">${analytics.totals.spend.toFixed(2)}</span>
+            </span>
+          </div>
+        </div>
+      )}
 
       {msg && (
         <div data-testid="advertiser-rail-msg"

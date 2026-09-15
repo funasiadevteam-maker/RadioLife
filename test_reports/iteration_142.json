@@ -1,0 +1,41 @@
+{
+  "summary": "Iter 142 — WEB e2e for the 4 new batch items: (A) PUBLIC V2 landing anon, (B) Advertiser Rail Analytics, (C) Admin /admin/rail-ads Approve/Reject, (D) Genre-personalized hero (preference_vector.genres). BACKEND 10/10 pytest passing. FRONTEND (web, both desktop 1920x1080 and mobile 390x844): all pass. (A) with cleared localStorage / cookies visiting '/' renders data-testid='public-home-v2'; sticky nav (public-nav-logo, public-nav-signin, public-nav-getstarted, desktop links public-nav-listen/shop/play/dining-club/for-business); hero H1 = 'LIVE RADIO.AI RADIO.MORE THAN RADIO.' (no space after periods but semantically correct — react splits into three <span>s); public-cta-start/explore/how present; 8 public-station-N cards fetched from GET /api/live-radio/stations; ALL required sections present (public-airadio, public-concept-listen/earn/play/discover/social, public-bigpoints, public-dining, public-shop, public-play, public-social, public-premium, public-sponsored, public-b2b-business, public-b2b-advertiser, public-appcta, public-footer); public-premium contains BOTH 'Free 1 skip per rolling hour' AND 'Premium 6 skips per rolling hour' and does NOT contain 'Unlimited'; NO logged-in chrome (nlv2-player-bar, nlv2-bottom-nav, nlv2-avatar, nlv2-bigpoints-pill, shell-v2, home-new-look-v2 all absent); mobile 390 has scrollWidth==clientWidth==390 (no horizontal overflow); CTAs public-cta-start / public-nav-signin / first station card all navigate to /login. (B) LOGIN transition — premium@bigfm.dubai/PremiumTest123! login lands on '/' with data-testid='home-new-look-v2' inside 'shell-v2', public-home-v2 removed. (C) RAIL ANALYTICS — /advertiser/dashboard/banner-campaigns as test@ shows advertiser-rail-panel + advertiser-rail-analytics with per-slot cards advertiser-rail-metric-right_rail_mpu_1/2/3 and advertiser-rail-analytics-total ('2 impr · 0 clicks · CTR 0.00% · $0.02' — from prior campaigns). Backend GET /api/ads/advertiser/rail-analytics returns cpm=8.0, campaigns=3, slots + totals. (D) APPROVE ADS — admin@ /admin/rail-ads renders admin-rail-ads-page; all 4 tabs (admin-rail-tab-pending/active/rejected/all) present; a real pending campaign bcamp_865ca71ee3a64d approved via admin-rail-approve-{cid} — POST /api/ads/admin/banner-campaigns/{cid}/approve → {ok:true,new_status:'active'}, card left pending tab and appeared in active tab. Non-admin (test@) forbidden 403 as expected. (E) GENRE HERO — /api/shell/home returns top_genre='Bollywood' for admin (pv.genres=[bollywood,pop,electronic]) and for premium (favorite_genres=[Bollywood,Dance] fallback); logged-in home renders data-testid='nlv2-hero-genre' with text 'Bollywood' and genre-aware sub-copy 'Your Bollywood radio, tuned for your morning'; anonymous shell/home does NOT 500 (null genre safe).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Public landing (both desktop + mobile) — cookies banner", "issues": ["The bottom-right Cookies banner (accept-all / essential-only / customise) sits above the fold on mobile and overlaps content until dismissed. Non-blocking for anon flow but worth noting alongside iter140 Sonner-toast concern."]},
+        {"screen": "public-hero-h1", "issues": ["Rendered as 'LIVE RADIO.AI RADIO.MORE THAN RADIO.' with no space between periods — it's three <span> lines so visually correct at desktop/mobile, but if the H1 is ever inlined the microcopy will run together. Cosmetic only."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter142_public_v2_admin_rail.py",
+    "/app/test_reports/pytest/iter142.xml"
+  ],
+  "action_items": [
+    "None blocking. Optional: dismiss/gate the cookies banner sooner (or move to top on mobile) so it doesn't compete with hero CTAs."
+  ],
+  "critical_code_review_comments": [
+    "banner_ads_v2._require_admin(u) correctly accepts BOTH u.get('is_admin') AND u.get('role')=='admin' (line 421-423) — fix confirmed. Admin approve/reject only match status:'pending' and return 404 not_pending otherwise — correct semantics.",
+    "shell.py /home top_genre logic (lines 454-462) reads preference_vector.genres FIRST, falls back to favorite_genres, title-cases first entry, returns None on any exception. Anonymous request path returns top_genre=None (no crash). This matches review spec #D.",
+    "AdvertiserBannerCampaigns.RightRailSlotsPanel renders advertiser-rail-analytics only when ≥1 rail campaign exists — good. Totals row is always shown when panel present.",
+    "AdminRailAds.jsx uses window.confirm before approve/reject — testing had to accept the dialog. Fine for admin surface.",
+    "PublicHomeNewLookV2 covers 100% of testIDs listed in the review spec including public-cta-createradio/dining/earn/premium/app; premium copy explicitly states rolling-hour skip counts (not 'Unlimited') per spec."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter142_public_v2_admin_rail.py",
+    "/app/test_reports/pytest/iter142.xml"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% on the 4 targeted flows"},
+  "test_credentials": "web: admin@bigfm.dubai/AdminPass123!, premium@bigfm.dubai/PremiumTest123!, test@bigfm.dubai/TestUser123! (advertiser).",
+  "seed_data_creation": "Backend regression tests idempotently create 2 pending banner_ads_v2 rail campaigns per run under test@ (one gets approved, one rejected). Safe to leave; visible under /admin/rail-ads → All tab. Existing bcamp_865ca71ee3a64d that was PENDING has been APPROVED as part of the UI approve test — expected side-effect.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 4 batch shipments confirmed on web. Regression file /app/backend/tests/test_iter142_public_v2_admin_rail.py covers public/stations, rail-analytics shape, admin approve+reject flow (with self-created pending campaigns), non-admin 403, and genre-hero contract. To re-exercise the UI approve button, POST a new banner campaign + /checkout as test@ to create a fresh pending row (older iter141 test file does this too). Genre-aware hero now uses preference_vector.genres FIRST (admin's onboarding array), then favorite_genres — so admin@ + premium@ both surface 'Bollywood' hero copy. Sonner welcome-toast + cookies banner overlap issue from iter140 still open (unrelated to this batch).",
+  "rca of the issue": "N/A — no bugs found in this batch."
+}

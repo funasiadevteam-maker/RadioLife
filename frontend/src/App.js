@@ -303,9 +303,11 @@ import Home from "@/Home";
 import HomeB from "@/HomeB";
 import AppShellV2 from "@/design_v2/AppShellV2";
 import HomeNewLookV2 from "@/design_v2/HomeNewLookV2";
+import PublicHomeNewLookV2 from "@/design_v2/PublicHomeNewLookV2";
 import AdminSkipRules from "@/pages/admin/AdminSkipRules";
 import AdminAdPacing from "@/pages/admin/AdminAdPacing";  // Phase COMPANION.1 — audio-ad pacing panel
 import AdminAdRevenueReport from "@/pages/admin/AdminAdRevenueReport";  // Phase COMPANION.1 — Home ad revenue report
+import AdminRailAds from "@/pages/admin/AdminRailAds";  // V2 — right-rail banner moderation
 import Trivia from "@/Trivia";
 import TriviaPlay from "@/TriviaPlay";
 import { TriviaRoomCreate, TriviaJoin, TriviaRoom } from "@/TriviaRoom";
@@ -533,6 +535,9 @@ function AppRouter() {
       } />
       <Route path="/admin/ad-revenue" element={
         <ProtectedRoute requireAdmin><AdminAdRevenueReport /></ProtectedRoute>
+      } />
+      <Route path="/admin/rail-ads" element={
+        <ProtectedRoute requireAdmin><AdminRailAds /></ProtectedRoute>
       } />
       <Route path="/admin/predict-win/self-serve" element={
         <ProtectedRoute requireAdmin><AdminPredictWinSelfServe /></ProtectedRoute>
@@ -1127,7 +1132,12 @@ export function RootGate() {
   const { user, loading } = _useAuth_();
   const designVariant = useDesignVariantStore((s) => s.variant);
   if (loading) return null;
-  if (!user) return <Landing />;
+  if (!user) {
+    // New Look V2 is the standard look — anonymous visitors get the premium
+    // V2 public landing so login just unlocks the personalized same product.
+    // Admin/QA can preview the legacy landing via ?design=classic_b|legacy.
+    return designVariant === "new_look_v2" ? <PublicHomeNewLookV2 /> : <Landing />;
+  }
   return designVariant === "new_look_v2" ? <HomeNewLookV2 />
     : designVariant === "classic_b" ? <HomeB /> : <Home />;
 }
