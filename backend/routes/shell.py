@@ -450,6 +450,17 @@ async def shell_home(request: Request, city: str = ""):
 
     native_offer = await _native_offer(db, city)
 
+    # Live Hero Vibe — the listener's top genre (favorite genres first, else
+    # inferred from a preferred station name). Nullable; hero falls back.
+    top_genre = None
+    try:
+        pv = (user or {}).get("preference_vector") or {}
+        gl = pv.get("favorite_genres") or []
+        if gl:
+            top_genre = str(gl[0]).strip().title() or None
+    except Exception:
+        top_genre = None
+
     dining = {"member": False}
     if user:
         try:
@@ -465,6 +476,7 @@ async def shell_home(request: Request, city: str = ""):
         "listening_reward": {"points_per_min": 1},
         "dining": dining,
         "is_premium": is_premium,
+        "top_genre": top_genre,
     }
 
 

@@ -13,7 +13,7 @@ import { API, useAuth } from "@/AuthContext";
 import { useThemeStore } from "@/theme/useTheme";
 import { useGeoStore } from "@/store/useGeoStore";
 import { useShellSummary } from "@/shell/useShellData";
-import { MiniPlayer } from "@/shell/primitives";
+import PlayerBarV2 from "./PlayerBarV2";
 import OnAirOfferCard from "@/shell/OnAirOfferCard";
 import VariantSwitcher from "@/shell/VariantSwitcher";
 import NotificationBell from "@/components/NotificationBell";
@@ -257,7 +257,7 @@ function PlayerDockV2() {
     <div data-testid="nlv2-player-dock" className="fixed bottom-16 lg:bottom-0 inset-x-0 z-30 px-3 sm:px-6 pb-2 lg:pb-4 pointer-events-none">
       <div className="pointer-events-auto max-w-[1440px] mx-auto">
         <OnAirOfferCard />
-        <MiniPlayer />
+        <PlayerBarV2 />
       </div>
     </div>
   );

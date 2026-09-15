@@ -115,6 +115,8 @@ export default function AdvertiserBannerCampaigns() {
           )}
         </div>
 
+        <RightRailSlotsPanel light={light} />
+
         {isBlocked && (
           <div className="rounded-2xl px-4 py-3 mb-4 bg-red-500/10 border border-red-500/40 text-red-300 text-sm inline-flex items-center gap-3"
                       data-testid="advertiser-banner-blocked-banner">
@@ -208,6 +210,191 @@ export default function AdvertiserBannerCampaigns() {
   );
 }
 
+
+// ─── Sell the Rail — New Look V2 right-rail sponsored slots ──────────
+// These are `banner_ads_v2` slot campaigns (the same engine that serves the
+// V2 home right rail), so a purchased + approved campaign actually renders
+// in the rail. Distinct from the zone-based banner campaigns above.
+const RAIL_SLOTS = [
+  { key: "right_rail_mpu_1", label: "Rail · Top",    dims: "300×250" },
+  { key: "right_rail_mpu_2", label: "Rail · Middle", dims: "300×250" },
+  { key: "right_rail_mpu_3", label: "Rail · Bottom", dims: "300×250" },
+];
+const RAIL_KEYS = new Set(RAIL_SLOTS.map((s) => s.key));
+
+function RightRailSlotsPanel({ light }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [form, setForm] = useState({
+    slot_keys: RAIL_SLOTS.map((s) => s.key),
+    creative_image_url: "",
+    click_url: "https://",
+    total_budget: 500,
+    end_date: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10),
+  });
+
+  const cardBg = light ? "bg-white border-slate-200" : "bg-slate-900/60 border-slate-800";
+  const muted = light ? "text-slate-500" : "text-slate-400";
+  const inputCls = light
+    ? "w-full px-3 py-2 rounded-lg text-sm bg-white border border-slate-300"
+    : "w-full px-3 py-2 rounded-lg text-sm bg-slate-900 border border-slate-700";
+  const labelCls = `block text-[10px] uppercase tracking-widest mb-1 font-mono ${muted}`;
+
+  async function load() {
+    try {
+      const { data } = await axios.get(`${API}/ads/advertiser/banner-campaigns`, { withCredentials: true });
+      setItems((data.items || []).filter((c) => (c.slot_keys || []).some((k) => RAIL_KEYS.has(k))));
+    } catch (_e) { setItems([]); }
+  }
+  useEffect(() => { load(); }, []);
+
+  const toggleSlot = (k) => setForm((f) => ({
+    ...f,
+    slot_keys: f.slot_keys.includes(k) ? f.slot_keys.filter((x) => x !== k) : [...f.slot_keys, k],
+  }));
+
+  async function buy() {
+    if (!form.slot_keys.length) { setMsg({ kind: "error", text: "Pick at least one rail slot." }); return; }
+    if (!/^https?:\/\/.+/.test(form.click_url)) { setMsg({ kind: "error", text: "Enter a valid click URL." }); return; }
+    if (!/^https?:\/\/.+/.test(form.creative_image_url)) { setMsg({ kind: "error", text: "Enter a 300×250 creative image URL." }); return; }
+    setBusy(true); setMsg(null);
+    try {
+      const create = await axios.post(`${API}/ads/advertiser/banner-campaigns`, {
+        slot_keys: form.slot_keys,
+        creative_image_url: form.creative_image_url,
+        click_url: form.click_url,
+        start_date: new Date().toISOString(),
+        end_date: `${form.end_date}T23:59:59Z`,
+        total_budget: Number(form.total_budget) || 0,
+      }, { withCredentials: true });
+      const cid = create.data.campaign_id;
+      const co = await axios.post(`${API}/ads/advertiser/banner-campaigns/${cid}/checkout`, {}, { withCredentials: true });
+      const url = co.data?.checkout_url;
+      if (url && /^https?:\/\//.test(url)) { window.location.href = url; return; }
+      setMsg({ kind: "success", text: "Rail slot purchased — submitted for review. It goes live once approved." });
+      setOpen(false);
+      setForm((f) => ({ ...f, creative_image_url: "", click_url: "https://" }));
+      load();
+    } catch (err) {
+      setMsg({ kind: "error", text: err?.response?.data?.detail?.code || err.message || "Purchase failed." });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className={`rounded-2xl border ${cardBg} p-5 mb-6`} data-testid="advertiser-rail-panel">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-widest font-mono text-fuchsia-500">New Look V2 · Right Rail</div>
+          <h2 className="text-xl font-black mt-0.5">Right-rail sponsored slots</h2>
+          <p className={`text-sm ${muted}`}>Premium 300×250 units in the New Look V2 home right rail (desktop). House-filled until sold.</p>
+        </div>
+        <button onClick={() => setOpen((v) => !v)} data-testid="advertiser-rail-buy-toggle"
+          className="inline-flex items-center gap-2 font-black text-sm px-4 py-2.5 rounded-full bg-fuchsia-500 text-white hover:bg-fuchsia-400 shadow-lg shadow-fuchsia-500/30">
+          <Plus className="w-4 h-4" /> Buy rail slot
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+        {RAIL_SLOTS.map((s) => (
+          <div key={s.key} data-testid={`advertiser-rail-slot-${s.key}`}
+            className={`rounded-xl p-3 border ${light ? "border-slate-200 bg-slate-50" : "border-slate-800 bg-slate-950"}`}>
+            <div className="aspect-[300/250] rounded-lg mb-2 grid place-items-center text-[10px] font-mono"
+              style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.18), rgba(236,72,153,0.14))", color: light ? "#7c3aed" : "#d8b4fe" }}>
+              {s.dims}
+            </div>
+            <div className="text-sm font-black">{s.label}</div>
+            <div className={`text-[10px] font-mono ${muted}`}>{s.key}</div>
+          </div>
+        ))}
+      </div>
+
+      {msg && (
+        <div data-testid="advertiser-rail-msg"
+          className={`mt-4 rounded-lg px-4 py-2 text-sm ${msg.kind === "error"
+            ? "bg-red-500/10 border border-red-500/40 text-red-400"
+            : "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400"}`}>{msg.text}</div>
+      )}
+
+      {open && (
+        <div className={`mt-4 rounded-xl border ${light ? "border-slate-200 bg-slate-50" : "border-slate-800 bg-slate-950"} p-4 space-y-3`}
+          data-testid="advertiser-rail-form">
+          <div>
+            <label className={labelCls}>Slots</label>
+            <div className="flex flex-wrap gap-2">
+              {RAIL_SLOTS.map((s) => {
+                const on = form.slot_keys.includes(s.key);
+                return (
+                  <button key={s.key} type="button" onClick={() => toggleSlot(s.key)}
+                    data-testid={`advertiser-rail-pick-${s.key}`}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition ${on
+                      ? "border-fuchsia-500 bg-fuchsia-500/10 text-fuchsia-400"
+                      : (light ? "border-slate-200 text-slate-500" : "border-slate-700 text-slate-400")}`}>
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Creative image URL (300×250) *</label>
+            <input value={form.creative_image_url} onChange={(e) => setForm((f) => ({ ...f, creative_image_url: e.target.value }))}
+              data-testid="advertiser-rail-creative" className={inputCls} placeholder="https://…/banner-300x250.jpg" />
+          </div>
+          <div>
+            <label className={labelCls}>Click-through URL *</label>
+            <input value={form.click_url} onChange={(e) => setForm((f) => ({ ...f, click_url: e.target.value }))}
+              data-testid="advertiser-rail-clickurl" className={inputCls} placeholder="https://your-site.com/offer" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Total budget (USD)</label>
+              <input type="number" min="5" value={form.total_budget}
+                onChange={(e) => setForm((f) => ({ ...f, total_budget: e.target.value }))}
+                data-testid="advertiser-rail-budget" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Run until</label>
+              <input type="date" value={form.end_date}
+                onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
+                data-testid="advertiser-rail-enddate" className={inputCls} />
+            </div>
+          </div>
+          <button onClick={buy} disabled={busy} data-testid="advertiser-rail-submit"
+            className="inline-flex items-center gap-2 font-black text-sm px-4 py-2 rounded-full bg-emerald-500 text-slate-900 hover:bg-emerald-400 disabled:opacity-40">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Buy & submit for review
+          </button>
+        </div>
+      )}
+
+      {items && items.length > 0 && (
+        <div className="mt-5" data-testid="advertiser-rail-list">
+          <div className={`text-[10px] uppercase tracking-widest font-mono ${muted} mb-2`}>Your rail campaigns</div>
+          <div className="space-y-2">
+            {items.map((c) => (
+              <div key={c.campaign_id}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg ${light ? "bg-slate-50 border border-slate-200" : "bg-slate-950 border border-slate-800"}`}
+                data-testid={`advertiser-rail-row-${c.campaign_id}`}>
+                {c.creative_image_url
+                  ? <img src={c.creative_image_url} alt="" className="w-12 h-9 rounded object-cover" />
+                  : <div className="w-12 h-9 rounded bg-slate-700" />}
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-mono truncate">{(c.slot_keys || []).join(", ")}</div>
+                  <div className={`text-[11px] ${muted} truncate`}>→ {c.click_url}</div>
+                </div>
+                <span className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[c.status] || "bg-slate-500/15 text-slate-400"}`}>
+                  {c.status}
+                </span>
+                <div className={`text-[11px] font-mono ${muted}`}>{c.impressions || 0} impr</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── 5-step wizard ───────────────────────────────────────────────────
 function BannerWizard({ advertiser, hints, light, onClose, onDone }) {

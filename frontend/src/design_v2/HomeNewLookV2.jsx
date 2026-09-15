@@ -71,7 +71,7 @@ export default function HomeNewLookV2() {
 
   return (
     <div data-testid="home-new-look-v2" className="w-full space-y-10 pb-10">
-      <HeroNewLookV2 greeting={greetingFor()} name={name} />
+      <HeroNewLookV2 greeting={greetingFor()} name={name} topGenre={home?.top_genre} />
       <ContinueListeningRowV2
         continueItem={continueItem}
         reward={home?.listening_reward}
