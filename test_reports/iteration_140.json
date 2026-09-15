@@ -1,0 +1,38 @@
+{
+  "summary": "Rigorous e2e pass on New Look V2 lock + right-rail buyable ads + login theme picker (WEB only, both desktop 1920x900 and mobile 390x844). Backend: 9/9 passing — three new right_rail_mpu_1/2/3 slots serve source=house size=300x250 for non-premium and source=none reason=premium for premium; /api/shell/prefs PUT/GET persists theme. Frontend: V2 enforcer flips a poisoned localStorage bigfm_design_variant=classic_b back to new_look_v2 for a non-admin login; variant-switcher-btn correctly hidden for non-admin (freeuser + premium) and visible for admin; desktop right rail renders nlv2-rail-ad-1/2/3 + promo for freeuser and only promo for premium (three ad divs are NOT rendered in DOM — good); all V2 tabs (/, /listen, /shop, /play-and-win, /community) share the same 1440px centered container so header logo (x=280) and content (x=240) share the same left edge across every route; mobile bottom-nav visible with all 5 tabs (Home/Listen/Pay-raised/Shop/Play) + nlv2-top-social + nlv2-bigpoints-pill + nlv2-avatar in the top bar; desktop center nav (nlv2-nav-home) is correctly hidden on mobile; right rail is hidden on mobile; mobile /shop renders the clean single-column layout with bottom-nav present. Theme picker on /login: clicking Light flips document.documentElement data-theme='light' live; clicking Dark flips to 'dark'.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "Mobile bottom-nav vs Sonner welcome toast", "issue": "Immediately after login on mobile (390x844) the Sonner 'Welcome back, <name>' toast is anchored to bottom-right (position='bottom-right' in the top-level Toaster) and its element stacking sits ABOVE the fixed bottom-nav — during the toast's lifetime, taps on nlv2-tab-listen / nlv2-tab-shop / nlv2-tab-play / nlv2-tab-pay hit the toast's <li data-sonner-toast> instead of the Link and do NOT navigate (verified via document.elementFromPoint at each tab's center). Once the toast auto-dismisses, taps work normally.", "selector": "[data-testid='nlv2-bottom-nav'] vs [data-sonner-toast]", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter140_v2_lock_ads.py",
+    "/app/test_reports/pytest/iter140.xml"
+  ],
+  "action_items": [
+    "Fix mobile bottom-nav overlap: either move the Sonner Toaster to position='top-right' on mobile widths (<lg), OR raise the BottomNavV2 stacking above the toaster (Sonner's default z ~= 9999999), OR add bottom offset to sonner via style/offset prop on the top-level <Toaster /> in App.js so it clears the 64px bottom nav + player dock area. Currently users can appear to be 'stuck' on Home for the ~4-5s the welcome toast is up.",
+    "Optional: also apply pointer-events:none on the toaster wrapper (it already has pointer-events:auto on individual toasts) — but the tap target inside the toast is what actually eats the click; safest fix is repositioning."
+  ],
+  "critical_code_review_comments": [
+    "AppShellV2.jsx z-index stacking: BottomNavV2 uses z-40 and PlayerDockV2 uses z-30, but Sonner Toaster injects its own high-z portal at document root (unrelated to shell z scale), so raising bottom-nav z alone inside .nlv2 tree may not be enough — must configure the Toaster itself.",
+    "useDesignVariant.js: default clamp/init now returns 'new_look_v2' (not 'legacy') which is fine given the enforcer; leaving 'radiolife' and 'classic_b' in VALID means an admin can still QA them via the switcher.",
+    "AppShellV2.jsx RightRailV2 correctly guards `!isPremium` around ad slots — verified DOM absence for premium user."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter140_v2_lock_ads.py"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "~95% (only mobile-nav vs toast overlap)"},
+  "test_credentials": "web: admin@bigfm.dubai/AdminPass123!, premium@bigfm.dubai/PremiumTest123!, freeuser@bigfm.dubai/FreePass123!. Note: test@bigfm.dubai is now Premium per memory/test_credentials.md so it can NOT be used to prove house-ad serving; use freeuser@ instead.",
+  "seed_data_creation": "None. Existing right_rail_mpu_1/2/3 slots + freeuser@ account already seeded.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "V2 lock + buyable rail ads + theme picker all work as designed. The only remaining polish is the Sonner welcome-back toast blocking mobile bottom-nav taps for ~4-5s post-login. Non-admin variant switcher hidden is enforced both in VariantSwitcher.jsx (returns null if !admin) and in App.js useEffect enforcer. Backend test file is at /app/backend/tests/test_iter140_v2_lock_ads.py — reuse for regression.",
+  "rca of the issue": "Mobile tab-tap failure post-login RCA: Sonner Toaster (top-level in App.js) is rendered with `position='bottom-right'`. Its portal container is stacked at Sonner's own z-index (defaults to a very high value like 9999999), which sits above BottomNavV2's z-40. On a 390px viewport, the toast's <li data-sonner-toast> element visually covers the region occupied by nlv2-tab-listen, nlv2-tab-shop, nlv2-tab-play (and partly nlv2-tab-pay), so pointer events land on the toast li. Reproduction: 1) 390x844 viewport, 2) login as any user, 3) within 5s tap Listen/Shop/Play — URL stays at '/'; wait 5-6s for the toast to auto-dismiss then retry — navigation works. Mitigation: move the Toaster to `position='top-right'` on mobile OR pass `offset` so it sits above the 64px bottom nav + player dock."
+}

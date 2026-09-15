@@ -62,8 +62,8 @@ export default function CookieBanner() {
 
   return (
     <div data-testid="cookie-banner"
-            className="fixed bottom-3 left-3 right-3 sm:left-auto sm:right-4
-                              sm:bottom-4 sm:max-w-md z-[80] rounded-token-md
+            className="fixed bottom-44 left-3 right-3 lg:left-auto lg:right-4
+                              lg:bottom-4 lg:max-w-md z-[80] rounded-token-md
                               bg-bg-elevated/95 backdrop-blur-md
                               border border-white/[0.10] shadow-2xl
                               p-4 space-y-3 text-sm">

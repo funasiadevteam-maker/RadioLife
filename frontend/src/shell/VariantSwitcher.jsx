@@ -25,7 +25,7 @@ export default function VariantSwitcher() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  if (!user) return null;
+  if (!user || user.role !== "admin") return null;
   const current = OPTIONS.find((o) => o.key === variant) || OPTIONS[0];
   const isNew = variant === "radiolife" || variant === "classic_b";
 

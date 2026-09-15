@@ -18,6 +18,7 @@ import React, { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import BannerAdSlot from "@/components/BannerAdSlot";
 import NowPlayingStrip from "@/components/NowPlayingStrip";
+import { useDesignVariantStore } from "@/hooks/useDesignVariant";
 
 // Routes that should NEVER render the banner frame.
 const EXCLUDE = [
@@ -43,6 +44,7 @@ const ROUTE_MAP = [
 
 export default function PageFrame({ children }) {
   const { pathname } = useLocation();
+  const variant = useDesignVariantStore((s) => s.variant);
   const excluded = useMemo(() => EXCLUDE.some(rx => rx.test(pathname)),
                               [pathname]);
   const pageRoute = useMemo(() => {
@@ -50,6 +52,9 @@ export default function PageFrame({ children }) {
     return null;
   }, [pathname]);
 
+  // New Look V2 owns its own centered frame + right-rail ad inside
+  // AppShellV2, so the shared TOI frame must not double-wrap it.
+  if (variant === "new_look_v2") return <>{children}</>;
   if (excluded || !pageRoute) return <>{children}</>;
 
   return (

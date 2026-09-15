@@ -1246,3 +1246,6 @@ Testing agent **iteration_117**: web **PASS, no blockers**. Mobile skip cue sour
 - **P2 · Blocked** AD.9 — Podcast Completion Points (blocked on Track 3 podcast infra).
 - **P2 · Blocked** AD.5 — Trivia Sponsorship (blocked on trivia infra maturation).
 - **P2** M-series monetization additions (M4 → M1 → M7 → M2 → M3 → M6 → M5), Flagship Sponsor CTA.
+
+## 2026-09-15 — New Look V2 is now the STANDARD customer look
+Per user directive, `new_look_v2` (premium dark cinematic streaming shell) is the default and only look for customers; the design switcher is admin-only (QA). V2 is fully responsive: desktop keeps the centered frame + a "Sponsored" right-rail ad stack (3 buyable 300x250 slots `right_rail_mpu_1/2/3`); mobile web uses a bottom tab bar (Home · Listen · Pay[scan-to-pay, center] · Shop · Play) with Social/Rewards/Profile in the top bar. Signup/login now offers a light/dark Appearance choice that persists to the profile. See CHANGELOG 2026-09-15 for file-level detail. Details/e2e: iteration_140.

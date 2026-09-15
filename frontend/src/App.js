@@ -291,6 +291,7 @@ import { RewardProvider } from "@/rewards/RewardOverlay";
 import BillingBanner from "@/BillingBanner";
 import PageFrame from "@/components/PageFrame";
 import { useEffect as _useEffect_ } from "react";
+import { useState as _useState_ } from "react";
 import axios from "axios";
 // Phase 15a — responsive shell + dev styleguide.
 import AppShell from "@/shell/AppShell";
@@ -388,9 +389,38 @@ function ReferralCapture() {
   return null;
 }
 
+// Toasts sit bottom-right on desktop, but on mobile that corner collides
+// with the V2 bottom tab bar (toast portal is above z-40 and eats taps),
+// so on <lg widths we render toasts at the top instead.
+function _ResponsiveToaster_() {
+  const [mobile, setMobile] = _useState_(
+    typeof window !== "undefined" ? window.innerWidth < 1024 : false);
+  _useEffect_(() => {
+    const onR = () => setMobile(window.innerWidth < 1024);
+    window.addEventListener("resize", onR);
+    return () => window.removeEventListener("resize", onR);
+  }, []);
+  return (
+    <_ShellToaster_
+      theme="dark"
+      richColors
+      position={mobile ? "top-center" : "bottom-right"}
+    />
+  );
+}
+
 function AppRouter() {
   const location = useLocation();
   const designVariant = useDesignVariantStore((s) => s.variant);
+  const setVariant = useDesignVariantStore((s) => s.setVariant);
+  const { user } = _useAuth_();
+  // Lock every customer to New Look V2 — only admins may switch looks
+  // (for QA). This overrides any stale variant left in localStorage.
+  _useEffect_(() => {
+    if (user && user.role !== "admin" && designVariant !== "new_look_v2") {
+      setVariant("new_look_v2");
+    }
+  }, [user, designVariant, setVariant]);
   const Shell = designVariant === "new_look_v2" ? AppShellV2
     : designVariant === "classic_b" ? AppShellB : AppShell;
   if (location.hash?.includes("session_id=")) {
@@ -398,7 +428,7 @@ function AppRouter() {
   }
   return (
     <>
-      <_ShellToaster_ theme="dark" position="bottom-right" richColors />
+      <_ResponsiveToaster_ />
       <BillingBanner />
       <ReferralCapture />
       {/* Phase 42 S2 — TOI-style 3-column frame wraps the AppShell.

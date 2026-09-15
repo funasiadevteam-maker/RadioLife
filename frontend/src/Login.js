@@ -4,11 +4,12 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { Loader2, Mail, KeyRound, User as UserIcon, ChevronRight, Radio as RadioIcon } from "lucide-react";
+import { Loader2, Mail, KeyRound, User as UserIcon, ChevronRight, Radio as RadioIcon, Sun, Moon } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { useAuth } from "./AuthContext";
 import SignInWithGoogleButton from "./SignInWithGoogleButton";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
+import { useTheme } from "@/theme/useTheme";
 
 export default function Login() {
   const { user, login, register, demoLogin, loading } = useAuth();
@@ -20,11 +21,14 @@ export default function Login() {
   const isRadioLife = design === "radiolife";
   const navigate = useNavigate();
   const location = useLocation();
+  const { theme, setTheme } = useTheme();
   const [mode, setMode] = useState("login"); // "login" | "register"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [themeChoice, setThemeChoice] = useState(theme || "dark");
+  const pickTheme = (t) => { setThemeChoice(t); setTheme(t); };
 
   useEffect(() => {
     if (loading) return;
@@ -56,6 +60,7 @@ export default function Login() {
         toast.success(`Account created. Let's set you up, ${u.name}!`);
         navigate("/onboarding", { replace: true });
       }
+      setTheme(themeChoice);
     } catch (e2) {
       // Friendly parsing for FastAPI/pydantic 422s + plain string detail
       const detail = e2?.response?.data?.detail;
@@ -148,6 +153,35 @@ export default function Login() {
         </button>
 
         <div className="auth-or"><span>or with email</span></div>
+
+        <div data-testid="theme-choice" style={{ margin: "2px 0 14px" }}>
+          <div style={{ fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+                        color: "#6b6b78", marginBottom: 8 }}>Appearance</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              { k: "dark", label: "Dark", Icon: Moon },
+              { k: "light", label: "Light", Icon: Sun },
+            ].map(({ k, label, Icon }) => {
+              const active = themeChoice === k;
+              return (
+                <button key={k} type="button"
+                  data-testid={`theme-choice-${k}`}
+                  onClick={() => pickTheme(k)}
+                  style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                    gap: 8, padding: "10px 12px", borderRadius: 8, cursor: "pointer",
+                    fontWeight: 600, fontSize: 13,
+                    background: active ? "linear-gradient(135deg,#A020F0,#EC4899)" : "transparent",
+                    color: active ? "#fff" : "#9aa0a6",
+                    border: active ? "1px solid transparent" : "1px solid #2a2a36",
+                    transition: "all 150ms ease",
+                  }}>
+                  <Icon size={15} /> {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <form onSubmit={submit} className="auth-form" data-testid="auth-form">
           {mode === "register" && (

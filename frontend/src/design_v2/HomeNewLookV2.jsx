@@ -70,7 +70,7 @@ export default function HomeNewLookV2() {
   const liveItems = (home?.live_now) || [];
 
   return (
-    <div data-testid="home-new-look-v2" className="max-w-[1400px] mx-auto space-y-10 pb-10">
+    <div data-testid="home-new-look-v2" className="w-full space-y-10 pb-10">
       <HeroNewLookV2 greeting={greetingFor()} name={name} />
       <ContinueListeningRowV2
         continueItem={continueItem}

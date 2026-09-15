@@ -43,6 +43,14 @@ SEED_SLOTS = [
      "position": "left",                  "page_route_pattern": ".*"},
     {"slot_key": "right_skyscraper",      "size": "160x600", "mobile_size": None,
      "position": "right",                 "page_route_pattern": ".*"},
+    # New Look V2 right-rail inventory — a stack of buyable 300x250 MPUs
+    # advertisers can purchase per-slot. Desktop-only (hidden on mobile).
+    {"slot_key": "right_rail_mpu_1",      "size": "300x250", "mobile_size": None,
+     "position": "right",                 "page_route_pattern": ".*"},
+    {"slot_key": "right_rail_mpu_2",      "size": "300x250", "mobile_size": None,
+     "position": "right",                 "page_route_pattern": ".*"},
+    {"slot_key": "right_rail_mpu_3",      "size": "300x250", "mobile_size": None,
+     "position": "right",                 "page_route_pattern": ".*"},
     {"slot_key": "featured_horizontal",   "size": "728x90",  "mobile_size": "300x250",
      "position": "inline_horizontal",     "page_route_pattern": "^/(home|community|news)$"},
     {"slot_key": "inline_mpu_1",          "size": "300x250", "mobile_size": "300x250",
