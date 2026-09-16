@@ -19,6 +19,7 @@ import VariantSwitcher from "@/shell/VariantSwitcher";
 import NotificationBell from "@/components/NotificationBell";
 import BannerAdSlot from "@/components/BannerAdSlot";
 import { isMarketingPath } from "@/shell/AppShellB";
+import { useLaunchBlocked } from "@/hooks/useLaunchStatus";
 import "./newlookv2.css";
 
 // One shared frame width for the whole V2 surface — header, page content
@@ -62,9 +63,11 @@ const MOBILE_NAV = [
 export default function AppShellV2({ children }) {
   const { pathname } = useLocation();
   const { user } = useAuth();
+  const launchBlocked = useLaunchBlocked();
   const bare = BARE_ROUTES.some((r) => r.test(pathname))
     || isMarketingPath(pathname)
     || (pathname === "/" && !user)
+    || launchBlocked
     || pathname.startsWith("/admin");
 
   const hydrateTheme = useThemeStore((s) => s.hydrate);

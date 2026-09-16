@@ -5622,6 +5622,17 @@ async def admin_regenerate_thumbnail(
 app.include_router(auth_router)
 app.include_router(users_router)
 
+# Soft-launch — Business Setup Mode (launch config, consumer waitlist, admin
+# preview tokens, merchant 6-months-free). Mounted after auth so deps resolve.
+try:
+    from routes.soft_launch import router as _soft_launch_router
+    app.include_router(_soft_launch_router)
+    logger.info("Soft-launch routes wired: /api/launch/*, /api/waitlist, "
+                "/api/admin/launch-settings, /api/admin/preview-tokens, "
+                "/api/merchant/soft-launch/*")
+except Exception as _e:
+    logger.warning("soft_launch router not loaded: %s", _e)
+
 # Sub-Phase E1 — Predict & Win admin manual campaign builder.
 # Mounted right after users_router so admin auth dep resolves cleanly.
 try:
@@ -7723,6 +7734,17 @@ if _cors_origins == ["*"]:
 else:
     _cors_kwargs = {"allow_origins": _cors_origins, "allow_credentials": True,
                     "allow_methods": ["*"], "allow_headers": ["*"]}
+# Soft-launch — Business Setup Mode gate. When an admin enables the mode,
+# consumer /api endpoints return HTTP 423 unless the caller has bypass (admin,
+# an approved business, or a valid preview token). Default OFF → cheap no-op.
+# Added BEFORE CORS so CORS wraps it (outbound headers still apply on 423).
+try:
+    from services.launch_guard import LaunchGuardMiddleware
+    app.add_middleware(LaunchGuardMiddleware)
+    logger.info("LaunchGuardMiddleware installed (Business Setup Mode gate)")
+except Exception as _e:
+    logger.warning("LaunchGuardMiddleware not installed: %s", _e)
+
 app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 # Phase Π.2 — Security middleware bundle (CSP + HSTS + per-IP rate limit).

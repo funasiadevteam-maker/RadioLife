@@ -309,6 +309,10 @@ import AdminAdPacing from "@/pages/admin/AdminAdPacing";  // Phase COMPANION.1 �
 import AdminAdRevenueReport from "@/pages/admin/AdminAdRevenueReport";  // Phase COMPANION.1 — Home ad revenue report
 import AdminRailAds from "@/pages/admin/AdminRailAds";  // V2 — right-rail banner moderation
 import AdminLandingAnalytics from "@/pages/admin/AdminLandingAnalytics";  // V2 — public landing analytics
+import AdminLaunchControls from "@/pages/admin/AdminLaunchControls";  // Soft-launch — Business Setup Mode admin
+import PreviewEntry from "@/pages/PreviewEntry";  // Soft-launch — protected preview entry (/preview)
+import MerchantSoftLaunch from "@/pages/merchant/MerchantSoftLaunch";  // Soft-launch — 6-months-free merchant claim
+import { useLaunchStore, useLaunchBlocked } from "@/hooks/useLaunchStatus";  // Soft-launch — launch status
 import Trivia from "@/Trivia";
 import TriviaPlay from "@/TriviaPlay";
 import { TriviaRoomCreate, TriviaJoin, TriviaRoom } from "@/TriviaRoom";
@@ -424,6 +428,15 @@ function AppRouter() {
       setVariant("new_look_v2");
     }
   }, [user, designVariant, setVariant]);
+  // Soft-launch (Business Setup Mode) — fetch launch status; re-fetch on auth
+  // change since bypass depends on the signed-in user.
+  _useEffect_(() => { useLaunchStore.getState().fetch(); }, [user]);
+  _useEffect_(() => {
+    try {
+      const t = localStorage.getItem("rl_preview_token");
+      if (t) axios.defaults.headers.common["X-Preview-Token"] = t;
+    } catch (_e) { /* ignore */ }
+  }, []);
   const Shell = designVariant === "new_look_v2" ? AppShellV2
     : designVariant === "classic_b" ? AppShellB : AppShell;
   if (location.hash?.includes("session_id=")) {
@@ -447,6 +460,7 @@ function AppRouter() {
       <AdminGlobalSearch />
       <PageFrame>
       <Shell>
+      <LaunchModeGate>
       <Routes>
       <Route path="/" element={<RootGate />} />
       {/* Phase LAND.v2 — alternative positioning landing (public,
@@ -1095,7 +1109,12 @@ function AppRouter() {
         <ProtectedRoute><ShopInShell /></ProtectedRoute>} />
       <Route path="/coupon/:coupon_id" element={
         <ProtectedRoute><RadioLifeStubPage title="Coupon" hint="Enable RadioLife design to preview Redeem." /></ProtectedRoute>} />
+      {/* Soft-launch — Business Setup Mode routes. */}
+      <Route path="/preview" element={<PreviewEntry />} />
+      <Route path="/merchant/soft-launch" element={<ProtectedRoute><MerchantSoftLaunch /></ProtectedRoute>} />
+      <Route path="/admin/launch" element={<ProtectedRoute requireAdmin><AdminLaunchControls /></ProtectedRoute>} />
       </Routes>
+      </LaunchModeGate>
       </Shell>
       </PageFrame>
       {/* Phase R.1 — Overlay RadioLife variant on top of the legacy shell
@@ -1132,10 +1151,40 @@ export default function App() {
 // listeners see the Home dashboard (which sits inside DesktopShell).
 // AppShell consults useAuth() and treats `/` as bare when anon so the
 // listener chrome doesn't wrap the marketing surface.
+// Soft-launch — Business Setup Mode gate. When the mode is ON and the visitor
+// lacks bypass, consumer routes bounce to "/" (Coming Soon). Open paths (auth,
+// business/merchant signup, admin, preview, waitlist, legal) always render.
+const LAUNCH_OPEN_PATHS = [
+  "/login", "/signup", "/register", "/logout", "/auth", "/onboarding",
+  "/business", "/merchant", "/for-business", "/sell",
+  "/preview", "/admin", "/waitlist", "/privacy", "/terms",
+  "/l/v2", "/pricing", "/payment",
+];
+function _launchIsOpen(p) {
+  if (p === "/") return true;
+  return LAUNCH_OPEN_PATHS.some((o) => p === o || p.startsWith(o + "/"));
+}
+export function LaunchModeGate({ children }) {
+  const blocked = useLaunchBlocked();
+  const { pathname } = useLocation();
+  if (blocked && !_launchIsOpen(pathname)) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 export function RootGate() {
   const { user, loading } = _useAuth_();
   const designVariant = useDesignVariantStore((s) => s.variant);
+  const blocked = useLaunchBlocked();
+  const offerMonths = useLaunchStore((s) => s.offerMonths);
+  const waitlistEnabled = useLaunchStore((s) => s.waitlistEnabled);
   if (loading) return null;
+  if (blocked) {
+    // Business Setup Mode — everyone without bypass sees the Coming-Soon page
+    // (including logged-in plain consumers).
+    return <PublicHomeNewLookV2 comingSoon offerMonths={offerMonths} waitlistEnabled={waitlistEnabled} />;
+  }
   if (!user) {
     // New Look V2 is the standard look — anonymous visitors get the premium
     // V2 public landing so login just unlocks the personalized same product.

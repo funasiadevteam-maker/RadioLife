@@ -53,7 +53,91 @@ function fmtCount(n) {
   return `${n}+`;
 }
 
-export default function PublicHomeNewLookV2() {
+// Soft-launch — Coming-Soon waitlist capture (posts to /api/waitlist).
+function WaitlistForm({ enabled = true }) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr("");
+    const v = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { setErr("Enter a valid email"); return; }
+    setBusy(true);
+    try {
+      await axios.post(`${API}/waitlist`, { email: v, interests: ["consumer"] });
+      setDone(true);
+    } catch (_e) {
+      setErr("Could not join right now. Please try again.");
+    } finally { setBusy(false); }
+  };
+  if (!enabled) return null;
+  if (done) {
+    return (
+      <div data-testid="waitlist-success" className="nlv2-glass rounded-2xl px-5 py-4 inline-flex items-center gap-2 text-white">
+        <Check size={18} className="text-emerald-400" />
+        <span className="text-sm font-semibold">You&apos;re on the list — we&apos;ll email you the moment we open.</span>
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={submit} data-testid="waitlist-form" className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@email.com" data-testid="waitlist-email"
+        className="flex-1 h-12 rounded-full px-5 text-sm bg-white/10 border border-white/15 text-white placeholder:text-white/40 outline-none focus:border-violet-400" />
+      <button type="submit" disabled={busy} data-testid="waitlist-submit"
+        className="h-12 px-6 rounded-full font-bold text-sm text-white disabled:opacity-60"
+        style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+        {busy ? "Joining…" : "Join the waitlist"}
+      </button>
+      {err && <div data-testid="waitlist-error" className="text-xs text-rose-400 self-center">{err}</div>}
+    </form>
+  );
+}
+
+function ComingSoonHero({ offerMonths = 6, waitlistEnabled = true, onBusiness }) {
+  return (
+    <section className={`${CONTAINER} pt-12 lg:pt-20 pb-8`} data-testid="coming-soon-hero">
+      <div className="max-w-3xl">
+        <div className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest px-3 py-1 rounded-full nlv2-chip" style={{ color: "#c4b5fd" }}>
+          <Sparkles size={13} /> Launching soon
+        </div>
+        <h1 className="mt-5 font-black leading-[0.98] tracking-tight text-white text-4xl sm:text-5xl lg:text-6xl" data-testid="coming-soon-h1">
+          Radio that rewards you.<br />
+          <span className="nlv2-grad">Almost here.</span>
+        </h1>
+        <p className="mt-5 text-base sm:text-lg leading-relaxed" style={{ color: "#a8b0cc" }}>
+          We&apos;re building the business network first — great local shops, restaurants and brands are
+          setting up now. Join the waitlist and be first in line when RadioLife opens to listeners.
+        </p>
+        {waitlistEnabled && (
+          <div className="mt-7">
+            <WaitlistForm enabled={waitlistEnabled} />
+          </div>
+        )}
+        <div className="mt-8 nlv2-glass rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4" data-testid="coming-soon-business">
+          <div className="flex-1">
+            <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#f5c563" }}>
+              <Store size={13} className="inline mr-1" /> For Business
+            </div>
+            <div className="mt-1 font-black text-white text-lg">Get {offerMonths} months free</div>
+            <div className="mt-1 text-[13px]" style={{ color: "#97a3c2" }}>
+              Set up your storefront now. No monthly fee for {offerMonths} months — you only pay a small commission when you sell.
+            </div>
+          </div>
+          <button onClick={onBusiness} data-testid="coming-soon-business-cta"
+            className="shrink-0 h-12 px-6 rounded-full font-bold text-sm text-black inline-flex items-center gap-2"
+            style={{ background: "linear-gradient(135deg,#f59e0b,#f5c563)" }}>
+            Claim {offerMonths} months free <ArrowRight size={16} />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 6, waitlistEnabled = true }) {
   const navigate = useNavigate();
   const [stations, setStations] = useState(STATION_FALLBACK);
   const [count, setCount] = useState(0);
@@ -174,6 +258,10 @@ export default function PublicHomeNewLookV2() {
       <PublicNav onSignIn={toLogin} onStart={ctaTo("nav_getstarted", "/listen")} />
 
       <main className="relative z-10">
+        {comingSoon && (
+          <ComingSoonHero offerMonths={offerMonths} waitlistEnabled={waitlistEnabled}
+            onBusiness={() => { track("cta", { cta: "coming_soon_business" }); navigate("/for-business"); }} />
+        )}
         {/* ─── HERO ─────────────────────────────────────────────── */}
         <section className={`${CONTAINER} pt-10 lg:pt-16 pb-10`}>
           <div className="nlv2-hero-grid grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-8 lg:gap-10 items-center">

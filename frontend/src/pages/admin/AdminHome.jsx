@@ -362,6 +362,7 @@ function NotificationSnapshot({ count }) {
 
 function QuickLinks() {
   const links = [
+    { to: "/admin/launch",              label: "🚀 Launch Controls",   tid: "admin-home-ql-launch" },
     { to: "/admin/qa",                        label: "QA Dashboard",       tid: "admin-home-ql-qa" },
     { to: "/admin/location-intel",      label: "Location Intel",       tid: "admin-home-ql-locintel" },
     { to: "/admin/news",                      label: "News Radio",            tid: "admin-home-ql-news" },
