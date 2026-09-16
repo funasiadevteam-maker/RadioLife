@@ -13,6 +13,7 @@ export const useLaunchStore = create((set, get) => ({
   offerMonths: 6,
   waitlistEnabled: true,
   bypassReason: null,
+  launchAt: null,
   fetch: async () => {
     try {
       const r = await axios.get(`${API}/launch/status`, { withCredentials: true });
@@ -24,6 +25,7 @@ export const useLaunchStore = create((set, get) => ({
         offerMonths: d.offer_months || 6,
         waitlistEnabled: d.waitlist_enabled !== false,
         bypassReason: d.bypass_reason || null,
+        launchAt: d.launch_at || null,
       });
     } catch (_e) {
       // Fail open — never lock everyone out on a transient error.

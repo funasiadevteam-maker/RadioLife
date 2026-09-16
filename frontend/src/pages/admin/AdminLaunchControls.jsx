@@ -7,6 +7,14 @@ import axios from "axios";
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const cfg = { withCredentials: true };
 
+function isoToLocalInput(iso) {
+  try {
+    const d = new Date(iso);
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  } catch (_e) { return ""; }
+}
+
 function Card({ title, children, testid }) {
   return (
     <div data-testid={testid}
@@ -37,6 +45,7 @@ export default function AdminLaunchControls() {
   const [tokens, setTokens] = useState([]);
   const [waitlist, setWaitlist] = useState({ total: 0, items: [] });
   const [months, setMonths] = useState(6);
+  const [launchAt, setLaunchAt] = useState("");
   const [tokenLabel, setTokenLabel] = useState("");
   const [tokenMaxUses, setTokenMaxUses] = useState(0);
   const [tokenExpiry, setTokenExpiry] = useState(0);
@@ -52,6 +61,7 @@ export default function AdminLaunchControls() {
       ]);
       setSettings(s.data);
       setMonths(s.data?.offer_months || 6);
+      setLaunchAt(s.data?.launch_at ? isoToLocalInput(s.data.launch_at) : "");
       setTokens(t.data?.items || []);
       setWaitlist(w.data || { total: 0, items: [] });
     } catch (_e) { /* ignore */ }
@@ -126,6 +136,20 @@ export default function AdminLaunchControls() {
                 className="w-20 h-9 rounded-lg bg-slate-800 border border-slate-700 px-3 text-sm" />
               <button type="button" disabled={busy} data-testid="launch-months-save"
                 onClick={() => patch({ offer_months: Number(months) || 6 })}
+                className="h-9 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm font-semibold disabled:opacity-60">Save</button>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-2">
+            <div>
+              <div className="text-sm font-semibold">Launch date &amp; countdown</div>
+              <div className="text-xs text-slate-400 mt-0.5">Shown as a live countdown on the Coming-Soon page (enter your local time). Flipping Business Setup Mode OFF emails the whole waitlist.</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="datetime-local" value={launchAt} data-testid="launch-date-input"
+                onChange={(e) => setLaunchAt(e.target.value)}
+                className="h-9 rounded-lg bg-slate-800 border border-slate-700 px-3 text-sm" />
+              <button type="button" disabled={busy} data-testid="launch-date-save"
+                onClick={() => patch({ launch_at: launchAt ? new Date(launchAt).toISOString() : null })}
                 className="h-9 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm font-semibold disabled:opacity-60">Save</button>
             </div>
           </div>

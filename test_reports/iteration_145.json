@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 145 — RadioLife soft-launch ENHANCEMENTS (Business Directory + Referral Waitlist + Launch Countdown + on-launch email). Backend pytest 17/17 PASS + web UI end-to-end verified. GET /api/launch/businesses returns {total:121+, items:[{name,category_label,image,claimed}]} with TEST_/QA/Iter names excluded and limit clamped to 1..60. POST /api/waitlist with `ref=CODE` returns {ref_code, share_path:'/?ref=CODE', position, referrals, total, already:false} on first signup; two referred signups incremented the owner's referrals to 2 and improved the owner's position (no regression); resubmitting the SAME email with the ref returned already:true and did NOT double-credit (referrals stayed constant); invalid email -> 400. GET /api/waitlist/position?code=CODE returns {position, referrals, total}; missing code -> 400 code_required; unknown code returns position==total fallback. GET /api/launch/status now exposes launch_at (null default). PATCH /api/admin/launch-settings accepts launch_at ISO (stored, reflected on public status), '' clears (null), invalid string -> 400 {code:'bad_launch_at'}, still gates non-admin (401/403). LAUNCH EMAIL: flipping business_setup_mode_enabled TRUE->FALSE fires _notify_waitlist_launched (background) — verified our seeded TEST_launch_notify@example.com entry got launched_notified:True after transition; a second admin manual POST /api/admin/launch/notify-waitlist stayed idempotent (flag remained True, no re-send). Regression on /api/shell/home: 423 anon, 200 via X-Preview-Token, 200 via admin cookie — all confirmed. FRONTEND (web): with mode ON, anon `/` rendered coming-soon-hero + business-wall (18 cards, business-wall-count '121+ on board') + launch-countdown ('210days:11hrs:46min:11sec' — updated live) + waitlist-form; /?ref=XNUQYW submit produced waitlist-success with waitlist-position '#21' and waitlist-share-link containing '/?ref=<newCode>' + waitlist-share-copy button; /listen redirected to /. Admin /admin/launch page: launch-date-input pre-filled with the current ISO (2027-04-15T09:00), typing 2027-05-20T14:30 + launch-date-save persisted correctly (GET /api/admin/launch-settings returned launch_at '2027-05-20T14:30:00+00:00'). Environment left SAFE: mode toggled OFF at end, launch_at preserved.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "PublicHomeNewLookV2 (below the fold on Coming Soon)", "issues": ["The Businesses joining now grid stops at 18 rendered cards even though the header says '121+ on board'. Since the API returns 24 items by default (limit clamp 1..60) and the wall isn't paginated, users can only ever see a small slice. Consider adding a 'See all' or virtualized rail so the 121+ number is not misleading."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter145_soft_launch_enhancements.py",
+    "/app/test_reports/pytest/iter145.xml"
+  ],
+  "action_items": [
+    "None from the backend or frontend integration side — all endpoints and Coming-Soon UI matched the spec.",
+    "Nice-to-have (main agent, low priority): the Businesses-joining-now wall shows only 18 cards while the badge advertises 121+. Consider paginating (or bumping the API limit + client cap) so users can browse more. Also consider a stable non-random SVG placeholder image on cards that lack `image`, since most businesses currently render an initial-letter avatar.",
+    "Nice-to-have: admin `launch-date-input` uses <input type=datetime-local> which stores wall-clock without a timezone selector — a UAE launch typed as '2027-04-15T09:00' is saved as '2027-04-15T09:00+00:00' (UTC), which is 13:00 Dubai. Consider showing a small hint like '(UTC)' next to the field so admins don't off-by-4-hours themselves."
+  ],
+  "critical_code_review_comments": [
+    "join_waitlist correctly protects against double-credit by (a) only setting `referred_by` in $setOnInsert (so re-submits skip it) and (b) gating the $inc referrer update behind `is_new AND ref_in != my_code` — verified via test_resubmit_same_email_no_double_credit.",
+    "_notify_waitlist_launched is idempotent per-entry (launched_notified flag) and gated on prior_mode->new_mode transition inside admin_patch_settings — a second OFF PATCH will NOT re-mail.",
+    "Backend admin_waitlist limit is capped at min(limit, 1000). Fine now, but a hard-coded 300 default may hide entries at scale — consider paging.",
+    "launch_at validation uses fromisoformat with Z->+00:00 shim; naive datetimes are coerced to UTC — reasonable. Minor: rejects strings like '2027-05-20' (date-only) with 400. Not an issue since the admin UI always emits datetime-local.",
+    "GET /api/launch/businesses does two DB scans (200 profiles + 120 businesses) on every public call with no cache; on heavy Coming-Soon traffic this could hit MongoDB hard. Consider an in-process 10-30s cache identical to launch_guard.",
+    "waitlist-share-link input is readOnly with visually-hidden overflow — good UX. Copy button (waitlist-share-copy) relies on navigator.clipboard which fails silently on insecure contexts; consider a fallback + a toast on success."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter145_soft_launch_enhancements.py (new)",
+    "/app/test_reports/pytest/iter145.xml (pytest junit)"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17)",
+    "frontend": "100% — Coming Soon (business wall + countdown + waitlist+referral) and Admin /admin/launch (launch-date-input + launch-date-save) verified end-to-end."
+  },
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! (cookie via POST /api/auth/login)",
+  "seed_data_creation": "Added a handful of TEST_/e2e_ throwaway @example.com waitlist entries (harmless — the whole waitlist is currently marked launched_notified:True). Created + revoked one QA preview token during backend regression test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Environment left SAFE: business_setup_mode_enabled=false, waitlist_enabled=true, offer_months=6, launch_at='2027-05-20T14:30:00+00:00'. If you want to retest UI: (1) admin cookie login via `fetch('/api/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'admin@bigfm.dubai',password:'AdminPass123!'})})`, (2) PATCH /api/admin/launch-settings {business_setup_mode_enabled:true}, wait 11s (launch_guard cache TTL), (3) anon browse `/` → assert testids business-wall, business-wall-count, business-wall-card, launch-countdown, waitlist-form; (4) `/` with ?ref=XNUQYW → submit → waitlist-success + waitlist-position + waitlist-share-link + waitlist-share-copy; (5) as admin visit /admin/launch → launch-date-input + launch-date-save; (6) toggle mode OFF at the end. Mailgun is LIVE — use ONLY @example.com throwaway addresses for waitlist tests.",
+  "rca of the issue": ""
+}

@@ -1179,11 +1179,12 @@ export function RootGate() {
   const blocked = useLaunchBlocked();
   const offerMonths = useLaunchStore((s) => s.offerMonths);
   const waitlistEnabled = useLaunchStore((s) => s.waitlistEnabled);
+  const launchAt = useLaunchStore((s) => s.launchAt);
   if (loading) return null;
   if (blocked) {
     // Business Setup Mode — everyone without bypass sees the Coming-Soon page
     // (including logged-in plain consumers).
-    return <PublicHomeNewLookV2 comingSoon offerMonths={offerMonths} waitlistEnabled={waitlistEnabled} />;
+    return <PublicHomeNewLookV2 comingSoon offerMonths={offerMonths} waitlistEnabled={waitlistEnabled} launchAt={launchAt} />;
   }
   if (!user) {
     // New Look V2 is the standard look — anonymous visitors get the premium

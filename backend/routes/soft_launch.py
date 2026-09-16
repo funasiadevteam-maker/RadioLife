@@ -6,6 +6,9 @@ the merchant "6 months free" soft-launch claim. Pairs with
 """
 from __future__ import annotations
 
+import asyncio
+import logging
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -19,8 +22,14 @@ from services.launch_guard import (
 )
 
 router = APIRouter(prefix="/api", tags=["soft-launch"])
+logger = logging.getLogger("bigfm.soft_launch")
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_TEST_NAME = re.compile(r"(TEST_|Iter\d|Test Shop|QA Demo)", re.I)
+_CAT_LABEL = {"restaurant": "Restaurant", "beauty": "Salon & Spa",
+              "fitness": "Fitness", "retail": "Retail", "cafe": "Cafe",
+              "bar": "Bar", "grocery": "Grocery", "service": "Services"}
+_BIZ_CACHE = {"ts": 0.0, "val": None}
 
 
 def _now() -> datetime:
@@ -48,12 +57,86 @@ async def launch_status(request: Request):
         return {"business_setup_mode": False,
                 "waitlist_enabled": bool(s.get("waitlist_enabled")),
                 "offer_months": int(s.get("offer_months", 6)),
+                "launch_at": s.get("launch_at"),
                 "has_bypass": True, "bypass_reason": None}
     has_bypass, reason = await resolve_bypass(request, db)
     return {"business_setup_mode": True,
             "waitlist_enabled": bool(s.get("waitlist_enabled")),
             "offer_months": int(s.get("offer_months", 6)),
+            "launch_at": s.get("launch_at"),
             "has_bypass": bool(has_bypass), "bypass_reason": reason}
+
+
+@router.get("/launch/businesses")
+async def launch_businesses(request: Request, limit: int = 24):
+    """Public — the 'Businesses joining now' wall for the Coming-Soon page.
+    Real approved storefronts (newest first), with soft-launch claimers flagged.
+    Cached ~20s so the public poll doesn't re-scan two collections each hit.
+    """
+    db = request.app.state.db
+    limit = max(1, min(60, int(limit or 24)))
+    import time as _t
+    now = _t.time()
+    if _BIZ_CACHE["val"] is not None and (now - _BIZ_CACHE["ts"]) < 20.0:
+        cached = _BIZ_CACHE["val"]
+        return {"total": cached["total"], "items": cached["items"][:limit]}
+    items, seen = [], set()
+    q = {"status": "approved",
+         "public_name": {"$not": {"$regex": r"(TEST_|Iter\d|Test Shop|QA Demo)",
+                                  "$options": "i"}}}
+    async for p in db.marketplace_profiles.find(q).sort("updated_at", -1).limit(200):
+        name = p.get("public_name")
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        cat = p.get("category")
+        items.append({
+            "name": name,
+            "category": cat,
+            "category_label": _CAT_LABEL.get(cat, (cat or "Business").title()),
+            "image": (p.get("cover_urls") or [None])[0] or p.get("logo_url"),
+            "claimed": bool((p.get("soft_launch_offer") or {}).get("status") == "active"),
+        })
+    # Merge in business-portal registrations (may not have a storefront yet).
+    async for b in db.businesses.find({"active": True}).sort("created_at", -1).limit(120):
+        name = b.get("name")
+        if not name or name.lower() in seen or _TEST_NAME.search(name):
+            continue
+        seen.add(name.lower())
+        cat = (b.get("category") or "").lower()
+        items.append({
+            "name": name, "category": cat,
+            "category_label": _CAT_LABEL.get(cat, (cat or "Business").title()),
+            "image": None, "claimed": False,
+        })
+    claimed_total = await db.soft_launch_claims.count_documents({})
+    total = max(len(items), claimed_total)
+    _BIZ_CACHE["val"] = {"total": total, "items": items}
+    _BIZ_CACHE["ts"] = now
+    return {"total": total, "items": items[:limit]}
+
+
+async def _new_ref_code(db) -> str:
+    for _ in range(8):
+        code = secrets.token_urlsafe(4).replace("-", "").replace("_", "")[:6].upper()
+        if code and not await db.consumer_waitlist.find_one({"ref_code": code}):
+            return code
+    return secrets.token_urlsafe(6)[:8].upper()
+
+
+async def _waitlist_position(db, code: str) -> dict:
+    me = await db.consumer_waitlist.find_one({"ref_code": code})
+    total = await db.consumer_waitlist.count_documents({})
+    if not me:
+        return {"position": total, "referrals": 0, "total": total}
+    my_ref = int(me.get("referrals", 0) or 0)
+    my_created = me.get("created_at") or ""
+    # Rank = 1 + (#entries with more referrals, or same referrals but earlier).
+    ahead = await db.consumer_waitlist.count_documents({"$or": [
+        {"referrals": {"$gt": my_ref}},
+        {"referrals": my_ref, "created_at": {"$lt": my_created}},
+    ]})
+    return {"position": ahead + 1, "referrals": my_ref, "total": total}
 
 
 @router.post("/waitlist")
@@ -67,18 +150,43 @@ async def join_waitlist(request: Request, body: dict = Body(default={})):
         raise HTTPException(400, {"code": "invalid_email"})
     interests = [str(x)[:40] for x in ((body or {}).get("interests") or [])][:12]
     city = str((body or {}).get("city") or "").strip()[:80] or None
+    ref_in = (str((body or {}).get("ref") or "").strip()[:24] or None)
+    if ref_in:
+        ref_in = ref_in.upper()
     try:
         user = await current_user_optional(request)
     except Exception:
         user = None
+    existing = await db.consumer_waitlist.find_one({"email": email})
+    is_new = existing is None
+    my_code = (existing or {}).get("ref_code") or await _new_ref_code(db)
+    on_insert = {"created_at": _now_iso(), "ref_code": my_code, "referrals": 0}
+    credit_ref = bool(is_new and ref_in and ref_in != my_code)
+    if credit_ref:
+        on_insert["referred_by"] = ref_in
     await db.consumer_waitlist.update_one(
         {"email": email},
         {"$set": {"email": email, "interests": interests, "city": city,
                   "user_id": (user or {}).get("user_id"), "updated_at": _now_iso()},
-         "$setOnInsert": {"created_at": _now_iso()}},
+         "$setOnInsert": on_insert},
         upsert=True)
-    total = await db.consumer_waitlist.count_documents({})
-    return {"ok": True, "position": total}
+    if credit_ref:
+        # Credit the referrer only if their code belongs to a different entry.
+        await db.consumer_waitlist.update_one(
+            {"ref_code": ref_in, "email": {"$ne": email}},
+            {"$inc": {"referrals": 1}})
+    pos = await _waitlist_position(db, my_code)
+    return {"ok": True, "ref_code": my_code, "share_path": f"/?ref={my_code}",
+            **pos, "already": (not is_new)}
+
+
+@router.get("/waitlist/position")
+async def waitlist_position(request: Request, code: str = ""):
+    db = request.app.state.db
+    code = (code or "").strip().upper()[:24]
+    if not code:
+        raise HTTPException(400, {"code": "code_required"})
+    return await _waitlist_position(db, code)
 
 
 @router.post("/launch/preview/redeem")
@@ -105,6 +213,8 @@ async def admin_get_settings(request: Request, admin: dict = Depends(require_adm
 async def admin_patch_settings(request: Request, body: dict = Body(default={}),
                                admin: dict = Depends(require_admin)):
     db = request.app.state.db
+    cur = await db.platform_settings.find_one({"key": LAUNCH_KEY}) or {}
+    prior_mode = bool(cur.get("business_setup_mode_enabled", False))
     updates: dict = {}
     if "business_setup_mode_enabled" in (body or {}):
         updates["business_setup_mode_enabled"] = bool(body["business_setup_mode_enabled"])
@@ -115,6 +225,18 @@ async def admin_patch_settings(request: Request, body: dict = Body(default={}),
             updates["offer_months"] = max(1, min(24, int(body["offer_months"])))
         except Exception:
             pass
+    if "launch_at" in (body or {}):
+        raw = body.get("launch_at")
+        if raw in (None, "", "null"):
+            updates["launch_at"] = None
+        else:
+            try:
+                dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                updates["launch_at"] = dt.isoformat()
+            except Exception:
+                raise HTTPException(400, {"code": "bad_launch_at"})
     if not updates:
         raise HTTPException(400, {"code": "no_updates"})
     updates["updated_at"] = _now_iso()
@@ -122,6 +244,13 @@ async def admin_patch_settings(request: Request, body: dict = Body(default={}),
     await db.platform_settings.update_one(
         {"key": LAUNCH_KEY}, {"$set": {"key": LAUNCH_KEY, **updates}}, upsert=True)
     bust_launch_cache()
+    # Launching = flipping Business Setup Mode OFF. Email the whole waitlist once.
+    new_mode = updates.get("business_setup_mode_enabled", prior_mode)
+    if prior_mode and not new_mode:
+        try:
+            asyncio.create_task(_notify_waitlist_launched(db))
+        except Exception as _e:
+            logger.warning("launch notify not scheduled: %s", _e)
     return await get_launch_settings(db)
 
 
@@ -244,3 +373,70 @@ async def merchant_claim(request: Request, user: dict = Depends(current_user)):
              "$setOnInsert": {"created_at": _now_iso()}}, upsert=True)
     bust_launch_cache()
     return {"ok": True, "claim": claim, "commission_note": _COMMISSION_NOTE}
+
+
+# ─────────────────────── LAUNCH NOTIFICATION ───────────────────────
+_LAUNCH_EMAIL_HTML = """\
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;
+  background:#0b0f24;color:#fff;border-radius:16px;overflow:hidden">
+  <div style="padding:32px 28px;background:linear-gradient(135deg,#a855f7,#ec4899)">
+    <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.9">
+      RadioLife</div>
+    <div style="font-size:28px;font-weight:900;margin-top:8px;line-height:1.1">
+      We&rsquo;re live. 🎉</div>
+  </div>
+  <div style="padding:28px">
+    <p style="font-size:15px;line-height:1.6;color:#d7dcf0">
+      Thanks for waiting! RadioLife is now open to listeners. Live radio, AI radio,
+      and rewards for every minute you listen &mdash; dive in.</p>
+    <a href="{base}" style="display:inline-block;margin-top:14px;background:#fff;
+      color:#0b0f24;font-weight:800;text-decoration:none;padding:13px 26px;
+      border-radius:999px;font-size:14px">Start listening &rarr;</a>
+    <p style="font-size:12px;color:#8b96b8;margin-top:24px">
+      You&rsquo;re receiving this because you joined the RadioLife waitlist.</p>
+  </div>
+</div>"""
+
+
+async def _notify_waitlist_launched(db) -> int:
+    """Email the whole waitlist once when the app opens (mode flipped OFF).
+    Best-effort + idempotent (per-entry `launched_notified` flag)."""
+    try:
+        from services.mailgun_client import send_email, is_live
+    except Exception as _e:
+        logger.warning("mailgun client unavailable: %s", _e)
+        return 0
+    base = (os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    html = _LAUNCH_EMAIL_HTML.format(base=base or "https://radiolife.app")
+    live = False
+    try:
+        live = bool(is_live())
+    except Exception:
+        live = False
+    sent = 0
+    cursor = db.consumer_waitlist.find({"launched_notified": {"$ne": True}})
+    async for w in cursor:
+        email = w.get("email")
+        if not email:
+            continue
+        try:
+            if live:
+                await asyncio.to_thread(
+                    send_email, email, "RadioLife is live \U0001F389", html,
+                    tags=["launch", "waitlist"])
+            await db.consumer_waitlist.update_one(
+                {"email": email},
+                {"$set": {"launched_notified": True, "notified_at": _now_iso()}})
+            sent += 1
+        except Exception as _e:  # never fail the whole batch on one bad address
+            logger.warning("launch email failed for one recipient: %s", _e)
+    logger.info("[soft-launch] launch emails processed=%d (live=%s)", sent, live)
+    return sent
+
+
+@router.post("/admin/launch/notify-waitlist")
+async def admin_notify_waitlist(request: Request, admin: dict = Depends(require_admin)):
+    """Manually (re)send the launch email to any not-yet-notified waitlisters."""
+    db = request.app.state.db
+    sent = await _notify_waitlist_launched(db)
+    return {"ok": True, "processed": sent}

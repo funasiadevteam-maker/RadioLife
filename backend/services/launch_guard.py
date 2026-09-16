@@ -22,6 +22,7 @@ DEFAULT_SETTINGS = {
     "business_setup_mode_enabled": False,
     "waitlist_enabled": True,
     "offer_months": 6,
+    "launch_at": None,
 }
 
 # When Business Setup Mode is ON, these /api prefixes stay OPEN to everyone
@@ -71,6 +72,7 @@ async def get_launch_settings(db) -> dict:
             out["offer_months"] = int(doc.get("offer_months", 6) or 6)
         except Exception:
             out["offer_months"] = 6
+        out["launch_at"] = doc.get("launch_at")
     _CACHE["val"] = out
     _CACHE["ts"] = now
     return out
