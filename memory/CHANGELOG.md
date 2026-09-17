@@ -2,6 +2,15 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — Tile art everywhere + Deal of the Day + tap-through analytics + auto-rotating covers (web)
+Four enhancements building on the branded landing tiles:
+- **Tile art everywhere** — extracted the 15-image branded art map to a shared `design_v2/tileArt.js` and reused it on the logged-in home: `ActionCardsV2` (Shop/Play/Social) now renders the matching neon illustration (Featured Businesses / Sponsored Games / Groups & Events) as a right-side accent behind a left-fade gradient (explicit z-layering so copy stays readable). Whole app now shares one look.
+- **Deal of the Day** — new public `GET /api/launch/deal-of-day` picks ONE real business deal deterministically per day (from `offers` → `marketplace_specials` → approved businesses fallback; day-ordinal seed, cached per day). Landing renders a wide `public-deal-of-day` spotlight (cover image + headline + business + "Grab this deal" deep-link CTA).
+- **Tap-through analytics** — tiles already fire `cta: tile_{label}`; added a `tiles` aggregation to `GET /api/shell/landing-analytics` and a "Top tiles clicked" panel in AdminLandingAnalytics (`admin-landing-tiles`). Verified end-to-end (clicks → counts/sessions).
+- **Auto-rotating covers** — `GET /api/launch/shop-tiles` now returns a LIST (≤4) of real businesses per Shop category; the new `PreviewTile` component crossfades through them every ~4.2s (staggered start per tile), each showing the current business name badge; falls back to branded art → gradient.
+- Files: `routes/soft_launch.py`, `routes/shell.py`, `design_v2/tileArt.js` (new), `design_v2/PublicHomeNewLookV2.jsx`, `design_v2/ActionCardsV2.jsx`, `design_v2/newlookv2.css` (fade-in), `pages/admin/AdminLandingAnalytics.jsx`. Self-verified (curl + screenshots); env left at mode OFF.
+
+
 ## 2026-09-17 — Landing tiles: branded art + live business covers + hover motion + deep-links (web)
 Four enhancements to the V2 public-landing category tiles (`PublicHomeNewLookV2` → `PreviewSection`):
 - **Curated tile art** — replaced stock photos with 15 custom RadioLife-branded neon illustrations (Gemini Nano Banana, dark navy + violet/magenta/cyan/gold palette), hosted on the platform image store (`static.prod-images…`, absolute URLs → production-safe). `TILE_IMG` map updated.

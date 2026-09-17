@@ -163,8 +163,8 @@ async def launch_leaderboard(request: Request, limit: int = 10):
 
 @router.get("/launch/shop-tiles")
 async def launch_shop_tiles(request: Request):
-    """Public — real business cover images for the Shop category tiles so the
-    landing feels live. Falls back to curated art on the client when empty."""
+    """Public — real business cover images for the Shop tiles (a LIST per
+    category so the landing can auto-rotate). Client falls back to branded art."""
     db = request.app.state.db
     q = {"status": "approved",
          "public_name": {"$not": {"$regex": r"(TEST_|Iter\d|Test Shop|QA Demo)",
@@ -177,32 +177,99 @@ async def launch_shop_tiles(request: Request):
         profs.append({"name": p.get("public_name"), "cat": (p.get("category") or "").lower(),
                       "img": img,
                       "claimed": bool((p.get("soft_launch_offer") or {}).get("status") == "active")})
-    used = set()
 
-    def take(pred):
-        for pr in profs:
-            if pr["name"] in used:
+    def ser(lst, n=4):
+        out, seen = [], set()
+        for pr in lst:
+            if pr["name"] in seen:
                 continue
-            if pred(pr):
-                used.add(pr["name"])
-                return pr
-        return None
+            seen.add(pr["name"])
+            out.append({"image": pr["img"], "name": pr["name"]})
+            if len(out) >= n:
+                break
+        return out
 
-    food = lambda pr: pr["cat"] in ("restaurant", "cafe", "bar", "grocery")
-    serv = lambda pr: pr["cat"] in ("service", "beauty", "fitness")
-    any_ = lambda pr: True
+    food = [p for p in profs if p["cat"] in ("restaurant", "cafe", "bar", "grocery")]
+    serv = [p for p in profs if p["cat"] in ("service", "beauty", "fitness")]
+    retail = [p for p in profs if p["cat"] in ("retail", "grocery")]
+    claimed = [p for p in profs if p["claimed"]]
     mapping = {}
-
-    def put(label, pr):
-        if pr:
-            mapping[label] = {"image": pr["img"], "name": pr["name"]}
-
-    put("Restaurant Pickup", take(food))
-    put("Services", take(serv))
-    put("Featured Businesses", take(lambda pr: pr["claimed"]) or take(any_))
-    put("Local Deals", take(any_))
-    put("Memberships", take(any_))
+    if food:
+        mapping["Restaurant Pickup"] = ser(food)
+    if serv:
+        mapping["Services"] = ser(serv)
+    feat = claimed + [p for p in profs if not p["claimed"]]
+    if feat:
+        mapping["Featured Businesses"] = ser(feat)
+    if retail or profs:
+        mapping["Local Deals"] = ser(retail or profs)
+    if profs:
+        mapping["Memberships"] = ser(profs)
     return {"items": mapping}
+
+
+_DEAL_CACHE = {"day": None, "val": None}
+
+
+@router.get("/launch/deal-of-day")
+async def launch_deal_of_day(request: Request):
+    """Public — one real business deal, chosen deterministically per day so it
+    refreshes every 24h but stays stable within the day."""
+    db = request.app.state.db
+    day = datetime.now(timezone.utc).toordinal()
+    if _DEAL_CACHE["day"] == day and _DEAL_CACHE["val"] is not None:
+        return _DEAL_CACHE["val"]
+
+    async def _prof(bid):
+        if not bid:
+            return None
+        return await db.marketplace_profiles.find_one({"business_id": bid, "status": "approved"})
+
+    def _ok(prof):
+        name = (prof or {}).get("public_name")
+        img = ((prof or {}).get("cover_urls") or [None])[0] or (prof or {}).get("logo_url")
+        if not name or not img or _TEST_NAME.search(name):
+            return None
+        return name, img
+
+    cands = []
+    async for o in db.offers.find({"status": "active"}).limit(50):
+        prof = await _prof(o.get("business_id"))
+        chk = _ok(prof)
+        if not chk:
+            continue
+        name, img = chk
+        dp = o.get("discount_percent")
+        headline = f"{int(dp)}% off" if dp else (o.get("title") or "Special offer")
+        cands.append({"business_name": name,
+                      "category_label": _CAT_LABEL.get((prof.get("category") or "").lower(), "Local"),
+                      "image": img, "headline": headline,
+                      "subtext": o.get("description") or f"Exclusive offer at {name}",
+                      "to": "/shop/near-me"})
+    async for sp in db.marketplace_specials.find({"active": True}).limit(50):
+        prof = await _prof(sp.get("business_id"))
+        chk = _ok(prof)
+        if not chk:
+            continue
+        name, img = chk
+        cands.append({"business_name": name,
+                      "category_label": _CAT_LABEL.get((prof.get("category") or "").lower(), "Local"),
+                      "image": img, "headline": sp.get("blurb") or "Today's special",
+                      "subtext": f"Limited-time special at {name}", "to": "/shop/near-me"})
+    if not cands:
+        async for p in db.marketplace_profiles.find({"status": "approved"}).sort("updated_at", -1).limit(40):
+            chk = _ok(p)
+            if not chk:
+                continue
+            name, img = chk
+            cands.append({"business_name": name,
+                          "category_label": _CAT_LABEL.get((p.get("category") or "").lower(), "Local"),
+                          "image": img, "headline": "Featured this week",
+                          "subtext": f"Discover {name} on RadioLife", "to": "/shop/near-me"})
+    out = {"available": bool(cands), "deal": (cands[day % len(cands)] if cands else None)}
+    _DEAL_CACHE["day"] = day
+    _DEAL_CACHE["val"] = out
+    return out
 
 
 async def _new_ref_code(db) -> str:

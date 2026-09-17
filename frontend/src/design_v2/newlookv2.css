@@ -81,6 +81,9 @@
 .nlv2-card-hover { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
 .nlv2-card-hover:hover { transform: translateY(-4px); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45); }
 
+@keyframes nlv2FadeIn { from { opacity: 0.25; } to { opacity: 1; } }
+.nlv2-fade-in { animation: nlv2FadeIn .6s ease; }
+
 .nlv2-underline {
   position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%);
   width: 26px; height: 3px; border-radius: 3px;

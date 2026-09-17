@@ -559,9 +559,24 @@ async def landing_analytics(request: Request):
                          "sessions": len([s for s in (r.get("sessions") or []) if s])})
         return rows
 
+    async def _tiles():
+        pipeline = [
+            {"$match": {"event": "cta", "cta": {"$regex": "^tile_"}}},
+            {"$group": {"_id": "$cta", "count": {"$sum": 1},
+                        "sessions": {"$addToSet": "$session_id"}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 50},
+        ]
+        rows = []
+        async for r in db.landing_events.aggregate(pipeline):
+            rows.append({"key": str(r["_id"]).replace("tile_", ""), "count": r["count"],
+                         "sessions": len([s for s in (r.get("sessions") or []) if s])})
+        return rows
+
     return {
         "total_events": await db.landing_events.count_documents({}),
         "preview_plays": await db.landing_events.count_documents({"event": "preview_play"}),
         "ctas": await _top("cta", "cta"),
+        "tiles": await _tiles(),
         "sections": await _top("section_view", "section"),
     }

@@ -19,6 +19,7 @@ export default function AdminLandingAnalytics() {
   useEffect(() => { load(); }, []);
 
   const maxCta = data ? Math.max(1, ...data.ctas.map((c) => c.count)) : 1;
+  const maxTile = data && data.tiles ? Math.max(1, ...data.tiles.map((c) => c.count)) : 1;
   const maxSec = data ? Math.max(1, ...data.sections.map((c) => c.count)) : 1;
 
   return (
@@ -51,6 +52,12 @@ export default function AdminLandingAnalytics() {
             <Panel title="Top CTAs clicked" icon={<MousePointerClick size={16} />} testid="admin-landing-ctas">
               {data.ctas.length === 0 ? <Empty /> : data.ctas.map((c) => (
                 <Bar key={c.key} label={c.key} count={c.count} sessions={c.sessions} pct={(c.count / maxCta) * 100} color="#8b5cf6" />
+              ))}
+            </Panel>
+
+            <Panel title="Top tiles clicked" icon={<MousePointerClick size={16} />} testid="admin-landing-tiles">
+              {(!data.tiles || data.tiles.length === 0) ? <Empty /> : data.tiles.map((c) => (
+                <Bar key={c.key} label={c.key} count={c.count} sessions={c.sessions} pct={(c.count / maxTile) * 100} color="#f59e0b" />
               ))}
             </Panel>
 
