@@ -126,12 +126,14 @@ async def mint_gift_card(db, *, sku_id: Optional[str], merchant_id: str,
     if existing:
         return existing
 
-    # Resolve expiry from SKU (or default 365 days)
+    # Resolve expiry + currency from SKU (or defaults)
     expires_days = 365
+    currency = "AED"
     if sku_id:
         sku = await db.gift_card_skus.find_one({"sku_id": sku_id})
         if sku:
             expires_days = int(sku.get("expires_days_after_purchase") or 365)
+            currency = (sku.get("currency") or currency)
 
     # Retry code generation on collision
     code = _gc_code()
@@ -152,7 +154,7 @@ async def mint_gift_card(db, *, sku_id: Optional[str], merchant_id: str,
         "code":                            code,
         "initial_balance_cents": int(amount_cents),
         "current_balance_cents": int(amount_cents),
-        "currency":                    "AED",         # source-of-truth from tx.currency in caller
+        "currency":                    currency,     # from SKU (falls back to AED)
         "expires_at":                now + timedelta(days=expires_days),
         "status":                        "active",
         "purchased_transaction_id": purchased_transaction_id,

@@ -113,7 +113,8 @@ async def main():
             "status": "active", "logo_url": LOGO_URL, "category": "Food & Dining",
             "description": "Hand-tossed pizzas, wood-fired flavour. Play daily "
                            "for tasty discounts, free slices and gift cards!",
-            "city": "Dubai", "redeem_pin": "4242", "updated_at": _now()},
+            "city": "Dallas", "state": "TX", "country_code": "US",
+            "redeem_pin": "4242", "updated_at": _now()},
          "$setOnInsert": {"created_at": _now()}},
         upsert=True)
     print(f"[seed] business ready: {BIZ_ID}")
