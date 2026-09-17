@@ -161,6 +161,50 @@ async def launch_leaderboard(request: Request, limit: int = 10):
     return {"tiers": _REFERRAL_TIERS, "top": top}
 
 
+@router.get("/launch/shop-tiles")
+async def launch_shop_tiles(request: Request):
+    """Public — real business cover images for the Shop category tiles so the
+    landing feels live. Falls back to curated art on the client when empty."""
+    db = request.app.state.db
+    q = {"status": "approved",
+         "public_name": {"$not": {"$regex": r"(TEST_|Iter\d|Test Shop|QA Demo)",
+                                  "$options": "i"}}}
+    profs = []
+    async for p in db.marketplace_profiles.find(q).sort("updated_at", -1).limit(120):
+        img = (p.get("cover_urls") or [None])[0] or p.get("logo_url")
+        if not img:
+            continue
+        profs.append({"name": p.get("public_name"), "cat": (p.get("category") or "").lower(),
+                      "img": img,
+                      "claimed": bool((p.get("soft_launch_offer") or {}).get("status") == "active")})
+    used = set()
+
+    def take(pred):
+        for pr in profs:
+            if pr["name"] in used:
+                continue
+            if pred(pr):
+                used.add(pr["name"])
+                return pr
+        return None
+
+    food = lambda pr: pr["cat"] in ("restaurant", "cafe", "bar", "grocery")
+    serv = lambda pr: pr["cat"] in ("service", "beauty", "fitness")
+    any_ = lambda pr: True
+    mapping = {}
+
+    def put(label, pr):
+        if pr:
+            mapping[label] = {"image": pr["img"], "name": pr["name"]}
+
+    put("Restaurant Pickup", take(food))
+    put("Services", take(serv))
+    put("Featured Businesses", take(lambda pr: pr["claimed"]) or take(any_))
+    put("Local Deals", take(any_))
+    put("Memberships", take(any_))
+    return {"items": mapping}
+
+
 async def _new_ref_code(db) -> str:
     for _ in range(8):
         code = secrets.token_urlsafe(4).replace("-", "").replace("_", "")[:6].upper()

@@ -47,23 +47,25 @@ const GRADS = [
   "linear-gradient(135deg,#22c55e,#06b6d4)",
 ];
 
-// Category tile artwork (absolute CDN URLs — production-safe, no env dependency).
+// Category tile artwork — custom RadioLife-branded illustrations (absolute CDN
+// URLs on the platform image store; production-safe, no env dependency).
+const _ART = "https://static.prod-images.emergentagent.com/jobs/c58ec5fe-c3e5-4993-9aa8-87c91f8390aa/images";
 const TILE_IMG = {
-  "Local Deals": "https://images.unsplash.com/photo-1580828343064-fde4fc206bc6?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Restaurant Pickup": "https://images.unsplash.com/photo-1651440204296-a79fa9988007?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Services": "https://images.unsplash.com/photo-1672380135241-c024f7fbfa13?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Memberships": "https://images.pexels.com/photos/7821733/pexels-photo-7821733.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=400&w=640",
-  "Featured Businesses": "https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Spin & Win": "https://images.unsplash.com/photo-1573788583106-acf6c8f3f0b5?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Trivia": "https://images.unsplash.com/photo-1552862750-746b8f6f7f25?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Predict & Win": "https://images.unsplash.com/photo-1563299796-b729d0af54a5?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Giveaways": "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Sponsored Games": "https://images.unsplash.com/photo-1770177267441-1d8dadda4feb?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Listen Together": "https://images.unsplash.com/photo-1656193874324-a494c9239b2d?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Trivia Teams": "https://images.pexels.com/photos/3182784/pexels-photo-3182784.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=400&w=640",
-  "Prediction Groups": "https://images.unsplash.com/photo-1768244016470-271b210a8407?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Challenges": "https://images.unsplash.com/photo-1607962837359-5e7e89f86776?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
-  "Groups & Events": "https://images.unsplash.com/photo-1563841930606-67e2bce48b78?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Local Deals": `${_ART}/45d0f74843efa815e774fe748dd659e5f789be8227d0a37efbb40af7cf59e7dd.jpeg`,
+  "Restaurant Pickup": `${_ART}/4c7fb58bd4f40674e90e2fd12d0f21ff646615b7e9be4c27e6ae0abe984478c1.jpeg`,
+  "Services": `${_ART}/f9b80178032d19cf07b3389aff099940919ea14581537a37a3cee3528a2ac5f6.jpeg`,
+  "Memberships": `${_ART}/0382292a2f3ab12f71b081bac74feb539c00b1869f8a769de27f60b07d7580da.jpeg`,
+  "Featured Businesses": `${_ART}/ddf19bc3a29fa876cf2a8591e78c1ce29630c4fae52169b5d54e2f7fd4e4f9f8.jpeg`,
+  "Spin & Win": `${_ART}/2bd1d003ca7a2906e8def473ae0a3d0622731c87ac7b0577f3228fa9a043da5b.jpeg`,
+  "Trivia": `${_ART}/ebc49926e4a921be2bdea99063c442dcc5cf3a6bbecf1b17721d0867aba9e433.jpeg`,
+  "Predict & Win": `${_ART}/a14d61836a586126880de3a58be8817596a47f6b3f52ae0e67893ba5020787b9.jpeg`,
+  "Giveaways": `${_ART}/911c312696bf801c1689ec1fc8ec181506bae528970ef7df784022f7b64c8124.jpeg`,
+  "Sponsored Games": `${_ART}/e19f43a0c50fee20bc617bcb112a11183d0ee54c7488d156d15eab557fea0e95.jpeg`,
+  "Listen Together": `${_ART}/5fae8ffae9c3ac14af8107743bdfa8787e45006516c112965582ec137ff547ad.jpeg`,
+  "Trivia Teams": `${_ART}/47fbb4c2e22bb80ad5d1259d568c69acc9a1937e09469cced11712de17ca6044.jpeg`,
+  "Prediction Groups": `${_ART}/0cb1f737d38f294d684a9e59b8288fb7dba8a6cd136dc10306e7171610e07501.jpeg`,
+  "Challenges": `${_ART}/8cce18062b1d77801b17ed42732c24dede4dd361c8762e4d6d907bf0b1371912.jpeg`,
+  "Groups & Events": `${_ART}/bf7872303358032e532f63c2276b497a34e2bf5eed7007f640e9180c408b5147.jpeg`,
 };
 
 function fmtCount(n) {
@@ -391,6 +393,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
   const navigate = useNavigate();
   const [stations, setStations] = useState(STATION_FALLBACK);
   const [count, setCount] = useState(0);
+  const [shopTiles, setShopTiles] = useState(null);
   const howRef = useRef(null);
   const audioRef = useRef(null);
   const timerRef = useRef(null);
@@ -483,7 +486,14 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
     return () => { alive = false; };
   }, []);
 
-  // Section-view analytics — observe existing section test-ids (no markup change).
+  // Live Shop tile artwork — real approved-business covers (falls back to art).
+  useEffect(() => {
+    let alive = true;
+    axios.get(`${API}/launch/shop-tiles`)
+      .then((r) => { if (alive) setShopTiles(r?.data?.items || null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
     const NAMES = ["public-live-header", "public-airadio", "public-how-header",
@@ -694,14 +704,14 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
 
         {/* ─── SHOP / PLAY / SOCIAL previews ────────────────────── */}
         <PreviewSection testid="public-shop" eyebrow="Discover what's around you" title="Shop RadioLife"
-          items={[["Local Deals", GRADS[2]], ["Restaurant Pickup", GRADS[0]], ["Services", GRADS[3]], ["Memberships", GRADS[6]], ["Featured Businesses", GRADS[4]]]}
-          cta="Explore Shop" onCta={ctaTo("shop", "/shop")} />
+          items={[["Local Deals", GRADS[2], "/shop/near-me"], ["Restaurant Pickup", GRADS[0], "/dining"], ["Services", GRADS[3], "/shop"], ["Memberships", GRADS[6], "/shop/memberships"], ["Featured Businesses", GRADS[4], "/shop"]]}
+          cta="Explore Shop" onCta={ctaTo("shop", "/shop")} onTile={ctaTo} live={shopTiles} />
         <PreviewSection testid="public-play" eyebrow="Play & win" title="Games, trivia & prizes"
-          items={[["Spin & Win", GRADS[6]], ["Trivia", GRADS[1]], ["Predict & Win", GRADS[0]], ["Giveaways", GRADS[2]], ["Sponsored Games", GRADS[4]]]}
-          cta="Explore Play" onCta={ctaTo("play", "/play-and-win")} />
+          items={[["Spin & Win", GRADS[6], "/play"], ["Trivia", GRADS[1], "/trivia"], ["Predict & Win", GRADS[0], "/predict-win"], ["Giveaways", GRADS[2], "/play"], ["Sponsored Games", GRADS[4], "/play"]]}
+          cta="Explore Play" onCta={ctaTo("play", "/play-and-win")} onTile={ctaTo} />
         <PreviewSection testid="public-social" eyebrow="Do it together" title="Listen. Play. Go out. Earn — together."
-          items={[["Listen Together", GRADS[4]], ["Trivia Teams", GRADS[1]], ["Prediction Groups", GRADS[0]], ["Challenges", GRADS[6]], ["Groups & Events", GRADS[3]]]}
-          cta="Join RadioLife" onCta={ctaTo("social", "/community")} />
+          items={[["Listen Together", GRADS[4], "/community"], ["Trivia Teams", GRADS[1], "/trivia"], ["Prediction Groups", GRADS[0], "/predict-win"], ["Challenges", GRADS[6], "/community"], ["Groups & Events", GRADS[3], "/community"]]}
+          cta="Join RadioLife" onCta={ctaTo("social", "/community")} onTile={ctaTo} />
 
         {/* ─── PREMIUM ──────────────────────────────────────────── */}
         <section className={`${CONTAINER} py-10`}>
@@ -882,25 +892,39 @@ function StationCard({ station, grad, onPreview, previewing, testid }) {
   );
 }
 
-function PreviewSection({ eyebrow, title, items, cta, onCta, testid }) {
+function PreviewSection({ eyebrow, title, items, cta, onCta, testid, onTile, live }) {
   return (
     <section className={`${CONTAINER} py-8`} data-testid={testid}>
       <SectionHeader eyebrow={eyebrow} title={title} cta={cta} onCta={onCta} testid={testid} />
       <div className="grid grid-flow-col auto-cols-[60%] sm:auto-cols-[38%] lg:grid-flow-row lg:grid-cols-5 gap-4 overflow-x-auto nlv2-scroll pb-2 -mx-1 px-1">
-        {items.map(([label, g]) => (
-          <div key={label} className="nlv2-glass nlv2-card-hover rounded-2xl overflow-hidden" data-testid={`${testid}-tile`}>
-            <div className="h-24 relative overflow-hidden grid place-items-center" style={{ background: g }}>
-              <span className="text-white/85 font-black text-lg select-none">{label.split(" ").map((w) => w[0]).join("").slice(0, 2)}</span>
-              {TILE_IMG[label] && (
-                <img src={TILE_IMG[label]} alt={label} loading="lazy"
-                  data-testid={`${testid}-tile-img`}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  onError={(e) => { e.currentTarget.style.display = "none"; }} />
-              )}
-            </div>
-            <div className="p-3 font-bold text-sm text-white">{label}</div>
-          </div>
-        ))}
+        {items.map(([label, g, to]) => {
+          const liveHit = live && live[label];
+          const imgSrc = (liveHit && liveHit.image) || TILE_IMG[label];
+          const handler = onTile ? onTile(`tile_${label}`, to) : onCta;
+          return (
+            <button key={label} type="button" onClick={handler} data-testid={`${testid}-tile`}
+              className="group text-left nlv2-glass nlv2-card-hover rounded-2xl overflow-hidden">
+              <div className="h-24 relative overflow-hidden grid place-items-center" style={{ background: g }}>
+                <span className="text-white/85 font-black text-lg select-none">{label.split(" ").map((w) => w[0]).join("").slice(0, 2)}</span>
+                {imgSrc && (
+                  <img src={imgSrc} alt={label} loading="lazy" data-testid={`${testid}-tile-img`}
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+                    onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                )}
+                {liveHit && (
+                  <span className="absolute bottom-1.5 left-1.5 z-10 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 max-w-[90%] truncate"
+                    style={{ background: "rgba(0,0,0,0.6)", color: "#86efac" }} data-testid={`${testid}-tile-live`}>
+                    ● {liveHit.name}
+                  </span>
+                )}
+              </div>
+              <div className="p-3 font-bold text-sm text-white flex items-center justify-between gap-1">
+                <span className="truncate">{label}</span>
+                <ArrowRight size={14} className="shrink-0 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-white/70" />
+              </div>
+            </button>
+          );
+        })}
       </div>
     </section>
   );

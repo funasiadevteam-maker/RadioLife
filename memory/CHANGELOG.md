@@ -2,6 +2,15 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — Landing tiles: branded art + live business covers + hover motion + deep-links (web)
+Four enhancements to the V2 public-landing category tiles (`PublicHomeNewLookV2` → `PreviewSection`):
+- **Curated tile art** — replaced stock photos with 15 custom RadioLife-branded neon illustrations (Gemini Nano Banana, dark navy + violet/magenta/cyan/gold palette), hosted on the platform image store (`static.prod-images…`, absolute URLs → production-safe). `TILE_IMG` map updated.
+- **Live Shop tiles** — new public `GET /api/launch/shop-tiles` returns real approved-business cover images bucketed by category (Restaurant Pickup→restaurant, Services→beauty/fitness, Featured→claimed, etc.). Shop tiles render the live cover + a green "● {business}" badge, falling back to the branded art then the gradient. Verified: Fun Pizza Kitchen / Ambreens Salon / Pulse Fitness Studio / Urban Threads / Glow Hair & Beauty.
+- **Hover motion** — tiles are now a `group`; image zooms (`group-hover:scale-110`, 500ms) and a reveal arrow slides in; card already lifts via `nlv2-card-hover`.
+- **Category deep-links** — each tile is now a `<button>` wired to `ctaTo(label, exactRoute)` so it routes to its specific destination (Local Deals→/shop/near-me, Restaurant Pickup→/dining, Memberships→/shop/memberships, Spin&Win→/play, Trivia→/trivia, Predict&Win→/predict-win, etc.) with intent preserved through login for anonymous visitors.
+- Testids: `{section}-tile`, `{section}-tile-img`, `{section}-tile-live`. Self-verified (curl + image 200s + screenshot); env left at mode OFF.
+
+
 ## 2026-09-17 — BUGFIX: public landing category tiles now show real images (web)
 The Shop / Play / Social preview tiles on the V2 public landing (`PublicHomeNewLookV2` → `PreviewSection`) rendered as gradient "color blobs" with initials instead of photos. Added a `TILE_IMG` map of **absolute CDN image URLs** (Unsplash/Pexels) for all 15 categories and render an `<img object-cover>` over the gradient; the gradient + initials now only show as an `onError` fallback. URLs are hardcoded absolute links (no env dependency) so they render identically in preview AND production. All 15 URLs verified 200 image/jpeg; landing screenshot confirms real photos. Testids added: `{section}-tile`, `{section}-tile-img`.
 
