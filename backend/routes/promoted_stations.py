@@ -346,6 +346,30 @@ async def get_wallet(request: Request, user: dict = Depends(current_user)):
             "packages": [{"id": k, "amount_cents": v} for k, v in _TOPUP_PACKAGES.items()]}
 
 
+class DemoTopupBody(BaseModel):
+    amount_cents: int = 1000
+
+
+@router.post("/wallet/topup-demo",
+                          description="Instant demo wallet credit (no Stripe) so boosted bids "
+                                                  "can spend. Reactivates the caller's paused promos once funded.")
+async def wallet_topup_demo(body: DemoTopupBody, request: Request,
+                                                        user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = await _uid(user)
+    amt = max(100, min(int(body.amount_cents or 0), 500000))
+    w = await _get_wallet(db, uid)
+    new_balance = int(w.get("balance_cents", 0)) + amt
+    await db.promo_wallets.update_one(
+        {"advertiser_id": uid},
+        {"$set": {"balance_cents": new_balance, "updated_at": _now()}})
+    await db.promoted_stations.update_many(
+        {"advertiser_id": uid, "active": False,
+          "status": {"$in": ["depleted", "awaiting_funds", "paused", "budget_capped"]}},
+        {"$set": {"active": True, "status": "active", "updated_at": _now()}})
+    return {"ok": True, "balance_cents": new_balance, "credited_cents": amt}
+
+
 @router.post("/self-serve")
 async def create_self_serve_promo(body: SelfServeBody, request: Request,
                                   user: dict = Depends(current_user)):

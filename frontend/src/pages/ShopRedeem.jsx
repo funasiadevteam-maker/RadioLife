@@ -11,12 +11,13 @@ const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
 export default function ShopRedeem() {
   const [code, setCode] = useState("");
+  const [pin, setPin] = useState("");
   const [info, setInfo] = useState(null);
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
 
-  const reset = () => { setCode(""); setInfo(null); setDone(false); };
+  const reset = () => { setCode(""); setPin(""); setInfo(null); setDone(false); };
 
   const lookup = async (e) => {
     e?.preventDefault?.();
@@ -34,7 +35,8 @@ export default function ShopRedeem() {
   const redeem = async () => {
     setRedeeming(true);
     try {
-      const { data } = await axios.post(`${API}/games/coupon/redeem`, { code: code.trim() });
+      const { data } = await axios.post(`${API}/games/coupon/redeem`,
+        { code: code.trim(), pin: pin.trim() || undefined });
       setDone(true);
       setInfo((p) => ({ ...(p || {}), status: "redeemed" }));
       toast.success(data.idempotent ? "Already redeemed earlier" : "Redeemed ✓");
@@ -42,6 +44,7 @@ export default function ShopRedeem() {
       const c = e?.response?.data?.detail?.code || e?.response?.data?.code;
       toast.error(c === "expired" ? "Coupon expired"
         : c === "already_redeemed" ? "Already redeemed"
+        : c === "bad_pin" ? "Wrong staff PIN"
         : c === "code_not_found" ? "Code not found" : "Redemption failed");
     } finally { setRedeeming(false); }
   };
@@ -125,14 +128,28 @@ export default function ShopRedeem() {
             </div>
 
             {!done ? (
-              <button type="button" onClick={redeem} disabled={redeeming}
-                            data-testid="shop-redeem-confirm"
-                            className="w-full h-11 rounded-full text-sm font-black text-slate-950
-                                          bg-amber-400 hover:bg-amber-300 disabled:opacity-60">
-                {redeeming
-                  ? <><Loader2 size={14} className="animate-spin inline mr-1" /> Redeeming…</>
-                  : "Mark as redeemed"}
-              </button>
+              <>
+                {info.pin_required && (
+                  <label className="block space-y-1" data-testid="shop-redeem-pin-wrap">
+                    <span className="text-xs text-slate-400">Staff PIN</span>
+                    <input type="password" inputMode="numeric" value={pin}
+                                  onChange={(e) => setPin(e.target.value)}
+                                  placeholder="••••" maxLength={8}
+                                  data-testid="shop-redeem-pin"
+                                  className="w-full rounded-xl bg-white/[0.04] border border-white/10
+                                                px-3.5 py-2.5 text-sm tracking-[0.3em] text-center
+                                                focus:outline-none focus:border-amber-400/60" />
+                  </label>
+                )}
+                <button type="button" onClick={redeem} disabled={redeeming}
+                              data-testid="shop-redeem-confirm"
+                              className="w-full h-11 rounded-full text-sm font-black text-slate-950
+                                            bg-amber-400 hover:bg-amber-300 disabled:opacity-60">
+                  {redeeming
+                    ? <><Loader2 size={14} className="animate-spin inline mr-1" /> Redeeming…</>
+                    : "Mark as redeemed"}
+                </button>
+              </>
             ) : (
               <div className="flex items-center gap-2 text-amber-300 text-sm font-bold"
                         data-testid="shop-redeem-success">

@@ -9,13 +9,14 @@ import { COLORS, SPACING, FONT, RADIUS } from '../src/constants/theme';
 export default function ShopRedeemScreen() {
   const router = useRouter();
   const [code, setCode] = useState('');
+  const [pin, setPin] = useState('');
   const [info, setInfo] = useState<any>(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const reset = () => { setCode(''); setInfo(null); setNotFound(false); setMsg(null); };
+  const reset = () => { setCode(''); setPin(''); setInfo(null); setNotFound(false); setMsg(null); };
 
   const lookup = async () => {
     if (!code.trim()) return;
@@ -31,13 +32,14 @@ export default function ShopRedeemScreen() {
   const redeem = async () => {
     setRedeeming(true); setMsg(null);
     try {
-      const { data } = await api.post('/games/coupon/redeem', { code: code.trim() });
+      const { data } = await api.post('/games/coupon/redeem', { code: code.trim(), pin: pin.trim() || undefined });
       setInfo((p: any) => ({ ...(p || {}), status: 'redeemed' }));
       setMsg(data.idempotent ? 'Already redeemed earlier' : 'Redeemed \u2713');
     } catch (e: any) {
       const c = e?.response?.data?.detail?.code || e?.response?.data?.code;
       setMsg(c === 'expired' ? 'Coupon expired'
         : c === 'already_redeemed' ? 'Already redeemed'
+        : c === 'bad_pin' ? 'Wrong staff PIN'
         : c === 'code_not_found' ? 'Code not found' : 'Redemption failed');
     } finally { setRedeeming(false); }
   };
@@ -99,9 +101,27 @@ export default function ShopRedeemScreen() {
               </View>
 
               {!done ? (
-                <TouchableOpacity style={s.redeemBtn} onPress={redeem} disabled={redeeming} testID="shop-redeem-confirm">
-                  {redeeming ? <ActivityIndicator color="#0a0a0c" size="small" /> : <Text style={s.redeemTxt}>Mark as redeemed</Text>}
-                </TouchableOpacity>
+                <>
+                  {info.pin_required && (
+                    <View style={{ gap: 4 }} testID="shop-redeem-pin-wrap">
+                      <Text style={s.label}>STAFF PIN</Text>
+                      <TextInput
+                        value={pin}
+                        onChangeText={setPin}
+                        placeholder="••••"
+                        placeholderTextColor={COLORS.textMuted}
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        maxLength={8}
+                        style={[s.input, { textAlign: 'center', letterSpacing: 6 }]}
+                        testID="shop-redeem-pin"
+                      />
+                    </View>
+                  )}
+                  <TouchableOpacity style={s.redeemBtn} onPress={redeem} disabled={redeeming} testID="shop-redeem-confirm">
+                    {redeeming ? <ActivityIndicator color="#0a0a0c" size="small" /> : <Text style={s.redeemTxt}>Mark as redeemed</Text>}
+                  </TouchableOpacity>
+                </>
               ) : (
                 <View style={s.successRow} testID="shop-redeem-success">
                   <Ionicons name="checkmark-circle" size={18} color={COLORS.gold} />

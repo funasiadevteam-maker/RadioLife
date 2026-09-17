@@ -97,6 +97,9 @@ export default function Wallet() {
       {/* Gift Inbox — gifts received (packages, memberships, gift cards). */}
       <GiftInboxSection />
 
+      {/* My Gift Cards — won in games (balance + code to spend). */}
+      <MyGiftCardsSection />
+
       {/* Phase AD.11 — wallet banner zone. */}
       <BannerZoneSlot zone="wallet" />
 
@@ -880,3 +883,56 @@ function ReferTab({ me }) {
     </section>
   );
 }
+
+
+// ── My Gift Cards — won in games; shows balance + code to spend ──
+function MyGiftCardsSection() {
+  const [cards, setCards] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    axios.get(`${API}/wallet/me`)
+      .then((r) => { if (alive) setCards(r.data?.gift_cards || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!cards.length) return null;
+  const fmt = (c, cur) => {
+    const a = ((c || 0) / 100).toFixed(2);
+    return (!cur || cur === "USD") ? `$${a}` : `${cur} ${a}`;
+  };
+  return (
+    <section data-testid="wallet-my-giftcards" style={{ margin: "16px 0" }}>
+      <h3 style={{ fontWeight: 900, fontSize: 15, margin: "0 0 8px" }}>My Gift Cards</h3>
+      <div style={{ display: "grid", gap: 8 }}>
+        {cards.map((g) => (
+          <div key={g.code} data-testid="wallet-giftcard-row"
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: 12,
+                                  borderRadius: 16, background: "rgba(245,158,11,0.08)",
+                                  border: "1px solid rgba(245,158,11,0.35)" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, display: "grid",
+                                  placeItems: "center", flexShrink: 0,
+                                  background: "linear-gradient(135deg,#F59E0B,#EC4899)" }}>
+              <Gift size={20} color="#fff" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>{g.merchant_name || "Gift card"}</div>
+              <div data-testid="wallet-giftcard-code"
+                        style={{ fontFamily: "monospace", fontSize: 12, opacity: 0.7, letterSpacing: 1 }}>
+                {g.code}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div data-testid="wallet-giftcard-balance" style={{ fontWeight: 900, color: "#F59E0B" }}>
+                {fmt(g.current_balance_cents, g.currency)}
+              </div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, opacity: 0.6 }}>
+                balance
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+

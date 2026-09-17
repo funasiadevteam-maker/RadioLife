@@ -3,24 +3,42 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
-import { Loader2, TrendingUp, Radio, ArrowUp } from "lucide-react";
+import { Loader2, TrendingUp, Radio, ArrowUp, Wallet } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const usd = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 
 export default function SponsorBoost() {
   const [items, setItems] = useState([]);
+  const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
+  const [topping, setTopping] = useState(null);
 
   const load = () => {
     setLoading(true);
-    axios.get(`${API}/promoted/stations?limit=12`, { withCredentials: true })
-      .then((r) => setItems(r.data?.items || []))
-      .catch(() => {})
+    Promise.all([
+      axios.get(`${API}/promoted/stations?limit=12`, { withCredentials: true })
+        .then((r) => r.data?.items || []).catch(() => []),
+      axios.get(`${API}/promoted/wallet`, { withCredentials: true })
+        .then((r) => r.data).catch(() => null),
+    ]).then(([its, w]) => { setItems(its); setWallet(w); })
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
+
+  const topup = async (amount_cents) => {
+    setTopping(amount_cents);
+    try {
+      const { data } = await axios.post(`${API}/promoted/wallet/topup-demo`,
+        { amount_cents }, { withCredentials: true });
+      toast.success(`Wallet topped up — balance ${usd(data.balance_cents)}`);
+      load();
+    } catch (e) {
+      toast.error(e?.response?.status === 401
+        ? "Log in to top up your ad wallet" : "Top-up failed");
+    } finally { setTopping(null); }
+  };
 
   const boost = async (promo_id, current, inc) => {
     setBusy(promo_id + inc);
@@ -57,6 +75,35 @@ export default function SponsorBoost() {
           wins <strong className="text-slate-200">more rotation slots</strong> — more airtime.
         </p>
       </header>
+
+      <div className="rounded-2xl bg-gradient-to-br from-amber-500/15 to-pink-500/10 border border-amber-400/20 p-4"
+                data-testid="sponsor-boost-wallet">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-amber-300/80 flex items-center gap-1.5">
+              <Wallet size={11} /> Ad wallet
+            </div>
+            <div className="text-2xl font-black text-white" data-testid="sponsor-boost-balance">
+              {wallet ? usd(wallet.balance_cents) : "—"}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              {wallet?.active_promos || 0} active slot(s) · boosted bids spend from here and pause when it runs out
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 flex-shrink-0">
+            <button type="button" onClick={() => topup(500)} disabled={!!topping}
+                          data-testid="sponsor-boost-topup-5"
+                          className="px-4 h-9 rounded-full text-xs font-black bg-slate-800 text-slate-100 hover:bg-slate-700 disabled:opacity-50">
+              +$5
+            </button>
+            <button type="button" onClick={() => topup(2000)} disabled={!!topping}
+                          data-testid="sponsor-boost-topup-20"
+                          className="px-4 h-9 rounded-full text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 disabled:opacity-50">
+              {topping === 2000 ? <Loader2 size={12} className="animate-spin inline" /> : "+$20"}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="animate-spin" size={26} /></div>

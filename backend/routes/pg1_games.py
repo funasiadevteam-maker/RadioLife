@@ -491,6 +491,7 @@ async def _game_coupon_view(db, cp: dict) -> dict:
         "discount_percent": (offer or {}).get("discount_percent"),
         "business_id":      cp.get("business_id"),
         "business_name":  (biz or {}).get("name"),
+        "pin_required":    bool((biz or {}).get("redeem_pin")),
         "source":                cp.get("source"),
         "expires_at":        _iso(cp.get("expires_at")),
         "redeemed_at":      _iso(cp.get("redeemed_at")),
@@ -509,11 +510,12 @@ async def game_coupon_lookup(request: Request, code: str = Query(...)):
 
 class GameCouponRedeemBody(BaseModel):
     code: str
+    pin: Optional[str] = None
 
 
 @router.post("/games/coupon/redeem",
                           description="Mark a game-won coupon redeemed (open shop screen). "
-                                                  "Idempotent.")
+                                                  "Idempotent. Requires the staff PIN when the business sets one.")
 async def game_coupon_redeem(body: GameCouponRedeemBody, request: Request):
     from datetime import datetime, timezone
     db = request.app.state.db
@@ -521,6 +523,13 @@ async def game_coupon_redeem(body: GameCouponRedeemBody, request: Request):
     cp = await _resolve_game_coupon(db, body.code)
     if not cp:
         raise HTTPException(404, {"code": "code_not_found"})
+    biz = None
+    if cp.get("business_id"):
+        biz = (await db.businesses.find_one({"business_id": cp["business_id"]})
+                      or await db.businesses.find_one({"_id": cp["business_id"]}))
+    required_pin = (biz or {}).get("redeem_pin")
+    if required_pin and str(body.pin or "") != str(required_pin):
+        raise HTTPException(403, {"code": "bad_pin"})
     if cp.get("status") == "redeemed" or cp.get("redeemed_at"):
         return {"ok": True, "idempotent": True,
                       **(await _game_coupon_view(db, cp))}

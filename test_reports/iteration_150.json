@@ -1,0 +1,51 @@
+{
+  "summary": "Iter150 — Full-stack verification of the 4 RadioLife features (Gift Card Wallet, Redeem PIN, Winner Confetti, Sponsor Wallet) on web + mobile. All 13 backend pytest cases PASS. Backend: GET /api/wallet/me returns the demo user's $10 Fun Pizza gift card (BIGFM-GC-63SJ6T, current_balance_cents=1000, merchant_name 'Fun Pizza Kitchen') plus coupons[]; GET /api/games/coupon/lookup returns pin_required:true for a Fun Pizza coupon; POST /api/games/coupon/redeem returns 403 {code:bad_pin} without or with wrong pin, 200 idempotent with pin=4242; bad code returns 404; GET /api/promoted/wallet returns balance_cents+active_promos; POST /api/promoted/wallet/topup-demo credits the ad wallet (verified +500 -> new balance = old+500) and reactivates paused promos; POST /api/promoted/{promo_id}/bid raises cpm_bid_cents on demo-owned promo; GET /api/promoted/stations returns bid_cents sorted DESC; unauth topup returns 401. Scratch play on gc_ddd9445590464f as a FRESH registered user returned won:true, outcome_type in (coupon,gift_card) with wallet_item_type set. WEB (/wallet-v2 with data-testid wallet-v2-section-giftcards is the actual route — /wallet renders the BigPoints/Rewards wallet, gift cards live at /wallet-v2): Gift Cards section shows 'Fun Pizza Kitchen 10.00 AED · of 10.00 AED · BIGFM-GC-63SJ6T' + 3 game-won coupon rows (10% BIGFM-PSBZ7J, 20% BIGFM-SYG58I, 10% BIGFM-VDK7JD). WEB /shop/redeem: filled BIGFM-4HYW9T (fresh minted), 'Check' → 20% off · Fun Pizza Kitchen · VALID; shop-redeem-pin field appeared; wrong PIN 0000 → 403 + 'Wrong staff PIN' inline; PIN 4242 → shop-redeem-success + 'REDEEMED / Done — enjoy the pizza!' toast. WEB /promote/boost: sponsor-boost-wallet visible with sponsor-boost-balance $128.92 → clicked sponsor-boost-topup-5 → balance $133.92 (+$5 real credit), sponsor-boost-topup-20 present, 5 sponsor rows with sponsor-boost-plus2-N / plus5-N buttons + weighted share bars (100% / 58% / 37% / 35% / variable). WEB /play/gc_ddd9445590464f: 3x3 game-scratch-grid + game-scratch-btn 'SCRATCH!' played → game-play-result-modal 'YOU WON! 20% OFF BIGFM-94SO7D' with CONFETTI clearly rendered around modal, game-play-win-kicker present, game-play-share row + WhatsApp/X/Facebook + 'View in Wallet' + 'Play again'. Gift-card branch (game-play-giftcard-banner) didn't fire on this play (~10% odds) but the branch is wired in GamePlay.jsx and confetti fires on every win. MOBILE (Expo /wallet, demo-login-btn login): 'My Gift Cards' section renders — wallet-giftcards, wallet-giftcard-row, wallet-giftcard-code=BIGFM-GC-63SJ6T, wallet-giftcard-balance='AED 10.00', merchant 'Fun Pizza Kitchen' visible. MOBILE /games → games-redeem-link pill navigates to /shop-redeem. MOBILE /shop-redeem: filled BIGFM-94SO7D → Check → shop-redeem-pin appeared; entered 4242 → 'Mark as redeemed' → shop-redeem-success shown with '20% off your order · Fun Pizza Kitchen · REDEEMED · Done — enjoy the pizza!' inline card. Auth is cookie-based (session_token) on web; mobile uses bearer via /api/auth/demo. No red-screen. Only console noise: 401s from unauth pings + Google OAuth CORS during login attempt (expected). Note: mobile app is warm light theme (intended).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/wallet", "issues": ["The primary /wallet route renders the BigPoints (Rewards) wallet, NOT the WalletV2 gift-card view. Gift cards live at /wallet-v2. /wallet shows a 'Gift Cards' quick-link button in the grid but it's not obvious this is where the $10 Fun Pizza card is shown. Consider either (a) merging gift-cards + points into a unified /wallet, or (b) adding a prominent 'Your Gift Cards' rail on /wallet linking to /wallet-v2. Task spec expected wallet-v2-section-giftcards under /wallet but the testid is only present on /wallet-v2."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* styles", "issue": "Recurring RN deprecation warning surfaced in prior iterations still not migrated: shadow* → boxShadow. Non-blocking. Reference: mobile app (global)."},
+        {"component": "props.pointerEvents", "issue": "Recurring RN deprecation warning: props.pointerEvents → style.pointerEvents. Non-blocking. Reference: mobile app (global)."}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "Gift Card Wallet display", "platform": "web", "issue": "Web places gift cards under /wallet-v2 (separate route) while mobile shows them directly inside /wallet tab.", "expected": "Both surfaces surface the $10 Fun Pizza card in the main /wallet entry", "actual": "Mobile /wallet ✓ shows the card in 'My Gift Cards' out of the box; web /wallet does NOT — user must click a 'Gift Cards' button or know to visit /wallet-v2."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter150_giftcard_pin_sponsor_wallet.py",
+    "/app/test_reports/pytest/iter150.xml"
+  ],
+  "action_items": [
+    "OPTIONAL — unify /wallet on web to include the Gift Cards section (or add a prominent rail linking to /wallet-v2), so /wallet on web reaches parity with mobile /wallet.",
+    "OPTIONAL — surface the gift-card branch (game-play-giftcard-banner + '🎁 Jackpot — Gift Card!' kicker) more reliably in QA. Because odds are ~10%, main agent may want an admin-only 'force gift-card outcome' toggle for demos.",
+    "OPTIONAL — migrate deprecated RN styles (shadow*, props.pointerEvents) — carried over from iter149."
+  ],
+  "critical_code_review_comments": [
+    "pg1_games.game_coupon_lookup returns full business_id + business_name + prize_title even for already-redeemed coupons — repeat of iter149 note: consider returning 404/409 or a redacted view once redeemed to prevent brute-force enumeration.",
+    "promoted_stations.wallet_topup_demo reactivates ALL of the caller's paused promos in one shot regardless of whether the new balance can actually sustain them. If the top-up is small (e.g., 100 cents) and the caller has 10 paused promos, they will all flip to active and burn the balance immediately. Consider only reactivating enough promos to match the funded amount, or requiring an explicit resume-all UX after top-up.",
+    "GamePlay.jsx wires confetti + gold banner on the gift-card outcome, but the win-kicker '🎁 Jackpot — Gift Card!' string is only rendered inside the gift-card branch (verified in code); on a coupon win the same kicker testid is reused for the coupon label — that's fine but worth documenting so QA doesn't rely on the kicker text to detect the jackpot branch."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter150_giftcard_pin_sponsor_wallet.py (new, 13 tests)",
+    "/app/test_reports/pytest/iter150.xml (junit)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% (web + mobile flows all verified)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (web cookie login + mobile demo-login-btn). Fresh iter150_<hex>@bigfm.dubai users registered ad-hoc for clean plays (max 5/user/game). Fun Pizza staff PIN 4242.",
+  "seed_data_creation": "Ran one scratch play as demo user (minted coupon BIGFM-4HYW9T @ 20% OFF, then REDEEMED via /shop/redeem web with PIN 4242) and one via mobile /shop-redeem (BIGFM-94SO7D @ 20% OFF also REDEEMED). Demo ad wallet credited +$5 via SponsorBoost UI (balance moved from $128.92 → $133.92). Fresh iter150 user registrations for clean plays. Wallet still contains BIGFM-GC-63SJ6T ($10 gift card, unspent) + remaining unused coupons (BIGFM-PSBZ7J, BIGFM-SYG58I, BIGFM-VDK7JD).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_iter150_giftcard_pin_sponsor_wallet.py for regression. Key gotchas: (1) /api/auth/register requires 'name' field (not just first_name/last_name — 422 otherwise). (2) /wallet on web is BigPoints; the gift-card wallet is at /wallet-v2 (has data-testid wallet-v2-section-giftcards). Mobile /wallet DOES contain gift cards inline. (3) Login button selector: 'button:has-text(\"Sign in\")' matches both Google/Apple; use .last for the email one. (4) Fun Pizza redeem PIN = 4242 — 403 {code:'bad_pin'} without or wrong pin, 200 idempotent otherwise. (5) Scratch outcome is ~90% coupon / ~10% gift_card — to verify the confetti gift-card branch you may need several plays as fresh users (5-plays/user cap). (6) Demo user's /promoted/mine returns 10 owned promos this iter — safe to +$5 topup and +$2/+$5 bid on any row. (7) Web /shop/redeem PIN wrong shows 'Wrong staff PIN' inline; success shows shop-redeem-success + 'Done — enjoy the pizza!' toast.",
+  "rca of the issue": ""
+}

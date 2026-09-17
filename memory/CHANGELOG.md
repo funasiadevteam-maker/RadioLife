@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — Gift Card Wallet, Redeem PIN, Winner Confetti, Sponsor Wallet
+- **Gift Card Wallet** — won $10 gift cards (from `user_gift_cards`) now render with balance + code on web `/wallet` (new "My Gift Cards" section in legacy `Wallet.js`) and `/wallet-v2`, plus the mobile wallet tab (`MyGiftCards`, testid `wallet-giftcards`). Backed by existing `GET /api/wallet/me`.
+- **Redeem PIN** — optional per-business staff PIN on the open shop redeem screen. `businesses.redeem_pin` (Fun Pizza = `4242`); `POST /api/games/coupon/redeem` now requires it (403 `bad_pin` on miss); lookup returns `pin_required`. Web `ShopRedeem.jsx` + mobile `shop-redeem.tsx` show a PIN field when required.
+- **Winner Confetti** — web `GamePlay.jsx` win modal fires `canvas-confetti` (louder gold burst for `gift_card` wins) with an upgraded gold reveal + "$10 gift card added" banner.
+- **Sponsor Wallet** — backend already debits owned promos per impression/click and auto-pauses at $0; added demo top-up `POST /api/promoted/wallet/topup-demo` (credits + reactivates the caller's paused promos). Web `/promote/boost` gained an Ad-wallet card with balance + +$5/+$20 top-up.
+- Tested: iter150 — 13/13 backend pytest pass + web & mobile UI verified (gift card in wallet both surfaces, PIN enforce, confetti visible, top-up persists). Note: gift card displays "AED 10.00" (mint hardcodes AED). Non-blocking: web `/wallet` unified to show gift cards (was `/wallet-v2` only).
+
+
 ## 2026-09-17 — Scratch game + $10 gift card, Win Wall, Sponsor Bidding, Coupon Redeem
 - **Scratch & Win + $10 gift card** — added a Fun Pizza Kitchen **Scratch & Win** (`gc_ddd9445590464f`) carrying the discount coupons + a **$10 store gift card won ~10% of plays** (rare; lower discounts most common). Created gift-card SKU `gcs_fun_pizza_10`; mint verified ($10). Both games now show on the web Play page and on the storefront's new "Play & Win" section. Seed: `scripts/seed_fun_pizza_games.py`.
 - **Win Wall** — public `GET /api/games/winners/recent` (first name + prize + time, from `game_sessions`); rendered as an auto-refreshing "Recent winners" feed on the business storefront (`BusinessProfile.jsx`, testid `business-winwall`).

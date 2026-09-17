@@ -31,6 +31,43 @@ function prettySource(s: string) {
   return m[s] || s;
 }
 
+function fmtBal(c: number, cur?: string) {
+  const amt = ((c || 0) / 100).toFixed(2);
+  return (!cur || cur === 'USD') ? `$${amt}` : `${cur} ${amt}`;
+}
+
+function MyGiftCards() {
+  const [cards, setCards] = useState<any[]>([]);
+  useEffect(() => {
+    let alive = true;
+    api.get('/wallet/me')
+      .then((r) => { if (alive) setCards(r.data?.gift_cards || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!cards.length) return null;
+  return (
+    <View style={st.gcSection} testID="wallet-giftcards">
+      <Text style={st.gcHeading}>My Gift Cards</Text>
+      {cards.map((g) => (
+        <View key={g.code} style={st.gcCard} testID="wallet-giftcard-row">
+          <LinearGradient colors={['#F59E0B', '#EC4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.gcArt}>
+            <Ionicons name="gift" size={22} color="#fff" />
+          </LinearGradient>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={st.gcName} numberOfLines={1}>{g.merchant_name || 'Gift card'}</Text>
+            <Text style={st.gcCode} testID="wallet-giftcard-code">{g.code}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={st.gcBalance} testID="wallet-giftcard-balance">{fmtBal(g.current_balance_cents, g.currency)}</Text>
+            <Text style={st.gcBalanceLabel}>balance</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function WalletScreen() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -126,6 +163,9 @@ export default function WalletScreen() {
 
         {/* Gift Inbox — gifts received */}
         <GiftInbox router={router} />
+
+        {/* My Gift Cards — won in games */}
+        <MyGiftCards />
 
         {/* Action Buttons */}
         <View style={st.actionRow}>
@@ -529,6 +569,14 @@ function GiftInbox({ router }: { router: any }) {
 }
 
 const st = StyleSheet.create({
+  gcSection: { marginHorizontal: SPACING.md, marginBottom: SPACING.md, gap: 8 },
+  gcHeading: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900', marginBottom: 2 },
+  gcCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.gold, padding: SPACING.sm + 2 },
+  gcArt: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  gcName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  gcCode: { color: COLORS.textMuted, fontSize: FONT.xs, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 1, marginTop: 2 },
+  gcBalance: { color: COLORS.gold, fontSize: FONT.md, fontWeight: '900' },
+  gcBalanceLabel: { color: COLORS.textMuted, fontSize: 9, textTransform: 'uppercase', letterSpacing: 1 },
   container: { flex: 1, backgroundColor: COLORS.bg },
   loadWrap: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: SPACING.md, paddingBottom: 100 },

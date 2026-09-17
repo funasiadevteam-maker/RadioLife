@@ -382,6 +382,34 @@ function ResultModal({ outcome, meta, light, onClose, onPlayAgain }) {
     : outcome.wallet_item_type === "coupon" ? Ticket
     : outcome.wallet_item_type === "points" ? Coins
     : Trophy;
+  const isGiftCard = won && (outcome.outcome_type === "gift_card"
+    || outcome.wallet_item_type === "gift_card");
+
+  useEffect(() => {
+    if (!won) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const mod = await import("canvas-confetti");
+        const confetti = mod.default;
+        if (isGiftCard) {
+          const end = Date.now() + 1300;
+          const colors = ["#f59e0b", "#fbbf24", "#ffd700", "#ec4899", "#22d3ee"];
+          const frame = () => {
+            if (cancelled) return;
+            confetti({ particleCount: 6, angle: 60, spread: 72, origin: { x: 0 }, colors });
+            confetti({ particleCount: 6, angle: 120, spread: 72, origin: { x: 1 }, colors });
+            confetti({ particleCount: 12, spread: 100, startVelocity: 45, origin: { y: 0.3 }, colors });
+            if (Date.now() < end) requestAnimationFrame(frame);
+          };
+          frame();
+        } else {
+          confetti({ particleCount: 80, spread: 70, origin: { y: 0.35 } });
+        }
+      } catch (_e) { /* confetti is optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, [won, isGiftCard]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
@@ -394,19 +422,31 @@ function ResultModal({ outcome, meta, light, onClose, onPlayAgain }) {
                   light ? "bg-white" : "bg-slate-900 border border-slate-800"}`}>
         {won ? (
           <>
-            <div className={`inline-flex w-20 h-20 rounded-full items-center justify-center mb-4 ${
-              light ? "bg-gradient-to-br from-purple-100 to-pink-100"
-                      : "bg-gradient-to-br from-cyan-500/20 to-purple-500/20"}`}>
-              <Icon size={36}
-                          color={light ? "#a855f7" : "#00d4ff"}/>
+            <div className={`inline-flex ${isGiftCard ? "w-24 h-24" : "w-20 h-20"} rounded-full items-center justify-center mb-4 ${
+              isGiftCard
+                ? "bg-gradient-to-br from-amber-300 to-pink-400 shadow-lg shadow-amber-500/40 animate-bounce"
+                : light ? "bg-gradient-to-br from-purple-100 to-pink-100"
+                              : "bg-gradient-to-br from-cyan-500/20 to-purple-500/20"}`}>
+              <Icon size={isGiftCard ? 44 : 36}
+                          color={isGiftCard ? "#ffffff" : (light ? "#a855f7" : "#00d4ff")}/>
             </div>
-            <div className={`text-[10px] font-bold uppercase tracking-widest ${
-              light ? "text-emerald-700" : "text-emerald-400"}`}>You won!</div>
-            <h2 className={`mt-1 text-3xl font-black ${
+            <div className={`text-[10px] font-black uppercase tracking-widest ${
+              isGiftCard ? "text-amber-500" : light ? "text-emerald-700" : "text-emerald-400"}`}
+                    data-testid="game-play-win-kicker">
+              {isGiftCard ? "🎁 Jackpot — Gift Card!" : "You won!"}
+            </div>
+            <h2 className={`mt-1 ${isGiftCard ? "text-4xl" : "text-3xl"} font-black ${
               light ? "text-slate-900" : "text-white"}`}
                     data-testid="game-play-result-label">
               {outcome.outcome_label}
             </h2>
+            {isGiftCard && (
+              <div className="mt-3 inline-block rounded-full px-4 py-1.5 text-xs font-black text-slate-900"
+                        style={{ background: "linear-gradient(90deg,#fbbf24,#f59e0b)" }}
+                        data-testid="game-play-giftcard-banner">
+                $10 gift card added to your wallet — spend it in-store
+              </div>
+            )}
             {outcome.code && (
               <div className={`mt-4 rounded-xl px-3 py-2 font-mono text-lg font-black ${
                 light ? "bg-slate-100 text-slate-900"
