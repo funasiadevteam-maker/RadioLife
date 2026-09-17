@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
   SafeAreaView, Alert, RefreshControl, LayoutAnimation, Platform, UIManager, Animated,
+  Modal, TextInput,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +39,7 @@ function fmtBal(c: number, cur?: string) {
 
 function MyGiftCards() {
   const [cards, setCards] = useState<any[]>([]);
+  const [selected, setSelected] = useState<any>(null);
   useEffect(() => {
     let alive = true;
     api.get('/wallet/me')
@@ -45,26 +47,124 @@ function MyGiftCards() {
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+  const applySpend = (remaining: number, status: string) => {
+    setCards((prev) => prev.map((c) => c.gift_card_id === selected?.gift_card_id
+      ? { ...c, current_balance_cents: remaining, status: status || c.status } : c));
+  };
   if (!cards.length) return null;
   return (
     <View style={st.gcSection} testID="wallet-giftcards">
       <Text style={st.gcHeading}>My Gift Cards</Text>
       {cards.map((g) => (
-        <View key={g.code} style={st.gcCard} testID="wallet-giftcard-row">
+        <TouchableOpacity key={g.code} style={st.gcCard} testID="wallet-giftcard-row"
+          activeOpacity={0.85} onPress={() => setSelected(g)}>
           <LinearGradient colors={['#F59E0B', '#EC4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.gcArt}>
             <Ionicons name="gift" size={22} color="#fff" />
           </LinearGradient>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={st.gcName} numberOfLines={1}>{g.merchant_name || 'Gift card'}</Text>
             <Text style={st.gcCode} testID="wallet-giftcard-code">{g.code}</Text>
+            <Text style={st.gcTapHint}>Tap to spend →</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={st.gcBalance} testID="wallet-giftcard-balance">{fmtBal(g.current_balance_cents, g.currency)}</Text>
             <Text style={st.gcBalanceLabel}>balance</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       ))}
+      <GiftCardSpendModal card={selected} onClose={() => setSelected(null)} onSpent={applySpend} />
     </View>
+  );
+}
+
+function GiftCardSpendModal({ card, onClose, onSpent }: { card: any; onClose: () => void; onSpent: (remaining: number, status: string) => void }) {
+  const [amt, setAmt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { setAmt(''); setResult(null); setErr(null); }, [card]);
+  if (!card) return null;
+  const ccy = card.currency || 'USD';
+  const balance = result ? result.remaining_cents : card.current_balance_cents;
+  const depleted = card.status === 'depleted' || (balance || 0) <= 0;
+  const spend = async () => {
+    const cents = Math.round(parseFloat(amt || '0') * 100);
+    if (!cents || cents <= 0) { setErr('Enter an amount to spend'); return; }
+    setBusy(true); setErr(null);
+    try {
+      const { data } = await api.post('/games/gift-card/spend', { code: card.code, amount_cents: cents });
+      setResult(data);
+      setAmt('');
+      onSpent(data.remaining_cents, data.status);
+    } catch (e: any) {
+      const c = e?.response?.data?.detail?.code || e?.response?.data?.code;
+      setErr(c === 'depleted' ? 'Card is empty'
+        : c === 'not_your_card' ? "This isn't your card"
+        : c === 'card_not_found' ? 'Card not found' : 'Spend failed');
+    } finally { setBusy(false); }
+  };
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={st.gcModalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={st.gcModalCard} testID="wallet-gc-spend-modal">
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ gap: SPACING.sm }}>
+          <View style={st.gcModalHead}>
+            <View style={{ flex: 1 }}>
+              <Text style={st.gcModalTitle}>{card.merchant_name || 'Gift card'}</Text>
+              <Text style={st.gcModalCode}>{card.code}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} testID="wallet-gc-spend-close" style={{ padding: 4 }}>
+              <Ionicons name="close" size={22} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={st.gcModalBalanceBox}>
+            <Text style={st.gcModalBalanceLabel}>BALANCE</Text>
+            <Text style={st.gcModalBalance} testID="wallet-gc-spend-balance">{fmtBal(balance, ccy)}</Text>
+          </View>
+
+          {depleted ? (
+            <Text style={st.gcModalDepleted} testID="wallet-gc-spend-depleted">This gift card has no balance left.</Text>
+          ) : (
+            <>
+              <Text style={st.gcModalInputLabel}>SPEND AT THE COUNTER</Text>
+              <View style={st.gcModalInputRow}>
+                <View style={st.gcModalInputWrap}>
+                  <Text style={st.gcModalCurrency}>{ccy === 'USD' ? '$' : ccy}</Text>
+                  <TextInput
+                    value={amt}
+                    onChangeText={setAmt}
+                    placeholder="0.00"
+                    placeholderTextColor={COLORS.textMuted}
+                    keyboardType="decimal-pad"
+                    style={st.gcModalInput}
+                    testID="wallet-gc-spend-amount"
+                  />
+                </View>
+                <TouchableOpacity style={st.gcModalSpendBtn} onPress={spend} disabled={busy} testID="wallet-gc-spend-btn">
+                  {busy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={st.gcModalSpendTxt}>Spend</Text>}
+                </TouchableOpacity>
+              </View>
+              <Text style={st.gcModalHint}>We charge up to what's left on the card.</Text>
+            </>
+          )}
+
+          {err && <Text style={st.gcModalErr} testID="wallet-gc-spend-err">{err}</Text>}
+
+          {result && (
+            <View style={st.gcModalResult} testID="wallet-gc-spend-result">
+              <Ionicons name="checkmark-circle" size={16} color={COLORS.green} />
+              <Text style={st.gcModalResultTxt}>
+                Charged {fmtBal(result.charged_cents, ccy)} · {fmtBal(result.remaining_cents, ccy)} left
+                {result.shortfall_cents > 0 ? ` · ${fmtBal(result.shortfall_cents, ccy)} still owed` : ''}
+              </Text>
+            </View>
+          )}
+          </ScrollView>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
@@ -577,6 +677,27 @@ const st = StyleSheet.create({
   gcCode: { color: COLORS.textMuted, fontSize: FONT.xs, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 1, marginTop: 2 },
   gcBalance: { color: COLORS.gold, fontSize: FONT.md, fontWeight: '900' },
   gcBalanceLabel: { color: COLORS.textMuted, fontSize: 9, textTransform: 'uppercase', letterSpacing: 1 },
+  gcTapHint: { color: COLORS.primary, fontSize: 10, fontWeight: '700', marginTop: 3 },
+  gcModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  gcModalCard: { backgroundColor: COLORS.bg, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: SPACING.lg, paddingBottom: SPACING.xl, gap: SPACING.sm, maxHeight: '85%' },
+  gcModalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  gcModalTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900' },
+  gcModalCode: { color: COLORS.textMuted, fontSize: FONT.xs, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 1, marginTop: 3 },
+  gcModalBalanceBox: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.gold, padding: SPACING.md, alignItems: 'center' },
+  gcModalBalanceLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
+  gcModalBalance: { color: COLORS.gold, fontSize: 30, fontWeight: '900', marginTop: 2 },
+  gcModalDepleted: { color: COLORS.textMuted, fontSize: FONT.sm, textAlign: 'center', paddingVertical: SPACING.md },
+  gcModalInputLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginTop: 6 },
+  gcModalInputRow: { flexDirection: 'row', gap: 8 },
+  gcModalInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.inputBg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.cardBorder, paddingHorizontal: 14 },
+  gcModalCurrency: { color: COLORS.textMuted, fontSize: FONT.md, fontWeight: '900' },
+  gcModalInput: { flex: 1, color: COLORS.text, fontSize: FONT.md, fontWeight: '800', paddingVertical: 12 },
+  gcModalSpendBtn: { paddingHorizontal: 24, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  gcModalSpendTxt: { color: '#fff', fontWeight: '900', fontSize: FONT.md },
+  gcModalHint: { color: COLORS.textMuted, fontSize: FONT.xs },
+  gcModalErr: { color: COLORS.red, fontSize: FONT.sm, fontWeight: '700', textAlign: 'center' },
+  gcModalResult: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(22,163,74,0.1)', borderRadius: RADIUS.md, padding: 12 },
+  gcModalResultTxt: { color: COLORS.green, fontSize: FONT.sm, fontWeight: '700', flex: 1 },
   container: { flex: 1, backgroundColor: COLORS.bg },
   loadWrap: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: SPACING.md, paddingBottom: 100 },

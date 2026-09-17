@@ -5,7 +5,7 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { CreditCard, UtensilsCrossed, Ticket, Coins, Loader2,
-                  Copy, Sparkles, ArrowLeft, X } from "lucide-react";
+                  Copy, Sparkles, ArrowLeft, X, Wallet as WalletIcon } from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
 // Phase AD.11 — wallet banner slot.
@@ -73,6 +73,22 @@ export default function WalletV2() {
   const cardClass = light
     ? "bg-white border border-slate-100 shadow-sm rounded-3xl"
     : "bg-slate-900 border border-slate-800 rounded-3xl";
+
+  // Gift-card checkout — reflect a spend in the list + open detail modal.
+  const applySpend = (giftCardId, remaining, status) => {
+    setData((prev) => prev ? {
+      ...prev,
+      gift_cards: (prev.gift_cards || []).map((g) =>
+        g.gift_card_id === giftCardId
+          ? { ...g, current_balance_cents: remaining, status: status || g.status }
+          : g),
+    } : prev);
+    setDetail((prev) => (prev && prev.type === "gift_card"
+      && prev.data.gift_card_id === giftCardId)
+      ? { ...prev, data: { ...prev.data, current_balance_cents: remaining,
+                                                status: status || prev.data.status } }
+      : prev);
+  };
 
   return (
     <div className={`${bgClass} p-4 sm:p-8`} data-testid="wallet-v2-page">
@@ -167,7 +183,7 @@ export default function WalletV2() {
       </div>
 
       {detail && (
-        <DetailModal light={light} detail={detail}
+        <DetailModal light={light} detail={detail} onSpent={applySpend}
                                 onClose={() => setDetail(null)}/>
       )}
     </div>
@@ -311,7 +327,7 @@ function MealCard({ m, light, onClick }) {
 }
 
 
-function DetailModal({ light, detail, onClose }) {
+function DetailModal({ light, detail, onClose, onSpent }) {
   const t = detail.type;
   const d = detail.data;
   return (
@@ -370,6 +386,9 @@ function DetailModal({ light, detail, onClose }) {
             <Row light={light} k="Status" v={d.status}/>
           </div>
         )}
+        {t === "gift_card" && (
+          <GiftCardSpend light={light} card={d} onSpent={onSpent}/>
+        )}
         {t === "prepaid_meal" && (
           <div className="space-y-1 text-sm">
             <Row light={light} k="Remaining" v={`${d.remaining_meals} of ${d.total_meals} meals`}/>
@@ -388,6 +407,90 @@ function Row({ light, k, v }) {
     <div className="flex justify-between py-1.5 text-sm border-b border-transparent">
       <span className={light ? "text-slate-500" : "text-slate-500"}>{k}</span>
       <span className={`font-semibold ${light ? "text-slate-900" : "text-white"}`}>{v}</span>
+    </div>
+  );
+}
+
+// Gift-card checkout — customer spends their won card at the counter.
+function GiftCardSpend({ light, card, onSpent }) {
+  const [amt, setAmt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [last, setLast] = useState(null);
+  const ccy = card.currency || "USD";
+  const depleted = card.status === "depleted" || (card.current_balance_cents || 0) <= 0;
+
+  const spend = async () => {
+    const cents = Math.round(parseFloat(amt || "0") * 100);
+    if (!cents || cents <= 0) { toast.error("Enter an amount to spend"); return; }
+    setBusy(true);
+    try {
+      const { data } = await axios.post(`${API}/games/gift-card/spend`,
+        { code: card.code, amount_cents: cents }, { withCredentials: true });
+      setLast(data);
+      setAmt("");
+      onSpent?.(card.gift_card_id, data.remaining_cents, data.status);
+      toast.success(`Charged ${FMT(data.charged_cents, ccy)}${
+        data.shortfall_cents > 0 ? " · card now empty" : ""}`);
+    } catch (e) {
+      const c = e?.response?.data?.detail?.code || e?.response?.data?.code;
+      toast.error(c === "depleted" ? "Card is empty"
+        : c === "not_your_card" ? "This isn't your card"
+        : c === "card_not_found" ? "Card not found"
+        : e?.response?.status === 401 ? "Please sign in" : "Spend failed");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className={`mt-4 rounded-2xl p-4 ${
+      light ? "bg-slate-50 border border-slate-100" : "bg-slate-800/50 border border-slate-800"}`}
+          data-testid="wallet-v2-gc-spend">
+      <div className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${
+        light ? "text-purple-600" : "text-cyan-400"}`}>
+        <WalletIcon className="inline mr-1" size={11}/> Spend at the counter
+      </div>
+      {depleted ? (
+        <div className={`text-sm ${light ? "text-slate-500" : "text-slate-400"}`}
+              data-testid="wallet-v2-gc-depleted">
+          This gift card has no balance left.
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-2 items-stretch">
+            <div className={`flex-1 flex items-center gap-1 rounded-xl px-3 ${
+              light ? "bg-white border border-slate-200" : "bg-slate-900 border border-slate-700"}`}>
+              <span className={`text-sm font-black ${light ? "text-slate-500" : "text-slate-400"}`}>
+                {ccy === "USD" ? "$" : ccy}
+              </span>
+              <input type="number" inputMode="decimal" min="0" step="0.01"
+                          value={amt} placeholder="0.00"
+                          onChange={(e) => setAmt(e.target.value)}
+                          data-testid="wallet-v2-gc-amount"
+                          className={`flex-1 bg-transparent py-2.5 text-sm font-bold outline-none ${
+                            light ? "text-slate-900" : "text-white"}`}/>
+            </div>
+            <button type="button" onClick={spend} disabled={busy}
+                          data-testid="wallet-v2-gc-spend-btn"
+                          className={`h-11 rounded-xl px-5 text-sm font-black disabled:opacity-60 ${
+                            light ? "bg-slate-900 text-white" : "bg-white text-slate-950"}`}>
+              {busy ? <Loader2 size={14} className="animate-spin"/> : "Spend"}
+            </button>
+          </div>
+          <div className={`text-[11px] mt-2 ${light ? "text-slate-500" : "text-slate-500"}`}>
+            Balance: {FMT(card.current_balance_cents, ccy)} · we charge up to what's left.
+          </div>
+        </>
+      )}
+      {last && (
+        <div className={`mt-3 rounded-xl p-3 text-sm ${
+          light ? "bg-emerald-50 text-emerald-800 border border-emerald-100"
+                  : "bg-emerald-500/10 text-emerald-300 border border-emerald-400/20"}`}
+              data-testid="wallet-v2-gc-result">
+          Charged <b>{FMT(last.charged_cents, ccy)}</b> · Remaining <b>{FMT(last.remaining_cents, ccy)}</b>
+          {last.shortfall_cents > 0 && (
+            <span> · {FMT(last.shortfall_cents, ccy)} still owed</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,14 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS } from '../src/constants/theme';
 
+const DEFAULT_MERCHANT = 'biz_fun_pizza_kitchen';
+const fmtUsd = (c: number) => '$' + ((c || 0) / 100).toFixed(2);
+const fmtTime = (iso?: string) => {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  catch { return ''; }
+};
+
 export default function ShopRedeemScreen() {
   const router = useRouter();
   const [code, setCode] = useState('');
@@ -16,7 +24,26 @@ export default function ShopRedeemScreen() {
   const [redeeming, setRedeeming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const [merchantId, setMerchantId] = useState(DEFAULT_MERCHANT);
+  const [history, setHistory] = useState<any>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyErr, setHistoryErr] = useState<string | null>(null);
+
   const reset = () => { setCode(''); setPin(''); setInfo(null); setNotFound(false); setMsg(null); };
+
+  const loadHistory = async () => {
+    if (!merchantId.trim()) { setHistoryErr('Enter a merchant id'); return; }
+    setHistoryLoading(true); setHistoryErr(null);
+    try {
+      const { data } = await api.get('/games/redemptions/today', {
+        params: { merchant_id: merchantId.trim(), pin: pin.trim() || undefined },
+      });
+      setHistory(data);
+    } catch (e: any) {
+      const c = e?.response?.data?.detail?.code || e?.response?.data?.code;
+      setHistoryErr(c === 'bad_pin' ? 'Wrong staff PIN' : 'Could not load history');
+    } finally { setHistoryLoading(false); }
+  };
 
   const lookup = async () => {
     if (!code.trim()) return;
@@ -140,6 +167,99 @@ export default function ShopRedeemScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Today's redemptions */}
+        <View style={s.card} testID="shop-redeem-history-card">
+          <View style={s.histHead}>
+            <View style={s.histHeadLeft}>
+              <Ionicons name="time-outline" size={15} color={COLORS.textMuted} />
+              <Text style={s.histHeadTxt}>TODAY'S REDEMPTIONS</Text>
+            </View>
+            <TouchableOpacity style={s.histRefresh} onPress={loadHistory} disabled={historyLoading} testID="shop-redeem-history-load">
+              {historyLoading
+                ? <ActivityIndicator size="small" color={COLORS.text} />
+                : <><Ionicons name="refresh" size={13} color={COLORS.text} /><Text style={s.histRefreshTxt}>Refresh</Text></>}
+            </TouchableOpacity>
+          </View>
+
+          <Text style={s.label}>MERCHANT</Text>
+          <TextInput
+            value={merchantId}
+            onChangeText={setMerchantId}
+            placeholder="biz_fun_pizza_kitchen"
+            placeholderTextColor={COLORS.textMuted}
+            autoCapitalize="none"
+            style={s.input}
+            testID="shop-redeem-history-merchant"
+          />
+          <Text style={s.label}>STAFF PIN</Text>
+          <TextInput
+            value={pin}
+            onChangeText={setPin}
+            placeholder="••••"
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={8}
+            style={[s.input, { textAlign: 'center', letterSpacing: 6 }]}
+            testID="shop-redeem-history-pin"
+          />
+          <Text style={s.histHint}>Defaults to Fun Pizza Kitchen · demo PIN 4242.</Text>
+
+          {historyErr && <Text style={s.msg}>{historyErr}</Text>}
+
+          {history && (
+            <View style={{ gap: SPACING.sm }} testID="shop-redeem-history">
+              <View style={s.totalsRow}>
+                <View style={s.totalBox} testID="history-total-coupons">
+                  <Text style={[s.totalNum, { color: '#10b981' }]}>{history.totals.coupons_count}</Text>
+                  <Text style={s.totalLabel}>Coupons</Text>
+                </View>
+                <View style={s.totalBox} testID="history-total-giftcards">
+                  <Text style={[s.totalNum, { color: COLORS.gold }]}>{history.totals.gift_cards_count}</Text>
+                  <Text style={s.totalLabel}>GC spends</Text>
+                </View>
+                <View style={s.totalBox} testID="history-total-spend">
+                  <Text style={[s.totalNum, { color: COLORS.text }]}>{fmtUsd(history.totals.gift_card_spend_cents)}</Text>
+                  <Text style={s.totalLabel}>GC total</Text>
+                </View>
+              </View>
+
+              {history.coupons.map((c: any) => (
+                <View key={c.code} style={s.histRow} testID={`history-coupon-${c.code}`}>
+                  <View style={[s.histIcon, { backgroundColor: '#10b98122' }]}>
+                    <Ionicons name="pricetag" size={15} color="#10b981" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={s.histTitle} numberOfLines={1}>{c.prize_title}</Text>
+                    <Text style={s.histSub}>{c.first_name} · {c.code}</Text>
+                  </View>
+                  <Text style={s.histTime}>{fmtTime(c.redeemed_at)}</Text>
+                </View>
+              ))}
+
+              {history.gift_cards.map((g: any, i: number) => (
+                <View key={`${g.code}-${i}`} style={s.histRow} testID={`history-gc-${g.code}`}>
+                  <View style={[s.histIcon, { backgroundColor: '#facc1522' }]}>
+                    <Ionicons name="gift" size={15} color="#facc15" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={s.histTitle} numberOfLines={1}>{g.first_name}</Text>
+                    <Text style={s.histSub}>{g.code}</Text>
+                  </View>
+                  <Text style={[s.histTime, { color: COLORS.gold, fontWeight: '900', fontSize: FONT.sm }]}>{fmtUsd(g.amount_cents)}</Text>
+                </View>
+              ))}
+
+              {history.coupons.length === 0 && history.gift_cards.length === 0 && (
+                <View style={s.histEmpty} testID="shop-redeem-history-empty">
+                  <Ionicons name="receipt-outline" size={22} color={COLORS.textMuted} />
+                  <Text style={s.histEmptyTxt}>Nothing redeemed yet today.</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -175,4 +295,21 @@ const s = StyleSheet.create({
   msg: { color: COLORS.textMuted, fontSize: FONT.sm, textAlign: 'center' },
   resetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 40, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.06)' },
   resetTxt: { color: COLORS.text, fontWeight: '700', fontSize: FONT.sm },
+  histHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  histHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  histHeadTxt: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1 },
+  histRefresh: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, height: 32, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.06)' },
+  histRefreshTxt: { color: COLORS.text, fontWeight: '700', fontSize: FONT.xs },
+  histHint: { color: COLORS.textMuted, fontSize: 10 },
+  totalsRow: { flexDirection: 'row', gap: 8 },
+  totalBox: { flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: RADIUS.md, paddingVertical: 12, alignItems: 'center' },
+  totalNum: { fontSize: 22, fontWeight: '900' },
+  totalLabel: { color: COLORS.textMuted, fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 },
+  histRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: RADIUS.md, padding: 10 },
+  histIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  histTitle: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  histSub: { color: COLORS.textMuted, fontSize: FONT.xs, marginTop: 2 },
+  histTime: { color: COLORS.textMuted, fontSize: FONT.xs },
+  histEmpty: { alignItems: 'center', gap: 8, paddingVertical: SPACING.lg },
+  histEmptyTxt: { color: COLORS.textMuted, fontSize: FONT.sm },
 });

@@ -5,9 +5,11 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
-import { Loader2, ScanLine, CheckCircle2, XCircle, Ticket, RefreshCcw, Gift } from "lucide-react";
+import { Loader2, ScanLine, CheckCircle2, XCircle, Ticket, RefreshCcw, Gift, History, Receipt } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
+const FMT_USD = (c) => `$${((c || 0) / 100).toFixed(2)}`;
+const DEFAULT_MERCHANT = "biz_fun_pizza_kitchen";
 
 export default function ShopRedeem() {
   const [code, setCode] = useState("");
@@ -17,7 +19,25 @@ export default function ShopRedeem() {
   const [loading, setLoading] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
 
+  const [merchantId, setMerchantId] = useState(DEFAULT_MERCHANT);
+  const [history, setHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const reset = () => { setCode(""); setPin(""); setInfo(null); setDone(false); };
+
+  const loadHistory = async () => {
+    if (!merchantId.trim()) { toast.error("Enter a merchant id"); return; }
+    setHistoryLoading(true);
+    try {
+      const { data } = await axios.get(`${API}/games/redemptions/today`, {
+        params: { merchant_id: merchantId.trim(), pin: pin.trim() || undefined },
+      });
+      setHistory(data);
+    } catch (e) {
+      const c = e?.response?.data?.detail?.code || e?.response?.data?.code;
+      toast.error(c === "bad_pin" ? "Wrong staff PIN" : "Could not load history");
+    } finally { setHistoryLoading(false); }
+  };
 
   const lookup = async (e) => {
     e?.preventDefault?.();
@@ -166,6 +186,127 @@ export default function ShopRedeem() {
                                       justify-center gap-1">
             <RefreshCcw size={13} /> Next code
           </button>
+        )}
+      </div>
+
+      {/* ── Today's redemptions (end-of-day totals) ── */}
+      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 space-y-4"
+                data-testid="shop-redeem-history-card">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <History size={12} /> Today's redemptions
+          </div>
+          <button type="button" onClick={loadHistory} disabled={historyLoading}
+                        data-testid="shop-redeem-history-load"
+                        className="px-3 h-8 rounded-full bg-slate-800 text-slate-100 text-xs font-bold
+                                      hover:bg-slate-700 disabled:opacity-50 inline-flex items-center gap-1">
+            {historyLoading
+              ? <Loader2 size={12} className="animate-spin" />
+              : <><RefreshCcw size={12} /> Refresh</>}
+          </button>
+        </div>
+
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-400">Merchant</span>
+          <input type="text" value={merchantId}
+                        onChange={(e) => setMerchantId(e.target.value)}
+                        data-testid="shop-redeem-history-merchant"
+                        placeholder="biz_fun_pizza_kitchen"
+                        className="w-full rounded-xl bg-white/[0.04] border border-white/10
+                                      px-3.5 py-2.5 text-xs font-mono
+                                      focus:outline-none focus:border-amber-400/60" />
+          <span className="text-[10px] text-slate-500">
+            Uses the staff PIN above · defaults to Fun Pizza Kitchen.
+          </span>
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-400">Staff PIN</span>
+          <input type="password" inputMode="numeric" value={pin} maxLength={8}
+                        onChange={(e) => setPin(e.target.value)}
+                        data-testid="shop-redeem-history-pin"
+                        placeholder="••••"
+                        className="w-full rounded-xl bg-white/[0.04] border border-white/10
+                                      px-3.5 py-2.5 text-sm tracking-[0.3em] text-center
+                                      focus:outline-none focus:border-amber-400/60" />
+        </label>
+
+        {history && (
+          <div className="space-y-4" data-testid="shop-redeem-history">
+            {/* Totals */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl bg-slate-800/60 p-3 text-center" data-testid="history-total-coupons">
+                <div className="text-2xl font-black text-emerald-300">{history.totals.coupons_count}</div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-widest">Coupons</div>
+              </div>
+              <div className="rounded-xl bg-slate-800/60 p-3 text-center" data-testid="history-total-giftcards">
+                <div className="text-2xl font-black text-amber-300">{history.totals.gift_cards_count}</div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-widest">GC spends</div>
+              </div>
+              <div className="rounded-xl bg-slate-800/60 p-3 text-center" data-testid="history-total-spend">
+                <div className="text-2xl font-black text-white">{FMT_USD(history.totals.gift_card_spend_cents)}</div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-widest">GC total</div>
+              </div>
+            </div>
+
+            {/* Coupon list */}
+            {history.coupons.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Ticket size={12} /> Coupons redeemed
+                </div>
+                {history.coupons.map((c) => (
+                  <div key={c.code} data-testid={`history-coupon-${c.code}`}
+                            className="flex items-center gap-3 rounded-xl bg-slate-800/40 p-3">
+                    <span className="w-8 h-8 rounded-lg grid place-items-center bg-emerald-400/10 text-emerald-300 flex-shrink-0">
+                      <Ticket size={15} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-white truncate">{c.prize_title}</div>
+                      <div className="text-[11px] text-slate-400">
+                        {c.first_name} · <span className="font-mono">{c.code}</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-500 whitespace-nowrap">
+                      {c.redeemed_at ? new Date(c.redeemed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Gift card spends */}
+            {history.gift_cards.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Gift size={12} /> Gift cards spent
+                </div>
+                {history.gift_cards.map((g, i) => (
+                  <div key={`${g.code}-${i}`} data-testid={`history-gc-${g.code}`}
+                            className="flex items-center gap-3 rounded-xl bg-slate-800/40 p-3">
+                    <span className="w-8 h-8 rounded-lg grid place-items-center bg-amber-400/10 text-amber-300 flex-shrink-0">
+                      <Gift size={15} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-white">{g.first_name}</div>
+                      <div className="text-[11px] text-slate-400 font-mono">{g.code}</div>
+                    </div>
+                    <div className="text-sm font-black text-amber-300 whitespace-nowrap">
+                      {FMT_USD(g.amount_cents)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {history.coupons.length === 0 && history.gift_cards.length === 0 && (
+              <div className="rounded-xl border border-slate-800 p-6 text-center text-sm text-slate-400"
+                        data-testid="shop-redeem-history-empty">
+                <Receipt size={22} className="mx-auto mb-2 text-slate-500" />
+                Nothing redeemed yet today.
+              </div>
+            )}
+          </div>
         )}
       </div>
 

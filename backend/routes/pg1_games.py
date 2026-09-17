@@ -550,6 +550,112 @@ async def game_coupon_redeem(body: GameCouponRedeemBody, request: Request):
                   **(await _game_coupon_view(db, cp))}
 
 
+# ─── Gift-card checkout — customer spends their won card ───────
+class GiftCardSpendBody(BaseModel):
+    code: str
+    amount_cents: int
+
+
+@router.post("/games/gift-card/spend",
+                          description="Spend a customer's own game-won gift card at checkout. "
+                                                  "Charges up to the remaining balance and returns the new balance.")
+async def gift_card_spend(body: GiftCardSpendBody, request: Request,
+                                                    user: dict = Depends(current_user)):
+    from datetime import datetime, timezone
+    from services import gift_card_service as _gcs
+    db = request.app.state.db
+    uid = user.get("user_id")
+    gc = await _gcs.lookup_by_code(db, code=body.code)
+    if not gc:
+        raise HTTPException(404, {"code": "card_not_found"})
+    if gc.get("owner_user_id") != uid:
+        raise HTTPException(403, {"code": "not_your_card"})
+    if gc.get("status") != "active":
+        raise HTTPException(409, {"code": gc.get("status") or "inactive"})
+    balance = int(gc.get("current_balance_cents") or 0)
+    if balance <= 0:
+        raise HTTPException(409, {"code": "depleted"})
+    amt = max(1, int(body.amount_cents or 0))
+    charged = min(amt, balance)
+    updated = await _gcs.decrement_balance(db, gift_card_id=gc["gift_card_id"],
+                                                                                amount_cents=charged)
+    await db.gift_card_txns.insert_one({
+        "gift_card_id": gc["gift_card_id"], "code": gc.get("code"),
+        "merchant_id": gc.get("merchant_id"), "owner_user_id": uid,
+        "amount_cents": charged, "type": "spend",
+        "created_at": datetime.now(timezone.utc)})
+    return {"ok": True, "charged_cents": charged,
+                  "remaining_cents": int(updated.get("current_balance_cents") or 0),
+                  "status": updated.get("status"),
+                  "shortfall_cents": max(0, amt - charged)}
+
+
+# ─── Shop redeem history — end-of-day totals for a business ────
+@router.get("/games/redemptions/today",
+                        description="Coupons redeemed + gift cards spent today at a business, "
+                                                "with totals. PIN-gated when the business sets one.")
+async def redemptions_today(request: Request, merchant_id: str = Query(...),
+                                                        pin: Optional[str] = None):
+    from datetime import datetime, timezone
+    db = request.app.state.db
+    biz = (await db.businesses.find_one({"business_id": merchant_id})
+                  or await db.businesses.find_one({"_id": merchant_id}))
+    required_pin = (biz or {}).get("redeem_pin")
+    if required_pin and str(pin or "") != str(required_pin):
+        raise HTTPException(403, {"code": "bad_pin"})
+
+    now = datetime.now(timezone.utc)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    coupon_rows = await db.coupons.find(
+        {"business_id": merchant_id, "status": "redeemed",
+          "redeemed_at": {"$gte": start}}).sort("redeemed_at", -1).limit(300).to_list(300)
+    gc_rows = await db.gift_card_txns.find(
+        {"merchant_id": merchant_id, "type": "spend",
+          "created_at": {"$gte": start}}).sort("created_at", -1).limit(300).to_list(300)
+
+    offer_ids = {c.get("offer_id") for c in coupon_rows if c.get("offer_id")}
+    offers = {}
+    if offer_ids:
+        async for o in db.offers.find(
+                {"$or": [{"offer_id": {"$in": list(offer_ids)}},
+                              {"id": {"$in": list(offer_ids)}}]}):
+            offers[o.get("offer_id") or o.get("id")] = o
+    uids = {c.get("user_id") for c in coupon_rows if c.get("user_id")}
+    uids |= {g.get("owner_user_id") for g in gc_rows if g.get("owner_user_id")}
+    users = {}
+    if uids:
+        async for u in db.users.find(
+                {"user_id": {"$in": list(uids)}},
+                {"user_id": 1, "first_name": 1, "name": 1, "display_name": 1, "email": 1}):
+            users[u.get("user_id")] = u
+
+    coupons = [{
+        "code":                    c.get("code"),
+        "first_name":        _first_name(users.get(c.get("user_id"))),
+        "prize_title":      (offers.get(c.get("offer_id")) or {}).get("title") or "Game reward",
+        "discount_percent": (offers.get(c.get("offer_id")) or {}).get("discount_percent"),
+        "redeemed_at":      _iso(c.get("redeemed_at")),
+    } for c in coupon_rows]
+    gift_cards = [{
+        "code":              g.get("code"),
+        "first_name":  _first_name(users.get(g.get("owner_user_id"))),
+        "amount_cents": int(g.get("amount_cents") or 0),
+        "at":                  _iso(g.get("created_at")),
+    } for g in gc_rows]
+
+    return {
+        "date":            start.date().isoformat(),
+        "coupons":      coupons,
+        "gift_cards":  gift_cards,
+        "totals": {
+            "coupons_count":              len(coupons),
+            "gift_cards_count":          len(gift_cards),
+            "gift_card_spend_cents": sum(g["amount_cents"] for g in gift_cards),
+        },
+    }
+
+
 
 # ─── Bootstrap ─────────────────────────────────────────────────
 async def ensure_pg1_indexes(db) -> None:

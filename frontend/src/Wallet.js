@@ -885,9 +885,14 @@ function ReferTab({ me }) {
 }
 
 
-// ── My Gift Cards — won in games; shows balance + code to spend ──
+// ── My Gift Cards — won in games; shows balance + code, spendable ──
 function MyGiftCardsSection() {
   const [cards, setCards] = useState([]);
+  const [openCode, setOpenCode] = useState(null);
+  const [amtStr, setAmtStr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState(null);
+
   useEffect(() => {
     let alive = true;
     axios.get(`${API}/wallet/me`)
@@ -895,42 +900,122 @@ function MyGiftCardsSection() {
       .catch(() => {});
     return () => { alive = false; };
   }, []);
-  if (!cards.length) return null;
+
   const fmt = (c, cur) => {
     const a = ((c || 0) / 100).toFixed(2);
     return (!cur || cur === "USD") ? `$${a}` : `${cur} ${a}`;
   };
+
+  const openCheckout = (g) => {
+    setOpenCode(g.code);
+    setAmtStr(((g.current_balance_cents || 0) / 100).toFixed(2));
+    setFlash(null);
+  };
+
+  const spend = async (g) => {
+    const cents = Math.round(parseFloat(amtStr || "0") * 100);
+    if (!cents || cents <= 0) return;
+    setBusy(true);
+    try {
+      const { data } = await axios.post(`${API}/games/gift-card/spend`,
+        { code: g.code, amount_cents: cents });
+      setCards((prev) => prev.map((c) => c.code === g.code
+        ? { ...c, current_balance_cents: data.remaining_cents } : c));
+      setFlash({ code: g.code, charged: data.charged_cents, remaining: data.remaining_cents });
+      if (data.remaining_cents <= 0) setOpenCode(null);
+    } catch (_e) {
+      setFlash({ code: g.code, error: "Payment failed" });
+    } finally { setBusy(false); }
+  };
+
+  if (!cards.length) return null;
+
   return (
     <section data-testid="wallet-my-giftcards" style={{ margin: "16px 0" }}>
       <h3 style={{ fontWeight: 900, fontSize: 15, margin: "0 0 8px" }}>My Gift Cards</h3>
       <div style={{ display: "grid", gap: 8 }}>
-        {cards.map((g) => (
-          <div key={g.code} data-testid="wallet-giftcard-row"
-                    style={{ display: "flex", alignItems: "center", gap: 12, padding: 12,
-                                  borderRadius: 16, background: "rgba(245,158,11,0.08)",
-                                  border: "1px solid rgba(245,158,11,0.35)" }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, display: "grid",
-                                  placeItems: "center", flexShrink: 0,
-                                  background: "linear-gradient(135deg,#F59E0B,#EC4899)" }}>
-              <Gift size={20} color="#fff" />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>{g.merchant_name || "Gift card"}</div>
-              <div data-testid="wallet-giftcard-code"
-                        style={{ fontFamily: "monospace", fontSize: 12, opacity: 0.7, letterSpacing: 1 }}>
-                {g.code}
+        {cards.map((g) => {
+          const depleted = (g.current_balance_cents || 0) <= 0;
+          const isOpen = openCode === g.code;
+          return (
+            <div key={g.code} data-testid="wallet-giftcard-row"
+                      style={{ padding: 12, borderRadius: 16, background: "rgba(245,158,11,0.08)",
+                                    border: "1px solid rgba(245,158,11,0.35)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, display: "grid",
+                                      placeItems: "center", flexShrink: 0,
+                                      background: "linear-gradient(135deg,#F59E0B,#EC4899)" }}>
+                  <Gift size={20} color="#fff" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>{g.merchant_name || "Gift card"}</div>
+                  <div data-testid="wallet-giftcard-code"
+                            style={{ fontFamily: "monospace", fontSize: 12, opacity: 0.7, letterSpacing: 1 }}>
+                    {g.code}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div data-testid="wallet-giftcard-balance"
+                            style={{ fontWeight: 900, color: depleted ? "#9ca3af" : "#F59E0B",
+                                          transition: "color .3s" }}>
+                    {fmt(g.current_balance_cents, g.currency)}
+                  </div>
+                  <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, opacity: 0.6 }}>
+                    balance
+                  </div>
+                </div>
+                {!depleted && !isOpen && (
+                  <button type="button" onClick={() => openCheckout(g)}
+                                data-testid="wallet-giftcard-spend"
+                                style={{ marginLeft: 8, padding: "8px 14px", borderRadius: 999, border: "none",
+                                              fontWeight: 900, fontSize: 12, cursor: "pointer",
+                                              background: "#F59E0B", color: "#0b0f24" }}>
+                    Spend
+                  </button>
+                )}
               </div>
+
+              {isOpen && (
+                <div data-testid="wallet-giftcard-checkout"
+                          style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed rgba(245,158,11,0.35)" }}>
+                  <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>
+                    Enter your bill amount to pay with this card:
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 900 }}>$</span>
+                    <input value={amtStr} onChange={(e) => setAmtStr(e.target.value)}
+                                inputMode="decimal" data-testid="wallet-giftcard-amount"
+                                style={{ width: 90, padding: "8px 10px", borderRadius: 10,
+                                              border: "1px solid rgba(0,0,0,0.15)", fontWeight: 800 }} />
+                    <button type="button" onClick={() => spend(g)} disabled={busy}
+                                  data-testid="wallet-giftcard-pay"
+                                  style={{ padding: "8px 16px", borderRadius: 999, border: "none",
+                                                fontWeight: 900, fontSize: 12, cursor: "pointer",
+                                                background: "#10b981", color: "#fff", opacity: busy ? 0.6 : 1 }}>
+                      {busy ? "Paying…" : "Pay"}
+                    </button>
+                    <button type="button" onClick={() => setOpenCode(null)}
+                                  style={{ padding: "8px 12px", borderRadius: 999, border: "none",
+                                                fontWeight: 700, fontSize: 12, cursor: "pointer",
+                                                background: "rgba(0,0,0,0.06)" }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {flash && flash.code === g.code && (
+                <div data-testid="wallet-giftcard-flash"
+                          style={{ marginTop: 8, fontSize: 12, fontWeight: 700,
+                                        color: flash.error ? "#ef4444" : "#10b981" }}>
+                  {flash.error
+                    ? flash.error
+                    : `Paid ${fmt(flash.charged, g.currency)} · balance now ${fmt(flash.remaining, g.currency)}`}
+                </div>
+              )}
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div data-testid="wallet-giftcard-balance" style={{ fontWeight: 900, color: "#F59E0B" }}>
-                {fmt(g.current_balance_cents, g.currency)}
-              </div>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, opacity: 0.6 }}>
-                balance
-              </div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

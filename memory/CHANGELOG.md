@@ -233,3 +233,14 @@ Report: `/app/test_reports/iteration_142.json` (+ pytest iter142.xml). Test side
 - Verified: iteration_143 backend 8/8 pytest, web flows pass; close-button fix re-verified (bar hides). Known minor: on first visit (before accepting cookies) the desktop cookie card can overlap the preview bar's right controls; self-resolves once cookies are accepted.
 - STILL PENDING: **Player Expand** (tap player → full now-playing screen w/ lyrics + up-next) — not started.
 Report: `/app/test_reports/iteration_143.json`.
+
+## 2026-09-17 — Gift Card Checkout + Shop Redeem History UI (iter151, web+mobile+backend ALL PASS)
+- **Gift Card Checkout** (spend a game-won gift card at the counter): consumes existing `POST /api/games/gift-card/spend` (auth; body `{code, amount_cents}`; charges up to remaining balance, returns `charged_cents`/`remaining_cents`/`shortfall_cents`/`status`).
+  - Web `WalletV2.jsx`: new `GiftCardSpend` block inside the gift-card detail modal (testids `wallet-v2-gc-spend`, `wallet-v2-gc-amount`, `wallet-v2-gc-spend-btn`, `wallet-v2-gc-result`, `wallet-v2-gc-depleted`); live-updates card balance in list + modal via `applySpend`.
+  - Mobile `app/(tabs)/wallet.tsx`: gift-card rows now tappable → `GiftCardSpendModal` bottom sheet (scrollable) with amount input + spend (testids `wallet-gc-spend-modal`, `wallet-gc-spend-amount`, `wallet-gc-spend-btn`, `wallet-gc-spend-result`, `wallet-gc-spend-balance`).
+- **Shop Redeem History** (today's totals for end-of-day): consumes existing `GET /api/games/redemptions/today?merchant_id=&pin=` (PIN-gated). Returns coupons redeemed + gift-card spends today + totals (`coupons_count`, `gift_cards_count`, `gift_card_spend_cents`).
+  - Web `ShopRedeem.jsx`: "Today's redemptions" card below the redeem form — editable merchant field (default `biz_fun_pizza_kitchen`) + shared staff PIN input + totals grid + coupon/GC rows (testids `shop-redeem-history-card`, `-merchant`, `-pin`, `-load`, `shop-redeem-history`, `history-total-*`).
+  - Mobile `app/shop-redeem.tsx`: same "Today's redemptions" section with merchant + shared PIN + totals + rows.
+- User choices honoured: merchant defaults to Fun Pizza Kitchen but is editable; one shared staff PIN (demo `4242`); tested on both web + mobile.
+- Verified: testing agent iter151 ALL PASS — backend 9/9 pytest (`/app/backend/tests/test_iter151_giftcard_spend_history.py`), web spend $2.50→remaining $7.50 + overspend→depleted+shortfall, web history totals (bad PIN 0000→403), mobile spend $1.25→$8.75 live, parity confirmed. Report: `/app/test_reports/iteration_151.json`.
+- Note: backend logic was pre-built in a prior session; this work wired the four frontends only. Demo user gift card left at $8.75 active after testing.

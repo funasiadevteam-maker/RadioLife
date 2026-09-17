@@ -1,0 +1,42 @@
+{
+  "summary": "Iter151 — E2E verification of Gift-Card Checkout + Shop-Redeem History on WEB + MOBILE against shared backend. All 9 pytest cases in test_iter151_giftcard_spend_history.py PASS: POST /api/games/gift-card/spend (unauth=401, small charge persists via GET /api/wallet/me, overspend returns shortfall+depletes card, spend-on-depleted rejects with code:depleted, bad code=404); GET /api/games/redemptions/today (bad pin=403, missing pin=403, valid pin=200 with totals/coupons/gift_cards shape, reflects same-day spends). WEB /wallet-v2: logged in as demo@bigfm.dubai, opened wallet-v2-giftcard-* → wallet-v2-gc-spend visible, entered 2.50 → wallet-v2-gc-result shows 'Charged 2.50 USD · Remaining 7.50 USD', balance in modal + card row updated to 7.50 USD live. Overspend 50.00 → 'Charged 7.50 USD · Remaining 0.00 USD · 42.50 USD still owed' and wallet-v2-gc-depleted marker appears (status flipped to depleted). WEB /shop/redeem: shop-redeem-history-merchant prefilled with biz_fun_pizza_kitchen, bad PIN 0000 → 403 + 'Wrong staff PIN' toast + history stays hidden (0 nodes), PIN 4242 → shop-redeem-history renders with history-total-coupons=8, history-total-giftcards=5, history-total-spend=$20.00 (includes both our test spends), coupon and GC rows present. MOBILE /wallet (Expo web preview at expo. host, demo-login-btn login): wallet-giftcards section shows Fun Pizza Kitchen BIGFM-GC-63SJ6T $10.00 → tapped wallet-giftcard-row → wallet-gc-spend-modal opened as bottom-sheet with BALANCE=$10.00; entered 1.25 into wallet-gc-spend-amount → wallet-gc-spend-btn → wallet-gc-spend-result 'Charged $1.25 · $8.75 left' + wallet-gc-spend-balance updated to $8.75 live + underlying card row also $8.75. MOBILE /shop-redeem: shop-redeem-history-card renders with merchant prefilled, PIN 4242 → shop-redeem-history totals + rows verified in prior iter150 (unchanged wiring). Parity: web + mobile hit same shared endpoints with equivalent state transitions; only cosmetic difference is web spend UI is inline in the detail modal while mobile uses a dedicated bottom-sheet with a large balance card — functionally equivalent.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "wallet gc-spend-modal", "issues": ["Spend button can fall outside viewport on shorter phones because the modal is a bottom sheet with balance box + input + hint + result stacked. Playwright required dispatch_event('click') at 390x844 because the button rendered below the fold; a real user would need to scroll inside the sheet. Consider making the modal ScrollView-wrapped or reducing balance-box padding on <700px devices."]}
+      ],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter151_giftcard_spend_history.py",
+    "/app/test_reports/pytest/iter151.xml"
+  ],
+  "action_items": [
+    "OPTIONAL (mobile only): wrap the gift-card spend modal (wallet-gc-spend-modal) in a ScrollView or reduce top padding — on 390x844 the wallet-gc-spend-btn renders below the fold and required dispatch_event('click') in tests.",
+    "OPTIONAL: the shortfall UX on web says '42.50 USD still owed' which is correct but may confuse cashiers into thinking the platform will still charge — consider rephrasing as 'Customer owes 42.50 USD at counter'.",
+    "OPTIONAL: default merchant field on web /shop/redeem is editable per user's requirement (Fun Pizza Kitchen default confirmed). Mobile also editable — parity ✓."
+  ],
+  "critical_code_review_comments": [
+    "Both WalletV2.jsx GiftCardSpend and mobile GiftCardSpendModal share duplicated error-mapping logic (depleted/not_your_card/card_not_found). Consider extracting into a shared /src/utils error map to keep messages consistent when new backend codes are added.",
+    "ShopRedeem.jsx (web) uses the same `pin` state for both the coupon-redemption inline PIN input AND the history PIN input. Typing a PIN into the history box will silently affect a subsequent coupon redemption on the same page (and vice versa). Consider separate state or explicit labels; low risk today because the redeem flow shows the PIN input again after Check.",
+    "Backend /api/games/gift-card/spend returns HTTP 200 with charged_cents==0 semantics on depleted (currently returns 400/409 per test) — good; but ensure the spec is documented. My test asserted 400/409/422 to be lenient."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter151_giftcard_spend_history.py (new, 9 tests, all pass)",
+    "/app/test_reports/pytest/iter151.xml"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (web spend + shop history + mobile spend all verified; mobile history unchanged from iter150 verified passing)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (web cookie login + mobile demo-login-btn). Gift card BIGFM-GC-63SJ6T. Fun Pizza staff PIN 4242. Merchant biz_fun_pizza_kitchen.",
+  "seed_data_creation": "Test suite spent the demo user's $10 gift card to zero (charged 50c + rest via overspend), then reset to $10 active for UI testing, then spent 2.50 + 7.50 via web + 1.25 via mobile. Final state: BIGFM-GC-63SJ6T is at $8.75 with status=active on the mobile device (last op) — reset again if needed via `db.user_gift_cards.updateOne({code:'BIGFM-GC-63SJ6T'}, {\\$set:{current_balance_cents:1000,status:'active'}, \\$unset:{depleted_at:''}})`.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_iter151_giftcard_spend_history.py. Gotchas: (1) Web login redirects to '/' regardless of ?next= — after login navigate explicitly to /wallet-v2. (2) Mobile Expo preview needs demo-login-btn tap; the wallet tab is NOT in bottom nav (Home/Listen/Shop/Play/Social), navigate directly to /wallet. (3) The mobile spend button (wallet-gc-spend-btn) may render below viewport fold on 390x844 — use dispatch_event('click') or viewport 390x900+. (4) demo user's gift card is depleted after full test run; reset current_balance_cents to 1000 before re-running UI tests. (5) `pin` state is shared between the redeem-flow PIN box and the history PIN box on web /shop/redeem — clear it if switching modes. (6) Backend history endpoint returns totals + coupons[] + gift_cards[] rows; totals reflect same-day activity for the merchant.",
+  "rca of the issue": ""
+}
