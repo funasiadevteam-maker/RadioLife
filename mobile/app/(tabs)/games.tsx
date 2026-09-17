@@ -7,6 +7,8 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import AdBanner from '../../src/components/AdBanner';
+import SafeImage from '../../src/components/SafeImage';
+import { gameArtFor } from '../../src/constants/gameArt';
 import { fetchPlayAndWin, HOUSE_CAMPAIGNS } from '../../src/api/gamesApi';
 import useBigCoinStore from '../../src/stores/useBigCoinStore';
 import api from '../../src/api/client';
@@ -222,7 +224,7 @@ export default function GamesHub() {
           </View>
           <View style={s.featuredContent}>
             <View style={s.featuredIconWrap}>
-              <Ionicons name="aperture" size={36} color="#fff" />
+              <SafeImage uri={gameArtFor('spin')} fallbackText={featured?.title || 'Spin'} size={64} borderRadius={20} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.featuredTitle}>{featured?.title || 'Spin the Wheel'}</Text>
@@ -263,8 +265,8 @@ export default function GamesHub() {
               activeOpacity={0.85}
               testID={`quick-game-${g.id}`}
             >
-              <View style={[s.quickIconWrap, { backgroundColor: `${g.color}18` }]}>
-                <Ionicons name={g.icon as any} size={26} color={g.color} />
+              <View style={s.quickIconWrap}>
+                <SafeImage uri={gameArtFor(g.id)} fallbackText={g.label} size={52} borderRadius={16} />
               </View>
               <Text style={s.quickLabel} numberOfLines={1}>{g.label}</Text>
               <Text style={s.quickDesc} numberOfLines={2}>{g.desc}</Text>
@@ -281,7 +283,7 @@ export default function GamesHub() {
           testID="trivia-hub-card"
         >
           <View style={s.triviaIconWrap}>
-            <Ionicons name="bulb" size={28} color="#f59e0b" />
+            <SafeImage uri={gameArtFor('trivia')} fallbackText="Trivia" size={52} borderRadius={16} />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={s.predictTitle}>Trivia Challenge</Text>
@@ -321,7 +323,7 @@ export default function GamesHub() {
           testID="predict-win-card"
         >
           <View style={s.predictIconWrap}>
-            <Ionicons name="trophy" size={28} color="#f59e0b" />
+            <SafeImage uri={gameArtFor('predict')} fallbackText="Predict" size={52} borderRadius={16} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.predictTitle}>Predict & Win</Text>
@@ -350,8 +352,8 @@ export default function GamesHub() {
                     activeOpacity={0.85}
                     testID={`game-card-${g.campaign_id}`}
                   >
-                    <View style={[s.campaignIconWrap, { backgroundColor: `${meta.color}18` }]}>
-                      <Ionicons name={meta.icon as any} size={22} color={meta.color} />
+                    <View style={s.campaignIconWrap}>
+                      <SafeImage uri={gameArtFor(g.template_id, meta.label)} fallbackText={g.title} size={44} borderRadius={12} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[s.campaignType, { color: meta.color }]}>{meta.label}</Text>

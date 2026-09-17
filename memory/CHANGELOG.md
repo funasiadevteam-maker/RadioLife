@@ -2,6 +2,15 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — Language chips + admin restore + Sponsored Play + game art (web + mobile + backend)
+Four features on top of the radio language policy:
+- **Browse language chips** — `GET /api/radio/browse` gained a `lang_group` param (All·English·Hindi·Indian Languages·News) with robust grouping over the messy `language` field + `language_codes` + country/news signals. Web `RadioBrowse.jsx` and mobile `DiscoverBrowse.tsx` render the chip row (mobile replaced the old facet-language row). Verified: total flips 1,756 → 127 (Hindi) → 453 (News).
+- **Admin restore controls** — new admin endpoints in `admin_radio_import.py`: `GET /hidden-summary`, `GET /hidden-stations`, `POST /restore` (scope station|country|language|all), `POST /station/{id}/set-active`. New web page `/admin/radio-language` (linked from Admin home) shows hidden/active counts, by-country & by-language restore chips, and a searchable per-station Enable list. Reversible (`lang_hidden` marker).
+- **Sponsored Play on Home** — reuses the existing `promoted_stations` system (auto-seeds a demo sponsored station). One "Sponsored" station card pinned first in the home live rail on web (`public-sponsored`) and mobile Listen tab (`listen-sponsored`), with impression on view + click tracking.
+- **Game art** — generated 10 branded AI covers (spin/scratch/trivia/lyric/predict/quiz/slots/memory/word/mystery), stored in `frontend/src/assets/gameArt.js` + `mobile/src/constants/gameArt.ts` with a `gameArtFor()` alias resolver. Wired into web PlayDiscover + GamingRadioLife and the mobile games hub (featured/quick/trivia/predict/campaign cards). (Web `/play` shows art once merchant campaigns exist — currently 0, so it shows the empty state; mobile hub shows house-game art now.)
+- Tested: 17/17 backend pytest pass (`test_iter147_language_sponsored.py`) + web & mobile UI verified. Files: `routes/radio_unified.py`, `routes/admin_radio_import.py`, `RadioBrowse.jsx`, `PublicHomeNewLookV2.jsx`, `pages/admin/AdminRadioLanguage.jsx`, `PlayDiscover.jsx`, `GamingRadioLife.jsx`, `App.js`, `AdminHome.jsx`, `mobile/src/components/DiscoverBrowse.tsx`, `mobile/app/(tabs)/games.tsx`, `mobile/app/(tabs)/listen.tsx`, plus the two gameArt modules.
+
+
 ## 2026-09-17 — System-wide radio language/region keep-policy (backend)
 Disabled all non-Hindi/English radio stations system-wide and off the homepage, per user scope.
 - New `apply_language_policy(db)` in `services/radio_policy.py`: hides every active `imported_radio_stations` doc that is NOT English/Hindi/an Indian language, NOT a news station, and NOT from US/UAE/UK/India; branded flagship stations (`flagship_slug`) always kept. Reversible — only sets `active: False` + `lang_hidden: True`, never re-activates.

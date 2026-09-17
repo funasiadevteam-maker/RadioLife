@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from auth import require_admin
 from services.radio_browser_import import (
@@ -148,3 +149,128 @@ async def admin_health_check(station_id: str, request: Request,
         {"$set": {"stream_health_status": status,
                           "last_health_check_at": datetime.utcnow()}})
     return {"ok": True, "station_id": station_id, "status": status}
+
+
+
+# ─────────────── Language-policy restore controls ───────────────
+# Stations hidden by the Hindi/English/Indian/news/US-UAE-UK language
+# policy carry `lang_hidden: True`. These admin endpoints let an admin
+# see what's hidden and re-enable a single station or a whole
+# language / country group.
+
+@router.get("/hidden-summary",
+            description="Counts of stations hidden by the language policy, "
+                        "broken down by country and language.")
+async def hidden_summary(request: Request, _admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    coll = db.imported_radio_stations
+    total_hidden = await coll.count_documents({"lang_hidden": True})
+    total_active = await coll.count_documents({"active": True})
+
+    async def _top(field: str, limit: int = 40):
+        cur = coll.aggregate([
+            {"$match": {"lang_hidden": True}},
+            {"$group": {"_id": f"${field}", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": limit},
+        ])
+        return [{"value": r["_id"], "count": r["count"]}
+                async for r in cur if r["_id"]]
+
+    return {
+        "total_hidden": total_hidden,
+        "total_active": total_active,
+        "by_country": await _top("country_code"),
+        "by_language": await _top("language"),
+    }
+
+
+@router.get("/hidden-stations",
+            description="Paginated list of stations hidden by the language policy.")
+async def hidden_stations(request: Request, _admin: dict = Depends(require_admin),
+                          q: Optional[str] = None,
+                          country: Optional[str] = None,
+                          language: Optional[str] = None,
+                          page: int = 1, limit: int = 30):
+    db = request.app.state.db
+    coll = db.imported_radio_stations
+    query: dict = {"lang_hidden": True}
+    if country:
+        query["country_code"] = country.upper()
+    if language:
+        query["language"] = language.lower()
+    if q:
+        query["name"] = {"$regex": q, "$options": "i"}
+    total = await coll.count_documents(query)
+    skip = max(0, (page - 1)) * limit
+    items = []
+    cur = coll.find(query, {"id": 1, "name": 1, "country_code": 1,
+                            "language": 1, "favicon": 1}).sort(
+        [("name", 1)]).skip(skip).limit(limit)
+    async for s in cur:
+        items.append({"id": s.get("id"), "name": s.get("name"),
+                      "country_code": s.get("country_code"),
+                      "language": s.get("language"), "favicon": s.get("favicon")})
+    return {"items": items, "total": total, "page": page, "limit": limit}
+
+
+class RestoreBody(BaseModel):
+    scope: str                       # "station" | "country" | "language" | "all"
+    value: Optional[str] = None
+
+
+@router.post("/restore",
+             description="Re-enable stations hidden by the language policy. "
+                         "scope=station|country|language|all.")
+async def restore_hidden(body: RestoreBody, request: Request,
+                         _admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    coll = db.imported_radio_stations
+    scope = (body.scope or "").strip().lower()
+    query: dict = {"lang_hidden": True}
+    if scope == "station":
+        if not body.value:
+            raise HTTPException(400, {"code": "value_required"})
+        query["id"] = body.value
+    elif scope == "country":
+        if not body.value:
+            raise HTTPException(400, {"code": "value_required"})
+        query["country_code"] = body.value.upper()
+    elif scope == "language":
+        if not body.value:
+            raise HTTPException(400, {"code": "value_required"})
+        query["language"] = body.value.lower()
+    elif scope == "all":
+        pass
+    else:
+        raise HTTPException(400, {"code": "invalid_scope"})
+    res = await coll.update_many(
+        query, {"$set": {"active": True, "updated_at": datetime.utcnow()},
+                "$unset": {"lang_hidden": ""}})
+    return {"ok": True, "restored": res.modified_count, "scope": scope,
+            "value": body.value}
+
+
+class SetActiveBody(BaseModel):
+    active: bool
+
+
+@router.post("/station/{station_id}/set-active",
+             description="Toggle a single imported station on/off. Turning it "
+                         "off marks it lang_hidden so it stays reversible.")
+async def set_station_active(station_id: str, body: SetActiveBody,
+                             request: Request,
+                             _admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    coll = db.imported_radio_stations
+    s = await coll.find_one({"id": station_id})
+    if not s:
+        raise HTTPException(404, {"code": "station_not_found"})
+    if body.active:
+        update = {"$set": {"active": True, "updated_at": datetime.utcnow()},
+                  "$unset": {"lang_hidden": ""}}
+    else:
+        update = {"$set": {"active": False, "lang_hidden": True,
+                           "updated_at": datetime.utcnow()}}
+    await coll.update_one({"id": station_id}, update)
+    return {"ok": True, "station_id": station_id, "active": body.active}

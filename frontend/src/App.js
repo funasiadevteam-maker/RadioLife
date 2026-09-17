@@ -305,6 +305,7 @@ import AppShellV2 from "@/design_v2/AppShellV2";
 import HomeNewLookV2 from "@/design_v2/HomeNewLookV2";
 import PublicHomeNewLookV2 from "@/design_v2/PublicHomeNewLookV2";
 import AdminSkipRules from "@/pages/admin/AdminSkipRules";
+import AdminRadioLanguage from "@/pages/admin/AdminRadioLanguage";
 import AdminAdPacing from "@/pages/admin/AdminAdPacing";  // Phase COMPANION.1 — audio-ad pacing panel
 import AdminAdRevenueReport from "@/pages/admin/AdminAdRevenueReport";  // Phase COMPANION.1 — Home ad revenue report
 import AdminRailAds from "@/pages/admin/AdminRailAds";  // V2 — right-rail banner moderation
@@ -728,6 +729,9 @@ function AppRouter() {
       } />
       <Route path="/admin/radio-settings" element={
         <ProtectedRoute requireAdmin><AdminSkipRules /></ProtectedRoute>
+      } />
+      <Route path="/admin/radio-language" element={
+        <ProtectedRoute requireAdmin><AdminRadioLanguage /></ProtectedRoute>
       } />
       <Route path="/admin/imaging/:station/assets" element={
         <ProtectedRoute requireAdmin><AdminImagingAssets /></ProtectedRoute>

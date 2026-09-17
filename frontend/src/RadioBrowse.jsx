@@ -34,6 +34,14 @@ const SOURCE_BADGE = {
 const LANG_OPTIONS = ["", "english", "hindi", "spanish", "arabic", "german",
                                       "french", "russian", "italian", "polish", "portuguese"];
 
+const LANG_GROUPS = [
+  { key: "", label: "All" },
+  { key: "english", label: "English" },
+  { key: "hindi", label: "Hindi" },
+  { key: "indian", label: "Indian Languages" },
+  { key: "news", label: "News" },
+];
+
 const COUNTRY_OPTIONS = ["", "US", "GB", "IN", "DE", "FR", "AE", "RU", "IT",
                                               "ES", "MX", "TR", "BR", "PL", "JP", "AR"];
 
@@ -182,6 +190,7 @@ export default function RadioBrowse() {
     language:  searchParams.get("language") || "",
     country:    searchParams.get("country") || "",
     genre:      searchParams.get("genre") || "",
+    lang_group: searchParams.get("lang_group") || "",
     source:      searchParams.get("source") || "all",
   }), [searchParams]);
 
@@ -203,6 +212,7 @@ export default function RadioBrowse() {
       if (filters.language) params.language = filters.language;
       if (filters.country) params.country = filters.country;
       if (filters.genre) params.genre = filters.genre;
+      if (filters.lang_group) params.lang_group = filters.lang_group;
       const r = await axios.get(`${API}/radio/browse`, { params });
       setMeta({ total: r.data.total, page: r.data.page, limit: r.data.limit });
       setCounts(r.data.counts_by_source || {});
@@ -264,7 +274,7 @@ export default function RadioBrowse() {
   const activeFilters =
     (filters.q ? 1 : 0) + (filters.category ? 1 : 0)
     + (filters.language ? 1 : 0) + (filters.country ? 1 : 0)
-    + (filters.genre ? 1 : 0)
+    + (filters.genre ? 1 : 0) + (filters.lang_group ? 1 : 0)
     + (filters.source !== "all" ? 1 : 0);
   const hasMore = items.length < meta.total;
 
@@ -290,6 +300,27 @@ export default function RadioBrowse() {
               : "Use the filters below to find stations across all sources."}
           </p>
         </div>
+      </div>
+
+      {/* Language group chips — flip between English · Hindi · Indian · News */}
+      <div data-testid="radio-browse-lang-groups"
+                className="flex flex-wrap items-center gap-2 mb-4">
+        {LANG_GROUPS.map((lg) => {
+          const active = filters.lang_group === lg.key;
+          return (
+            <button
+              key={lg.key || "all"}
+              type="button"
+              onClick={() => updateFilter("lang_group", lg.key)}
+              data-testid={`radio-browse-lang-group-${lg.key || "all"}`}
+              className={`px-4 h-9 rounded-full text-sm font-semibold border transition-colors
+                              ${active
+                                ? "bg-cyan-400 text-slate-950 border-cyan-400"
+                                : "bg-white/[0.04] text-white/70 border-white/[0.10] hover:bg-white/[0.08] hover:text-white"}`}>
+              {lg.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter bar */}

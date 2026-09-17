@@ -50,6 +50,14 @@ function flagEmoji(cc: string) {
 type Chip = { slug: string; label: string; count?: number };
 type Station = SavedStation;
 
+const LANG_GROUPS: { key: string; label: string }[] = [
+  { key: '', label: 'All' },
+  { key: 'english', label: 'English' },
+  { key: 'hindi', label: 'Hindi' },
+  { key: 'indian', label: 'Indian Languages' },
+  { key: 'news', label: 'News' },
+];
+
 function PulseDot({ color = '#fff' }: { color?: string }) {
   const a = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
@@ -116,10 +124,9 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
   const activeChannel = usePlayerStore((s) => s.activeChannel);
   const playing = usePlayerStore((s) => s.playing);
 
-  const [langs, setLangs] = useState<Chip[]>([]);
   const [genres, setGenres] = useState<Chip[]>([]);
   const [countries, setCountries] = useState<Chip[]>([]);
-  const [lang, setLang] = useState('');
+  const [langGroup, setLangGroup] = useState('');
   const [genre, setGenre] = useState('');
   const [country, setCountry] = useState('');
   const [sort, setSort] = useState('popular');
@@ -140,7 +147,7 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
         const raw = await AsyncStorage.getItem(FILTERS_KEY);
         if (raw) {
           const s = JSON.parse(raw);
-          if (s.lang) setLang(s.lang);
+          if (s.langGroup) setLangGroup(s.langGroup);
           if (s.genre) setGenre(s.genre);
           if (s.country) setCountry(s.country);
           if (s.sort) setSort(s.sort);
@@ -157,7 +164,6 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
         const { data } = await api.get('/radio/discover');
         const rails: Record<string, any> = {};
         (data?.rails || []).forEach((r: any) => { rails[r.id] = r; });
-        setLangs((rails.languages?.facet_chips || []).slice(0, 12));
         setGenres((rails.genres?.facet_chips || []).slice(0, 12));
         setCountries((rails.countries?.facet_chips || []).slice(0, 20));
       } catch { /* filters optional */ }
@@ -173,8 +179,8 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
   // Persist filter choices.
   useEffect(() => {
     if (!restored.current) return;
-    AsyncStorage.setItem(FILTERS_KEY, JSON.stringify({ lang, genre, country, sort })).catch(() => {});
-  }, [lang, genre, country, sort]);
+    AsyncStorage.setItem(FILTERS_KEY, JSON.stringify({ langGroup, genre, country, sort })).catch(() => {});
+  }, [langGroup, genre, country, sort]);
 
   // Fetch top-played stations whenever a filter / search / sort changes.
   useEffect(() => {
@@ -183,7 +189,7 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
       setLoading(true);
       try {
         const params: any = { source: 'imported', limit: 24, sort };
-        if (lang) params.language = lang;
+        if (langGroup) params.lang_group = langGroup;
         if (genre) params.category = genre;
         if (country) params.country = country;
         if (q) params.q = q;
@@ -193,7 +199,7 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [lang, genre, country, q, sort]);
+  }, [langGroup, genre, country, q, sort]);
 
   const play = useCallback((st: Station) => { playImportedStation(st, router); }, [router]);
   const toFav = (st: Station) => toggleFavorite({
@@ -257,18 +263,15 @@ export default function DiscoverBrowse({ prefix = 'radio-browse' }: { prefix?: s
         )}
       </View>
 
-      {/* Language filter */}
-      {langs.length > 0 && (
-        <View style={c.filterLine}>
-          <View style={c.filterIcon}><Ionicons name="language" size={13} color={COLORS.primary} /></View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.chipRow} testID={`${prefix}-lang-chips`}>
-            <Filter active={!lang} label="All" onPress={() => setLang('')} testID={`${prefix}-lang-all`} />
-            {langs.map((l) => (
-              <Filter key={l.slug} active={lang === l.slug} label={l.label} onPress={() => setLang(l.slug)} testID={`${prefix}-lang-${l.slug}`} />
-            ))}
-          </ScrollView>
-        </View>
-      )}
+      {/* Language group filter — English · Hindi · Indian · News */}
+      <View style={c.filterLine}>
+        <View style={c.filterIcon}><Ionicons name="language" size={13} color={COLORS.primary} /></View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.chipRow} testID={`${prefix}-lang-chips`}>
+          {LANG_GROUPS.map((g) => (
+            <Filter key={g.key || 'all'} active={langGroup === g.key} label={g.label} onPress={() => setLangGroup(g.key)} testID={`${prefix}-lang-${g.key || 'all'}`} />
+          ))}
+        </ScrollView>
+      </View>
 
       {/* Genre filter */}
       {genres.length > 0 && (

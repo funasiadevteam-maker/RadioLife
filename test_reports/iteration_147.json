@@ -1,0 +1,35 @@
+{
+  "summary": "Iter147 — Full-stack regression on the 4 RadioLife enhancements (language chip filter, admin restore panel, sponsored Play slot, better game art). 17/17 pytest cases PASS. Web + Mobile UI verified. Backend: /api/radio/browse `lang_group` filter reduces totals correctly (baseline=1756 imported; english/hindi/indian/news each strictly smaller than baseline; hindi=127 on `source=imported`, news=453 on `source=all` visible in the UI); `lang_group=all` behaves as a no-op equal to no filter. Admin: /api/admin/radio-import/hidden-summary returns total_hidden=3578, total_active=1742, by_country[] and by_language[] with {value,count}; hidden-stations?country=DE returns only DE rows; hidden-stations?q=radio ok; anon 401 on hidden-summary; restore scope=country value=ZZ returned restored:0 (SAFE no-op); invalid scope 400; reversible single-station toggle (set-active true → set-active false) leaves data as found. Promoted: /api/promoted/stations?limit=1 auto-seeds and returns Talk 100.3 UAE with promo_id + is_sponsored=true + sponsor_name; /api/promoted/{promo_id}/impression and /click both return ok:true. Web UI: /radio/browse renders all 5 chip data-testids (radio-browse-lang-group-all/english/hindi/indian/news); header total flips 1,756→127 on Hindi, 453 on News. Home '/' shows [data-testid=public-sponsored] pinned FIRST in the 'Tune in this second' rail with a SPONSORED badge on Talk 100.3 UAE (position x=372 = first column). /admin/radio-language (admin cookie) shows Hidden 3,578 / Active 1,742 stat cards, By Country chips (DE 392, RU 262, FR 203...), By Language chips (German 330, Spanish 298, French 226...), a searchable hidden-stations list with per-station Enable buttons, and a 'Re-enable all hidden' bulk button. Mobile UI: /games renders 5+ branded 1024x1024 game cover images (Featured Spin the Wheel + Quick Games Spin & Win/Music Trivia/Guess the Lyric + Trivia Challenge + Predict). /listen shows [data-testid=listen-sponsored] at the top with SPONSORED badge on Talk 100.3 UAE. /radio (after demo-login-btn) renders DiscoverBrowse chip row with all 5 testIDs radio-browse-lang-all/english/hindi/indian/news; Hindi chip highlights after tap (filter dispatch works; visible card count stays at 24 because both All and Hindi have >24 results paginated with limit=24 — backend already verified the filter works with hindi=127). No red-screen, no critical console errors (401s are the expected unauth pings from ad/personalization endpoints).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter147_language_sponsored.py",
+    "/app/test_reports/pytest/iter147.xml"
+  ],
+  "action_items": [
+    "None — all 4 features (language chips, admin restore panel, sponsored slot, game art) work on both web and mobile."
+  ],
+  "critical_code_review_comments": [
+    "radio_unified._merge_lang_group correctly folds the lang-group $or into an existing $and while preserving the active/flagship gate — good. Consider caching lang_group counts (cheap COUNT queries) on the browse response so the client can show real chip counts without a second call.",
+    "admin_radio_import.restore_hidden(scope='all') has NO safety guard — a single admin POST can mass-restore ALL 3,578 lang-hidden stations at once. Consider requiring an explicit confirm=true query param or a max_restore cap so a mis-click doesn't undo the whole language policy.",
+    "admin_radio_import.set_station_active(active=False) unconditionally marks lang_hidden:true, even for a station that was NEVER lang-hidden (e.g. an English UAE station manually disabled by admin). That semantically overloads lang_hidden with 'admin-disabled' — consider a separate admin_hidden:true flag so future audits can distinguish policy-hidden vs admin-disabled.",
+    "promoted/stations returns the same promo_id on every call once seeded (no rotation/randomization) — fine for a single sponsored slot, but if the roadmap adds multiple sponsors we'll need weighted rotation to avoid an unfair impression skew.",
+    "Frontend home rail sponsored card fires impression on mount and click on tap — no code review issues seen; the on-click event was received by the test harness (URL unchanged is expected for the sponsored preview card)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter147_language_sponsored.py (new)",
+    "/app/test_reports/pytest/iter147.xml (pytest junit)"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% (web + mobile flows verified)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! (cookie via POST /api/auth/login), demo@bigfm.dubai (mobile: tap demo-login-btn / POST /api/auth/demo)",
+  "seed_data_creation": "None — only reversible single-station toggle used; scope=country value=ZZ SAFE no-op. Data left as found.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Environment left SAFE: no bulk restore performed; only one station toggled active→hidden roundtrip. Reuse /app/backend/tests/test_iter147_language_sponsored.py for regression. Mobile /radio requires demo login via testID=demo-login-btn on /login (not /sign-in — that route 404s on mobile). Web sponsored card at [data-testid=public-sponsored] renders regardless of auth state. Admin panel uses cookie auth — set via POST /api/auth/login before navigating to /admin/radio-language.",
+  "rca of the issue": ""
+}

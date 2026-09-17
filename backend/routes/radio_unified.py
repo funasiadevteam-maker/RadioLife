@@ -272,9 +272,61 @@ async def discover(request: Request,
                   "user_authed": bool(user)}
 
 
+# ─────────────────── Language-group filter ───────────────────
+# Chip groups for the Browse language selector (English · Hindi ·
+# Indian Languages · News). Robust grouping over the messy free-text
+# `language` field + `language_codes` + country / news signals.
+_LANG_GROUP_INDIAN_REGEX = (
+    "hindi|punjabi|tamil|telugu|bengali|bangla|marathi|gujarati|kannada|"
+    "malayalam|urdu|bhojpuri|odia|oriya|assamese|konkani|sindhi|maithili|"
+    "kashmiri|dogri|manipuri|santali|nepali|tulu|rajasthani|haryanvi|awadhi|"
+    "sanskrit")
+_LANG_GROUP_INDIAN_CODES = ["hi", "pa", "ta", "te", "bn", "mr", "gu", "kn",
+                            "ml", "ur", "or", "as", "ne", "sd", "ks", "sa",
+                            "kok", "mni", "sat", "bho", "asm", "ori"]
+
+
+def _lang_group_query(group: Optional[str]) -> Optional[Dict[str, Any]]:
+    g = (group or "").strip().lower()
+    if g in ("", "all"):
+        return None
+    if g == "english":
+        return {"$or": [{"language": {"$regex": "english", "$options": "i"}},
+                        {"language_codes": {"$in": ["en", "english"]}}]}
+    if g == "hindi":
+        return {"$or": [{"language": {"$regex": "hindi", "$options": "i"}},
+                        {"language_codes": {"$in": ["hi", "hindi"]}}]}
+    if g == "indian":
+        return {"$or": [{"language": {"$regex": _LANG_GROUP_INDIAN_REGEX, "$options": "i"}},
+                        {"language_codes": {"$in": _LANG_GROUP_INDIAN_CODES}},
+                        {"country_code": "IN"}]}
+    if g == "news":
+        return {"$or": [{"tags_json": "news"},
+                        {"name": {"$regex": "news", "$options": "i"}},
+                        {"music_genre": {"$regex": "news", "$options": "i"}}]}
+    return None
+
+
+def _merge_lang_group(base: Dict[str, Any], lang_group: Optional[str]) -> None:
+    """Fold a lang-group clause into a browse query without clobbering the
+    active/flagship `$or` gate."""
+    lg = _lang_group_query(lang_group)
+    if not lg:
+        return
+    if "$and" in base:
+        base["$and"].append(lg)
+    else:
+        active_or = base.pop("$or", None)
+        base["$and"] = []
+        if active_or:
+            base["$and"].append({"$or": active_or})
+        base["$and"].append(lg)
+
+
 # ─────────────────────── /browse ───────────────────────
 async def _browse_imported_fast(db, request, q, cat_slug, language, country,
-                                page: int, limit: int, user, genre=None, sort="popular"):
+                                page: int, limit: int, user, genre=None, sort="popular",
+                                lang_group=None):
     """DB-paginated imported-only browse. Flagships first, then votes/clicks."""
     station_ids = None
     if cat_slug:
@@ -302,6 +354,7 @@ async def _browse_imported_fast(db, request, q, cat_slug, language, country,
         ]
         active_or = base.pop("$or")
         base["$and"] = [{"$or": active_or}, {"$or": search_or}]
+    _merge_lang_group(base, lang_group)
     total = await db.imported_radio_stations.count_documents(base)
     skip = (page - 1) * limit
     cards: List[Dict[str, Any]] = []
@@ -352,6 +405,7 @@ async def browse(
     genre: Optional[str] = Query(None),
     source: str = Query("all"),
     sort: str = Query("popular"),
+    lang_group: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(24, ge=1, le=100),
     user: Optional[dict] = Depends(current_user_optional),
@@ -373,7 +427,8 @@ async def browse(
     # and paginates correctly past page ~66.
     if sources == {"imported"}:
         return await _browse_imported_fast(
-            db, request, q, cat_slug, language, country, page, limit, user, genre, sort)
+            db, request, q, cat_slug, language, country, page, limit, user, genre, sort,
+            lang_group=lang_group)
 
     # AI tier.
     if "bigfm_ai" in sources:
@@ -437,6 +492,7 @@ async def browse(
             ]
             active_or = imp_q.pop("$or")
             imp_q["$and"] = [{"$or": active_or}, {"$or": search_or}]
+        _merge_lang_group(imp_q, lang_group)
         async for s in db.imported_radio_stations.find(imp_q) \
                           .sort([("votes", -1), ("click_count", -1)]).limit(2000):
             imp_cards.append(_imported_to_card(s))

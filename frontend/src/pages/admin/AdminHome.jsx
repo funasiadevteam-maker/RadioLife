@@ -373,6 +373,7 @@ function QuickLinks() {
     { to: "/admin/rail-ads",             label: "Rail Ads · Approve",   tid: "admin-home-ql-railads" },
     { to: "/admin/landing-analytics",    label: "Landing Analytics",    tid: "admin-home-ql-landing" },
     { to: "/admin/retargeting",          label: "Retargeting",            tid: "admin-home-ql-retargeting" },
+    { to: "/admin/radio-language",    label: "📻 Radio Languages",  tid: "admin-home-ql-radiolang" },
   ];
   return (
     <Section title="Quick links" Icon={Zap} testid="admin-home-quicklinks">

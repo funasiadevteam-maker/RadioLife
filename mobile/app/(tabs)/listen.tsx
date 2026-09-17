@@ -43,6 +43,7 @@ export default function ListenScreen() {
   const [podcasts, setPodcasts] = useState<any[]>([]);
   const [clips, setClips] = useState<any[]>([]);
   const [news, setNews] = useState<any[]>([]);
+  const [sponsored, setSponsored] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -71,6 +72,26 @@ export default function ListenScreen() {
   }, []);
 
   useEffect(() => { loadSaved(); loadAll(); }, [loadAll, loadSaved]);
+
+  // Sponsored Play — one paid/promoted station pinned near the top.
+  useEffect(() => {
+    let alive = true;
+    api.get('/promoted/stations', { params: { limit: 1 } })
+      .then((r) => {
+        const sp = ((r.data && r.data.items) || [])[0];
+        if (alive && sp) {
+          setSponsored(sp);
+          if (sp.promo_id) api.post(`/promoted/${sp.promo_id}/impression`).catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const playSponsored = () => {
+    if (sponsored?.promo_id) api.post(`/promoted/${sponsored.promo_id}/click`).catch(() => {});
+    playImportedStation(sponsored, router);
+  };
 
   const continueStation = activeChannelName
     ? { name: activeChannelName, sub: currentSeg?.track_artist || 'Live now', thumb: activeChannelThumb, onPress: () => router.push('/now-playing') }
@@ -113,6 +134,18 @@ export default function ListenScreen() {
               <Text style={s.continueSub} numberOfLines={1}>{continueStation.sub}</Text>
             </View>
             <View style={s.continuePlay}><Ionicons name={playing && activeChannelName ? 'pause' : 'play'} size={20} color="#fff" /></View>
+          </TouchableOpacity>
+        )}
+
+        {sponsored && (
+          <TouchableOpacity style={s.sponsoredCard} onPress={playSponsored} testID="listen-sponsored" activeOpacity={0.85}>
+            <SafeImage uri={resolveImg(sponsored.logo_url || sponsored.favicon || sponsored.art)} fallbackText={sponsored.name} size={54} borderRadius={14} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={s.sponsoredBadge}><Text style={s.sponsoredBadgeText}>SPONSORED</Text></View>
+              <Text style={s.continueName} numberOfLines={1}>{sponsored.name}</Text>
+              <Text style={s.continueSub} numberOfLines={1}>{sponsored.sponsor_name || sponsored.country || 'Live now'}</Text>
+            </View>
+            <View style={s.continuePlay}><Ionicons name="play" size={20} color="#fff" /></View>
           </TouchableOpacity>
         )}
 
@@ -277,6 +310,13 @@ const s = StyleSheet.create({
   continueName: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800', marginTop: 2 },
   continueSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
   continuePlay: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  sponsoredCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: SPACING.md, marginBottom: SPACING.md, padding: SPACING.sm + 2,
+    borderRadius: RADIUS.lg, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.gold,
+  },
+  sponsoredBadge: { alignSelf: 'flex-start', backgroundColor: COLORS.gold, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 4 },
+  sponsoredBadgeText: { color: '#0a0a0c', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, marginTop: SPACING.md, marginBottom: SPACING.sm },
   sectionTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '800', flex: 1 },
   more: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '700' },

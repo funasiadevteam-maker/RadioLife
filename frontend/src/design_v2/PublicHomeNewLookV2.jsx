@@ -374,6 +374,7 @@ function ComingSoonHero({ offerMonths = 6, waitlistEnabled = true, launchAt = nu
 export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 6, waitlistEnabled = true, launchAt = null }) {
   const navigate = useNavigate();
   const [stations, setStations] = useState(STATION_FALLBACK);
+  const [sponsored, setSponsored] = useState(null);
   const [count, setCount] = useState(0);
   const [shopTiles, setShopTiles] = useState(null);
   const [city, setCity] = useState("");
@@ -478,6 +479,27 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
     return () => { alive = false; };
   }, []);
 
+  // Sponsored Play — one paid/promoted station pinned first in the live rail.
+  useEffect(() => {
+    let alive = true;
+    axios.get(`${API}/promoted/stations?limit=1`)
+      .then((r) => {
+        const s = (r?.data?.items || [])[0];
+        if (alive && s) {
+          setSponsored(s);
+          if (s.promo_id) axios.post(`${API}/promoted/${s.promo_id}/impression`).catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const playSponsored = useCallback((station) => {
+    if (station?.promo_id) axios.post(`${API}/promoted/${station.promo_id}/click`).catch(() => {});
+    track("sponsored_play", { cta: station?.name });
+    playPreview(station);
+  }, [playPreview, track]);
+
   // Live Shop tile artwork — real approved-business covers (nearby first).
   useEffect(() => {
     let alive = true;
@@ -580,7 +602,13 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
         <section className={`${CONTAINER} py-8`}>
           <SectionHeader eyebrow="Live right now" title="Tune in this second" cta="Explore all radio" onCta={ctaTo("explore_all", "/listen")} testid="public-live" />
           <div className="grid grid-flow-col auto-cols-[46%] sm:auto-cols-[30%] lg:grid-flow-row lg:grid-cols-4 gap-4 overflow-x-auto nlv2-scroll pb-2 -mx-1 px-1">
-            {stations.slice(0, 8).map((s, i) => (
+            {sponsored && (
+              <StationCard key={`sp-${sponsored.id || sponsored.promo_id}`} station={sponsored}
+                grad={GRADS[0]} onPreview={playSponsored}
+                previewing={previewId === (sponsored.id || sponsored.name)}
+                testid="public-sponsored" sponsored />
+            )}
+            {stations.slice(0, sponsored ? 7 : 8).map((s, i) => (
               <StationCard key={s.id || s.name} station={s} grad={GRADS[i % GRADS.length]}
                 onPreview={playPreview} previewing={previewId === (s.id || s.name)} testid={`public-station-${i}`} />
             ))}
@@ -866,7 +894,7 @@ function SectionHeader({ eyebrow, title, cta, onCta, center, testid }) {
   );
 }
 
-function StationCard({ station, grad, onPreview, previewing, testid }) {
+function StationCard({ station, grad, onPreview, previewing, testid, sponsored }) {
   const art = station.logo_url || station.art || station.favicon || "";
   return (
     <button onClick={() => onPreview(station)} data-testid={testid}
@@ -879,10 +907,13 @@ function StationCard({ station, grad, onPreview, previewing, testid }) {
         <span className="w-11 h-11 rounded-full grid place-items-center relative nlv2-glass-strong" data-testid={`${testid}-play`}>
           {previewing ? <Pause size={18} className="text-white" /> : <Play size={18} className="text-white" fill="currentColor" />}
         </span>
+        {sponsored ? (
+          <span className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "linear-gradient(90deg,#f59e0b,#ec4899)", color: "#0b0f24" }} data-testid={`${testid}-badge`}>Sponsored</span>
+        ) : null}
         <span className="absolute top-2 left-2 text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,0.5)", color: previewing ? "#86efac" : "#fca5a5" }}>{previewing ? "● Playing" : "● Live"}</span>
       </div>
       <div className="mt-2.5 font-bold text-sm text-white truncate">{station.name}</div>
-      <div className="text-[11px] truncate" style={{ color: "#8b96b8" }}>{(station.music_genre || "Radio")}{station.country ? ` · ${station.country}` : ""}</div>
+      <div className="text-[11px] truncate" style={{ color: "#8b96b8" }}>{sponsored ? (station.sponsor_name || "Sponsored") : (station.music_genre || "Radio")}{station.country ? ` · ${station.country}` : ""}</div>
     </button>
   );
 }

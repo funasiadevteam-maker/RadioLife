@@ -2,9 +2,10 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Loader2, Trophy, Zap, Target, Sparkles } from "lucide-react";
+import { Loader2, Trophy, Sparkles } from "lucide-react";
 import { API } from "@/AuthContext";
 import { RLCard, RLBadge } from "../DesignSystem";
+import { gameArtFor } from "@/assets/gameArt";
 
 export default function GamingRadioLife() {
   const [items, setItems] = useState([]);
@@ -49,7 +50,6 @@ export default function GamingRadioLife() {
         <div className="grid grid-cols-1 gap-3" data-testid="rl-gaming-grid">
           {items.map((g) => {
             const isSpin = g.game_type === "spin_win";
-            const Icon = isSpin ? Zap : Target;
             return (
               <Link
                 key={g.campaign_id}
@@ -57,9 +57,11 @@ export default function GamingRadioLife() {
                 data-testid={`rl-gaming-card-${g.campaign_id}`}
                 className="block">
                 <RLCard className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: "linear-gradient(135deg,#FDE9DC 0%,#FEF0D9 100%)" }}>
-                    <Icon size={22} className="text-orange-600" />
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-orange-100">
+                    <img src={gameArtFor(g.game_type, g.template_id)} alt={g.name}
+                              loading="lazy" data-testid={`rl-gaming-art-${g.campaign_id}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = "none"; }} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-[10px] font-bold uppercase tracking-widest text-orange-600">

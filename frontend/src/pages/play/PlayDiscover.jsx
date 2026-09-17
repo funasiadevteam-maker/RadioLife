@@ -3,8 +3,9 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { Loader2, Trophy, ArrowLeft, Zap, Target } from "lucide-react";
+import { Loader2, Trophy, ArrowLeft } from "lucide-react";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
+import { gameArtFor } from "@/assets/gameArt";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
@@ -72,17 +73,17 @@ export default function PlayDiscover() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                 data-testid="play-discover-grid">
             {items.map(g => {
-              const Icon = g.game_type === "spin_win" ? Zap : Target;
               return (
                 <Link key={g.campaign_id} to={`/play/${g.campaign_id}`}
                             data-testid={`play-discover-card-${g.campaign_id}`}
                             className={`rounded-3xl p-5 flex items-center gap-3 transition-transform hover:scale-[1.02] ${
                               light ? "bg-white border border-slate-100 shadow-sm"
                                       : "bg-slate-900 border border-slate-800"}`}>
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-                    light ? "bg-gradient-to-br from-purple-100 to-pink-100"
-                            : "bg-gradient-to-br from-cyan-500/20 to-purple-500/20"}`}>
-                    <Icon size={22} color={light ? "#a855f7" : "#00d4ff"}/>
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 bg-slate-800">
+                    <img src={gameArtFor(g.game_type, g.template_id)} alt={g.name}
+                              loading="lazy" data-testid={`play-discover-art-${g.campaign_id}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = "none"; }} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className={`text-[10px] font-bold uppercase tracking-widest ${
