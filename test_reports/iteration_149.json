@@ -1,0 +1,52 @@
+{
+  "summary": "Iter149 — Full-stack verification of the 4 Fun Pizza Kitchen features on web + mobile: (1) Scratch & Win + Spin & Win game discovery, (2) Win Wall live winners feed, (3) Sponsor Bidding + weighted home rotation, (4) open Coupon Redeem on web + mobile. All 11 backend pytest cases PASS. GET /api/games/discover?merchant_id=biz_fun_pizza_kitchen returns BOTH gc_8a1b4b5494ea42 (Spin) and gc_ddd9445590464f (Scratch). GET /api/games/gc_ddd9445590464f exposes exactly 6 prizes (10/20/30/40% OFF, Free Small Pizza, $10 Gift Card) with weight/probability HIDDEN. POST /api/games/{cid}/play returned won:true with outcome_type in (coupon,gift_card) and wallet_item_type set correctly; a fresh registered user was used to avoid the 5-play/user cap. GET /api/games/winners/recent returns first_name/prize_label/prize_color/played_at. Coupon lookup returns found:false+code_not_found for bad code and a full view for a valid one; POST /api/games/coupon/redeem flips the coupon to redeemed once and is idempotent on repeat; bad code -> 404. GET /api/promoted/stations?limit=6 returns bid_cents on every item, sorted DESC by bid. POST /api/promoted/{promo_id}/bid clamps to min 100 cents and returns new cpm_bid_cents; anon 401/403 as expected; 403 not_your_promo when caller isn't the advertiser (business rule verified). WEB: /shop/redeem full flow works — filled BIGFM-676XM4, Check shows '20% off your order · Fun Pizza Kitchen', Mark as redeemed -> 'Done — enjoy the pizza!' success card. /promote/boost lists all 5 sponsors with bid amounts ($12.00/$5.00/$4.40/$4.20/$1.00) and +$2/+$5 buttons; admin can't boost slots owned by other advertisers (shows 'Log in as the advertiser to boost this slot' — correct). /business/fun-pizza-kitchen renders 'Recent winners' Win Wall with 6 rows (including Iter149 test winner), 'Shop staff? Redeem a winning coupon' link points to /shop/redeem. /play renders both game cards with correct spin/scratch art. Home / — Sponsored slot rotation is WEIGHTED: over 12 rotation ticks (~78s window) Luv 107.1 UAE (bid $12) appeared 4x, Talk 100.3 UAE (bid $5) 3x, Beat 97.8 ($4.40) 2x, FunAsia ($4.20) 2x, Big 106.2 UAE ($1) 1x — matches the bid ordering. MOBILE: /games header shows Redeem (QR) pill (games-redeem-link) that navigates to /shop-redeem. /shop-redeem lookup on a fresh BIGFM-OOUF6X code showed prize (10% off your order · Fun Pizza Kitchen) and 'Mark as redeemed' → 'Redeemed ✓ / Done — enjoy the pizza!'. /listen renders listen-sponsored at top of tab and rotated through all 5 promos in 6 ticks; Luv 107.1 UAE (highest bid) got 2/6 and lower-bid ones 1 each — consistent with weighted rotation (short window). Mobile is a warm light theme (intended). Note: several 'Mixed Content: http://cdn-profiles.tunein.com' warnings on mobile /listen for external station artwork — non-blocking but should be proxied or forced-https.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/business/fun-pizza-kitchen", "issues": ["'More on RadioLife' section shows the generic 'Play & Win' activity card but does NOT surface both game names ('Spin & Win' + 'Scratch & Win') on the storefront itself. The task spec said 'also shows both games available' — currently only one activity card links to the active game campaign. Users have to visit /play to discover the second game."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/listen", "issues": ["Many 'Mixed Content: was loaded over HTTPS, but requested an insecure element http://cdn-profiles.tunein.com/...' and http://www.radiofarda.com/... — station artwork over http is blocked by the browser. Force https:// or proxy through backend."]}
+      ],
+      "react_native_issues": [
+        {"component": "shadow* styles", "issue": "Console warning: 'shadow* style props are deprecated. Use boxShadow'. Search RN styles for shadowColor/shadowOffset/shadowOpacity/shadowRadius and migrate to boxShadow. Reference: mobile app (global — surfaces on every screen)."},
+        {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Move pointerEvents prop into StyleSheet. Reference: mobile app (global)."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter149_fun_pizza_features.py",
+    "/app/test_reports/pytest/iter149.xml"
+  ],
+  "action_items": [
+    "OPTIONAL — surface both game cards (Spin & Win + Scratch & Win) on the /business/fun-pizza-kitchen storefront so users see both directly, not just via /play.",
+    "OPTIONAL — fix mixed-content by forcing https on tunein.com / radiofarda.com station artwork URLs (or route them through a backend image proxy) on mobile /listen.",
+    "OPTIONAL — migrate deprecated RN styles: shadow* → boxShadow, props.pointerEvents → style.pointerEvents (RN 0.79+).",
+    "OPTIONAL — POST /api/games/{cid}/play requires a JSON body (even if empty {}) because PlayBody is a required parameter; consider making it Optional so curl without -d still works."
+  ],
+  "critical_code_review_comments": [
+    "Weighted rotation client-side: /frontend/src/design_v2/PublicHomeNewLookV2.jsx computes weights = round(bid_cents/100) and clamps slots to 1..6. With current bids ($12, $5, $4.40, $4.20, $1) the playlist becomes [12,5,4,4,1] slots — verified empirically. If a merchant ever bids > $6 (600 cents / 100 = 6, matches clamp), higher bidders won't get extra airtime past the ceiling — consider raising the per-round slot cap or scaling weights by ratio of maxBid rather than minBid.",
+    "Bid ownership: POST /api/promoted/{promo_id}/bid enforces `owner and owner != uid` -> 403 not_your_promo. Fine, but the demo /promote/boost page currently offers Boost buttons on slots the logged-in user doesn't own; the click just toasts an error. Consider hiding/disabling the +$2/+$5 buttons for non-owned promos, or show ownership badge inline for clarity.",
+    "Coupon redeem endpoint is unauthenticated by design (open shop counter). It relies solely on the (short) BIGFM-XXXXXX code as bearer. Consider rate-limiting redeem attempts per IP to prevent brute-force enumeration of active codes, and returning a generic '404/409' body without leaking business_id/business_name in lookup for statuses like 'redeemed' (currently the lookup happily returns full view for already-redeemed codes)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter149_fun_pizza_features.py (new, 11 tests)",
+    "/app/test_reports/pytest/iter149.xml (junit)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% (web + mobile flows all verified)"},
+  "test_credentials": "admin@bigfm.dubai/AdminPass123! used for /promote/boost cookie login. Fresh users registered ad-hoc (e.g. iter149xxxxxxxx@bigfm.dubai / IterTest123!) for clean plays because demo@ has 5-plays/day cap.",
+  "seed_data_creation": "Three real spin/scratch sessions on gc_ddd9445590464f as fresh iter149 users — minted coupons BIGFM-676XM4 (redeemed via web /shop/redeem) and BIGFM-OOUF6X (redeemed via mobile /shop-redeem). Bid on one boostable promo bumped +$2. Recent winners feed now includes 'Iter149 won 10% OFF' entries.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_iter149_fun_pizza_features.py for regression. To play a game you MUST send a JSON body (even {}), because PlayBody is required. To get a fresh saved-status coupon: register a new user (@bigfm.dubai — @bigfm.test is rejected by email validator), then POST /api/games/gc_ddd9445590464f/play up to 6x until outcome_type=='coupon' (gift_card outcomes happen ~10% of the time). Bid endpoint returns 403 not_your_promo when caller isn't advertiser_id — admin can boost only unclaimed promos. Web sponsor rotation refreshes every 7s; sample at ≥60s to observe weighted distribution. Mobile /listen has http:// mixed-content warnings from external station artwork — non-blocking.",
+  "rca of the issue": ""
+}

@@ -420,6 +420,128 @@ async def admin_list_winners(request: Request,
                   } for w in rows]}
 
 
+# ─── Win Wall (public) ────────────────────────────────────────
+def _first_name(u: Optional[dict]) -> str:
+    if not u:
+        return "A RadioLife listener"
+    for k in ("first_name", "firstName", "name", "display_name", "full_name"):
+        v = (u.get(k) or "").strip()
+        if v:
+            return v.split()[0]
+    email = (u.get("email") or "").strip()
+    if email:
+        return email.split("@")[0].split(".")[0].title() or "A RadioLife listener"
+    return "A RadioLife listener"
+
+
+@router.get("/games/winners/recent",
+                        description="Public live feed of recent winners for a merchant "
+                                                "(first name + prize only).")
+async def recent_winners(request: Request,
+                                                merchant_id: Optional[str] = Query(None),
+                                                campaign_id: Optional[str] = Query(None),
+                                                limit: int = Query(15, ge=1, le=50)):
+    db = request.app.state.db
+    q: dict = {"minted": True, "outcome_type": {"$ne": "nothing"}}
+    if merchant_id:
+        q["merchant_id"] = merchant_id
+    if campaign_id:
+        q["campaign_id"] = campaign_id
+    rows = await db.game_sessions.find(q).sort("played_at", -1) \
+                                    .limit(limit).to_list(length=limit)
+    uids = list({r.get("user_id") for r in rows if r.get("user_id")})
+    users: dict = {}
+    if uids:
+        async for u in db.users.find(
+                {"user_id": {"$in": uids}},
+                {"user_id": 1, "first_name": 1, "name": 1,
+                  "display_name": 1, "email": 1}):
+            users[u.get("user_id")] = u
+    items = [{
+        "first_name":    _first_name(users.get(r.get("user_id"))),
+        "prize_label":  r.get("outcome_label") or "a prize",
+        "prize_color":  r.get("outcome_color") or "#f59e0b",
+        "prize_type":    r.get("outcome_type"),
+        "played_at":      _iso(r.get("played_at")),
+    } for r in rows]
+    return {"items": items, "total": len(items)}
+
+
+# ─── Game-coupon redeem (open shop counter screen) ────────────
+async def _resolve_game_coupon(db, code: str):
+    code = (code or "").strip().upper()
+    if not code:
+        return None
+    return await db.coupons.find_one({"code": code})
+
+
+async def _game_coupon_view(db, cp: dict) -> dict:
+    offer = None
+    if cp.get("offer_id"):
+        offer = await db.offers.find_one(
+            {"$or": [{"offer_id": cp["offer_id"]}, {"id": cp["offer_id"]}]})
+    biz = None
+    if cp.get("business_id"):
+        biz = (await db.businesses.find_one({"business_id": cp["business_id"]})
+                      or await db.businesses.find_one({"_id": cp["business_id"]}))
+    return {
+        "code":                    cp.get("code"),
+        "status":                cp.get("status"),
+        "prize_title":      (offer or {}).get("title") or "Game reward",
+        "discount_percent": (offer or {}).get("discount_percent"),
+        "business_id":      cp.get("business_id"),
+        "business_name":  (biz or {}).get("name"),
+        "source":                cp.get("source"),
+        "expires_at":        _iso(cp.get("expires_at")),
+        "redeemed_at":      _iso(cp.get("redeemed_at")),
+    }
+
+
+@router.get("/games/coupon/lookup",
+                        description="Look up a game-won coupon by code (open shop screen).")
+async def game_coupon_lookup(request: Request, code: str = Query(...)):
+    db = request.app.state.db
+    cp = await _resolve_game_coupon(db, code)
+    if not cp:
+        return {"found": False, "reason": "code_not_found"}
+    return {"found": True, **(await _game_coupon_view(db, cp))}
+
+
+class GameCouponRedeemBody(BaseModel):
+    code: str
+
+
+@router.post("/games/coupon/redeem",
+                          description="Mark a game-won coupon redeemed (open shop screen). "
+                                                  "Idempotent.")
+async def game_coupon_redeem(body: GameCouponRedeemBody, request: Request):
+    from datetime import datetime, timezone
+    db = request.app.state.db
+    now = datetime.now(timezone.utc)
+    cp = await _resolve_game_coupon(db, body.code)
+    if not cp:
+        raise HTTPException(404, {"code": "code_not_found"})
+    if cp.get("status") == "redeemed" or cp.get("redeemed_at"):
+        return {"ok": True, "idempotent": True,
+                      **(await _game_coupon_view(db, cp))}
+    exp = cp.get("expires_at")
+    if isinstance(exp, datetime):
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < now:
+            raise HTTPException(409, {"code": "expired"})
+    res = await db.coupons.update_one(
+        {"_id": cp["_id"], "status": {"$ne": "redeemed"}},
+        {"$set": {"status": "redeemed", "redeemed_at": now}})
+    if res.modified_count == 0:
+        raise HTTPException(409, {"code": "already_redeemed"})
+    cp["status"] = "redeemed"
+    cp["redeemed_at"] = now
+    return {"ok": True, "idempotent": False,
+                  **(await _game_coupon_view(db, cp))}
+
+
+
 # ─── Bootstrap ─────────────────────────────────────────────────
 async def ensure_pg1_indexes(db) -> None:
     await _gs.ensure_game_indexes(db)

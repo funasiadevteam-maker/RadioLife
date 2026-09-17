@@ -187,6 +187,8 @@ async def list_promoted_stations(
         card["promo_id"] = p.get("promo_id")
         card["pricing_model"] = p.get("pricing_model") or "cpm"
         card["sponsor_name"] = p.get("sponsor_name") or card.get("name")
+        card["bid_cents"] = (int(p.get("cpm_bid_cents") or 0)
+                                                  or int((p.get("cpc_bid_cents") or 0) * 20) or 100)
         out.append(card)
         if len(out) >= limit:
             break
@@ -419,6 +421,32 @@ async def toggle_promo(promo_id: str, request: Request,
                   "status": "active" if new_active else "paused",
                   "updated_at": _now()}})
     return {"ok": True, "promo_id": promo_id, "active": new_active}
+
+
+class BidBody(BaseModel):
+    cpm_bid_cents: int
+
+
+@router.post("/{promo_id}/bid",
+                          description="Raise a sponsor's bid to win more home-rotation slots. "
+                                                  "Higher bid = more airtime. Any logged-in user can boost a "
+                                                  "demo sponsor; a real promo is scoped to its owner.")
+async def set_promo_bid(promo_id: str, body: BidBody, request: Request,
+                                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = await _uid(user)
+    p = await db.promoted_stations.find_one({"promo_id": promo_id})
+    if not p:
+        raise HTTPException(404, "promo not found")
+    owner = p.get("advertiser_id")
+    if owner and owner != uid:
+        raise HTTPException(403, "not_your_promo")
+    bid = max(100, min(int(body.cpm_bid_cents or 0), 100000))
+    patch = {"cpm_bid_cents": bid, "pricing_model": "cpm", "updated_at": _now()}
+    if not owner:
+        patch["advertiser_id"] = uid          # claim the demo slot on first boost
+    await db.promoted_stations.update_one({"promo_id": promo_id}, {"$set": patch})
+    return {"ok": True, "promo_id": promo_id, "cpm_bid_cents": bid}
 
 
 async def _resume_capped_promos(db) -> None:

@@ -238,6 +238,8 @@ import BusinessLogin from "@/pages/BusinessLogin";
 import BusinessRegister from "@/pages/BusinessRegister";
 import BusinessDashboard from "@/pages/BusinessDashboard";
 import BusinessRedeem from "@/pages/BusinessRedeem";
+import ShopRedeem from "@/pages/ShopRedeem";
+import SponsorBoost from "@/pages/SponsorBoost";
 import BusinessCampaigns from "@/pages/BusinessCampaigns";
 import BusinessAdsBuy from "@/pages/BusinessAdsBuy";
 // Phase J.3 — Stripe checkout return pages.
@@ -1053,6 +1055,8 @@ function AppRouter() {
         <ProtectedRoute><BusinessDashboard /></ProtectedRoute>} />
       <Route path="/business/redeem" element={
         <ProtectedRoute><BusinessRedeem /></ProtectedRoute>} />
+      <Route path="/shop/redeem" element={<ShopRedeem />} />
+      <Route path="/promote/boost" element={<SponsorBoost />} />
       <Route path="/business/campaigns" element={
         <ProtectedRoute><BusinessCampaigns /></ProtectedRoute>} />
       <Route path="/business/ads/buy" element={

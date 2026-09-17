@@ -19,6 +19,7 @@ import { useDesignVariant } from "@/hooks/useDesignVariant";
 // Phase FUN.1 — Flagship stations recommendation strip.
 import FlagshipStrip from "@/components/FlagshipStrip";
 import SafeImage from "@/components/SafeImage";
+import { gameArtFor } from "@/assets/gameArt";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const FMT = (n, ccy = "AED") => `${(Number(n || 0) / 100).toFixed(2)} ${ccy}`;
@@ -196,6 +197,9 @@ export default function BusinessProfile() {
           </div>
         </div>
 
+        {/* ── PLAY & WIN GAMES ──────────────────────────────── */}
+        <GamesAtBusiness merchantId={m.id} light={light} />
+
         {/* ── OFFERS ────────────────────────────────────────── */}
         {profile?.offers?.length > 0 && (
           <Section title="Available Offers" icon={Tag} light={light}
@@ -208,6 +212,9 @@ export default function BusinessProfile() {
             </div>
           </Section>
         )}
+
+        {/* ── RECENT WINNERS (Win Wall) ──────────────────────── */}
+        <WinWall merchantId={m.id} light={light} />
 
         {/* ── GIFT CARDS ────────────────────────────────────── */}
         {profile?.gift_card_skus?.length > 0 && (
@@ -708,3 +715,117 @@ function ComingSoonModal({ light, text, onClose }) {
     </div>
   );
 }
+
+
+// ── Play & Win — every game this business is running ──────────
+function GamesAtBusiness({ merchantId, light }) {
+  const [games, setGames] = useState([]);
+  useEffect(() => {
+    if (!merchantId) return undefined;
+    let alive = true;
+    axios.get(`${API}/games/discover?merchant_id=${merchantId}`)
+      .then((r) => { if (alive) setGames(r.data?.items || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [merchantId]);
+
+  if (!games.length) return null;
+
+  return (
+    <Section title="Play & Win" icon={Trophy} light={light}
+                    testid="business-profile-section-games">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {games.map((g) => {
+          const label = g.game_type === "spin_win" ? "Spin & Win" : "Scratch & Win";
+          return (
+            <Link key={g.campaign_id} to={`/play/${g.campaign_id}`}
+                        data-testid={`business-game-${g.campaign_id}`}
+                        className={`rounded-3xl flex items-center gap-3 p-4 transition-transform hover:scale-[1.02] ${
+                          light ? "bg-white border border-slate-100 shadow-sm"
+                                  : "bg-slate-900 border border-slate-800"}`}>
+              <img src={gameArtFor(g.game_type, g.template_id)} alt={label}
+                        loading="lazy"
+                        className="w-16 h-16 rounded-2xl object-cover flex-shrink-0 bg-slate-800"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }} />
+              <div className="min-w-0 flex-1">
+                <div className={`text-[10px] font-bold uppercase tracking-widest ${
+                  light ? "text-purple-600" : "text-cyan-400"}`}>{label}</div>
+                <div className={`font-black ${light ? "text-slate-900" : "text-white"}`}>
+                  {label}
+                </div>
+                <div className={`text-xs ${light ? "text-slate-500" : "text-slate-400"}`}>
+                  Tap to win discounts, free pizza &amp; more
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
+
+// ── Win Wall — live feed of recent winners at this business ────
+function _timeAgo(iso) {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function WinWall({ merchantId, light }) {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    if (!merchantId) return undefined;
+    let alive = true;
+    const load = () => axios.get(`${API}/games/winners/recent?merchant_id=${merchantId}&limit=12`)
+      .then((r) => { if (alive) setItems(r.data?.items || []); })
+      .catch(() => {});
+    load();
+    const t = setInterval(load, 15000);
+    return () => { alive = false; clearInterval(t); };
+  }, [merchantId]);
+
+  if (!items.length) return null;
+
+  return (
+    <Section title="Recent winners" icon={Trophy} light={light}
+                    testid="business-profile-section-winners">
+      <div className="space-y-2" data-testid="business-winwall">
+        {items.map((w, i) => (
+          <div key={i} data-testid="business-winwall-row"
+                    className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${
+                      light ? "bg-white border border-slate-100 shadow-sm"
+                              : "bg-slate-900 border border-slate-800"}`}>
+            <span className="w-9 h-9 rounded-full grid place-items-center text-sm font-black flex-shrink-0"
+                        style={{ background: `${w.prize_color}22`, color: w.prize_color }}>
+              {(w.first_name || "?").charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1 text-sm">
+              <span className={light ? "text-slate-900 font-bold" : "text-white font-bold"}>
+                {w.first_name}
+              </span>
+              <span className={light ? "text-slate-600" : "text-slate-400"}> won </span>
+              <span className="font-black" style={{ color: w.prize_color }}>{w.prize_label}</span>
+            </div>
+            <span className={`text-[10px] font-mono flex-shrink-0 ${
+              light ? "text-slate-400" : "text-slate-500"}`}>{_timeAgo(w.played_at)}</span>
+          </div>
+        ))}
+      </div>
+      <Link to="/shop/redeem" data-testid="business-winwall-redeem-link"
+                  className={`mt-3 inline-block text-xs font-bold ${
+                    light ? "text-purple-600 hover:underline" : "text-cyan-400 hover:underline"}`}>
+        Shop staff? Redeem a winning coupon →
+      </Link>
+    </Section>
+  );
+}
+

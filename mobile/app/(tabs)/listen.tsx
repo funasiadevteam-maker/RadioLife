@@ -16,6 +16,24 @@ import { playImportedStation } from '../../src/services/playStation';
 const resolveImg = (u?: string | null) =>
   u ? (u.startsWith('http') ? u : `${BACKEND}${u}`) : null;
 
+// Weighted rotation — a higher bid earns more slots in the playlist.
+function buildWeightedOrder(items: any[]): any[] {
+  if (!items.length) return [];
+  const weights = items.map((x) => Math.max(1, Math.round((x.bid_cents || 100) / 100)));
+  const minW = Math.min(...weights);
+  const slots = weights.map((w) => Math.min(6, Math.max(1, Math.round(w / minW))));
+  const order: any[] = [];
+  const remaining = slots.slice();
+  let added = true;
+  while (added) {
+    added = false;
+    for (let i = 0; i < items.length; i++) {
+      if (remaining[i] > 0) { order.push(items[i]); remaining[i] -= 1; added = true; }
+    }
+  }
+  return order;
+}
+
 function StationTile({ st, onPress }: { st: any; onPress: () => void }) {
   const sub = st.country || (st.language ? String(st.language).split(',')[0] : '') || 'Live';
   return (
@@ -83,13 +101,14 @@ export default function ListenScreen() {
     return () => { alive = false; };
   }, []);
 
+  const rotationOrder = buildWeightedOrder(sponsoredList);
   useEffect(() => {
-    if (sponsoredList.length < 2) return;
-    const t = setInterval(() => setSponsoredIdx((i) => (i + 1) % sponsoredList.length), 7000);
-    return () => clearInterval(t);
-  }, [sponsoredList]);
+    if (rotationOrder.length < 2) return;
+    const timer = setInterval(() => setSponsoredIdx((i) => i + 1), 7000);
+    return () => clearInterval(timer);
+  }, [rotationOrder.length]);
 
-  const sponsored = sponsoredList.length ? sponsoredList[sponsoredIdx % sponsoredList.length] : null;
+  const sponsored = rotationOrder.length ? rotationOrder[sponsoredIdx % rotationOrder.length] : null;
 
   useEffect(() => {
     if (sponsored?.promo_id) api.post(`/promoted/${sponsored.promo_id}/impression`).catch(() => {});

@@ -206,6 +206,14 @@ export default function GamesHub() {
               {balanceLoaded ? balance : '—'}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={s.redeemChip}
+            onPress={() => router.push('/shop-redeem')}
+            activeOpacity={0.85}
+            testID="games-redeem-link"
+          >
+            <Ionicons name="qr-code-outline" size={18} color={COLORS.gold} />
+          </TouchableOpacity>
         </View>
 
         <Text style={s.headerSubtitle}>
@@ -412,6 +420,7 @@ const s = StyleSheet.create({
     fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700',
     letterSpacing: 1, marginBottom: 2,
   },
+  redeemChip: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.gold, marginLeft: 8 },
   headerTitle: { fontSize: FONT.xxl, fontWeight: '900', color: COLORS.text },
   coinChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,

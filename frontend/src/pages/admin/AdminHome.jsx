@@ -374,6 +374,7 @@ function QuickLinks() {
     { to: "/admin/landing-analytics",    label: "Landing Analytics",    tid: "admin-home-ql-landing" },
     { to: "/admin/retargeting",          label: "Retargeting",            tid: "admin-home-ql-retargeting" },
     { to: "/admin/radio-language",    label: "📻 Radio Languages",  tid: "admin-home-ql-radiolang" },
+    { to: "/promote/boost",                    label: "📣 Sponsor Slots",      tid: "admin-home-ql-sponsorslots" },
   ];
   return (
     <Section title="Quick links" Icon={Zap} testid="admin-home-quicklinks">

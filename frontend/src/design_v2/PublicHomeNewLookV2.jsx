@@ -490,13 +490,31 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
     return () => { alive = false; };
   }, []);
 
-  useEffect(() => {
-    if (sponsoredList.length < 2) return undefined;
-    const t = setInterval(() => setSponsoredIdx((i) => (i + 1) % sponsoredList.length), 7000);
-    return () => clearInterval(t);
+  // Weighted rotation — a higher bid earns more slots in the playlist.
+  const rotationOrder = useMemo(() => {
+    if (!sponsoredList.length) return [];
+    const weights = sponsoredList.map((x) => Math.max(1, Math.round((x.bid_cents || 100) / 100)));
+    const minW = Math.min(...weights);
+    const slots = weights.map((w) => Math.min(6, Math.max(1, Math.round(w / minW))));
+    const order = [];
+    const remaining = slots.slice();
+    let added = true;
+    while (added) {
+      added = false;
+      for (let i = 0; i < sponsoredList.length; i++) {
+        if (remaining[i] > 0) { order.push(sponsoredList[i]); remaining[i] -= 1; added = true; }
+      }
+    }
+    return order;
   }, [sponsoredList]);
 
-  const sponsored = sponsoredList.length ? sponsoredList[sponsoredIdx % sponsoredList.length] : null;
+  useEffect(() => {
+    if (rotationOrder.length < 2) return undefined;
+    const t = setInterval(() => setSponsoredIdx((i) => i + 1), 7000);
+    return () => clearInterval(t);
+  }, [rotationOrder]);
+
+  const sponsored = rotationOrder.length ? rotationOrder[sponsoredIdx % rotationOrder.length] : null;
 
   // Fire an impression whenever a new sponsor is shown.
   useEffect(() => {

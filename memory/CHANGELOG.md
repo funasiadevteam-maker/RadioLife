@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — Scratch game + $10 gift card, Win Wall, Sponsor Bidding, Coupon Redeem
+- **Scratch & Win + $10 gift card** — added a Fun Pizza Kitchen **Scratch & Win** (`gc_ddd9445590464f`) carrying the discount coupons + a **$10 store gift card won ~10% of plays** (rare; lower discounts most common). Created gift-card SKU `gcs_fun_pizza_10`; mint verified ($10). Both games now show on the web Play page and on the storefront's new "Play & Win" section. Seed: `scripts/seed_fun_pizza_games.py`.
+- **Win Wall** — public `GET /api/games/winners/recent` (first name + prize + time, from `game_sessions`); rendered as an auto-refreshing "Recent winners" feed on the business storefront (`BusinessProfile.jsx`, testid `business-winwall`).
+- **Sponsor Bidding** — home + mobile Listen Sponsored slot now rotates **weighted by bid** (higher bid = more slots; verified Luv 107.1 @ $12 dominates). `/api/promoted/stations` returns `bid_cents`; new `POST /api/promoted/{id}/bid` raises a bid. New web "Boost my slot" page `/promote/boost` (`SponsorBoost.jsx`, linked from Admin home).
+- **Coupon Redeem** — open shop scan-or-code screen (no login) reading the game `coupons` store: `GET /api/games/coupon/lookup` + `POST /api/games/coupon/redeem` (idempotent). Web page `/shop/redeem` (`ShopRedeem.jsx`) + mobile screen `app/shop-redeem.tsx` (reachable from the games-tab redeem pill).
+- Tested: iter149 — 11/11 backend pytest pass + all web & mobile flows verified (scratch play, gift-card mint, win wall, weighted rotation, both redeem screens). Non-blocking follow-ups noted: http artwork mixed-content warnings (external, pre-existing), RN shadow/pointerEvents deprecations, optional rate-limit on the open redeem endpoint.
+
+
 ## 2026-09-17 — Merchant Games (Fun Pizza Kitchen), Language Memory, Sponsor Rotation
 - **Merchant Games** — seeded demo business **Fun Pizza Kitchen** (`biz_fun_pizza_kitchen`, branded AI logo) with a live **Spin & Win** game (`gc_8a1b4b5494ea42`) whose prizes are 5 REAL coupon offers: 10/20/30/40% off + Free Small Pizza. Probability weighted so lower discounts win most (weights 40/25/15/8/3; free pizza rarest). Uses the already-built merchant game engine (`game_service.create_campaign`); coupons mint to the winner's wallet (`/api/commerce/coupons/me`). Seed script: `scripts/seed_fun_pizza_games.py` (idempotent). The web `/play` page now fills with this game.
 - **Social share on win** — win modal in `GamePlay.jsx` gained a "Share your win" row (native Web Share + WhatsApp / X / Facebook, copy fallback).
