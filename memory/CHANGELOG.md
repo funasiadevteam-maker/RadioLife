@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — System-wide radio language/region keep-policy (backend)
+Disabled all non-Hindi/English radio stations system-wide and off the homepage, per user scope.
+- New `apply_language_policy(db)` in `services/radio_policy.py`: hides every active `imported_radio_stations` doc that is NOT English/Hindi/an Indian language, NOT a news station, and NOT from US/UAE/UK/India; branded flagship stations (`flagship_slug`) always kept. Reversible — only sets `active: False` + `lang_hidden: True`, never re-activates.
+- Runs at startup (server.py, right after Dubai policy) and at the end of `import_daily_full_sync` so future imports stay clean.
+- All feeds (home `shell.py`, `radio_unified`, `live_radio`) already filter `active: True`, so hidden stations vanish everywhere in one shot.
+- Result: active 5320 → 1742, `lang_hidden` 3578. Verified: `/api/radio/browse` total dropped to ~1756, remaining non-English actives are all news (France Info, Deutschlandfunk, etc.), homepage renders "1k+ STATIONS" with branded/Hindi tiles. Files: `services/radio_policy.py`, `services/radio_browser_import.py`, `server.py`.
+
+
 ## 2026-09-17 — Winners Wall + Nearby personalization + Deal countdown + paid Featured Booking (web + backend)
 Four more landing enhancements:
 - **Weekly Winners Wall** — public `GET /api/launch/winners` surfaces recent REAL prize winners from `game_winners` (masked name + prize title from `prize_snapshot_json`, voided excluded). Landing renders a horizontal `public-winners` scroller (`winner-chip`). Verified 12 real winners.

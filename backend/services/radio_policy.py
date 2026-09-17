@@ -43,6 +43,45 @@ async def apply_dubai_station_policy(db) -> Dict[str, Any]:
     return {"dubai_hidden": hide.modified_count, "dubai_kept": keep.modified_count}
 
 
+# ──────────────── Language / region keep-policy ─────────────────────
+# Keep only: English + Hindi + all Indian languages, every news station,
+# and stations from the US / UAE / UK / India. Everything else is hidden
+# (active=False, lang_hidden=True) but kept in the DB so it can be
+# re-enabled later. Branded flagship stations are always kept.
+_KEEP_LANG_REGEX = (
+    "english|hindi|punjabi|tamil|telugu|bengali|bangla|marathi|gujarati|"
+    "kannada|malayalam|urdu|bhojpuri|odia|oriya|assamese|konkani|sindhi|"
+    "maithili|kashmiri|dogri|manipuri|santali|nepali|tulu|rajasthani|"
+    "haryanvi|awadhi|sanskrit"
+)
+_KEEP_LANG_CODES = ["en", "hi", "pa", "ta", "te", "bn", "mr", "gu", "kn", "ml",
+                    "ur", "or", "as", "ne", "sd", "ks", "sa", "kok", "mni",
+                    "sat", "bho", "asm", "ori"]
+_KEEP_COUNTRIES = ["US", "AE", "GB", "IN"]
+
+
+def _language_keep_query() -> Dict[str, Any]:
+    return {"$or": [
+        {"flagship_slug": {"$nin": [None, ""]}},
+        {"language": {"$regex": _KEEP_LANG_REGEX, "$options": "i"}},
+        {"language_codes": {"$in": _KEEP_LANG_CODES}},
+        {"country_code": {"$in": _KEEP_COUNTRIES}},
+        {"tags_json": "news"},
+        {"name": {"$regex": "news", "$options": "i"}},
+        {"music_genre": {"$regex": "news", "$options": "i"}},
+    ]}
+
+
+async def apply_language_policy(db) -> Dict[str, Any]:
+    """Hide every active station that is NOT English/Hindi/Indian-language,
+    a news station, or from US/UAE/UK/India. Reversible: only sets
+    active=False + lang_hidden=True; never re-activates anything."""
+    hide = await db.imported_radio_stations.update_many(
+        {"$and": [{"active": True}, {"$nor": [_language_keep_query()]}]},
+        {"$set": {"active": False, "lang_hidden": True, "updated_at": _now()}})
+    return {"lang_hidden": hide.modified_count}
+
+
 _FALLBACK_MAP = {
     "south_asian": "Bollywood", "bollywood": "Bollywood", "talk": "Talk Radio",
     "news": "News", "pop": "Pop", "hip_hop": "Hip Hop", "dance": "Dance",

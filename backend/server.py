@@ -1541,9 +1541,11 @@ async def _deferred_bootstrap(app_: FastAPI):
         mbr_mig = await migrate_memberships_v2(db)
         logger.info(f"Membership entitlements v2 migration: {mbr_mig}")
         logger.info(f"Marketplace Phase A bootstrap: {ms} {dm} {dmn} {dsm}")
-        from services.radio_policy import apply_dubai_station_policy, backfill_station_genres
+        from services.radio_policy import apply_dubai_station_policy, apply_language_policy, backfill_station_genres
         drp = await apply_dubai_station_policy(db)
         logger.info(f"Radio Dubai policy: {drp}")
+        lang_pol = await apply_language_policy(db)
+        logger.info(f"Radio language policy: {lang_pol}")
 
         async def _bg_genre_backfill():
             try:

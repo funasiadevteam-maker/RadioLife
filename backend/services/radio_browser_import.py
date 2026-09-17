@@ -565,6 +565,12 @@ async def import_daily_full_sync(db, *,
             upsert=True)
     except Exception as e:
         logger.warning("[radio-import] log insert failed: %s", e)
+    try:
+        from services.radio_policy import apply_language_policy
+        lang_pol = await apply_language_policy(db)
+        logger.info("[radio-import] language policy: %s", lang_pol)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[radio-import] language policy failed: %s", e)
     logger.info(f"[radio-import] cycle={run_id[:18]} fetched={fetched} "
                           f"filtered_never_working={filtered_never_working} "
                           f"created={upsert_counts['created']} "
