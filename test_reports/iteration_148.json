@@ -1,0 +1,35 @@
+{
+  "summary": "Iter148 — Full-stack verification of the 3 RadioLife enhancements (Merchant Games: Fun Pizza Kitchen Spin & Win, Language Memory, Sponsor Rotation) on web + mobile. All 6 backend pytest cases PASS. All UI flows verified end-to-end. Backend: /api/games/discover returns Fun Pizza Kitchen — Spin & Win (campaign_id gc_8a1b4b5494ea42, game_type spin_win, merchant_name 'Fun Pizza Kitchen'); /api/games/gc_8a1b4b5494ea42 returns 5 prizes with display_labels ['10% OFF','20% OFF','30% OFF','40% OFF','Free Small Pizza'] and eligibility.can_play=true. Weight/probability NOT exposed in the public prize view (kept server-side). POST /api/games/gc_8a1b4b5494ea42/play returned won:true, outcome_type:'coupon', wallet_item_type:'coupon', coupon code BIGFM-OCGMMK (fresh mint this session). The minted coupon is retrievable via GET /api/commerce/coupons/me (contained the BIGFM- redemption_code). GET /api/promoted/stations?limit=6 returns 4 active promoted rows (promo_2fdbf8a50615, promo_574f326e7df1, promo_4ebf0d895851, promo_67a6dde683ec — 3 back the same station Talk 100.3 UAE, 1 backs Luv 107.1 UAE, so visual rotation cycles 4 promos). POST /api/promoted/{promo_id}/impression and /click both return ok:true. Web /play renders the Fun Pizza card with [data-testid=play-discover-card-gc_8a1b4b5494ea42] + spin-wheel art [data-testid=play-discover-art-gc_8a1b4b5494ea42]. Web /play/gc_8a1b4b5494ea42 (demo cookie login) renders [data-testid=game-spin-wheel] with all 5 wedges (10/20/30/40% OFF + Free Small Pizza), [data-testid=game-spin-btn] plays, [data-testid=game-play-result-modal] shows 'YOU WON! 10% OFF' + BIGFM-OCGMMK, share row [data-testid=game-play-share] with all 4 buttons game-play-share-native/whatsapp/x/facebook + 'View in Wallet' + 'Play again'. Web /radio/browse Language Memory: click Hindi chip → localStorage.rl_fav_lang_group='hindi'; reload with NO params → Hindi chip re-highlights (bg-cyan-400, 'Clear (1)' visible, Bollywood stations up top); deep-link ?lang_group=english overrides memory (English chip highlights) — persistence + deep-link both correct. Web / home sponsor rotation: [data-testid=public-sponsored] appears pinned as the first card in 'Tune in this second' and rotated Talk 100.3 UAE → Luv 107.1 UAE → next sponsor within ~16s; 3 distinct impression POSTs fired (one per new promo_id shown). Mobile /listen sponsor rotation: [data-testid=listen-sponsored] appears at the top of the tab and rotated across all 4 promo_ids within 16s; 8 impressions fired across two rotation cycles. No red-screen / no critical console errors on either surface (401s are the expected unauth pings from ad/personalization endpoints).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter148_games_and_sponsors.py",
+    "/app/test_reports/pytest/iter148.xml"
+  ],
+  "action_items": [
+    "None blocking — all 3 features (Fun Pizza Spin & Win + coupon mint + social share, Language Memory, Sponsor Rotation) work on both web and mobile."
+  ],
+  "critical_code_review_comments": [
+    "Sponsor pool has 4 promoted rows but 3 of them (promo_2fdbf8a50615, promo_4ebf0d895851, promo_67a6dde683ec) all back the same underlying station 'Talk 100.3 UAE' — so ~75% of rotation ticks show visually identical content, defeating the intent of rotation. Recommend either de-duplicating by station_id in /api/promoted/stations, or seeding at least 3 distinct sponsors so users perceive genuine variety.",
+    "The public /api/games/{campaign_id} meta correctly withholds prize weight/probability — good. Consider also withholding 'value_cents' if a merchant ever wanted to hide the exact discount value (currently 0 for all prizes, so not a leak today).",
+    "Language memory correctly persists to localStorage key rl_fav_lang_group and respects explicit query params (deep-links). Consider also mirroring to a cookie so first-render SSR/edge-side can hydrate the correct chip without a client flash of 'All'.",
+    "GET /api/commerce/coupons/me is the canonical wallet endpoint, but /api/me/coupons (announcement_coupons) also exists and returned an empty list for the demo user — worth documenting which one the frontend 'View in Wallet' button should link to, so users find their newly-won coupon on the right screen.",
+    "Sponsor rotation interval hard-coded at 7s in both surfaces; if we ever want per-campaign pacing (e.g., a premium sponsor gets 10s), that would need to move to the API response (currently stateless on the client)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter148_games_and_sponsors.py (new)",
+    "/app/test_reports/pytest/iter148.xml (pytest junit)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (web + mobile flows verified)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (cookie via POST /api/auth/login for web /play/gc_8a1b4b5494ea42). Demo user has 5 plays/day on the Fun Pizza game; this iteration consumed 1 real play (won 10% OFF, coupon BIGFM-OCGMMK minted to demo's wallet). admin@bigfm.dubai / AdminPass123! not needed this run.",
+  "seed_data_creation": "One real spin play performed as demo@bigfm.dubai — minted coupon BIGFM-OCGMMK (10% OFF) into demo's /api/commerce/coupons/me. Demo still has 2 spins remaining today (was played 2 → now played 3 of max 5). No other seed data changed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_iter148_games_and_sponsors.py for regression. Cookie auth (session cookie via POST /api/auth/login) is the only way to hit /api/games/{cid} + /play — the login response body is the user object, NOT a bearer token. Wallet endpoint for game-minted coupons is /api/commerce/coupons/me. Sponsor rotation interval = 7s; wait ≥8s before asserting a change. Web sponsored card at [data-testid=public-sponsored] renders regardless of auth. Mobile /listen renders [data-testid=listen-sponsored] without login. If you need a clean spin (max plays not exhausted), register a fresh user rather than reusing demo.",
+  "rca of the issue": ""
+}

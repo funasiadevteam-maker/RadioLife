@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — Merchant Games (Fun Pizza Kitchen), Language Memory, Sponsor Rotation
+- **Merchant Games** — seeded demo business **Fun Pizza Kitchen** (`biz_fun_pizza_kitchen`, branded AI logo) with a live **Spin & Win** game (`gc_8a1b4b5494ea42`) whose prizes are 5 REAL coupon offers: 10/20/30/40% off + Free Small Pizza. Probability weighted so lower discounts win most (weights 40/25/15/8/3; free pizza rarest). Uses the already-built merchant game engine (`game_service.create_campaign`); coupons mint to the winner's wallet (`/api/commerce/coupons/me`). Seed script: `scripts/seed_fun_pizza_games.py` (idempotent). The web `/play` page now fills with this game.
+- **Social share on win** — win modal in `GamePlay.jsx` gained a "Share your win" row (native Web Share + WhatsApp / X / Facebook, copy fallback).
+- **Language Memory** — web `RadioBrowse.jsx` remembers the last-used language chip in `localStorage.rl_fav_lang_group` and reopens Browse on it (skipped when a deep-link query param is present). Mobile already persisted it.
+- **Sponsor Rotation** — home Sponsored slot (web `PublicHomeNewLookV2.jsx`) and mobile Listen tab (`listen.tsx`) now fetch the top ~6 promoted stations and rotate every 7s, firing an impression on each change. `promoted_stations.py`: `/stations` de-dupes by station and `ensure_promoted_seed` tops up to **5 distinct** advertisers (Talk 100.3, Luv 107.1, Big 106.2, Beat 97.8, FunAsia Dallas) so rotation shows real variety.
+- Tested: iter148 — 6/6 backend pytest pass + web & mobile UI verified (play → coupon mint, share row, language memory persist, rotation on both surfaces). Distinct-sponsor fix verified via curl (5 distinct stations).
+
+
 ## 2026-09-17 — Language chips + admin restore + Sponsored Play + game art (web + mobile + backend)
 Four features on top of the radio language policy:
 - **Browse language chips** — `GET /api/radio/browse` gained a `lang_group` param (All·English·Hindi·Indian Languages·News) with robust grouping over the messy `language` field + `language_codes` + country/news signals. Web `RadioBrowse.jsx` and mobile `DiscoverBrowse.tsx` render the chip row (mobile replaced the old facet-language row). Verified: total flips 1,756 → 127 (Hindi) → 453 (News).

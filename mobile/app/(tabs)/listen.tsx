@@ -43,7 +43,8 @@ export default function ListenScreen() {
   const [podcasts, setPodcasts] = useState<any[]>([]);
   const [clips, setClips] = useState<any[]>([]);
   const [news, setNews] = useState<any[]>([]);
-  const [sponsored, setSponsored] = useState<any>(null);
+  const [sponsoredList, setSponsoredList] = useState<any[]>([]);
+  const [sponsoredIdx, setSponsoredIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -73,20 +74,26 @@ export default function ListenScreen() {
 
   useEffect(() => { loadSaved(); loadAll(); }, [loadAll, loadSaved]);
 
-  // Sponsored Play — one paid/promoted station pinned near the top.
+  // Sponsored Play — rotate several promoted stations for airtime.
   useEffect(() => {
     let alive = true;
-    api.get('/promoted/stations', { params: { limit: 1 } })
-      .then((r) => {
-        const sp = ((r.data && r.data.items) || [])[0];
-        if (alive && sp) {
-          setSponsored(sp);
-          if (sp.promo_id) api.post(`/promoted/${sp.promo_id}/impression`).catch(() => {});
-        }
-      })
+    api.get('/promoted/stations', { params: { limit: 6 } })
+      .then((r) => { if (alive) setSponsoredList(((r.data && r.data.items) || [])); })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (sponsoredList.length < 2) return;
+    const t = setInterval(() => setSponsoredIdx((i) => (i + 1) % sponsoredList.length), 7000);
+    return () => clearInterval(t);
+  }, [sponsoredList]);
+
+  const sponsored = sponsoredList.length ? sponsoredList[sponsoredIdx % sponsoredList.length] : null;
+
+  useEffect(() => {
+    if (sponsored?.promo_id) api.post(`/promoted/${sponsored.promo_id}/impression`).catch(() => {});
+  }, [sponsored?.promo_id]);
 
   const playSponsored = () => {
     if (sponsored?.promo_id) api.post(`/promoted/${sponsored.promo_id}/click`).catch(() => {});

@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import { Loader2, Trophy, ArrowLeft, X, Sparkles, ChevronRight,
-                  Coins, CreditCard, UtensilsCrossed, Ticket } from "lucide-react";
+                  Coins, CreditCard, UtensilsCrossed, Ticket, Share2 } from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
 
@@ -328,6 +328,52 @@ function ScratchGrid({ prizes, light, revealed, outcome, onScratch, playing }) {
 }
 
 
+// ── Share your win ─────────────────────────────────────────────
+function ShareWin({ outcome, meta, light }) {
+  const url = typeof window !== "undefined" ? window.location.origin : "";
+  const text = `I just won ${outcome.outcome_label} at ${meta.merchant_name || "RadioLife"} on RadioLife! 🎉 Play & win too:`;
+  const enc = encodeURIComponent(text);
+  const encUrl = encodeURIComponent(url);
+  const nativeShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "I won on RadioLife!", text, url });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        toast.success("Copied — paste it anywhere!");
+      }
+    } catch (_e) { /* user dismissed */ }
+  };
+  const links = [
+    { key: "whatsapp", label: "WhatsApp", href: `https://wa.me/?text=${enc}%20${encUrl}` },
+    { key: "x", label: "X", href: `https://twitter.com/intent/tweet?text=${enc}&url=${encUrl}` },
+    { key: "facebook", label: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${encUrl}&quote=${enc}` },
+  ];
+  return (
+    <div className="mt-5" data-testid="game-play-share">
+      <div className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${
+        light ? "text-slate-500" : "text-slate-500"}`}>Share your win</div>
+      <div className="flex items-center justify-center gap-2 flex-wrap">
+        <button type="button" onClick={nativeShare} data-testid="game-play-share-native"
+                      className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-xs font-black text-white"
+                      style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+          <Share2 size={13} /> Share
+        </button>
+        {links.map((l) => (
+          <a key={l.key} href={l.href} target="_blank" rel="noreferrer"
+                data-testid={`game-play-share-${l.key}`}
+                className={`inline-flex items-center h-9 px-4 rounded-full text-xs font-bold ${
+                  light ? "bg-slate-100 text-slate-800 hover:bg-slate-200"
+                          : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}>
+            {l.label}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 // ── Result modal ───────────────────────────────────────────────
 function ResultModal({ outcome, meta, light, onClose, onPlayAgain }) {
   const won = outcome.won;
@@ -375,6 +421,7 @@ function ResultModal({ outcome, meta, light, onClose, onPlayAgain }) {
                 {outcome.points_amount} points added to your wallet
               </div>
             )}
+            <ShareWin outcome={outcome} meta={meta} light={light} />
             <button type="button" onClick={onClose}
                           data-testid="game-play-view-wallet"
                           className="mt-6 w-full h-12 rounded-full text-sm font-black text-white"

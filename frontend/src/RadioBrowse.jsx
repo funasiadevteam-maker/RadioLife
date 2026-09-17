@@ -3,7 +3,7 @@
  *  `/radio/browse?q=&source=&category=&language=&country=&page=`
  *  Mixed-source results.  AI cards first, then community, then imported.
  */
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
@@ -231,6 +231,30 @@ export default function RadioBrowse() {
       .then((r) => setGenreOptions(r.data.genres || []))
       .catch(() => {});
   }, []);
+
+  // Language memory — remember the last-used chip and reopen Browse on it.
+  useEffect(() => {
+    if (filters.lang_group) {
+      try { localStorage.setItem("rl_fav_lang_group", filters.lang_group); } catch (_e) { /* */ }
+    }
+  }, [filters.lang_group]);
+
+  const appliedFav = useRef(false);
+  useEffect(() => {
+    if (appliedFav.current) return;
+    appliedFav.current = true;
+    // Only apply the remembered chip on a clean visit (no deep-link params).
+    const hasAny = searchParams.get("lang_group") || searchParams.get("category")
+      || searchParams.get("q") || searchParams.get("genre") || searchParams.get("country");
+    if (hasAny) return;
+    let fav = "";
+    try { fav = localStorage.getItem("rl_fav_lang_group") || ""; } catch (_e) { /* */ }
+    if (fav) {
+      const next = new URLSearchParams(searchParams);
+      next.set("lang_group", fav);
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const updateFilter = (key, value) => {
     const next = new URLSearchParams(searchParams);

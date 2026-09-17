@@ -374,7 +374,8 @@ function ComingSoonHero({ offerMonths = 6, waitlistEnabled = true, launchAt = nu
 export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 6, waitlistEnabled = true, launchAt = null }) {
   const navigate = useNavigate();
   const [stations, setStations] = useState(STATION_FALLBACK);
-  const [sponsored, setSponsored] = useState(null);
+  const [sponsoredList, setSponsoredList] = useState([]);
+  const [sponsoredIdx, setSponsoredIdx] = useState(0);
   const [count, setCount] = useState(0);
   const [shopTiles, setShopTiles] = useState(null);
   const [city, setCity] = useState("");
@@ -479,20 +480,28 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
     return () => { alive = false; };
   }, []);
 
-  // Sponsored Play — one paid/promoted station pinned first in the live rail.
+  // Sponsored Play — rotate several paid/promoted stations so every
+  // advertiser gets airtime; one is pinned first in the live rail.
   useEffect(() => {
     let alive = true;
-    axios.get(`${API}/promoted/stations?limit=1`)
-      .then((r) => {
-        const s = (r?.data?.items || [])[0];
-        if (alive && s) {
-          setSponsored(s);
-          if (s.promo_id) axios.post(`${API}/promoted/${s.promo_id}/impression`).catch(() => {});
-        }
-      })
+    axios.get(`${API}/promoted/stations?limit=6`)
+      .then((r) => { if (alive) setSponsoredList(r?.data?.items || []); })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (sponsoredList.length < 2) return undefined;
+    const t = setInterval(() => setSponsoredIdx((i) => (i + 1) % sponsoredList.length), 7000);
+    return () => clearInterval(t);
+  }, [sponsoredList]);
+
+  const sponsored = sponsoredList.length ? sponsoredList[sponsoredIdx % sponsoredList.length] : null;
+
+  // Fire an impression whenever a new sponsor is shown.
+  useEffect(() => {
+    if (sponsored?.promo_id) axios.post(`${API}/promoted/${sponsored.promo_id}/impression`).catch(() => {});
+  }, [sponsored?.promo_id]);
 
   const playSponsored = useCallback((station) => {
     if (station?.promo_id) axios.post(`${API}/promoted/${station.promo_id}/click`).catch(() => {});

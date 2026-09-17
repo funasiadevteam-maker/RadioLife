@@ -103,32 +103,47 @@ async def _resolve_card(db, station_id: str) -> Optional[Dict[str, Any]]:
 
 
 async def ensure_promoted_seed(db) -> int:
-    """Seed a couple of promos from flagship / top-voted imported stations
-    so the Sponsored rail is populated for the demo.  Idempotent — only
-    runs when the collection is empty."""
-    n = await db.promoted_stations.count_documents({})
-    if n > 0:
+    """Ensure the Sponsored rail has promos for SEVERAL DISTINCT stations so
+    rotation shows real variety.  Idempotent — only tops up distinct
+    stations, never duplicates one that's already promoted."""
+    TARGET = 5
+    existing_sids = set()
+    async for p in db.promoted_stations.find({}, {"station_id": 1}):
+        existing_sids.add(str(p.get("station_id")))
+    if len(existing_sids) >= TARGET:
         return 0
-    seeds: List[Dict[str, Any]] = []
-    # Prefer flagship stations, then fall back to top-voted imported.
+
+    # Candidate distinct stations: flagship first, then top-voted active.
+    candidates: List[Dict[str, Any]] = []
+    seen_ids = set()
+
+    async def _add(s):
+        sid = str(s.get("id"))
+        if sid and sid not in seen_ids:
+            seen_ids.add(sid)
+            candidates.append(s)
+
+    async for s in db.imported_radio_stations.find({"is_flagship": True}).limit(8):
+        await _add(s)
     async for s in db.imported_radio_stations.find(
-            {"is_flagship": True}).limit(2):
-        seeds.append(s)
-    if len(seeds) < 2:
-        async for s in db.imported_radio_stations.find(
-                {"active": True}).sort([("votes", -1)]).limit(3):
-            if all(x.get("id") != s.get("id") for x in seeds):
-                seeds.append(s)
-            if len(seeds) >= 3:
-                break
+            {"active": True}).sort([("votes", -1)]).limit(20):
+        await _add(s)
+        if len(candidates) >= TARGET + 3:
+            break
+
     created = 0
-    for i, s in enumerate(seeds[:3]):
+    for i, s in enumerate(candidates):
+        if len(existing_sids) >= TARGET:
+            break
+        sid = str(s.get("id"))
+        if sid in existing_sids:
+            continue
         doc = {
             "promo_id":      f"promo_{uuid.uuid4().hex[:12]}",
             "station_id":    s.get("id"),
             "sponsor_name":  s.get("name") or "Sponsored Station",
             "pricing_model": "cpm" if i % 2 == 0 else "cpc",
-            "cpm_bid_cents": 500,
+            "cpm_bid_cents": 500 - i * 20,
             "cpc_bid_cents": 25,
             "active":        True,
             "impressions":   0,
@@ -138,6 +153,7 @@ async def ensure_promoted_seed(db) -> int:
             "updated_at":    _now(),
         }
         await db.promoted_stations.insert_one(doc)
+        existing_sids.add(sid)
         created += 1
     return created
 
@@ -154,12 +170,18 @@ async def list_promoted_stations(
     await ensure_promoted_seed(db)
     await _resume_capped_promos(db)
     out: List[Dict[str, Any]] = []
+    seen_station: set = set()
     cur = db.promoted_stations.find({"active": True}).sort(
-        [("cpm_bid_cents", -1), ("cpc_bid_cents", -1)]).limit(limit * 2)
+        [("cpm_bid_cents", -1), ("cpc_bid_cents", -1)]).limit(limit * 4)
     async for p in cur:
         card = await _resolve_card(db, p.get("station_id"))
         if not card:
             continue
+        # De-dupe by station so the rotation cycles distinct advertisers.
+        key = str(card.get("id") or card.get("station_id") or p.get("station_id"))
+        if key in seen_station:
+            continue
+        seen_station.add(key)
         card = {**card}
         card["is_sponsored"] = True
         card["promo_id"] = p.get("promo_id")
