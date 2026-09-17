@@ -8,7 +8,7 @@ import axios from "axios";
 import {
   Radio, Sparkles, Play, Pause, Coins, Utensils, ShoppingBag, Gamepad2, Users,
   Crown, ArrowRight, Globe, Trophy, Store, Megaphone, Smartphone, Headphones,
-  Check, ChevronRight, Star, X,
+  Check, ChevronRight, Star, X, Clock,
 } from "lucide-react";
 import { HERO_IMG } from "./analytics";
 import { setIntent } from "@/utils/intent";
@@ -376,6 +376,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
   const [stations, setStations] = useState(STATION_FALLBACK);
   const [count, setCount] = useState(0);
   const [shopTiles, setShopTiles] = useState(null);
+  const [city, setCity] = useState("");
   const howRef = useRef(null);
   const audioRef = useRef(null);
   const timerRef = useRef(null);
@@ -468,14 +469,24 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
     return () => { alive = false; };
   }, []);
 
-  // Live Shop tile artwork — real approved-business covers (falls back to art).
+  // Nearby personalization — resolve the visitor's city (anon-friendly).
   useEffect(() => {
     let alive = true;
-    axios.get(`${API}/launch/shop-tiles`)
-      .then((r) => { if (alive) setShopTiles(r?.data?.items || null); })
+    axios.get(`${API}/geo/resolve_city`)
+      .then((r) => { const c = r?.data?.city; if (alive && c && c !== "Global") setCity(c); })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // Live Shop tile artwork — real approved-business covers (nearby first).
+  useEffect(() => {
+    let alive = true;
+    const qs = city ? `?city=${encodeURIComponent(city)}` : "";
+    axios.get(`${API}/launch/shop-tiles${qs}`)
+      .then((r) => { if (alive) setShopTiles(r?.data?.items || null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [city]);
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
     const NAMES = ["public-live-header", "public-airadio", "public-how-header",
@@ -685,8 +696,9 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
         </section>
 
         {/* ─── SHOP / PLAY / SOCIAL previews ────────────────────── */}
-        <DealOfDay makeCta={ctaTo} />
-        <PreviewSection testid="public-shop" eyebrow="Discover what's around you" title="Shop RadioLife"
+        <WinnersWall />
+        <DealOfDay makeCta={ctaTo} city={city} />
+        <PreviewSection testid="public-shop" eyebrow={city ? `Near ${city}` : "Discover what's around you"} title="Shop RadioLife"
           items={[["Local Deals", GRADS[2], "/shop/near-me"], ["Restaurant Pickup", GRADS[0], "/dining"], ["Services", GRADS[3], "/shop"], ["Memberships", GRADS[6], "/shop/memberships"], ["Featured Businesses", GRADS[4], "/shop"]]}
           cta="Explore Shop" onCta={ctaTo("shop", "/shop")} onTile={ctaTo} live={shopTiles} />
         <PreviewSection testid="public-play" eyebrow="Play & win" title="Games, trivia & prizes"
@@ -927,16 +939,40 @@ function PreviewSection({ eyebrow, title, items, cta, onCta, testid, onTile, liv
   );
 }
 
-// Deal of the Day — one real business deal, refreshed daily (server-picked).
-function DealOfDay({ makeCta }) {
+// Deal of the Day — one real business deal, refreshed daily (server-picked),
+// with a live "ends in" countdown + nearby personalization.
+function DealCountdown({ endsAt }) {
+  const target = useMemo(() => (endsAt ? new Date(endsAt).getTime() : 0), [endsAt]);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!target) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [target]);
+  if (!target || Number.isNaN(target)) return null;
+  const diff = Math.max(0, target - now);
+  const h = String(Math.floor(diff / 3600000)).padStart(2, "0");
+  const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, "0");
+  const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, "0");
+  return (
+    <span data-testid="deal-countdown" className="inline-flex items-center gap-1.5 text-[12px] font-bold px-3 py-1 rounded-full"
+      style={{ background: "rgba(0,0,0,0.45)", color: "#fca5a5", border: "1px solid rgba(248,113,113,0.35)" }}>
+      <Clock size={12} /> Ends in {h}:{m}:{s}
+    </span>
+  );
+}
+
+function DealOfDay({ makeCta, city }) {
   const [deal, setDeal] = useState(null);
+  const [endsAt, setEndsAt] = useState(null);
   useEffect(() => {
     let alive = true;
-    axios.get(`${API}/launch/deal-of-day`)
-      .then((r) => { if (alive) setDeal(r?.data?.deal || null); })
+    const qs = city ? `?city=${encodeURIComponent(city)}` : "";
+    axios.get(`${API}/launch/deal-of-day${qs}`)
+      .then((r) => { if (alive) { setDeal(r?.data?.deal || null); setEndsAt(r?.data?.ends_at || null); } })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [city]);
   if (!deal) return null;
   return (
     <section className={`${CONTAINER} py-6`} data-testid="public-deal-of-day">
@@ -946,8 +982,11 @@ function DealOfDay({ makeCta }) {
           onError={(e) => { e.currentTarget.style.display = "none"; }} />
         <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(8,8,20,0.94) 0%, rgba(8,8,20,0.7) 45%, rgba(8,8,20,0.15) 100%)" }} />
         <div className="relative p-6 sm:p-10 max-w-lg">
-          <div className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest px-3 py-1 rounded-full nlv2-chip" style={{ color: "#f5c563" }}>
-            <Sparkles size={13} /> Deal of the day
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest px-3 py-1 rounded-full nlv2-chip" style={{ color: "#f5c563" }}>
+              <Sparkles size={13} /> {deal.featured ? "Featured today" : "Deal of the day"}
+            </div>
+            <DealCountdown endsAt={endsAt} />
           </div>
           <div className="mt-3 text-2xl sm:text-4xl font-black text-white leading-tight" data-testid="deal-of-day-headline">{deal.headline}</div>
           <div className="mt-2 text-sm sm:text-base" style={{ color: "#c9d2ea" }}>{deal.subtext}</div>
@@ -958,6 +997,43 @@ function DealOfDay({ makeCta }) {
             Grab this deal <ArrowRight size={16} />
           </button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// Weekly Winners Wall — recent real prize winners (masked) build social proof.
+function WinnersWall() {
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    axios.get(`${API}/launch/winners?limit=12`)
+      .then((r) => { if (alive) setItems(r?.data?.items || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!items || items.length === 0) return null;
+  return (
+    <section className={`${CONTAINER} py-6`} data-testid="public-winners">
+      <div className="flex items-center gap-2 mb-3">
+        <Trophy size={18} className="text-[#f5c563]" />
+        <h2 className="text-lg font-black text-white">This week&apos;s winners</h2>
+        <span className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#8b96b8" }}>real rewards, real people</span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto nlv2-scroll pb-2 -mx-1 px-1">
+        {items.map((w, i) => (
+          <div key={i} data-testid="winner-chip"
+            className="shrink-0 nlv2-glass rounded-2xl px-4 py-3 flex items-center gap-3 min-w-[220px]">
+            <span className="w-9 h-9 rounded-full grid place-items-center shrink-0"
+              style={{ background: "linear-gradient(135deg,#f59e0b,#ec4899)" }}>
+              <Trophy size={16} color="#fff" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-white truncate">{w.name} won</div>
+              <div className="text-[13px] nlv2-grad font-black truncate">{w.prize}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );

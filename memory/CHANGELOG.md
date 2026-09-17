@@ -2,6 +2,15 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — Winners Wall + Nearby personalization + Deal countdown + paid Featured Booking (web + backend)
+Four more landing enhancements:
+- **Weekly Winners Wall** — public `GET /api/launch/winners` surfaces recent REAL prize winners from `game_winners` (masked name + prize title from `prize_snapshot_json`, voided excluded). Landing renders a horizontal `public-winners` scroller (`winner-chip`). Verified 12 real winners.
+- **Nearby personalization** — the landing resolves the visitor's city via `GET /api/geo/resolve_city` and passes `?city=` to `shop-tiles` + `deal-of-day`; both now sort businesses whose `geo.address` matches the city FIRST (nearby wins, others fall back). Shop eyebrow shows "Near {city}". Verified "Near Council Bluffs".
+- **Countdown deal timer** — `deal-of-day` returns `ends_at` (next UTC midnight); the spotlight shows a live "Ends in HH:MM:SS" (`deal-countdown`). Verified ticking.
+- **Featured Business Booking (paid, Stripe)** — a claimed business can PAY to own the Deal of the Day ($25/day) or the pinned Shop tile ($15/day) for a chosen date. New `featured_bookings` collection + merchant endpoints: `GET /merchant/featured/availability`, `POST /merchant/featured/checkout` (Stripe Checkout via env `STRIPE_SECRET_KEY`, same pattern as bigcoin_topup), `GET /merchant/featured/{session}/status` (confirm → mark paid, double-booking guard), `GET /merchant/featured/mine`. A paid `deal` booking overrides Deal-of-the-Day for its date; a paid `pin` booking becomes the first Featured Businesses tile. UI on `/merchant/soft-launch` (`merchant-featured`, type toggle, date, pay button, bookings list) + confirm-on-return via `?featured_session=`.
+- Files: `routes/soft_launch.py` (+stripe/date imports), `design_v2/PublicHomeNewLookV2.jsx`, `pages/merchant/MerchantSoftLaunch.jsx`. Self-verified: all 6 endpoints via curl (winners, city-aware tiles/deal, availability, real cs_test checkout session, mine) + screenshots (winners wall, deal countdown, featured card). Stripe uses the env TEST key; headless card-entry not executed but session-create + status-confirm plumbing verified. Env left at mode OFF.
+
+
 ## 2026-09-17 — Tile art everywhere + Deal of the Day + tap-through analytics + auto-rotating covers (web)
 Four enhancements building on the branded landing tiles:
 - **Tile art everywhere** — extracted the 15-image branded art map to a shared `design_v2/tileArt.js` and reused it on the logged-in home: `ActionCardsV2` (Shop/Play/Social) now renders the matching neon illustration (Featured Businesses / Sponsored Games / Groups & Events) as a right-side accent behind a left-fade gradient (explicit z-layering so copy stays readable). Whole app now shares one look.

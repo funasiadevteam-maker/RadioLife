@@ -11,8 +11,9 @@ import logging
 import os
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
+import stripe
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 
 from auth import current_user, current_user_optional, require_admin
@@ -23,6 +24,10 @@ from services.launch_guard import (
 
 router = APIRouter(prefix="/api", tags=["soft-launch"])
 logger = logging.getLogger("bigfm.soft_launch")
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY") or ""
+
+# Paid featured-placement pricing (US cents per day).
+_FEATURED_PRICING = {"deal": 2500, "pin": 1500}
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _TEST_NAME = re.compile(r"(TEST_|Iter\d|Test Shop|QA Demo)", re.I)
@@ -56,6 +61,62 @@ def _mask_email(e: str) -> str:
     local, dom = e.split("@", 1)
     lm = (local[:2] + "\u2022\u2022\u2022") if len(local) > 2 else (local[:1] + "\u2022")
     return f"{lm}@{dom[:1]}\u2026"
+
+
+def _today_str() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def _ends_at_iso() -> str:
+    """Next UTC midnight — when the Deal of the Day rolls over."""
+    tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+    return datetime(tomorrow.year, tomorrow.month, tomorrow.day, tzinfo=timezone.utc).isoformat()
+
+
+def _mask_name(user: dict) -> str:
+    if not user:
+        return "A listener"
+    name = (user.get("name") or user.get("display_name") or "").strip()
+    if name:
+        parts = name.split()
+        first = parts[0]
+        if len(parts) > 1:
+            return f"{first} {parts[-1][:1].upper()}."
+        return first
+    email = user.get("email") or ""
+    if "@" in email:
+        return email.split("@", 1)[0][:2].title() + "\u2022\u2022\u2022"
+    return "A listener"
+
+
+async def _paid_booking(db, kind: str, date_str: str):
+    return await db.featured_bookings.find_one(
+        {"type": kind, "date": date_str, "status": "paid"})
+
+
+@router.get("/launch/winners")
+async def launch_winners(request: Request, limit: int = 10):
+    """Public — recent real prize winners (masked) for the Winners Wall."""
+    db = request.app.state.db
+    limit = max(1, min(30, int(limit or 10)))
+    items = []
+    cursor = db.game_winners.find({"status": {"$nin": ["voided", "cancelled"]}}) \
+        .sort([("won_at", -1), ("created_at", -1)]).limit(limit * 3)
+    async for w in cursor:
+        snap = w.get("prize_snapshot_json") or {}
+        prize = snap.get("title") or "a prize"
+        uid = w.get("user_id")
+        user = await db.users.find_one({"user_id": uid}, {"name": 1, "display_name": 1, "email": 1}) if uid else None
+        when = w.get("won_at") or w.get("created_at")
+        try:
+            when_iso = when.isoformat() if hasattr(when, "isoformat") else str(when)
+        except Exception:
+            when_iso = None
+        items.append({"name": _mask_name(user), "prize": prize,
+                      "prize_type": snap.get("prize_type"), "when": when_iso})
+        if len(items) >= limit:
+            break
+    return {"items": items, "total": await db.game_winners.count_documents({"status": {"$nin": ["voided", "cancelled"]}})}
 
 
 def _now() -> datetime:
@@ -162,10 +223,12 @@ async def launch_leaderboard(request: Request, limit: int = 10):
 
 
 @router.get("/launch/shop-tiles")
-async def launch_shop_tiles(request: Request):
+async def launch_shop_tiles(request: Request, city: str = ""):
     """Public — real business cover images for the Shop tiles (a LIST per
-    category so the landing can auto-rotate). Client falls back to branded art."""
+    category so the landing can auto-rotate). City-aware (nearby first) and a
+    paid 'pin' booking is prepended to Featured Businesses. Falls back to art."""
     db = request.app.state.db
+    city = (city or "").strip().lower()[:60]
     q = {"status": "approved",
          "public_name": {"$not": {"$regex": r"(TEST_|Iter\d|Test Shop|QA Demo)",
                                   "$options": "i"}}}
@@ -174,17 +237,24 @@ async def launch_shop_tiles(request: Request):
         img = (p.get("cover_urls") or [None])[0] or p.get("logo_url")
         if not img:
             continue
+        addr = ((p.get("geo") or {}).get("address") or "").lower()
         profs.append({"name": p.get("public_name"), "cat": (p.get("category") or "").lower(),
-                      "img": img,
+                      "img": img, "near": bool(city and city in addr),
+                      "bid": p.get("business_id"),
                       "claimed": bool((p.get("soft_launch_offer") or {}).get("status") == "active")})
+    if city:  # nearby businesses first, stable otherwise
+        profs.sort(key=lambda p: (0 if p["near"] else 1))
 
-    def ser(lst, n=4):
+    def ser(lst, n=4, pin=None):
         out, seen = [], set()
+        if pin:
+            out.append(pin)
+            seen.add(pin["name"])
         for pr in lst:
             if pr["name"] in seen:
                 continue
             seen.add(pr["name"])
-            out.append({"image": pr["img"], "name": pr["name"]})
+            out.append({"image": pr["img"], "name": pr["name"], "near": pr.get("near")})
             if len(out) >= n:
                 break
         return out
@@ -193,31 +263,65 @@ async def launch_shop_tiles(request: Request):
     serv = [p for p in profs if p["cat"] in ("service", "beauty", "fitness")]
     retail = [p for p in profs if p["cat"] in ("retail", "grocery")]
     claimed = [p for p in profs if p["claimed"]]
+
+    # Paid 'pin' booking → first Featured Businesses tile today.
+    pin = None
+    booking = await _paid_booking(db, "pin", _today_str())
+    if booking:
+        bp = await db.marketplace_profiles.find_one({"business_id": booking.get("business_id")})
+        if bp:
+            img = (bp.get("cover_urls") or [None])[0] or bp.get("logo_url")
+            if img:
+                pin = {"image": img, "name": bp.get("public_name"), "pinned": True}
+
     mapping = {}
     if food:
         mapping["Restaurant Pickup"] = ser(food)
     if serv:
         mapping["Services"] = ser(serv)
     feat = claimed + [p for p in profs if not p["claimed"]]
-    if feat:
-        mapping["Featured Businesses"] = ser(feat)
+    if feat or pin:
+        mapping["Featured Businesses"] = ser(feat, pin=pin)
     if retail or profs:
         mapping["Local Deals"] = ser(retail or profs)
     if profs:
         mapping["Memberships"] = ser(profs)
-    return {"items": mapping}
+    return {"items": mapping, "city": city or None}
 
 
-_DEAL_CACHE = {"day": None, "val": None}
+_DEAL_CACHE = {"key": None, "val": None}
 
 
 @router.get("/launch/deal-of-day")
-async def launch_deal_of_day(request: Request):
-    """Public — one real business deal, chosen deterministically per day so it
-    refreshes every 24h but stays stable within the day."""
+async def launch_deal_of_day(request: Request, city: str = ""):
+    """Public — one real business deal. A paid 'deal' booking for today wins;
+    otherwise a city-aware deterministic daily pick. Includes ends_at (next
+    UTC midnight) for the countdown timer."""
     db = request.app.state.db
+    city = (city or "").strip().lower()[:60]
     day = datetime.now(timezone.utc).toordinal()
-    if _DEAL_CACHE["day"] == day and _DEAL_CACHE["val"] is not None:
+    today = _today_str()
+    ends_at = _ends_at_iso()
+
+    def _prof_deal(prof, headline, subtext, featured=False):
+        img = ((prof or {}).get("cover_urls") or [None])[0] or (prof or {}).get("logo_url")
+        return {"business_name": prof.get("public_name"),
+                "category_label": _CAT_LABEL.get((prof.get("category") or "").lower(), "Local"),
+                "image": img, "headline": headline, "subtext": subtext,
+                "featured": featured, "to": "/shop/near-me"}
+
+    # 1) Paid booking overrides everything for its day.
+    booking = await _paid_booking(db, "deal", today)
+    if booking:
+        bp = await db.marketplace_profiles.find_one({"business_id": booking.get("business_id")})
+        img = ((bp or {}).get("cover_urls") or [None])[0] or (bp or {}).get("logo_url")
+        if bp and img:
+            return {"available": True, "ends_at": ends_at,
+                    "deal": _prof_deal(bp, booking.get("headline") or f"Featured: {bp.get('public_name')}",
+                                       booking.get("subtext") or f"Today's spotlight on RadioLife", featured=True)}
+
+    ckey = f"{day}:{city}"
+    if _DEAL_CACHE["key"] == ckey and _DEAL_CACHE["val"] is not None:
         return _DEAL_CACHE["val"]
 
     async def _prof(bid):
@@ -232,42 +336,42 @@ async def launch_deal_of_day(request: Request):
             return None
         return name, img
 
+    def _near(prof):
+        return bool(city and city in (((prof or {}).get("geo") or {}).get("address") or "").lower())
+
     cands = []
     async for o in db.offers.find({"status": "active"}).limit(50):
         prof = await _prof(o.get("business_id"))
-        chk = _ok(prof)
-        if not chk:
+        if not _ok(prof):
             continue
-        name, img = chk
+        name = prof.get("public_name")
         dp = o.get("discount_percent")
         headline = f"{int(dp)}% off" if dp else (o.get("title") or "Special offer")
-        cands.append({"business_name": name,
-                      "category_label": _CAT_LABEL.get((prof.get("category") or "").lower(), "Local"),
-                      "image": img, "headline": headline,
-                      "subtext": o.get("description") or f"Exclusive offer at {name}",
-                      "to": "/shop/near-me"})
+        d = _prof_deal(prof, headline, o.get("description") or f"Exclusive offer at {name}")
+        d["_near"] = _near(prof)
+        cands.append(d)
     async for sp in db.marketplace_specials.find({"active": True}).limit(50):
         prof = await _prof(sp.get("business_id"))
-        chk = _ok(prof)
-        if not chk:
+        if not _ok(prof):
             continue
-        name, img = chk
-        cands.append({"business_name": name,
-                      "category_label": _CAT_LABEL.get((prof.get("category") or "").lower(), "Local"),
-                      "image": img, "headline": sp.get("blurb") or "Today's special",
-                      "subtext": f"Limited-time special at {name}", "to": "/shop/near-me"})
+        name = prof.get("public_name")
+        d = _prof_deal(prof, sp.get("blurb") or "Today's special", f"Limited-time special at {name}")
+        d["_near"] = _near(prof)
+        cands.append(d)
     if not cands:
         async for p in db.marketplace_profiles.find({"status": "approved"}).sort("updated_at", -1).limit(40):
-            chk = _ok(p)
-            if not chk:
+            if not _ok(p):
                 continue
-            name, img = chk
-            cands.append({"business_name": name,
-                          "category_label": _CAT_LABEL.get((p.get("category") or "").lower(), "Local"),
-                          "image": img, "headline": "Featured this week",
-                          "subtext": f"Discover {name} on RadioLife", "to": "/shop/near-me"})
-    out = {"available": bool(cands), "deal": (cands[day % len(cands)] if cands else None)}
-    _DEAL_CACHE["day"] = day
+            d = _prof_deal(p, "Featured this week", f"Discover {p.get('public_name')} on RadioLife")
+            d["_near"] = _near(p)
+            cands.append(d)
+    if city:
+        cands.sort(key=lambda d: (0 if d.get("_near") else 1))
+    for d in cands:
+        d.pop("_near", None)
+    out = {"available": bool(cands), "ends_at": ends_at,
+           "deal": (cands[day % len(cands)] if cands else None)}
+    _DEAL_CACHE["key"] = ckey
     _DEAL_CACHE["val"] = out
     return out
 
@@ -637,6 +741,126 @@ async def merchant_checklist(request: Request, user: dict = Depends(current_user
             {"$set": {"launch_ready": True, "launch_ready_at": _now_iso()}})
     return {"items": items, "progress": {"done": done_req, "total": len(required)},
             "launch_ready": launch_ready, "has_storefront": bool(prof), "catalog_count": n_catalog}
+
+
+# ─────────────────── FEATURED BUSINESS BOOKING (PAID) ──────────────
+async def _my_profile(db, uid: str):
+    return await db.marketplace_profiles.find_one({"owner_user_id": uid})
+
+
+def _valid_future_date(s: str) -> str:
+    try:
+        d = date.fromisoformat(str(s))
+    except Exception:
+        raise HTTPException(400, {"code": "bad_date"})
+    today = datetime.now(timezone.utc).date()
+    if d < today:
+        raise HTTPException(400, {"code": "date_in_past"})
+    if (d - today).days > 60:
+        raise HTTPException(400, {"code": "date_too_far"})
+    return d.isoformat()
+
+
+@router.get("/merchant/featured/availability")
+async def featured_availability(request: Request, date: str = "", type: str = "deal",
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    kind = type if type in _FEATURED_PRICING else "deal"
+    date_str = _valid_future_date(date) if date else _today_str()
+    taken = await _paid_booking(db, kind, date_str)
+    return {"date": date_str, "type": kind, "available": not bool(taken),
+            "price_cents": _FEATURED_PRICING[kind]}
+
+
+@router.post("/merchant/featured/checkout")
+async def featured_checkout(request: Request, body: dict = Body(default={}),
+                            user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user.get("user_id")
+    prof = await _my_profile(db, uid)
+    if not prof:
+        raise HTTPException(400, {"code": "no_storefront",
+                                  "message": "Set up your storefront before booking a featured slot."})
+    kind = str((body or {}).get("type") or "deal")
+    if kind not in _FEATURED_PRICING:
+        raise HTTPException(400, {"code": "bad_type"})
+    date_str = _valid_future_date((body or {}).get("date") or _today_str())
+    if await _paid_booking(db, kind, date_str):
+        raise HTTPException(409, {"code": "slot_taken",
+                                  "message": "That day is already booked — pick another date."})
+    if not stripe.api_key:
+        raise HTTPException(503, {"code": "stripe_unconfigured"})
+    origin = (str((body or {}).get("origin_url") or "").rstrip("/")
+              or (os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/"))
+    if not origin:
+        raise HTTPException(400, {"code": "origin_required"})
+    price = _FEATURED_PRICING[kind]
+    headline = str((body or {}).get("headline") or "").strip()[:80] or None
+    label = ("Deal of the Day" if kind == "deal" else "Pinned Shop tile")
+    session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "product_data": {"name": f"RadioLife {label} — {date_str}"},
+                "unit_amount": price,
+            },
+            "quantity": 1,
+        }],
+        success_url=f"{origin}/merchant/soft-launch?featured_session={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{origin}/merchant/soft-launch?featured_cancel=1",
+        metadata={"kind": "featured_booking", "type": kind, "date": date_str,
+                  "business_id": prof.get("business_id"), "buyer_id": uid},
+    )
+    booking = {"booking_id": "fb_" + secrets.token_urlsafe(10), "session_id": session.id,
+               "type": kind, "date": date_str, "business_id": prof.get("business_id"),
+               "owner_user_id": uid, "business_name": prof.get("public_name"),
+               "headline": headline, "price_cents": price, "status": "pending",
+               "created_at": _now_iso()}
+    await db.featured_bookings.insert_one(dict(booking))
+    return {"ok": True, "checkout_url": session.url, "session_id": session.id,
+            "price_cents": price, "date": date_str, "type": kind}
+
+
+@router.get("/merchant/featured/mine")
+async def featured_mine(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    items = []
+    async for b in db.featured_bookings.find(
+            {"owner_user_id": user.get("user_id")}, {"_id": 0}).sort("date", -1).limit(50):
+        items.append(b)
+    return {"items": items, "pricing": _FEATURED_PRICING}
+
+
+@router.get("/merchant/featured/{session_id}/status")
+async def featured_status(session_id: str, request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    rec = await db.featured_bookings.find_one(
+        {"session_id": session_id, "owner_user_id": user.get("user_id")})
+    if not rec:
+        raise HTTPException(404, {"code": "booking_not_found"})
+    if rec.get("status") == "paid":
+        return {"status": "paid", "type": rec.get("type"), "date": rec.get("date")}
+    if not stripe.api_key:
+        return {"status": rec.get("status", "pending")}
+    try:
+        sess = stripe.checkout.Session.retrieve(session_id)
+    except Exception:
+        return {"status": rec.get("status", "pending")}
+    if sess.get("payment_status") == "paid":
+        # Double-booking guard: if someone else already paid this slot, refundable
+        # edge — mark this one 'superseded' rather than active.
+        other = await db.featured_bookings.find_one(
+            {"type": rec["type"], "date": rec["date"], "status": "paid",
+             "session_id": {"$ne": session_id}})
+        new_status = "superseded" if other else "paid"
+        await db.featured_bookings.update_one(
+            {"session_id": session_id},
+            {"$set": {"status": new_status, "paid_at": _now_iso()}})
+        if new_status == "paid":
+            _DEAL_CACHE["key"] = None  # bust so today's deal reflects the booking
+        return {"status": new_status, "type": rec.get("type"), "date": rec.get("date")}
+    return {"status": "pending"}
 
 
 # ─────────────────────── TEASER (SNEAK PEEK) EMAIL ─────────────────
