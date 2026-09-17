@@ -31,6 +31,32 @@ _CAT_LABEL = {"restaurant": "Restaurant", "beauty": "Salon & Spa",
               "bar": "Bar", "grocery": "Grocery", "service": "Services"}
 _BIZ_CACHE = {"ts": 0.0, "val": None}
 
+# Referral reward tiers (pre-launch promises, unlocked at launch).
+_REFERRAL_TIERS = [
+    {"min": 0, "name": "Waitlisted", "perk": "You're on the list"},
+    {"min": 1, "name": "Insider", "perk": "Early access when we open"},
+    {"min": 3, "name": "VIP", "perk": "Early access + 500 bonus BigPoints"},
+    {"min": 5, "name": "Founding Fan", "perk": "VIP perks + 1 month Premium free"},
+    {"min": 10, "name": "Legend", "perk": "Founding perks + a lifetime Legend badge"},
+]
+
+
+def _tier_for(n: int) -> dict:
+    t = _REFERRAL_TIERS[0]
+    for x in _REFERRAL_TIERS:
+        if n >= x["min"]:
+            t = x
+    return t
+
+
+def _mask_email(e: str) -> str:
+    e = str(e or "")
+    if "@" not in e:
+        return "someone"
+    local, dom = e.split("@", 1)
+    lm = (local[:2] + "\u2022\u2022\u2022") if len(local) > 2 else (local[:1] + "\u2022")
+    return f"{lm}@{dom[:1]}\u2026"
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -68,52 +94,71 @@ async def launch_status(request: Request):
 
 
 @router.get("/launch/businesses")
-async def launch_businesses(request: Request, limit: int = 24):
+async def launch_businesses(request: Request, limit: int = 24, offset: int = 0):
     """Public — the 'Businesses joining now' wall for the Coming-Soon page.
-    Real approved storefronts (newest first), with soft-launch claimers flagged.
-    Cached ~20s so the public poll doesn't re-scan two collections each hit.
+    Real approved storefronts (newest first), soft-launch claimers flagged.
+    Paginated via limit/offset; the full list is cached ~20s so the public
+    poll + 'See all' browsing don't re-scan two collections each hit.
     """
     db = request.app.state.db
     limit = max(1, min(60, int(limit or 24)))
+    offset = max(0, int(offset or 0))
     import time as _t
     now = _t.time()
-    if _BIZ_CACHE["val"] is not None and (now - _BIZ_CACHE["ts"]) < 20.0:
-        cached = _BIZ_CACHE["val"]
-        return {"total": cached["total"], "items": cached["items"][:limit]}
-    items, seen = [], set()
-    q = {"status": "approved",
-         "public_name": {"$not": {"$regex": r"(TEST_|Iter\d|Test Shop|QA Demo)",
-                                  "$options": "i"}}}
-    async for p in db.marketplace_profiles.find(q).sort("updated_at", -1).limit(200):
-        name = p.get("public_name")
-        if not name or name.lower() in seen:
-            continue
-        seen.add(name.lower())
-        cat = p.get("category")
-        items.append({
-            "name": name,
-            "category": cat,
-            "category_label": _CAT_LABEL.get(cat, (cat or "Business").title()),
-            "image": (p.get("cover_urls") or [None])[0] or p.get("logo_url"),
-            "claimed": bool((p.get("soft_launch_offer") or {}).get("status") == "active"),
-        })
-    # Merge in business-portal registrations (may not have a storefront yet).
-    async for b in db.businesses.find({"active": True}).sort("created_at", -1).limit(120):
-        name = b.get("name")
-        if not name or name.lower() in seen or _TEST_NAME.search(name):
-            continue
-        seen.add(name.lower())
-        cat = (b.get("category") or "").lower()
-        items.append({
-            "name": name, "category": cat,
-            "category_label": _CAT_LABEL.get(cat, (cat or "Business").title()),
-            "image": None, "claimed": False,
-        })
-    claimed_total = await db.soft_launch_claims.count_documents({})
-    total = max(len(items), claimed_total)
-    _BIZ_CACHE["val"] = {"total": total, "items": items}
-    _BIZ_CACHE["ts"] = now
-    return {"total": total, "items": items[:limit]}
+    if _BIZ_CACHE["val"] is None or (now - _BIZ_CACHE["ts"]) >= 20.0:
+        items, seen = [], set()
+        q = {"status": "approved",
+             "public_name": {"$not": {"$regex": r"(TEST_|Iter\d|Test Shop|QA Demo)",
+                                      "$options": "i"}}}
+        async for p in db.marketplace_profiles.find(q).sort("updated_at", -1).limit(300):
+            name = p.get("public_name")
+            if not name or name.lower() in seen:
+                continue
+            seen.add(name.lower())
+            cat = p.get("category")
+            items.append({
+                "name": name,
+                "category": cat,
+                "category_label": _CAT_LABEL.get(cat, (cat or "Business").title()),
+                "image": (p.get("cover_urls") or [None])[0] or p.get("logo_url"),
+                "claimed": bool((p.get("soft_launch_offer") or {}).get("status") == "active"),
+            })
+        async for b in db.businesses.find({"active": True}).sort("created_at", -1).limit(200):
+            name = b.get("name")
+            if not name or name.lower() in seen or _TEST_NAME.search(name):
+                continue
+            seen.add(name.lower())
+            cat = (b.get("category") or "").lower()
+            items.append({
+                "name": name, "category": cat,
+                "category_label": _CAT_LABEL.get(cat, (cat or "Business").title()),
+                "image": None, "claimed": False,
+            })
+        claimed_total = await db.soft_launch_claims.count_documents({})
+        total = max(len(items), claimed_total)
+        _BIZ_CACHE["val"] = {"total": total, "items": items}
+        _BIZ_CACHE["ts"] = now
+    cached = _BIZ_CACHE["val"]
+    window = cached["items"][offset:offset + limit]
+    return {"total": cached["total"], "items": window,
+            "loaded": len(cached["items"]),
+            "has_more": (offset + limit) < len(cached["items"])}
+
+
+@router.get("/launch/leaderboard")
+async def launch_leaderboard(request: Request, limit: int = 10):
+    """Public — top waitlist referrers + the reward-tier ladder."""
+    db = request.app.state.db
+    limit = max(1, min(50, int(limit or 10)))
+    top, rank = [], 0
+    cursor = db.consumer_waitlist.find({"referrals": {"$gt": 0}}) \
+        .sort([("referrals", -1), ("created_at", 1)]).limit(limit)
+    async for w in cursor:
+        rank += 1
+        n = int(w.get("referrals", 0) or 0)
+        top.append({"rank": rank, "name": _mask_email(w.get("email")),
+                    "referrals": n, "tier": _tier_for(n)["name"]})
+    return {"tiers": _REFERRAL_TIERS, "top": top}
 
 
 async def _new_ref_code(db) -> str:
@@ -128,7 +173,7 @@ async def _waitlist_position(db, code: str) -> dict:
     me = await db.consumer_waitlist.find_one({"ref_code": code})
     total = await db.consumer_waitlist.count_documents({})
     if not me:
-        return {"position": total, "referrals": 0, "total": total}
+        return {"position": total, "referrals": 0, "total": total, "tier": _tier_for(0)["name"]}
     my_ref = int(me.get("referrals", 0) or 0)
     my_created = me.get("created_at") or ""
     # Rank = 1 + (#entries with more referrals, or same referrals but earlier).
@@ -136,7 +181,8 @@ async def _waitlist_position(db, code: str) -> dict:
         {"referrals": {"$gt": my_ref}},
         {"referrals": my_ref, "created_at": {"$lt": my_created}},
     ]})
-    return {"position": ahead + 1, "referrals": my_ref, "total": total}
+    return {"position": ahead + 1, "referrals": my_ref, "total": total,
+            "tier": _tier_for(my_ref)["name"]}
 
 
 @router.post("/waitlist")
@@ -439,4 +485,144 @@ async def admin_notify_waitlist(request: Request, admin: dict = Depends(require_
     """Manually (re)send the launch email to any not-yet-notified waitlisters."""
     db = request.app.state.db
     sent = await _notify_waitlist_launched(db)
+    return {"ok": True, "processed": sent}
+
+
+# ─────────────────────── MERCHANT CHECKLIST ────────────────────────
+@router.get("/merchant/soft-launch/checklist")
+async def merchant_checklist(request: Request, user: dict = Depends(current_user)):
+    """Guides a business to 'Launch Ready': claim, profile, logo, catalog."""
+    db = request.app.state.db
+    uid = user.get("user_id")
+    prof = await db.marketplace_profiles.find_one({"owner_user_id": uid})
+    claim = await db.soft_launch_claims.find_one({"user_id": uid})
+    bid = (prof or {}).get("business_id")
+    n_catalog = 0
+    if bid:
+        n_catalog = (await db.products.count_documents({"business_id": bid})
+                     + await db.menu_items.count_documents({"business_id": bid}))
+    has_logo = bool((prof or {}).get("logo_url"))
+    has_cover = bool((prof or {}).get("cover_urls"))
+    has_details = bool((prof or {}).get("public_name") and (prof or {}).get("category")
+                       and (prof or {}).get("description"))
+    items = [
+        {"key": "claim", "label": "Claim your free-months offer", "done": bool(claim),
+         "cta_route": "/merchant/soft-launch", "cta_label": "Claim offer"},
+        {"key": "profile", "label": "Complete your business profile", "done": has_details,
+         "cta_route": "/shop/merchant", "cta_label": "Edit profile"},
+        {"key": "logo", "label": "Upload your logo", "done": has_logo,
+         "cta_route": "/shop/merchant", "cta_label": "Add logo"},
+        {"key": "catalog", "label": "Add your first product or menu item", "done": n_catalog > 0,
+         "cta_route": "/shop/merchant/products", "cta_label": "Add products"},
+        {"key": "cover", "label": "Add a cover photo", "done": has_cover, "optional": True,
+         "cta_route": "/shop/merchant", "cta_label": "Add cover"},
+    ]
+    required = [i for i in items if not i.get("optional")]
+    done_req = sum(1 for i in required if i["done"])
+    launch_ready = done_req == len(required)
+    if launch_ready and prof and not prof.get("launch_ready"):
+        await db.marketplace_profiles.update_one(
+            {"owner_user_id": uid},
+            {"$set": {"launch_ready": True, "launch_ready_at": _now_iso()}})
+    return {"items": items, "progress": {"done": done_req, "total": len(required)},
+            "launch_ready": launch_ready, "has_storefront": bool(prof), "catalog_count": n_catalog}
+
+
+# ─────────────────────── TEASER (SNEAK PEEK) EMAIL ─────────────────
+_TEASER_EMAIL_HTML = """\
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;
+  background:#0b0f24;color:#fff;border-radius:16px;overflow:hidden">
+  <div style="padding:30px 28px;background:linear-gradient(135deg,#3b82f6,#8b5cf6)">
+    <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.9">
+      RadioLife &middot; sneak peek</div>
+    <div style="font-size:26px;font-weight:900;margin-top:8px;line-height:1.15">
+      Something good is coming \U0001F440</div>
+  </div>
+  <div style="padding:28px">
+    <p style="font-size:15px;line-height:1.6;color:#d7dcf0">
+      {days} Live radio, AI radio built around you, local deals, games and rewards for
+      every minute you listen &mdash; all in one app. Great local businesses are setting
+      up their storefronts right now.</p>
+    <p style="font-size:15px;line-height:1.6;color:#d7dcf0">
+      Want to skip the line? Invite friends with your waitlist link to move up the queue.</p>
+    <a href="{base}" style="display:inline-block;margin-top:14px;background:#fff;
+      color:#0b0f24;font-weight:800;text-decoration:none;padding:13px 26px;
+      border-radius:999px;font-size:14px">See what's coming &rarr;</a>
+    <p style="font-size:12px;color:#8b96b8;margin-top:24px">
+      You&rsquo;re receiving this because you joined the RadioLife waitlist.</p>
+  </div>
+</div>"""
+
+
+async def _send_teaser(db, min_hours_between: int = 48) -> int:
+    """Best-effort 'sneak peek' email to waitlisters not yet launch-notified,
+    throttled so nobody gets one more than once per `min_hours_between`."""
+    try:
+        from services.mailgun_client import send_email, is_live
+    except Exception as _e:
+        logger.warning("mailgun client unavailable: %s", _e)
+        return 0
+    s = await get_launch_settings(db)
+    days_txt = "Launching soon."
+    la = s.get("launch_at")
+    if la:
+        try:
+            dt = datetime.fromisoformat(str(la).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            days = max(0, (dt - _now()).days)
+            days_txt = f"Just {days} day{'s' if days != 1 else ''} to go."
+        except Exception:
+            pass
+    base = (os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/") or "https://radiolife.app"
+    html = _TEASER_EMAIL_HTML.format(days=days_txt, base=base)
+    live = False
+    try:
+        live = bool(is_live())
+    except Exception:
+        live = False
+    cutoff = (_now() - timedelta(hours=min_hours_between)).isoformat()
+    sent = 0
+    cursor = db.consumer_waitlist.find({
+        "launched_notified": {"$ne": True},
+        "$or": [{"teaser_sent_at": {"$exists": False}},
+                {"teaser_sent_at": {"$lt": cutoff}}],
+    })
+    async for w in cursor:
+        email = w.get("email")
+        if not email:
+            continue
+        try:
+            if live:
+                await asyncio.to_thread(
+                    send_email, email, "A sneak peek at RadioLife \U0001F440", html,
+                    tags=["teaser", "waitlist"])
+            await db.consumer_waitlist.update_one(
+                {"email": email},
+                {"$set": {"teaser_sent_at": _now_iso()}, "$inc": {"teaser_count": 1}})
+            sent += 1
+        except Exception as _e:
+            logger.warning("teaser email failed for one recipient: %s", _e)
+    logger.info("[soft-launch] teaser emails processed=%d (live=%s)", sent, live)
+    return sent
+
+
+@router.get("/admin/launch/teaser-stats")
+async def admin_teaser_stats(request: Request, admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    total = await db.consumer_waitlist.count_documents({})
+    teased = await db.consumer_waitlist.count_documents({"teaser_count": {"$gt": 0}})
+    cutoff = (_now() - timedelta(hours=48)).isoformat()
+    eligible = await db.consumer_waitlist.count_documents({
+        "launched_notified": {"$ne": True},
+        "$or": [{"teaser_sent_at": {"$exists": False}},
+                {"teaser_sent_at": {"$lt": cutoff}}],
+    })
+    return {"total": total, "teased": teased, "eligible_now": eligible}
+
+
+@router.post("/admin/launch/teaser")
+async def admin_send_teaser(request: Request, admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    sent = await _send_teaser(db)
     return {"ok": True, "processed": sent}

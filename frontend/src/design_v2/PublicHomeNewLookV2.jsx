@@ -47,6 +47,25 @@ const GRADS = [
   "linear-gradient(135deg,#22c55e,#06b6d4)",
 ];
 
+// Category tile artwork (absolute CDN URLs — production-safe, no env dependency).
+const TILE_IMG = {
+  "Local Deals": "https://images.unsplash.com/photo-1580828343064-fde4fc206bc6?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Restaurant Pickup": "https://images.unsplash.com/photo-1651440204296-a79fa9988007?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Services": "https://images.unsplash.com/photo-1672380135241-c024f7fbfa13?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Memberships": "https://images.pexels.com/photos/7821733/pexels-photo-7821733.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=400&w=640",
+  "Featured Businesses": "https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Spin & Win": "https://images.unsplash.com/photo-1573788583106-acf6c8f3f0b5?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Trivia": "https://images.unsplash.com/photo-1552862750-746b8f6f7f25?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Predict & Win": "https://images.unsplash.com/photo-1563299796-b729d0af54a5?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Giveaways": "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Sponsored Games": "https://images.unsplash.com/photo-1770177267441-1d8dadda4feb?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Listen Together": "https://images.unsplash.com/photo-1656193874324-a494c9239b2d?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Trivia Teams": "https://images.pexels.com/photos/3182784/pexels-photo-3182784.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=400&w=640",
+  "Prediction Groups": "https://images.unsplash.com/photo-1768244016470-271b210a8407?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Challenges": "https://images.unsplash.com/photo-1607962837359-5e7e89f86776?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+  "Groups & Events": "https://images.unsplash.com/photo-1563841930606-67e2bce48b78?crop=entropy&cs=srgb&fm=jpg&w=640&q=70&fit=crop",
+};
+
 function fmtCount(n) {
   if (!n || n < 1000) return "50,000+";
   if (n >= 1000) return `${Math.floor(n / 1000)}k+`;
@@ -93,6 +112,12 @@ function WaitlistForm({ enabled = true, refCode = "" }) {
             You&apos;re in! Position <span data-testid="waitlist-position" className="nlv2-grad">#{res.position}</span> of {res.total}
           </span>
         </div>
+        {res.tier && (
+          <div data-testid="waitlist-tier" className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+            style={{ background: "rgba(245,197,99,0.15)", color: "#f5c563", border: "1px solid rgba(245,197,99,0.3)" }}>
+            <Star size={11} /> {res.tier}
+          </div>
+        )}
         <p className="mt-2 text-[13px]" style={{ color: "#a8b0cc" }}>
           Invite friends to move up the queue — each signup with your link bumps you higher.
           {res.referrals > 0 && <> You have <b className="text-white">{res.referrals}</b> referral{res.referrals === 1 ? "" : "s"} so far.</>}
@@ -166,13 +191,56 @@ function BizInitial({ name }) {
 }
 
 // Soft-launch — live "Businesses joining now" wall (real approved storefronts).
+function BizCard({ b }) {
+  return (
+    <div data-testid="business-wall-card" className="nlv2-glass nlv2-card-hover rounded-2xl p-3 flex items-center gap-3">
+      {b.image
+        ? <img src={b.image} alt={b.name} className="w-10 h-10 rounded-xl object-cover shrink-0" loading="lazy" />
+        : <BizInitial name={b.name} />}
+      <div className="min-w-0">
+        <div className="text-sm font-bold text-white truncate">{b.name}</div>
+        <div className="text-[11px] truncate" style={{ color: "#97a3c2" }}>
+          {b.claimed ? "★ Founding partner" : b.category_label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BusinessWall() {
   const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [all, setAll] = useState([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   useEffect(() => {
     let alive = true;
     axios.get(`${API}/launch/businesses?limit=18`).then((r) => { if (alive) setData(r.data); }).catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  const openAll = async () => {
+    setOpen(true);
+    if (all.length) return;
+    try {
+      const r = await axios.get(`${API}/launch/businesses?limit=24&offset=0`);
+      const items = r.data?.items || [];
+      setAll(items); setOffset(items.length); setHasMore(!!r.data?.has_more);
+    } catch (_e) { /* ignore */ }
+  };
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const r = await axios.get(`${API}/launch/businesses?limit=24&offset=${offset}`);
+      const items = r.data?.items || [];
+      setAll((prev) => [...prev, ...items]);
+      setOffset((prev) => prev + items.length);
+      setHasMore(!!r.data?.has_more);
+    } catch (_e) { /* ignore */ } finally { setLoadingMore(false); }
+  };
+
   if (!data || !(data.items || []).length) return null;
   return (
     <section className={`${CONTAINER} py-8`} data-testid="business-wall">
@@ -182,22 +250,85 @@ function BusinessWall() {
         <span className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#8b96b8" }} data-testid="business-wall-count">
           {data.total}+ on board
         </span>
+        <button type="button" onClick={openAll} data-testid="business-wall-seeall"
+          className="ml-auto text-[12px] font-bold nlv2-grad hover:brightness-110">See all →</button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {(data.items || []).map((b, i) => (
-          <div key={`${b.name}-${i}`} data-testid="business-wall-card"
-            className="nlv2-glass nlv2-card-hover rounded-2xl p-3 flex items-center gap-3">
-            {b.image
-              ? <img src={b.image} alt={b.name} className="w-10 h-10 rounded-xl object-cover shrink-0" loading="lazy" />
-              : <BizInitial name={b.name} />}
-            <div className="min-w-0">
-              <div className="text-sm font-bold text-white truncate">{b.name}</div>
-              <div className="text-[11px] truncate" style={{ color: "#97a3c2" }}>
-                {b.claimed ? "★ Founding partner" : b.category_label}
-              </div>
+        {(data.items || []).map((b, i) => <BizCard key={`${b.name}-${i}`} b={b} />)}
+      </div>
+
+      {open && (
+        <div data-testid="business-wall-modal" className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-4 sm:p-8"
+          style={{ background: "rgba(4,6,15,0.8)", backdropFilter: "blur(6px)" }} onClick={() => setOpen(false)}>
+          <div className="nlv2-glass-strong rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 px-6 py-4 border-b border-white/10">
+              <h3 className="text-lg font-black text-white">All businesses</h3>
+              <span className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#8b96b8" }}>{data.total}+ on board</span>
+              <button type="button" onClick={() => setOpen(false)} data-testid="business-wall-close"
+                className="ml-auto w-9 h-9 rounded-full grid place-items-center text-white/70 hover:text-white hover:bg-white/10"><X size={18} /></button>
             </div>
+            <div className="overflow-y-auto p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {all.map((b, i) => <BizCard key={`all-${b.name}-${i}`} b={b} />)}
+            </div>
+            {hasMore && (
+              <div className="px-6 py-4 border-t border-white/10 text-center">
+                <button type="button" onClick={loadMore} disabled={loadingMore} data-testid="business-wall-loadmore"
+                  className="h-10 px-6 rounded-full font-bold text-sm bg-white/10 hover:bg-white/20 text-white disabled:opacity-60">
+                  {loadingMore ? "Loading…" : "Load more"}
+                </button>
+              </div>
+            )}
           </div>
-        ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Soft-launch — referral leaderboard + reward-tier ladder.
+function ReferralLeaderboard() {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    axios.get(`${API}/launch/leaderboard?limit=8`).then((r) => { if (alive) setData(r.data); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!data) return null;
+  const tiers = data.tiers || [];
+  const top = data.top || [];
+  return (
+    <section className={`${CONTAINER} py-8`} data-testid="referral-leaderboard">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="nlv2-glass rounded-2xl p-5">
+          <h2 className="text-lg font-black text-white flex items-center gap-2"><Trophy size={18} className="text-[#f5c563]" /> Top inviters</h2>
+          <p className="text-[12px] mt-1" style={{ color: "#8b96b8" }}>Invite friends with your link to climb the board.</p>
+          <div className="mt-4 space-y-1">
+            {top.length === 0 && <div className="text-sm" style={{ color: "#8b96b8" }}>Be the first — share your invite link above!</div>}
+            {top.map((t) => (
+              <div key={t.rank} data-testid="leaderboard-row" className="flex items-center gap-3 py-1.5 border-b border-white/5 last:border-0">
+                <span className="w-6 text-center font-black" style={{ color: t.rank <= 3 ? "#f5c563" : "#8b96b8" }}>{t.rank}</span>
+                <span className="flex-1 text-sm font-semibold text-white truncate">{t.name}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(168,85,247,0.15)", color: "#c4b5fd" }}>{t.tier}</span>
+                <span className="text-sm font-black text-white tabular-nums w-8 text-right">{t.referrals}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="nlv2-glass rounded-2xl p-5">
+          <h2 className="text-lg font-black text-white">Referral rewards</h2>
+          <p className="text-[12px] mt-1" style={{ color: "#8b96b8" }}>Unlocked when we open — the more friends, the better.</p>
+          <div className="mt-4 space-y-2">
+            {tiers.filter((t) => t.min > 0).map((t) => (
+              <div key={t.name} className="flex items-start gap-3 py-1.5">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0" style={{ background: "rgba(245,197,99,0.15)", color: "#f5c563" }}>{t.min}+ invites</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-white">{t.name}</div>
+                  <div className="text-[12px]" style={{ color: "#97a3c2" }}>{t.perk}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -251,6 +382,7 @@ function ComingSoonHero({ offerMonths = 6, waitlistEnabled = true, launchAt = nu
         </div>
       </section>
       <BusinessWall />
+      <ReferralLeaderboard />
     </>
   );
 }
@@ -756,9 +888,15 @@ function PreviewSection({ eyebrow, title, items, cta, onCta, testid }) {
       <SectionHeader eyebrow={eyebrow} title={title} cta={cta} onCta={onCta} testid={testid} />
       <div className="grid grid-flow-col auto-cols-[60%] sm:auto-cols-[38%] lg:grid-flow-row lg:grid-cols-5 gap-4 overflow-x-auto nlv2-scroll pb-2 -mx-1 px-1">
         {items.map(([label, g]) => (
-          <div key={label} className="nlv2-glass nlv2-card-hover rounded-2xl overflow-hidden">
-            <div className="h-24 grid place-items-center" style={{ background: g }}>
-              <span className="text-white/90 font-black text-lg">{label.split(" ").map((w) => w[0]).join("").slice(0, 2)}</span>
+          <div key={label} className="nlv2-glass nlv2-card-hover rounded-2xl overflow-hidden" data-testid={`${testid}-tile`}>
+            <div className="h-24 relative overflow-hidden grid place-items-center" style={{ background: g }}>
+              <span className="text-white/85 font-black text-lg select-none">{label.split(" ").map((w) => w[0]).join("").slice(0, 2)}</span>
+              {TILE_IMG[label] && (
+                <img src={TILE_IMG[label]} alt={label} loading="lazy"
+                  data-testid={`${testid}-tile-img`}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = "none"; }} />
+              )}
             </div>
             <div className="p-3 font-bold text-sm text-white">{label}</div>
           </div>

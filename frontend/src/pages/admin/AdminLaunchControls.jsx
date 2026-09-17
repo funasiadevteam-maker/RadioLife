@@ -51,23 +51,36 @@ export default function AdminLaunchControls() {
   const [tokenExpiry, setTokenExpiry] = useState(0);
   const [copied, setCopied] = useState("");
   const [busy, setBusy] = useState(false);
+  const [teaser, setTeaser] = useState(null);
+  const [teaserMsg, setTeaserMsg] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [s, t, w] = await Promise.all([
+      const [s, t, w, ts] = await Promise.all([
         axios.get(`${API}/admin/launch-settings`, cfg),
         axios.get(`${API}/admin/preview-tokens`, cfg),
         axios.get(`${API}/admin/waitlist`, cfg),
+        axios.get(`${API}/admin/launch/teaser-stats`, cfg),
       ]);
       setSettings(s.data);
       setMonths(s.data?.offer_months || 6);
       setLaunchAt(s.data?.launch_at ? isoToLocalInput(s.data.launch_at) : "");
       setTokens(t.data?.items || []);
       setWaitlist(w.data || { total: 0, items: [] });
+      setTeaser(ts.data || null);
     } catch (_e) { /* ignore */ }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const sendTeaser = useCallback(async () => {
+    setBusy(true); setTeaserMsg("");
+    try {
+      const r = await axios.post(`${API}/admin/launch/teaser`, {}, cfg);
+      setTeaserMsg(`Sent ${r.data?.processed ?? 0} sneak-peek email(s).`);
+      await load();
+    } catch (_e) { setTeaserMsg("Could not send right now."); } finally { setBusy(false); }
+  }, [load]);
 
   const patch = useCallback(async (updates) => {
     setBusy(true);
@@ -197,6 +210,24 @@ export default function AdminLaunchControls() {
               </div>
             ))}
           </div>
+        </Card>
+
+        <Card title="Sneak-peek teaser email" testid="launch-teaser-card">
+          <p className="text-xs text-slate-400 mb-3">
+            Send a mid-wait "sneak peek" email (with the launch countdown) to waitlisters who haven't been emailed in the last 48h. Idempotent — nobody gets spammed.
+          </p>
+          {teaser && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-800 text-slate-300" data-testid="teaser-total">Total {teaser.total}</span>
+              <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-800 text-slate-300" data-testid="teaser-teased">Teased {teaser.teased}</span>
+              <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300" data-testid="teaser-eligible">Eligible now {teaser.eligible_now}</span>
+            </div>
+          )}
+          <button type="button" disabled={busy} onClick={sendTeaser} data-testid="teaser-send-btn"
+            className="h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-bold disabled:opacity-60">
+            {busy ? "Sending…" : "Send sneak-peek teaser"}
+          </button>
+          {teaserMsg && <div className="mt-2 text-xs text-slate-300" data-testid="teaser-msg">{teaserMsg}</div>}
         </Card>
 
         <Card title={`Consumer waitlist · ${waitlist.total}`} testid="launch-waitlist-card">

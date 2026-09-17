@@ -1,0 +1,35 @@
+{
+  "summary": "Iter146 — Backend regression on the 4 new RadioLife soft-launch enhancements (directory pagination, referral leaderboard + tier ladder, merchant setup checklist, launch teaser email). 25/25 pytest cases PASS end-to-end. GET /api/launch/businesses returns {total,items,loaded,has_more}: default limit=24, limit clamped 1..60 (limit=999 -> <=60, limit=0 -> >=1), offset windows the cached full list without overlap (limit=10 offset=0 vs offset=10 disjoint), and has_more is true mid-list and false past the end. GET /api/launch/leaderboard returns exactly the 5 tiers [Waitlisted/Insider/VIP/Founding Fan/Legend] with mins [0,1,3,5,10] and a top[] sorted desc by referrals with sequential ranks; every top entry has referrals>0 and its `name` is masked (contains bullet '\\u2022' or ellipsis '\\u2026' — no full email leaked). POST /api/waitlist and GET /api/waitlist/position both surface `tier`: fresh signup -> 'Waitlisted' (0 refs), and after crediting 1 referral the owner flips to 'Insider' (matches tier ladder). GET /api/merchant/soft-launch/checklist (auth) blocks anon (401/403), returns items in order [claim, profile, logo, catalog, cover(optional)] each with done + cta_route + cta_label, progress.total==4 (required only), and launch_ready == (all 4 required done); demo has_storefront=true and catalog_count is an int. GET /api/admin/launch/teaser-stats: anon and demo blocked (401/403); admin returns {total, teased, eligible_now} all ints. POST /api/admin/launch/teaser: anon/demo blocked; after seeding a fresh TEST_@example.com row eligible_now>=1, first admin send processed>=1, second send within 48h processed==0 (idempotent), eligible_now decreased and teased incremented. REGRESSION: /api/launch/status still exposes launch_at; POST /api/waitlist referral crediting still idempotent on re-submit (referrals unchanged); invalid email -> 400; missing code on /api/waitlist/position -> 400; merchant claim is idempotent (already:true); mode toggle ON (wait 11s) -> /api/shell/home 423 anon + 200 admin, mode toggled back OFF at the end. Mailgun is LIVE — only @example.com throwaways were used (TEST_iter146_*).",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {"web": {"ui_bugs": [], "integration_issues": [], "design_issues": []}},
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter146_soft_launch_enhancements.py",
+    "/app/test_reports/pytest/iter146.xml"
+  ],
+  "action_items": [
+    "None — all 4 backend enhancements and the regression suite pass."
+  ],
+  "critical_code_review_comments": [
+    "GET /api/launch/businesses caches the FULL list (~20s TTL) and paginates in-memory — good. Note: because the cache key is a module-level dict, pagination is consistent within a TTL window but a cache expiry mid-scroll could shift an offset boundary (mostly harmless with 24-row pages). Consider adding an ETag/`cached_at` to let the client detect a refresh.",
+    "leaderboard._mask_email masks the local part but preserves the domain's first char + '\\u2026'. That's fine, but two entries with the same first-3 local chars and same first-domain-char become indistinguishable in the UI. Fine for a public leaderboard but flag if user identity matters.",
+    "_send_teaser writes teaser_sent_at AND $inc teaser_count in the same update — clean. However the 48h idempotency filter uses an ISO string comparison ($lt against ISO strings). This is correct only because Python's isoformat produces lexically-sortable timestamps in UTC; if launch_at were ever a non-UTC ISO stored alongside, the sort would break. It's safe today (_now_iso always UTC-aware).",
+    "The teaser query filters `launched_notified: {$ne: True}` — matches the launch-notify path exactly, so once we send the launch email we automatically stop teasing. Good.",
+    "Merchant checklist mutates DB (`launch_ready: true`) inside a GET handler. That's convenient but violates REST idempotency semantics — consider moving it to a POST or a scheduled job so cache/replay GETs don't cause writes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter146_soft_launch_enhancements.py (new)",
+    "/app/test_reports/pytest/iter146.xml (pytest junit)"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "n/a — backend-only run as requested"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!, demo@bigfm.dubai / DemoPass123! (cookie via POST /api/auth/login)",
+  "seed_data_creation": "Added several TEST_iter146_*@example.com throwaway waitlist rows (owner + referrer + teaser eligibility seeds). All are @example.com so LIVE Mailgun bounces them harmlessly. No real user data was written.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Environment left SAFE: business_setup_mode_enabled=false, waitlist_enabled=true, offer_months=6, launch_at='2027-05-20T14:30:00+00:00'. Guard cache TTL ~10s — always sleep ~11s after toggling. Reuse /app/backend/tests/test_iter146_soft_launch_enhancements.py for a fast regression. Mailgun is LIVE (radiolife.app) — always use @example.com waitlist addresses. Note: nearly all pre-existing waitlist rows are launched_notified=true, so a fresh @example.com seed is required to see eligible_now>=1 on the teaser stats endpoint.",
+  "rca of the issue": ""
+}

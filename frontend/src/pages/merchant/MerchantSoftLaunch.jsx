@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Store, Check, ArrowRight, Eye, Sparkles } from "lucide-react";
+import { Store, Check, ArrowRight, Eye, Sparkles, CheckCircle2, Circle } from "lucide-react";
 import { useLaunchStore } from "@/hooks/useLaunchStatus";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
@@ -14,12 +14,15 @@ const cfg = { withCredentials: true };
 export default function MerchantSoftLaunch() {
   const navigate = useNavigate();
   const [offer, setOffer] = useState(null);
+  const [checklist, setChecklist] = useState(null);
   const [busy, setBusy] = useState(false);
   const refresh = useLaunchStore((s) => s.refresh);
 
   const load = useCallback(async () => {
     try { const r = await axios.get(`${API}/merchant/soft-launch/offer`, cfg); setOffer(r.data); }
     catch (_e) { setOffer({ error: true }); }
+    try { const c = await axios.get(`${API}/merchant/soft-launch/checklist`, cfg); setChecklist(c.data); }
+    catch (_e) { /* ignore */ }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -93,6 +96,49 @@ export default function MerchantSoftLaunch() {
             </div>
           )}
         </div>
+
+        {checklist && (
+          <div className="mt-6 nlv2-glass rounded-2xl p-6" data-testid="merchant-checklist">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-black text-white">Get Launch Ready</h2>
+              {checklist.launch_ready
+                ? <span data-testid="merchant-launch-ready" className="text-[11px] font-black px-2.5 py-1 rounded-full"
+                    style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)" }}>✓ LAUNCH READY</span>
+                : <span className="text-[12px] font-mono" style={{ color: "#8b96b8" }}>{checklist.progress.done}/{checklist.progress.total}</span>}
+            </div>
+            <div className="mt-3 h-2 rounded-full bg-white/10 overflow-hidden">
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${Math.round((checklist.progress.done / checklist.progress.total) * 100)}%`,
+                  background: "linear-gradient(90deg,#a855f7,#ec4899)" }} />
+            </div>
+            <div className="mt-4 space-y-2">
+              {checklist.items.map((it) => (
+                <div key={it.key} data-testid={`checklist-item-${it.key}`}
+                  className="flex items-center gap-3 py-2 border-b border-white/5 last:border-0">
+                  {it.done
+                    ? <CheckCircle2 size={20} className="text-emerald-400 shrink-0" />
+                    : <Circle size={20} className="text-white/30 shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-semibold ${it.done ? "text-white/60 line-through" : "text-white"}`}>
+                      {it.label}{it.optional && <span className="text-[10px] ml-1" style={{ color: "#8b96b8" }}>(optional)</span>}
+                    </div>
+                  </div>
+                  {!it.done && (
+                    <button type="button" onClick={() => navigate(it.cta_route)} data-testid={`checklist-cta-${it.key}`}
+                      className="shrink-0 h-8 px-3 rounded-full text-xs font-bold bg-white/10 hover:bg-white/20 text-white">
+                      {it.cta_label} →
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {checklist.launch_ready && (
+              <p className="mt-4 text-[13px] text-center" style={{ color: "#4ade80" }}>
+                🎉 You&apos;re all set — your storefront will go live the moment RadioLife opens to listeners.
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

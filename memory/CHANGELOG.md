@@ -2,6 +2,19 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-09-17 — BUGFIX: public landing category tiles now show real images (web)
+The Shop / Play / Social preview tiles on the V2 public landing (`PublicHomeNewLookV2` → `PreviewSection`) rendered as gradient "color blobs" with initials instead of photos. Added a `TILE_IMG` map of **absolute CDN image URLs** (Unsplash/Pexels) for all 15 categories and render an `<img object-cover>` over the gradient; the gradient + initials now only show as an `onError` fallback. URLs are hardcoded absolute links (no env dependency) so they render identically in preview AND production. All 15 URLs verified 200 image/jpeg; landing screenshot confirms real photos. Testids added: `{section}-tile`, `{section}-tile-img`.
+
+
+## 2026-09-17 — SOFT LAUNCH round 3: Directory Pagination + Referral Leaderboard + Merchant Checklist + Teaser Email (web + backend, validated iter146, backend 25/25 PASS + web screenshots)
+Four user-picked follow-ups. All additive; mode still defaults OFF.
+- **Directory pagination** — `GET /api/launch/businesses?limit=&offset=` now windows the cached full list and returns `{total, items, loaded, has_more}`. Coming-Soon wall gained a "See all →" button opening a modal (`business-wall-modal`) with `Load more` (24/page) — verified 24→48.
+- **Referral leaderboard + tiers** — `GET /api/launch/leaderboard` returns 5 reward tiers (Waitlisted/Insider@1/VIP@3/Founding Fan@5/Legend@10) + top referrers (emails masked). `POST /api/waitlist` + `GET /api/waitlist/position` now include the caller's `tier`. Coming-Soon page shows a "Top inviters" board + "Referral rewards" ladder + a tier badge in the waitlist-success card.
+- **Merchant Launch-Ready checklist** — `GET /api/merchant/soft-launch/checklist` computes claim / profile / logo / catalog (+ optional cover) from `marketplace_profiles`, `db.products`, `db.menu_items`, `soft_launch_claims`; returns per-item `cta_route`/`cta_label`, a required-only `progress`, and `launch_ready` (lazily stamps `marketplace_profiles.launch_ready`). `/merchant/soft-launch` renders a progress bar + per-step CTAs + a "✓ LAUNCH READY" badge.
+- **Teaser (sneak-peek) email** — `POST /api/admin/launch/teaser` (+ `GET /api/admin/launch/teaser-stats`) emails not-yet-launch-notified waitlisters a countdown teaser via live Mailgun, throttled to once / 48h per person (`teaser_sent_at`/`teaser_count`). Admin `/admin/launch` gained a teaser card (eligible count + Send button).
+- Files: `routes/soft_launch.py`, `frontend/src/design_v2/PublicHomeNewLookV2.jsx`, `pages/admin/AdminLaunchControls.jsx`, `pages/merchant/MerchantSoftLaunch.jsx`. Report: iter146. Env left safe (mode OFF).
+
+
 ## 2026-09-16 — SOFT LAUNCH enhancements: Business Directory + Referral Waitlist + Launch Countdown (web + backend, validated iter145, backend 17/17 PASS + web e2e)
 Three user-picked follow-ups on Business Setup Mode. All additive; mode still defaults OFF.
 - **Business Directory** — public `GET /api/launch/businesses` (20s in-module cache) returns real approved storefronts (`marketplace_profiles` + business-portal `businesses`, TEST_/QA excluded, newest first) with `category_label`, cover image, and a `claimed` (founding-partner) flag + a `total`. Coming-Soon page renders a live "Businesses joining now" wall (`business-wall`, `business-wall-card`, `business-wall-count`).
