@@ -94,9 +94,8 @@ export function AuthProvider({ children }) {
 
   const googleSignIn = useCallback(() => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirect = window.location.origin + "/";
     window.location.href =
-      `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`;
+      `${window.location.origin}/api/auth/google/login?return_to=${encodeURIComponent("/")}`;
   }, []);
 
   const demoLogin = useCallback(async () => {

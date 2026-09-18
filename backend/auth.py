@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional
 import bcrypt
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr, Field
 
 logger = logging.getLogger("bigfm.auth")
@@ -41,6 +42,23 @@ SESSION_TTL = timedelta(days=7)
 EMERGENT_SESSION_DATA_URL = (
     "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
 )
+
+# ─── Own Google OAuth 2.0 (developer's own Client ID/Secret) ──────
+# Replaces the Emergent-managed Google Sign-In so the Google consent
+# screen shows the app's own name/branding. Server-side auth-code flow:
+#   GET /api/auth/google/login    → 302 to Google's consent screen
+#   GET /api/auth/google/callback → exchange code, issue our session
+# REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT
+# URLS, THIS BREAKS THE AUTH — the redirect_uri is derived at runtime
+# from the request host so it always matches the serving origin.
+# NOTE: read creds lazily (server.py imports this module BEFORE load_dotenv
+# runs, so a module-level os.environ.get would come back empty).
+def _google_creds() -> tuple[str, str]:
+    return (os.environ.get("GOOGLE_CLIENT_ID", ""),
+                  os.environ.get("GOOGLE_CLIENT_SECRET", ""))
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
 
 # ---------- pydantic ----------
@@ -259,6 +277,17 @@ async def ensure_auth_indexes(db) -> None:
         await db.user_sessions.create_index(
             "expires_at", expireAfterSeconds=0,
             name="user_sessions_ttl")
+    except Exception:
+        pass
+    # Own Google OAuth — short-lived state store (CSRF + redirect_uri pin).
+    try:
+        await db.oauth_states.create_index("state", unique=True,
+                                                                                name="oauth_states_state_unique")
+    except Exception:
+        pass
+    try:
+        await db.oauth_states.create_index(
+            "expires_at", expireAfterSeconds=0, name="oauth_states_ttl")
     except Exception:
         pass
 
@@ -703,6 +732,78 @@ async def me(user: dict = Depends(current_user)):
     return _serialize_user(user)
 
 
+def _base_from_request(request: Request) -> str:
+    """Serving origin as the browser sees it (scheme+host), from the
+    proxy's forwarded headers — the server-side equivalent of
+    window.location.origin. Never hardcoded."""
+    proto = (request.headers.get("x-forwarded-proto")
+                      or request.url.scheme or "https").split(",")[0].strip()
+    host = (request.headers.get("x-forwarded-host")
+                    or request.headers.get("host")
+                    or request.url.netloc).split(",")[0].strip()
+    return f"{proto}://{host}"
+
+
+async def _upsert_google_user(db, request: Request, *, email: str,
+                                                            name: Optional[str],
+                                                            picture: Optional[str]) -> dict:
+    """Create or update a user from a verified Google identity, growing the
+    `auth_providers` set and firing the first_login trigger. Shared by the
+    Emergent-session path and our own OAuth callback."""
+    email = (email or "").lower().strip()
+    now = _now()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    google_fields = {
+        "google_email":         email,
+        "google_name":            name,
+        "google_picture":     picture,
+        "google_linked_at": now,
+    }
+    if not user:
+        user_id = f"user_{uuid.uuid4().hex[:16]}"
+        doc = {
+            "user_id": user_id, "email": email,
+            "name": name or email.split("@")[0],
+            "picture": picture,
+            "auth_provider": "google", "auth_providers": ["google"],
+            **google_fields, "role": "user",
+            "onboarding_complete": False,
+            "preference_vector": PreferenceVector().model_dump(),
+            "created_at": now, "last_login_at": now,
+        }
+        await db.users.insert_one(doc)
+        user = doc
+        try:
+            import asyncio as _aio
+            from services.notification_trigger_dispatcher import dispatch_event
+            _aio.create_task(dispatch_event(
+                db, event_name="first_login", user_id=user_id,
+                payload={"provider": "google"}))
+        except Exception:
+            pass
+    else:
+        _was_first_login = user.get("last_login_at") is None
+        update: Dict[str, Any] = {"last_login_at": now, **google_fields}
+        if name:      update["name"] = name
+        if picture: update["picture"] = picture
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": update, "$addToSet": {"auth_providers": "google"}})
+        user.update(update)
+        user["auth_providers"] = list(
+            set((user.get("auth_providers") or []) + ["google"]))
+        if _was_first_login:
+            try:
+                import asyncio as _aio
+                from services.notification_trigger_dispatcher import dispatch_event
+                _aio.create_task(dispatch_event(
+                    db, event_name="first_login", user_id=user["user_id"],
+                    payload={"provider": "google"}))
+            except Exception:
+                pass
+    return user
+
+
 @auth_router.post("/google/session", response_model=UserOut)
 @auth_router.post("/google/exchange", response_model=UserOut)
 async def google_session(req: GoogleSessionReq, request: Request, response: Response):
@@ -812,6 +913,114 @@ async def google_session(req: GoogleSessionReq, request: Request, response: Resp
     _set_session_cookie(response, token)
     _kick_warm_start(request, user)
     return _attach_session_to_response(_serialize_user(user), token, expires_at)
+
+
+# ─── Own Google OAuth 2.0 — server-side auth-code flow ────────────
+# REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT
+# URLS, THIS BREAKS THE AUTH.
+@auth_router.get("/google/login")
+async def google_login(request: Request, return_to: str = "/",
+                                              platform: str = "web",
+                                              app_redirect: Optional[str] = None):
+    """Kick off Google sign-in with OUR own OAuth client. 302s the browser
+    to Google's consent screen (which now shows the app's own name)."""
+    client_id, client_secret = _google_creds()
+    if not client_id or not client_secret:
+        raise HTTPException(500, "Google OAuth is not configured")
+    from urllib.parse import urlencode
+    db = request.app.state.db
+    redirect_uri = f"{_base_from_request(request)}/api/auth/google/callback"
+    state = secrets.token_urlsafe(24)
+    await db.oauth_states.insert_one({
+        "state": state, "return_to": return_to or "/",
+        "platform": platform or "web", "app_redirect": app_redirect,
+        "redirect_uri": redirect_uri,
+        "created_at": _now(), "expires_at": _now() + timedelta(minutes=10)})
+    params = {
+        "client_id":                    client_id,
+        "redirect_uri":              redirect_uri,
+        "response_type":            "code",
+        "scope":                          "openid email profile",
+        "state":                          state,
+        "access_type":              "online",
+        "prompt":                        "select_account",
+        "include_granted_scopes": "true",
+    }
+    return RedirectResponse(f"{GOOGLE_AUTH_URL}?{urlencode(params)}",
+                                                    status_code=302)
+
+
+@auth_router.get("/google/callback")
+async def google_callback(request: Request, code: Optional[str] = None,
+                                                    state: Optional[str] = None,
+                                                    error: Optional[str] = None):
+    """Google redirects here with ?code&state. Exchange the code for the
+    user's identity, upsert the user, and issue OUR session — then bounce
+    into the app (cookie on web, deep-link token on mobile)."""
+    db = request.app.state.db
+    base = _base_from_request(request)
+    st = await db.oauth_states.find_one({"state": state}) if state else None
+    if st:
+        await db.oauth_states.delete_one({"state": state})
+
+    def _fail(reason: str):
+        return RedirectResponse(f"{base}/login?authError={reason}",
+                                                        status_code=302)
+
+    if error or not code or not st:
+        return _fail("google")
+    redirect_uri = st.get("redirect_uri") or f"{base}/api/auth/google/callback"
+    client_id, client_secret = _google_creds()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            tok = await client.post(GOOGLE_TOKEN_URL, data={
+                "code": code, "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code"})
+            if tok.status_code != 200:
+                logger.warning("[google-oauth] token exchange %s: %s",
+                                              tok.status_code, tok.text[:200])
+                return _fail("google")
+            access_token = (tok.json() or {}).get("access_token")
+            if not access_token:
+                return _fail("google")
+            ui = await client.get(
+                GOOGLE_USERINFO_URL,
+                headers={"Authorization": f"Bearer {access_token}"})
+            if ui.status_code != 200:
+                return _fail("google")
+    except Exception as e:
+        logger.warning("[google-oauth] network error: %s", e)
+        return _fail("google")
+
+    data = ui.json() or {}
+    email = (data.get("email") or "").lower().strip()
+    if not email:
+        return _fail("google")
+    user = await _upsert_google_user(
+        db, request, email=email, name=data.get("name"),
+        picture=data.get("picture"))
+    token, expires_at = await _create_session(db, user["user_id"], request)
+    try:
+        await db.user_sessions.update_one(
+            {"session_token": token}, {"$set": {"provider": "google"}})
+    except Exception:
+        pass
+    _kick_warm_start(request, user)
+
+    # Mobile — hand the opaque session token to the app via its deep link.
+    if (st.get("platform") == "mobile") and st.get("app_redirect"):
+        sep = "&" if "?" in st["app_redirect"] else "?"
+        return RedirectResponse(f'{st["app_redirect"]}{sep}token={token}',
+                                                        status_code=302)
+    # Web — set the HttpOnly session cookie and bounce into the app.
+    return_to = st.get("return_to") or "/"
+    if not user.get("onboarding_complete"):
+        return_to = "/onboarding"
+    redir = RedirectResponse(f"{base}{return_to}", status_code=302)
+    _set_session_cookie(redir, token)
+    return redir
 
 
 # ---------- Phase 14 prep — one-click demo login ------------------------

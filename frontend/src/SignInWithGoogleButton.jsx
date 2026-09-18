@@ -1,15 +1,16 @@
 /**
  * SignInWithGoogleButton  (Phase AUTH.1)
  * ----------------------------------------------------------------
- * Emergent-managed Google Sign-In launcher.  Redirects to
- *     https://auth.emergentagent.com/?redirect={window.location.origin}
- * (never hardcode the URL — the redirect is derived at click-time).
+ * Launches Google Sign-In via OUR OWN Google OAuth client (server-side
+ * auth-code flow). Navigates to:
+ *     {window.location.origin}/api/auth/google/login?return_to=...
+ * The backend 302s to Google's consent screen (branded with the app's
+ * own name), then sets our session cookie and bounces back into the app.
  *
  * Props
  *     size:            "small" | "medium" | "large"    (default "medium")
  *     variant:        "auto"    | "legacy" | "radiolife"      (default "auto")
- *     redirectPath: string — appended to `window.location.origin`. Defaults
- *                                  to `/` since AuthCallback will re-route on success.
+ *     redirectPath: string — the in-app path to land on after login.
  *     onBeforeRedirect: () => void — optional analytics hook
  *
  * REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS,
@@ -52,9 +53,9 @@ export default function SignInWithGoogleButton({
   const onClick = useCallback(() => {
     onBeforeRedirect?.();
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirect = window.location.origin + redirectPath;
+    const returnTo = redirectPath || "/";
     window.location.href =
-      `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`;
+      `${window.location.origin}/api/auth/google/login?return_to=${encodeURIComponent(returnTo)}`;
   }, [onBeforeRedirect, redirectPath]);
 
   const themeCls = resolvedVariant === "radiolife"

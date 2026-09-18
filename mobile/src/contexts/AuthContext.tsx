@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
-import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 import api, { loadToken, saveToken, clearToken, BACKEND } from '../api/client';
 import { deregisterPushToken } from '../utils/pushNotifications';
 
@@ -42,7 +42,7 @@ type AuthCtx = {
   login: (email: string, password: string) => Promise<any>;
   register: (email: string, password: string, name: string) => Promise<any>;
   logout: () => Promise<void>;
-  googleSignIn: () => void;
+  googleSignIn: () => Promise<void>;
   refreshBilling: () => Promise<Billing>;
 };
 
@@ -114,17 +114,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setBilling(null);
   }, []);
 
-  const googleSignIn = useCallback(() => {
-    const redirect = Platform.OS === 'web'
-      ? window.location.origin + '/'
-      : `${BACKEND}/`;
-    const url = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`;
-    if (Platform.OS === 'web') {
-      window.location.href = url;
-    } else {
-      WebBrowser.openBrowserAsync(url);
+  // Google sign-in via OUR OWN OAuth client (server-side auth-code flow).
+  // Opens the system browser to the backend, which 302s to Google's own
+  // branded consent screen, then hands the opaque session token back to
+  // the app through the deep link (mobile://auth?token=...).
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT
+  // URLS, THIS BREAKS THE AUTH.
+  const googleSignIn = useCallback(async () => {
+    try {
+      const returnUrl = Linking.createURL('auth');
+      const startUrl =
+        `${BACKEND}/api/auth/google/login?platform=mobile&app_redirect=${encodeURIComponent(returnUrl)}`;
+      const result = await WebBrowser.openAuthSessionAsync(startUrl, returnUrl);
+      if (result.type === 'success' && result.url) {
+        const m = result.url.match(/[?&]token=([^&]+)/);
+        const token = m ? decodeURIComponent(m[1]) : null;
+        if (token) {
+          await saveToken(token);
+          await refresh();
+        }
+      }
+    } catch {
+      /* user can retry from the login screen */
     }
-  }, []);
+  }, [refresh]);
 
   return (
     <AuthContext.Provider value={{
