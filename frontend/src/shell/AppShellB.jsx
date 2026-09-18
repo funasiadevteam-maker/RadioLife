@@ -305,7 +305,6 @@ function TopBar({ onHamburger }) {
         <HeaderMiniWallet />
         <NotificationBell />
         <ThemeToggle />
-        <VariantSwitcher />
         <ShopCartButton />
         <AvatarMenu />
       </div>
@@ -481,7 +480,6 @@ function MobileShell({ children }) {
         </button>
         <ThemeToggle />
         <HeaderMiniWallet />
-        <VariantSwitcher />
       </header>
       <FilterChips />
       <main className="px-4 py-4 animate-fade-up">

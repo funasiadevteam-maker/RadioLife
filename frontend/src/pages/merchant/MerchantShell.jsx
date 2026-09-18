@@ -15,6 +15,7 @@ import {
   Store, Zap, Settings, LogOut, Menu, X, ChevronRight,
   ExternalLink, AlertTriangle, ScanLine, Users,
   Gift, UtensilsCrossed, Trophy, MapPin,
+  Rocket, Eye, LayoutGrid, ArrowRight, Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
@@ -210,11 +211,77 @@ export default function MerchantShell() {
           )}
 
           <main className="flex-1 min-w-0" data-testid="merchant-shell-main">
+            {variant === "new_look_v2" && (
+              <PortalBandV2 merchant={merchant}
+                                          onSwitch={() => navigate("/portal")} />
+            )}
             <Outlet />
           </main>
         </div>
       </div>
     </MerchantCtx.Provider>
+  );
+}
+
+
+// V2 Business-Portal band — premium header connecting the merchant dashboard
+// to the New Look V2 public site. Presentation only; data/permissions shared.
+function PortalBandV2({ merchant, onSwitch }) {
+  const checks = [
+    !!merchant?.name,
+    !!merchant?.logo_url,
+    !!merchant?.stripe_charges_enabled,
+    !!merchant?.stripe_payouts_enabled,
+  ];
+  const pct = Math.round((checks.filter(Boolean).length / checks.length) * 100);
+  const stripeReady = merchant?.stripe_charges_enabled && merchant?.stripe_payouts_enabled;
+  const setupHref = stripeReady ? "/merchant/profile" : "/merchant/stripe";
+  return (
+    <div className="relative overflow-hidden border-b border-white/10"
+              data-testid="merchant-portal-band-v2"
+              style={{ background: "linear-gradient(120deg,#0b0f1e 0%,#1a1038 55%,#2a1148 100%)" }}>
+      <div className="absolute -top-16 -right-10 w-64 h-64 rounded-full blur-3xl opacity-30"
+                style={{ background: "radial-gradient(circle,#a855f7,transparent 70%)" }} />
+      <div className="relative px-6 lg:px-10 py-5 flex items-center gap-5 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-300">RadioLife</span>
+            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200">
+              <Sparkles size={9} /> Soft Launch
+            </span>
+            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-slate-950"
+                        style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
+              6 Months Free
+            </span>
+          </div>
+          <div className="text-xl lg:text-2xl font-black text-white truncate"
+                    data-testid="merchant-portal-band-name">{merchant?.name}</div>
+          <div className="mt-2 flex items-center gap-3 max-w-md">
+            <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${pct}%`,
+                          background: "linear-gradient(90deg,#06b6d4,#a855f7)" }} />
+            </div>
+            <span className="text-xs font-black text-cyan-300 tabular-nums whitespace-nowrap"
+                        data-testid="merchant-portal-band-readiness">{pct}% ready</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link to={setupHref} data-testid="merchant-portal-complete-setup"
+                      className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-sm font-black"
+                      style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)", color: "#fff" }}>
+            <Rocket size={14} /> Complete Setup
+          </Link>
+          <Link to="/merchant/profile" data-testid="merchant-portal-preview-store"
+                      className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-sm font-bold text-white bg-white/10 hover:bg-white/15 border border-white/10">
+            <Eye size={14} /> Preview My Store
+          </Link>
+          <button type="button" onClick={onSwitch} data-testid="merchant-portal-switch-workspace"
+                        className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-sm font-bold text-white bg-white/10 hover:bg-white/15 border border-white/10">
+            <LayoutGrid size={14} /> Switch Workspace
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

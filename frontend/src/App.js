@@ -13,6 +13,8 @@ import DiningPass from "@/pages/dining/DiningPass";
 import DiningMerchant from "@/pages/dining/DiningMerchant";
 import Admin from "@/Admin";
 import AdminHome from "@/pages/admin/AdminHome";  // Phase T — Admin Home dashboard
+import AdminAppearance from "@/Admin/AdminAppearance";  // admin-only design switch
+import AdminSoftLaunch from "@/Admin/AdminSoftLaunch";  // V2 soft-launch admin
 import AdminGlobalSearch from "@/components/AdminGlobalSearch";  // Phase T — Cmd/Ctrl+K palette
 import AdminBulkUpload from "@/AdminBulkUpload";  // Phase 22a — bulk music upload
 import AdminVoices from "@/AdminVoices";
@@ -429,7 +431,7 @@ function AppRouter() {
   // Lock every customer to New Look V2 — only admins may switch looks
   // (for QA). This overrides any stale variant left in localStorage.
   _useEffect_(() => {
-    if (user && user.role !== "admin" && designVariant !== "new_look_v2") {
+    if ((!user || user.role !== "admin") && designVariant !== "new_look_v2") {
       setVariant("new_look_v2");
     }
   }, [user, designVariant, setVariant]);
@@ -711,6 +713,12 @@ function AppRouter() {
       {/* Phase T — Admin Home dashboard replaces legacy stub. */}
       <Route path="/admin" element={
         <ProtectedRoute requireAdmin><AdminHome /></ProtectedRoute>
+      } />
+      <Route path="/admin/appearance" element={
+        <ProtectedRoute requireAdmin><AdminAppearance /></ProtectedRoute>
+      } />
+      <Route path="/admin/soft-launch" element={
+        <ProtectedRoute requireAdmin><AdminSoftLaunch /></ProtectedRoute>
       } />
       <Route path="/admin/legacy" element={
         <ProtectedRoute requireAdmin><Admin /></ProtectedRoute>

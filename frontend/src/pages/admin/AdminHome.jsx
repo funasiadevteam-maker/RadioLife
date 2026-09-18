@@ -10,6 +10,7 @@ import {
   Search, ShieldCheck, TrendingUp, Wallet, Zap,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
+import VariantSwitcher from "@/shell/VariantSwitcher";  // admin-only design switch
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
@@ -87,6 +88,7 @@ export default function AdminHome() {
           pinLabel="Admin Home"
           actions={
             <>
+              <VariantSwitcher />
               <button type="button" onClick={() => load(true)}
                               disabled={busy}
                               data-testid="admin-home-refresh"
@@ -362,6 +364,8 @@ function NotificationSnapshot({ count }) {
 
 function QuickLinks() {
   const links = [
+    { to: "/admin/soft-launch",        label: "🏪 Soft Launch (V2)",   tid: "admin-home-ql-softlaunch" },
+    { to: "/admin/appearance",          label: "🎨 Appearance",          tid: "admin-home-ql-appearance" },
     { to: "/admin/launch",              label: "🚀 Launch Controls",   tid: "admin-home-ql-launch" },
     { to: "/admin/qa",                        label: "QA Dashboard",       tid: "admin-home-ql-qa" },
     { to: "/admin/location-intel",      label: "Location Intel",       tid: "admin-home-ql-locintel" },

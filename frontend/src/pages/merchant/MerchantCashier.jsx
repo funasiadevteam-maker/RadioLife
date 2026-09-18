@@ -117,14 +117,19 @@ export default function MerchantCashier() {
                                           : "min-h-screen"}
               data-testid="merchant-cashier-page">
       <div className="max-w-2xl mx-auto p-6 lg:p-10 space-y-6">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className={`text-3xl font-black tracking-tight ${
-            light ? "text-slate-900" : "text-white"
-          }`}>Cashier</h1>
-          <div className={`ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
-            light ? "bg-purple-100 text-purple-700"
-                    : "bg-cyan-500/15 text-cyan-300"
-          }`} data-testid="merchant-cashier-today-count">
+        <div className="rounded-3xl p-5 flex items-center gap-4 flex-wrap"
+                  style={{ background: "linear-gradient(120deg,#0b0f1e,#1a1038 60%,#2a1148)" }}
+                  data-testid="merchant-cashier-pos-header">
+          <div className="w-12 h-12 rounded-2xl grid place-items-center text-white shrink-0"
+                    style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+            <ScanLine size={22}/>
+          </div>
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-300">RadioLife · Cashier</div>
+            <h1 className="text-2xl font-black text-white truncate">{merchant?.name}</h1>
+          </div>
+          <div className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-cyan-200"
+                    data-testid="merchant-cashier-today-count">
             <Sparkles size={12}/> {today.count} redeemed today
           </div>
         </div>

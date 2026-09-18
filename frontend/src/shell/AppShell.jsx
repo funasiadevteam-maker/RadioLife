@@ -446,9 +446,10 @@ function PersistentPlayer() {
   );
 }
 
-// "Try new look" toggle (kept — parallel RadioLife design variant).
+// "Try new look" toggle removed from app chrome — variant switching now
+// lives only in the admin backend (/admin/appearance).
 function TryNewLookToggle() {
-  return <VariantSwitcher />;
+  return null;
 }
 
 // ─── Mobile / Tablet (<1024) ────────────────────────────────────────────

@@ -15,9 +15,10 @@ import { useGeoStore } from "@/store/useGeoStore";
 import { useShellSummary } from "@/shell/useShellData";
 import PlayerBarV2 from "./PlayerBarV2";
 import OnAirOfferCard from "@/shell/OnAirOfferCard";
-import VariantSwitcher from "@/shell/VariantSwitcher";
+import VariantSwitcher from "@/shell/VariantSwitcher";  // eslint-disable-line no-unused-vars -- moved to /admin/appearance
 import NotificationBell from "@/components/NotificationBell";
 import WorkspaceSwitcher from "@/components/portal/WorkspaceSwitcher";
+// VariantSwitcher moved to the admin backend (/admin/appearance).
 import BannerAdSlot from "@/components/BannerAdSlot";
 import { isMarketingPath } from "@/shell/AppShellB";
 import { useLaunchBlocked } from "@/hooks/useLaunchStatus";
@@ -157,7 +158,6 @@ function ShellV2Header() {
         </Link>
         <NotificationBell />
         <WorkspaceSwitcher compact />
-        <VariantSwitcher />
         <Link to="/profile" data-testid="nlv2-avatar" className="flex items-center gap-2">
           <span className="w-9 h-9 rounded-full grid place-items-center text-white font-black shrink-0"
             style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>

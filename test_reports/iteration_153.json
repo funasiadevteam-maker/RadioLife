@@ -1,0 +1,26 @@
+{
+  "summary": "Web-only frontend verification of the New Look V2 feature set (variant lock + admin appearance + V2 soft-launch admin + V2 merchant portal band + V2 cashier POS + regression). All four required changes verified. VARIANT LOCK: anonymous and consumer (freeuser@) never see [data-testid=variant-switcher-btn] even when forcing ?design=legacy | classic_b | radiolife — V2 shell renders (screenshot confirmed). Merchant shell also carries data-variant=new_look_v2. ADMIN: /admin/appearance renders admin-appearance-page with 4 options; new_look_v2 is active (admin-appearance-active-new_look_v2). AdminHome header shows variant-switcher-btn and Quick Links admin-home-ql-appearance / admin-home-ql-softlaunch. SOFT-LAUNCH: /admin/soft-launch renders admin-soft-launch-page with all 4 tabs (all_pending/approved/launch_ready/readiness). Readiness tab shows admin-soft-launch-readiness with admin-soft-launch-readiness-pct = 0% (correctly computed from 0/0 approved-stripe-complete). all_pending currently returns EMPTY (no live pending applications), so we could not visually assert approve/reject rows exist per real merchant — code-review confirms admin-soft-launch-approve-<id> / admin-soft-launch-reject-<id> are correctly wired and the reject flow uses window.prompt (canceled properly). PORTAL BAND: /merchant/dashboard renders merchant-portal-band-v2 with band-name = merchant name, band-readiness '75% ready' (real computation from name/logo/stripe fields), and all three actions merchant-portal-complete-setup / merchant-portal-preview-store / merchant-portal-switch-workspace. Switch Workspace navigates to /portal. CASHIER: /merchant/cashier renders merchant-cashier-pos-header (with merchant name), merchant-cashier-scan-card, merchant-cashier-code-input, merchant-cashier-scan-btn; submitting invalid code 'BIGFM-INVALID-XYZ' shows merchant-cashier-error-card with label 'Coupon code not found'. REGRESSION: /portal/login renders with portal-login-* fields; workspace-switcher-trigger present on merchant shell; /portal chooser regression from iter152 unchanged.",
+  "platforms_tested": ["web"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+    "mobile": { "ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": [] }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MerchantShell.jsx: PortalBandV2 is only rendered when variant==='new_look_v2', which is the correct spec, but the band is placed on EVERY inner merchant page (Overview, Cashier, Transactions, etc.) via <Outlet/>. On the cashier page this means the admin/premium band sits above the POS scan card — visually acceptable but worth confirming the design intent (some POS UIs prefer no admin chrome).",
+    "MerchantShell.jsx `refresh()` (context.refresh) always reassigns data.items[0] and ignores the bigfm_active_workspace, so after a workspace switch a manual refresh() would silently swap the current merchant to the first-owned one. Not a Phase-1 blocker.",
+    "AdminSoftLaunch.jsx computes counts.launch_ready from `stripe_onboarding_status==='complete' || effective_status==='active'`, but MarketReadiness explains 'have completed Stripe onboarding' — the label undersells effective_status==='active' cases without Stripe onboarding info (minor copy/logic mismatch).",
+    "AdminAppearance.jsx OPTIONS list is defined in-module and duplicated shape with VariantSwitcher.jsx; consider centralising to a single source of truth to prevent drift."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (skipped by request)", "frontend": "100% of executable checks (17/17); 1 non-executable — cannot visually confirm approve/reject rows because all_pending is currently empty" },
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!, demo@bigfm.dubai / DemoPass123!, freeuser@bigfm.dubai / FreePass123!",
+  "seed_data_creation": "To exercise /merchant/dashboard and /merchant/cashier I temporarily flipped biz_8484f6f985d5 (demo's TEST_iter56_be7440) merchant_status/effective_status to 'active' and stripe_charges/payouts_enabled to true directly in Mongo, then REVERTED to draft/false at the end. No other data was mutated. The soft-launch reject dialog was dismissed; no approve was clicked.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase V2 (variant lock + admin appearance + soft-launch V2 + merchant portal band V2 + cashier POS V2) is web-verified. If the next tester needs to see approve/reject rows in /admin/soft-launch, seed a pending merchant application (register a fresh consumer → POST /api/merchant/apply → wait; the resulting draft with submitted_at will show once flipped to submitted). To exercise /merchant/dashboard as demo, temporarily set businesses.merchant_status='active' for biz_8484f6f985d5 in Mongo (revert after). Consumer variant lock relies on App.js effect calling setVariant('new_look_v2') when user.role!=='admin' — visually verified but note zustand localStorage key 'bigfm-design-variant' may not persist on first load if the store default already equals new_look_v2 (no bug — effective variant is still V2).",
+  "rca of the issue": ""
+}
