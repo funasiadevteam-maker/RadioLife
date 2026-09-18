@@ -17,6 +17,7 @@ import PlayerBarV2 from "./PlayerBarV2";
 import OnAirOfferCard from "@/shell/OnAirOfferCard";
 import VariantSwitcher from "@/shell/VariantSwitcher";
 import NotificationBell from "@/components/NotificationBell";
+import WorkspaceSwitcher from "@/components/portal/WorkspaceSwitcher";
 import BannerAdSlot from "@/components/BannerAdSlot";
 import { isMarketingPath } from "@/shell/AppShellB";
 import { useLaunchBlocked } from "@/hooks/useLaunchStatus";
@@ -38,6 +39,7 @@ function railPageRoute(pathname) {
 
 const BARE_ROUTES = [
   /^\/login(\b|\/)/, /^\/onboarding(\b|\/)/, /^\/auth(\b|\/)/,
+  /^\/portal(\b|\/)/,
   /^\/dev\/styleguide(\b|\/)/, /^\/tv(\b|\/)/,
 ];
 
@@ -154,6 +156,7 @@ function ShellV2Header() {
           <span className="font-mono text-sm font-black text-[#f5c563]">{balance}</span>
         </Link>
         <NotificationBell />
+        <WorkspaceSwitcher compact />
         <VariantSwitcher />
         <Link to="/profile" data-testid="nlv2-avatar" className="flex items-center gap-2">
           <span className="w-9 h-9 rounded-full grid place-items-center text-white font-black shrink-0"

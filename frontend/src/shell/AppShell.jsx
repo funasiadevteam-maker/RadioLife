@@ -39,6 +39,7 @@ export function isMarketingPath(pathname) {
 
 const BARE_ROUTES = [
   /^\/login(\b|\/)/, /^\/onboarding(\b|\/)/, /^\/auth(\b|\/)/,
+  /^\/portal(\b|\/)/,
   /^\/dev\/styleguide(\b|\/)/, /^\/tv(\b|\/)/,
 ];
 

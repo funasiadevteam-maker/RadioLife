@@ -234,7 +234,9 @@ function LiveRadioStationRedirect() {
 import PartnerDashboard from "@/PartnerDashboard";
 // Phase I — Business Redemption Portal pages (login / register /
 // dashboard / redeem / campaigns / ads buy).
-import BusinessLogin from "@/pages/BusinessLogin";
+// Phase PORTAL.0 — unified portal login + role router (design-independent).
+import PortalLogin from "@/pages/portal/PortalLogin";
+import PortalRouter from "@/pages/portal/PortalRouter";
 import BusinessRegister from "@/pages/BusinessRegister";
 import BusinessDashboard from "@/pages/BusinessDashboard";
 import BusinessRedeem from "@/pages/BusinessRedeem";
@@ -1048,7 +1050,11 @@ function AppRouter() {
             before the dynamic /business/:slug PublicBusiness page so they
             take precedence (react-router v6 ranks static segments higher
             than dynamic ones regardless of order). */}
-      <Route path="/business/login" element={<BusinessLogin />} />
+      {/* Phase PORTAL.0 — Unified portal (design-independent routes).
+                /business/login now redirects into the shared /portal/login. */}
+      <Route path="/portal/login" element={<PortalLogin />} />
+      <Route path="/portal" element={<PortalRouter />} />
+      <Route path="/business/login" element={<Navigate to="/portal/login" replace />} />
       <Route path="/business/register" element={
         <ProtectedRoute><BusinessRegister /></ProtectedRoute>} />
       <Route path="/business" element={

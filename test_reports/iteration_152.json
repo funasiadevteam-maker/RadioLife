@@ -1,0 +1,27 @@
+{
+  "summary": "Phase PORTAL.0 (unified access-context + design-independent portal) fully verified on WEB. Backend GET /api/portal/context returns correct workspaces for admin/merchant-owner/consumer and is genuinely design-agnostic (query-string ?design=... does not affect access). Web /portal/login renders with all required data-testids under every design variant (legacy / classic_b / radiolife / new_look_v2). Login as demo@bigfm.dubai (2 owned merchants) → chooser with 2 workspace buttons → picking one navigates to /merchant/status?merchant_id=<that id>. WorkspaceSwitcher in the V2 header opens a menu of both workspaces and switching navigates to the correct merchant status without logout. /business/login correctly redirects to /portal/login via React Router Navigate. Freeuser (no workspaces) is redirected from /portal to '/' and does not see the WorkspaceSwitcher. All 12 pytest cases and all playwright flows pass.",
+  "platforms_tested": ["web"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+    "mobile": { "ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": [] }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_portal_context.py",
+    "/app/test_reports/pytest/iter152_portal_context.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "portal_context.py: advertiser aggregation is wrapped in a broad try/except that only logs at DEBUG — a real schema failure would silently drop advertiser workspaces. Consider logging at WARNING with the error class.",
+    "usePortalAccess.fetch(): on error the store sets `loaded:true` with empty workspaces, so a transient 5xx would look identical to a legitimate consumer and route the user to '/'. A retry or a distinct `error` flag would prevent this masking (not blocking for Phase 0)."
+  ],
+  "updated_files": ["/app/backend/tests/test_portal_context.py"],
+  "success_rate": { "backend": "100% (12/12)", "frontend": "100% (all flows)" },
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!, demo@bigfm.dubai / DemoPass123!, freeuser@bigfm.dubai / FreePass123!",
+  "seed_data_creation": "None. Used existing seeded users. demo@ owns 2 merchants: biz_demo_marketplace (The Grind Coffee (Demo)) and biz_8484f6f985d5 (TEST_iter56_be7440), both draft → routed to /merchant/status?merchant_id=...",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase PORTAL.0 web is fully green. Backend regression at /app/backend/tests/test_portal_context.py (12 tests). Playwright coverage: portal-login testids, /business/login redirect, demo→chooser (2 real workspaces), pick→/merchant/status?merchant_id=<id>, WorkspaceSwitcher (trigger+menu+options) switching between merchants without logout, freeuser→'/', design-override cannot elevate a consumer's access, and /portal/login renders under all 4 design variants.",
+  "rca of the issue": ""
+}

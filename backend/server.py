@@ -6402,6 +6402,10 @@ from routes.admin_merchants import router as _admin_merchants_router
 app.include_router(_merchant_onboarding_router)
 app.include_router(_admin_merchants_router)
 
+# Phase PORTAL.0 — Unified access context (AccessResolver source of truth).
+from routes.portal_context import router as _portal_context_router
+app.include_router(_portal_context_router)
+
 
 @app.on_event("startup")
 async def _phase_sc2_bootstrap() -> None:

@@ -82,7 +82,16 @@ export default function MerchantShell() {
         if (items.length === 0) {
           navigate("/merchant/apply", { replace: true }); return;
         }
-        const m = items[0];
+        // Phase PORTAL.0 — honour the workspace chosen via the switcher so
+        // multi-merchant users land on the right store (defaults to first).
+        let m = items[0];
+        try {
+          const activeId = window.localStorage.getItem("bigfm_active_workspace");
+          if (activeId) {
+            const match = items.find((it) => it.merchant_id === activeId);
+            if (match) m = match;
+          }
+        } catch (_) { /* ignore */ }
         setMerchant(m);
         const status = m.merchant_status;
         if (m.owner_user_id === user.user_id
