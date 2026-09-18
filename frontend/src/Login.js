@@ -39,13 +39,25 @@ export default function Login() {
     if (location.state?.authError) {
       toast.error(location.state.authError);
     }
+    // Own Google OAuth callback failures redirect here with ?authError=google
+    if (location.search?.includes("authError=")) {
+      const params = new URLSearchParams(location.search);
+      const code = params.get("authError");
+      if (code) {
+        toast.error(code === "google"
+          ? "Google sign-in didn't complete. Please try again."
+          : "Sign-in didn't complete. Please try again.");
+        // Strip the param so the toast doesn't re-fire on refresh/back.
+        window.history.replaceState(null, "", location.pathname);
+      }
+    }
     if (location.state?.adminBlocked) {
       toast.error("Admin access required");
     }
     if (location.state?.flash) {
       toast.success(location.state.flash);
     }
-  }, [user, loading, navigate, location.state]);
+  }, [user, loading, navigate, location.state, location.search, location.pathname]);
 
   const submit = async (e) => {
     e.preventDefault();
