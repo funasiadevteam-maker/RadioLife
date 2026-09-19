@@ -798,6 +798,7 @@ async def booking_status(booking_id: str, request: Request,
                     await db.reading_bookings.update_one(
                         {"booking_id": booking_id, "payment_status": {"$ne": "paid"}},
                         {"$set": {"payment_status": "paid", "status": "paid",
+                                  "stripe_payment_intent": sess.get("payment_intent"),
                                   "updated_at": _now()}})
                     b = await db.reading_bookings.find_one({"booking_id": booking_id})
             except Exception:
@@ -876,6 +877,13 @@ async def deliver_reading(booking_id: str, body: DeliverBody, request: Request,
                   "response": {"text": body.response_text.strip(),
                                "voice_url": body.voice_url,
                                "delivered_at": _now().isoformat()}}})
+    # Settle advisor payout (idempotent, never blocks delivery).
+    try:
+        from routes.dream_payouts import settle_booking_payout
+        await settle_booking_payout(db, await db.reading_bookings.find_one(
+            {"booking_id": booking_id}))
+    except Exception:
+        pass
     return {"ok": True}
 
 

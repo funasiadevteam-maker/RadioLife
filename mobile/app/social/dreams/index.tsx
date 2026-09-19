@@ -71,6 +71,22 @@ export default function DreamsHub() {
         </ScrollView>
       </View>
 
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingHorizontal: TSPACE.md, paddingBottom: 10 }}
+        style={{ flexGrow: 0 }} testID="dreams-shortcuts">
+        {[
+          { key: 'clubs', label: 'Clubs', icon: 'people-circle', route: '/social/dreams/clubs' },
+          { key: 'readings', label: 'AI Readings', icon: 'sparkles', route: '/social/dreams/readings' },
+          { key: 'live', label: 'Live Q&A', icon: 'radio', route: '/social/dreams/live' },
+          { key: 'studio', label: 'Advisor Studio', icon: 'briefcase', route: '/social/dreams/studio' },
+        ].map((f) => (
+          <Pressable key={f.key} testID={`dreams-shortcut-${f.key}`} onPress={() => router.push(f.route as any)} style={s.shortcut}>
+            <Ionicons name={f.icon as any} size={15} color={D.violet} />
+            <Text style={s.shortcutTxt}>{f.label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
       {loading ? (
         <View style={s.center}><ActivityIndicator color={D.violet} /></View>
       ) : tab === 'dreams' ? (
@@ -420,6 +436,8 @@ const s = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: D.elevated },
   chipActive: { backgroundColor: D.accent2 },
   chipTxt: { color: D.dim, fontSize: TFONT.sm, fontWeight: '800' },
+  shortcut: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 38, borderRadius: 19, backgroundColor: 'rgba(168,85,247,0.12)', borderWidth: 1, borderColor: D.line },
+  shortcutTxt: { color: D.text, fontSize: TFONT.sm, fontWeight: '800' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   hero: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: TRADIUS.lg },
   heroIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },

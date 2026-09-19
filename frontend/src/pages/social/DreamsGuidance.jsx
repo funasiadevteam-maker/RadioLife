@@ -8,8 +8,9 @@ import { toast } from "sonner";
 import {
   Moon, Sparkles, Users, BookOpen, Loader2, X, Plus, Send,
   Shield, Star, ChevronLeft, Wand2, MessageCircle, Bookmark, Flag,
-  BadgeCheck, Stethoscope, Lock, EyeOff, Clock,
+  BadgeCheck, Stethoscope, Lock, EyeOff, Clock, Users2, Video,
 } from "lucide-react";
+import { ClubsTab, AiReadingsTab, LiveTab, PayoutsCard } from "./DreamsExtras";
 import { Avatar } from "./SocialV2";
 
 const api = axios.create({
@@ -19,8 +20,11 @@ const api = axios.create({
 
 const TABS = [
   { key: "dreams", label: "Dreams", icon: Moon },
-  { key: "journal", label: "My Journal", icon: BookOpen },
+  { key: "clubs", label: "Clubs", icon: Users2 },
+  { key: "aireadings", label: "AI Readings", icon: Wand2 },
+  { key: "live", label: "Live", icon: Video },
   { key: "advisors", label: "Advisors", icon: Users },
+  { key: "journal", label: "My Journal", icon: BookOpen },
   { key: "readings", label: "My Readings", icon: Star },
 ];
 
@@ -72,8 +76,11 @@ export default function DreamsGuidance() {
           {!loading && tab === "journal" && (
             <JournalTab onOpen={setOpenDream} onShare={() => setShowShare(true)} />
           )}
+          {!loading && tab === "clubs" && <ClubsTab />}
+          {!loading && tab === "aireadings" && <AiReadingsTab />}
+          {!loading && tab === "live" && <LiveTab />}
           {!loading && tab === "advisors" && (
-            <AdvisorsTab config={config} onOpen={setOpenAdvisor} />
+            <><PayoutsCard /><AdvisorsTab config={config} onOpen={setOpenAdvisor} /></>
           )}
           {!loading && tab === "readings" && <ReadingsTab />}
         </div>

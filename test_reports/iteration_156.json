@@ -1,0 +1,38 @@
+{
+  "summary": "Dreams & Guidance Phase 2 (AI Readings + Dream Clubs + Advisor Payouts + Live Q&A) tested end-to-end on shared backend + web + mobile. Backend: 24/24 pytest passed (config, horoscope-by-dob derives Cancer for 1990-07-15 + AI-GENERATED label + disclaimer, tarot 3-card spread with orientations, numerology life-path, history/get/share/delete idempotent 404-after-delete; clubs list 6 default clubs w/ member+dream counts, detail, join/leave toggle, post-club-dream auto-joins & feeds, 404 for unknown slug; payouts 403 for demo/non-advisor, advisor status returns commission_pct=30 default + earnings + ledger, onboarding_start returns real Stripe onboarding_url, status_refresh, admin GET+PATCH commission_pct (25→30 rollback), admin ledger, admin non-admin 401/403; live filters live|upcoming|past+live_mode, create 403 for non-advisor, advisor create session goes live with room_name, guest sees is_host=False + no answer perms, host sees is_host=True + join_token or None + questions[], demo asks question, non-host answer→403, host answer→answered:true, non-host end→403, host end moves to past). Web e2e: 7 tabs present (dreams-tab-{dreams,clubs,aireadings,live,advisors,journal,readings}); Clubs tab clubs-list with 6 club-card-* + club-detail with join-toggle + post-cta; AI Readings tab reading-kind-{horoscope,tarot,numerology} + tarot-q input + reading-generate + real Claude tarot result 'A Moment of Stillness Before the Journey' with 3 upright/reversed cards + AI-GENERATED label; 7 reading-hist rows; Live tab live-filter-{live,upcoming,past} + live-host-cta visible; Advisor login (stella.moon) shows Advisors tab with Earnings & Payouts card (advisor-payouts + payouts-onboard 'Set up payouts' + payouts-refresh \"I've finished\" + $0.00 paid/pending/on-hold + 'Platform fee 30%'). Mobile e2e: /social/dreams shows 4 dreams-shortcut-* (clubs/readings/live/studio); /social/dreams/clubs renders clubs-list with 6 club-card-* + Joined badges; /social/dreams/readings shows 3 reading-kind-* + reading-generate + 6 prior readings; /social/dreams/live shows 3 live-filter-* + Host CTA; /social/dreams/studio for non-advisor demo shows 'Advisor tools — Become a verified advisor... Go to Advisors' empty state (visible but not testable by testID). No parity divergence — same testIDs, same disclaimers, same 6 clubs, same 3 reading kinds on both surfaces.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_dreams_phase2.py",
+    "/app/test_reports/pytest/iter156_dreams_phase2.xml"
+  ],
+  "action_items": [
+    "MINOR (testability): mobile /social/dreams/studio non-advisor empty state renders visually correct but has no testID matching the 'not-advisor empty state' referenced in the spec — consider adding testID='studio-not-advisor' (or 'studio-empty') to the empty-state root so QA can assert it deterministically. Not a functional bug.",
+    "MINOR (UX consideration, both surfaces): live-host-cta and mobile studio 'Host' pill are visible to non-advisor users; clicking them 403s from backend. Consider hiding for non-advisors OR routing them to the advisor-apply flow with a friendly prompt (already present as 'Go to Advisors' inside studio empty state)."
+  ],
+  "critical_code_review_comments": [
+    "routes/dream_payouts.settle_booking_payout() is idempotent-by-booking (_id=payout_{bid}) — good — but re-computes commission_pct on every call, which means editing commission_pct after delivery could re-open a 'pending' row and re-transfer. It correctly early-returns only when status=='paid', but consider also short-circuiting on 'held_no_account' + 'failed' states or freezing commission_pct at first ledger write to avoid retroactive changes.",
+    "routes/dream_payouts.onboarding_start() falls back to BIGFM_PUBLIC_BASE_URL then 400s if both origin_url and env are missing — same pattern flagged in iter155 for book_reading; consider request.headers['origin'] as final fallback for consistency.",
+    "routes/dream_live: create_session ignores scheduled_at type (string, not parsed to datetime) → GET sessions?status=upcoming works but scheduled_at is stored/returned as raw string. Consider validating ISO-8601 into datetime for consistency with started_at/ended_at.",
+    "routes/dreams_ai_readings._sign_from_dob returns None for edge dates (e.g., 1990-07-23 = Leo boundary; 1990-07-22 = Cancer). Manually traced: works for both — no issue confirmed, but the (m==sm and day>=sd) OR (m==em and day<=ed) logic depends on tuple ordering; add a unit test for each 12 boundary date to lock behaviour.",
+    "dream_payouts.status endpoint returns full ledger with each poll — consider paginating (currently limit=40) or moving detail to /ledger sub-route once advisors accumulate history."
+  ],
+  "updated_files": ["/app/backend/tests/test_dreams_phase2.py"],
+  "success_rate": {"backend": "100% (24/24)", "frontend": "100% observed flows on both surfaces"},
+  "test_credentials": "demo@bigfm.dubai/DemoPass123!, admin@bigfm.dubai/AdminPass123!, stella.moon@bigfm.dubai/Advisor123! (approved advisor). Mobile: demo-login-btn.",
+  "seed_data_creation": "Tests create ~7 TEST_-prefixed AI readings under demo@ (horoscope+tarot+numerology, plus deletion test), one TEST club dream in 'prophetic-spiritual' club (auto-joined demo@), and one TEST live Q&A session ('TEST Live Dream Q&A' under stella.moon) that goes live→gets one TEST question from demo→advisor answers→advisor ends (now in past feed). Admin commission_pct temporarily flipped 30→25→30 (rolled back). No advisor Stripe account persisted between runs since stella hadn't onboarded; stripe_account_id may now be set on stella.moon (harmless; retrieve_account_status will treat it as not-onboarded).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_dreams_phase2.py is idempotent; can be re-run without cleanup. It uses REACT_APP_BACKEND_URL directly and covers the shared backend once (both surfaces hit the same endpoints). AI reading endpoints hit real Claude Sonnet 4.6 via EMERGENT_LLM_KEY (~5-15s latency, timeout=60s); fallback path still asserts 'AI-GENERATED' label. Payout ledger 'held_no_account' path was NOT executed end-to-end (would require completing a real Stripe test-checkout on a paid booking); the settle_booking_payout code was reviewed and looks correct — recommend a follow-up test that stubs booking delivery via admin mark-paid to force the ledger row. Live Q&A live_mode returns 'live' since LIVEKIT_PROVIDER=live and creds are set; text Q&A queue works end-to-end regardless. Mobile 'studio-not-advisor' testID is missing — add for cleaner regression coverage.",
+  "rca of the issue": "N/A — no functional bugs found. Minor testability gap (missing testID on mobile studio empty state) noted in action_items."
+}

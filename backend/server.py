@@ -1326,6 +1326,16 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_dreams_indexes(db)
         await seed_dreams_demo(db, hash_password)
     except Exception as e: logger.warning(f"dreams_guidance bootstrap: {e}")
+    try:
+        from routes.dreams_ai_readings import ensure_ai_readings_indexes
+        from routes.dream_clubs import ensure_clubs_indexes
+        from routes.dream_payouts import ensure_payouts_indexes
+        from routes.dream_live import ensure_live_indexes
+        await ensure_ai_readings_indexes(db)
+        await ensure_clubs_indexes(db)
+        await ensure_payouts_indexes(db)
+        await ensure_live_indexes(db)
+    except Exception as e: logger.warning(f"dreams phase2 bootstrap: {e}")
     try: await ensure_compliance_indexes(db)
     except Exception as e: logger.warning(f"compliance indexes: {e}")
     try: await ensure_billing_indexes()
@@ -6424,6 +6434,18 @@ from routes.dreams_guidance import (router as _dreams_router,
                                     admin_router as _dreams_admin_router)
 app.include_router(_dreams_router)
 app.include_router(_dreams_admin_router)
+
+# Social V2 — Dreams & Guidance Phase 2 (AI readings, clubs, payouts, live Q&A).
+from routes.dreams_ai_readings import router as _ai_readings_router
+from routes.dream_clubs import router as _clubs_router
+from routes.dream_payouts import (router as _payouts_router,
+                                  admin_router as _payouts_admin_router)
+from routes.dream_live import router as _dream_live_router
+app.include_router(_ai_readings_router)
+app.include_router(_clubs_router)
+app.include_router(_payouts_router)
+app.include_router(_payouts_admin_router)
+app.include_router(_dream_live_router)
 
 
 @app.on_event("startup")
