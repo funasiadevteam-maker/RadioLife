@@ -1,0 +1,24 @@
+{
+  "summary": "Dreams & Guidance (Phase 1) full regression on shared backend + web + mobile. Backend: 23/23 pytest passed (config/consent, share, feed with anonymous masking, similar idempotency, comment/react/save/report, AI reflect returns Claude Sonnet 4.6 result with header+disclaimer, distress dream adds safety_note, advisor listing+filter+detail, license-badge guardrail confirmed (professional_license_verified forced to False for non-licensed tarot_reader), advisor apply, advisor public response, free booking->inbox->deliver->review->409 double-review, paid booking returns real cs_test Stripe checkout URL, admin flags GET/PATCH, admin reports queue shows anon owner_user_id, admin applications). Web e2e: /social/dreams renders with consent already accepted, 4 tabs (dreams-tab-dreams/journal/advisors/readings) present, dreams-share-cta opens modal with share-title/description/anon/anon-check/submit, dream feed shows anonymous dreams as 'Anonymous Dreamer', Advisors tab lists 5 approved advisors with correct category badges (Dream Interpreter, Verified Spiritual Advisor, Astrologer, Licensed Sleep Professional). Mobile e2e: Social tab -> 'Dreams & Guidance' banner (social-open-dreams) navigates to /social/dreams; 4 tabs render; dream-card tap opens /social/dreams/[id] with dream-similar-btn/save-btn/report-btn/ai-block/ai-reflection/comment-input/comment-send; distress dream correctly showed safety_note + hedged Claude reflection; advisor-card tap opens /social/dreams/advisor/[id] with advisor-terms-check, advisor-question-input, advisor-service-* and advisor-book-* per service, plus category badges. No parity divergence found — same anonymity masking, same tabs, same disclaimers on both surfaces.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": ["/app/backend/tests/test_dreams_guidance.py", "/app/test_reports/pytest/iter155_dreams.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/dreams_guidance.py is ~1200 lines — approaching the 700-line split threshold; consider extracting admin_router, advisor sub-domain, and bookings into separate modules for maintainability.",
+    "book_reading() builds `origin` from body.origin_url falling back to BIGFM_PUBLIC_BASE_URL, but if both are missing it 400s. Consider defaulting to request.headers['origin'] to reduce surface-specific coupling."
+  ],
+  "updated_files": ["/app/backend/tests/test_dreams_guidance.py"],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100% observed flows"},
+  "test_credentials": "demo@bigfm.dubai/DemoPass123!, admin@bigfm.dubai/AdminPass123!, freeuser@bigfm.dubai/FreePass123!, stella.moon@bigfm.dubai/Advisor123!, dr.sana.sleep@bigfm.dubai/Advisor123! (Mobile: demo-login-btn)",
+  "seed_data_creation": "Tests create TEST_-prefixed dreams (named, anon, distress) under demo@, a throwaway TEST_advisor_<hex>@bigfm.dubai user with a tarot_reader profile to verify license-badge guardrail, a TEST_free_service on Stella, plus one paid booking and one delivered+reviewed free booking (5-star TEST_great). These were left in place for main-agent verification. Cleanup: throwaway advisor user + TEST_free_service deleted at end of the test; TEST_ dreams remain (harmless, discoverable in feed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_dreams_guidance.py is idempotent-friendly except test_advisor_apply_and_license_guardrail which registers a fresh throwaway user each run — safe to re-run. AI reflection test uses real Claude via EMERGENT_LLM_KEY (~5–15s latency, timeout=60s). Stripe test_paid_booking creates real cs_test session but does NOT complete card page. If EMERGENT_LLM_KEY becomes invalid, the fallback reflection still contains header+disclaimer so the assertion still passes. Web/mobile testIDs verified: dreams-guidance, dreams-tab-{dreams|journal|advisors|readings}, dreams-share-cta, share-{modal|title|description|anon|anon-check|submit}, dream-card-*, dream-{detail|back|similar-btn|save-btn|report-btn|ai-block|ai-reflection|comment-input|comment-send}, advisor-{apply-cta|card-*|detail|back|terms|terms-check|question-input|service-*|book-*}, social-open-dreams (mobile Social tab entry).",
+  "rca of the issue": "N/A — no bugs found"
+}

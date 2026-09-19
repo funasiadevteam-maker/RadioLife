@@ -1321,6 +1321,11 @@ async def _deferred_bootstrap(app_: FastAPI):
         from routes.social_v2 import ensure_social_v2
         await ensure_social_v2(db)
     except Exception as e: logger.warning(f"social_v2 bootstrap: {e}")
+    try:
+        from routes.dreams_guidance import ensure_dreams_indexes, seed_dreams_demo
+        await ensure_dreams_indexes(db)
+        await seed_dreams_demo(db, hash_password)
+    except Exception as e: logger.warning(f"dreams_guidance bootstrap: {e}")
     try: await ensure_compliance_indexes(db)
     except Exception as e: logger.warning(f"compliance indexes: {e}")
     try: await ensure_billing_indexes()
@@ -6413,6 +6418,12 @@ app.include_router(_portal_context_router)
 # Social V2 — Phase 1 (friends, Listen Together rooms, social home).
 from routes.social_v2 import router as _social_v2_router
 app.include_router(_social_v2_router)
+
+# Social V2 — Dreams & Guidance (dream sharing, AI reflection, advisors).
+from routes.dreams_guidance import (router as _dreams_router,
+                                    admin_router as _dreams_admin_router)
+app.include_router(_dreams_router)
+app.include_router(_dreams_admin_router)
 
 
 @app.on_event("startup")

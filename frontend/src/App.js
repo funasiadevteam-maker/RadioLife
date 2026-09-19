@@ -17,6 +17,7 @@ import AdminAppearance from "@/Admin/AdminAppearance";  // admin-only design swi
 import AdminSoftLaunch from "@/Admin/AdminSoftLaunch";  // V2 soft-launch admin
 import SocialV2 from "@/pages/social/SocialV2";  // Social V2 — Phase 1
 import ListenRoom from "@/pages/social/ListenRoom";  // Listen Together room
+import DreamsGuidance from "@/pages/social/DreamsGuidance";  // Dreams & Guidance
 import AdminGlobalSearch from "@/components/AdminGlobalSearch";  // Phase T — Cmd/Ctrl+K palette
 import AdminBulkUpload from "@/AdminBulkUpload";  // Phase 22a — bulk music upload
 import AdminVoices from "@/AdminVoices";
@@ -1069,6 +1070,7 @@ function AppRouter() {
       {/* Social V2 — Phase 1 (design-independent; premium V2 presentation). */}
       <Route path="/social" element={<ProtectedRoute><SocialV2 /></ProtectedRoute>} />
       <Route path="/social/room/:id" element={<ProtectedRoute><ListenRoom /></ProtectedRoute>} />
+      <Route path="/social/dreams" element={<ProtectedRoute><DreamsGuidance /></ProtectedRoute>} />
       <Route path="/business/register" element={
         <ProtectedRoute><BusinessRegister /></ProtectedRoute>} />
       <Route path="/business" element={

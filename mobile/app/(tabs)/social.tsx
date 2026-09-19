@@ -140,6 +140,19 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
         </LinearGradient>
       </Pressable>
 
+      <Pressable testID="social-open-dreams" onPress={() => router.push('/social/dreams' as any)}>
+        <LinearGradient colors={['#1e1b4b', '#6d28d9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
+          <View style={s.heroIcon}><Ionicons name="moon" size={24} color="#fff" /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.heroTitle}>Dreams & Guidance</Text>
+            <Text style={s.heroSub} numberOfLines={2}>
+              Share a dream, get an AI reflection, connect with verified advisors
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />
+        </LinearGradient>
+      </Pressable>
+
       <View>
         <Text style={s.sectionTitle}>DO SOMETHING TOGETHER</Text>
         <View style={s.grid}>

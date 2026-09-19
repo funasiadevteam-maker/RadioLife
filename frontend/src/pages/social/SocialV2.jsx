@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   Radio, Users, Gamepad2, MapPin, ShoppingBag, Sparkles, Loader2,
   UserPlus, Check, X, Search, Headphones, Video, Camera, Users2,
-  Play, Dot, ChevronRight, Clock,
+  Play, Dot, ChevronRight, Clock, Moon,
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
@@ -201,7 +201,23 @@ function TogetherTab({ home, reload }) {
         <ChevronRight className="text-slate-400" />
       </button>
 
-      {/* Do something together */}
+      {/* Dreams & Guidance */}
+      <button type="button" onClick={() => navigate("/social/dreams")}
+                    data-testid="social-open-dreams"
+                    className="w-full text-left rounded-3xl p-5 flex items-center gap-4 border border-violet-500/25"
+                    style={{ background: "linear-gradient(120deg,#1e1b4b,#4c1d95 65%,#6d28d9)" }}>
+        <span className="grid place-items-center w-14 h-14 rounded-2xl text-white shrink-0"
+                  style={{ background: "linear-gradient(135deg,#7c3aed,#c026d3)" }}>
+          <Moon size={24} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-lg font-black">Dreams & Guidance</div>
+          <div className="text-sm text-violet-200/80 truncate">
+            Share a dream, get an AI reflection, and connect with verified advisors
+          </div>
+        </div>
+        <ChevronRight className="text-slate-400" />
+      </button>
       <div>
         <SectionTitle>Do something together</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
