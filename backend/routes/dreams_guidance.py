@@ -23,7 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user, current_user_optional, require_admin
@@ -87,6 +87,15 @@ DEFAULT_FLAGS = {
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+async def _extract_themes_bg(db, dream_id: str) -> None:
+    """Background: tag a freshly shared dream with normalized themes (clusters)."""
+    try:
+        from routes.dream_clusters import extract_and_store_themes
+        await extract_and_store_themes(db, dream_id)
+    except Exception:
+        pass
 
 
 def _iso(v: Any) -> Optional[str]:
@@ -205,6 +214,7 @@ class DreamBody(BaseModel):
 
 @router.post("")
 async def share_dream(body: DreamBody, request: Request,
+                      background_tasks: BackgroundTasks,
                       user: dict = Depends(current_user)):
     db = request.app.state.db
     await _require_flag(db, "dream_sharing_enabled")
@@ -225,6 +235,7 @@ async def share_dream(body: DreamBody, request: Request,
         "status": "active", "report_count": 0,
         "created_at": _now(), "updated_at": _now()}
     await db.dreams.insert_one(doc)
+    background_tasks.add_task(_extract_themes_bg, db, did)
     return _dream_public(doc, user["user_id"], _user_public(user), detail=True)
 
 
@@ -548,9 +559,18 @@ async def list_advisors(request: Request, category: Optional[str] = None,
         query["category"] = category
     if q and len(q.strip()) >= 2:
         query["display_name"] = {"$regex": q.strip(), "$options": "i"}
+    featured_ids: set = set()
+    try:
+        from routes.dream_ads import active_featured_advisor_ids
+        featured_ids = await active_featured_advisor_ids(db, "advisors")
+    except Exception:
+        pass
     items = []
     async for a in db.advisor_profiles.find(query).sort("rating", -1).limit(60):
-        items.append(_advisor_public(a))
+        pub = _advisor_public(a)
+        pub["featured"] = a["advisor_id"] in featured_ids
+        items.append(pub)
+    items.sort(key=lambda x: 0 if x.get("featured") else 1)  # featured first, stable
     return {"items": items, "categories": [
         {"key": c, "label": CATEGORY_LABELS[c], "licensed": c in LICENSED_CATEGORIES}
         for c in ADVISOR_CATEGORIES]}

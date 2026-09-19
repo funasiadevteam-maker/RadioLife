@@ -1,0 +1,44 @@
+{
+  "summary": "Dreams & Guidance Phase 3 (Advisor Ads + Dream Clusters + Compatibility + Daily/Reminders + Featured sort) backend end-to-end verified via new pytest test_dreams_phase3.py — 21/21 PASSED (14.33s). ADS: /api/social/ads/config exposes 3 tiers with price_cents [2999,4999,9999] + is_advisor flag (true for stella.moon, false for demo); non-advisor POST /checkout → 403 not_an_advisor; advisor POST /checkout returns real Stripe cs_test checkout_url + promo_id, /status/{id} + /mine work; admin GET /api/admin/dreams/ads/config + PATCH round-trips new tier prices (rolled back); admin /promotions returns list. CLUSTERS: GET /api/social/clusters returns aggregated themes (water/flying/nature+more) with counts + samples; GET /clusters/{water} returns items with theme+label 'Water & Ocean'; unknown theme → 404; NEW public dream shared by demo@ with 'flying/water/nature' words was picked up by extract_and_store_themes background task and appeared in a cluster within ~2-8s (LLM or keyword fallback). COMPATIBILITY: /candidates returns friend list; self-match → 400 cannot_match_self; unknown user → 404; POST with a friend target returns score 0-99 + headline + blurb + shared_themes + label 'PLAYFUL · entertainment only' + entertainment-only disclaimer + my_sign/their_sign. DAILY: demo@ (premium) sees detail_locked:false + detail payload; freeuser@ (not premium) sees detail_locked:true + upgrade text + no detail; same-day re-fetch returns identical card (stable per user per day). REMINDERS: GET returns defaults; PUT {enabled:true,hour:8} persists (re-GET confirms), rolled back. FEATURED SORT: GET /api/social/dreams/advisors carries a 'featured' bool on every advisor (empty featured set is acceptable since no advisor completed the test Stripe hosted checkout). Web UI selectors: main agent had already screenshot-verified clusters-strip / daily-card / compat-panel; my Playwright login flow could not authenticate through the cookie /login form (submit button did not fire from selector), so I could not independently re-verify web testIDs in this iteration — flagging as a MINOR testability gap (login form has no data-testid on email/password/submit).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_dreams_phase3.py",
+    "/app/test_reports/pytest/iter157_dreams_phase3.xml"
+  ],
+  "action_items": [
+    "MINOR (testability): /app/frontend login form has no stable data-testid on the email input, password input, and 'Sign in' submit button. Adding data-testid='login-email' / 'login-password' / 'login-submit' would let regression QA authenticate deterministically across accounts without brittle text-selector fallbacks.",
+    "OPTIONAL (RCA note only): featured set is empty in preview because no advisor has completed the Stripe test checkout hosted page. To force-flip the advisor into 'featured' for E2E parity of advisor-featured-*/live-featured-* badges, admin could add a POST /api/admin/dreams/ads/promotions/{promo_id}/mark-paid (or a dev shim) that promotes a pending_payment promo → active. Not required for launch — code path was code-reviewed and sort/flag logic is correct."
+  ],
+  "critical_code_review_comments": [
+    "dream_ads.ad_checkout: origin fallback is body.origin_url → BIGFM_PUBLIC_BASE_URL only. Same pattern flagged before — also consider request.headers.get('origin') as final fallback so callers that just POST cleanly get a workable success_url without hard-coding BIGFM_PUBLIC_BASE_URL.",
+    "dream_ads.ad_status: silently swallows Stripe SDK errors (except Exception: pass). If Stripe raises for a permanent 4xx (e.g. bad session_id), the promo will remain 'pending_payment' forever — consider logging + returning a status/hint field so admins can debug stuck promos.",
+    "dream_clusters._llm timeout: no explicit timeout wrapper around chat.send_message; if Claude hangs, the background task could hold for the FastAPI default. Consider asyncio.wait_for(...) with e.g. 15s so extract_and_store_themes always falls back to keyword themes on slow LLM.",
+    "dream_clusters.compatibility: uses hashlib.md5 for score seeding — fine for playful score but MD5 is FIPS-flagged; usedforsecurity=False (Py3.9+) documents intent. Not a bug, hygiene.",
+    "dream_clusters._user_sign reads latest ai_readings.type=horoscope; if a user has NEVER done a horoscope, their_sign is None (test confirmed the endpoint still returns 200 + gentle blurb). Consider persisting the sign on user_profile once computed to make compatibility deterministic across sessions.",
+    "dreams_ai_readings.daily: LLM call happens synchronously inside GET /daily — first call of the day for a premium user takes ~5-15s. Consider a background task + a placeholder detail_pending:true payload so the UI doesn't block on Claude.",
+    "dreams_ai_readings.set_reminders: doesn't validate any minute/timezone — schedule assumes UTC hour. If reminders will drive real push later, capture user tz (or timezone offset) alongside the hour."
+  ],
+  "updated_files": ["/app/backend/tests/test_dreams_phase3.py"],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "web/mobile UI code-reviewed + testIDs verified in source — not re-screenshot-verified this iteration; main agent's prior smoke of clusters-strip/daily-card/compat-panel still valid"},
+  "test_credentials": "demo@bigfm.dubai/DemoPass123! (premium), freeuser@bigfm.dubai/FreePass123! (not premium), admin@bigfm.dubai/AdminPass123!, stella.moon@bigfm.dubai/Advisor123! (approved advisor).",
+  "seed_data_creation": "test_dreams_phase3 creates: 1 TEST public dream ('TEST flying dream phase3') that is deleted at end of test; 1 pending_payment promo for stella.moon via /ads/checkout (harmless, becomes a persistent 'pending_payment' row in db.advisor_promotions since the hosted checkout is never completed); temporary +$1.00 tier price PATCH on admin tiers (rolled back to defaults 2999/4999/9999); reminder pref for demo@ toggled to enabled:true hour:8 then rolled back to enabled:false hour:9.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_dreams_phase3.py is idempotent and can be re-run without cleanup. Uses REACT_APP_BACKEND_URL directly. Compatibility test skips if demo@ has no friends. Cluster-backfill relies on service startup (ensure_clusters_ai_indexes backfills 40); freshly shared dream test uses keyword-fallback for 'flying/water' words so it works even when Claude is slow. To also E2E the Stripe-paid featured flow, either complete the hosted cs_test URL manually with 4242 4242 4242 4242 (returns to /payment/success) OR add an admin/dev endpoint to force a promo to 'active' — currently there is no such shim. Web smoke could not authenticate via my Playwright cookie flow (login button 'Sign in' click didn't submit for me); either add login testIDs or use POST /api/auth/login + cookiejar directly (as the pytest module does) and inject the cookie into the browser context.",
+  "rca of the issue": "N/A — no functional bugs found in Phase 3. One testability gap identified: web login form lacks stable data-testid attributes, forcing text-based selectors that were fragile in this run."
+}

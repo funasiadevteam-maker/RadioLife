@@ -18,7 +18,8 @@ const D = {
 const KINDS = [
   { key: 'horoscope', label: 'Horoscope', icon: 'sunny' },
   { key: 'tarot', label: 'Tarot', icon: 'sparkles' },
-  { key: 'numerology', label: 'Numerology', icon: 'star' },
+  { key: 'numerology', label: 'Numbers', icon: 'star' },
+  { key: 'match', label: 'Match', icon: 'heart' },
 ];
 
 export default function AiReadingsScreen() {
@@ -57,6 +58,7 @@ export default function AiReadingsScreen() {
         <Text style={st.hTitle}>AI Readings</Text>
       </View>
       <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 140, gap: 14 }} showsVerticalScrollIndicator={false} testID="ai-readings">
+        <DailyCard />
         <View style={st.notice}><Text style={st.noticeTxt}>✦ AI-GENERATED · for entertainment & reflection only — not advice, not a guaranteed prediction.</Text></View>
 
         <View style={st.kindRow}>
@@ -72,6 +74,7 @@ export default function AiReadingsScreen() {
           })}
         </View>
 
+        {kind === 'match' ? <CompatPanel /> : (<>
         <View style={st.card}>
           {kind === 'horoscope' && (<>
             <Text style={st.lbl}>Your birth date (YYYY-MM-DD)</Text>
@@ -112,6 +115,7 @@ export default function AiReadingsScreen() {
             </Pressable>
           ))}
         </>)}
+        </>)}
       </ScrollView>
     </View>
   );
@@ -136,6 +140,105 @@ function ReadingResult({ r }: any) {
       {Array.isArray(res.guidance) && res.guidance.map((g: string, i: number) => <Text key={i} style={st.guide}>• {g}</Text>)}
       {res.affirmation && <View style={st.affirm}><Text style={st.affirmTxt}>“{res.affirmation}”</Text></View>}
       <Text style={st.disc}>{r.disclaimer}</Text>
+    </View>
+  );
+}
+
+function DailyCard() {
+  const [d, setD] = useState<any>(null);
+  const [rem, setRem] = useState<any>({ enabled: false, hour: 9 });
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<any>(null);
+  const [dl, setDl] = useState(false);
+  useEffect(() => {
+    api.get('/social/readings/daily').then(({ data }) => setD(data)).catch(() => {});
+    api.get('/social/readings/reminders').then(({ data }) => setRem(data)).catch(() => {});
+  }, []);
+  const toggle = async () => {
+    const n = { enabled: !rem.enabled, hour: rem.hour }; setRem(n);
+    try { await api.put('/social/readings/reminders', n); } catch (_) {}
+  };
+  const openDetail = async () => {
+    setOpen(true);
+    if (!detail) {
+      setDl(true);
+      try { const { data } = await api.post('/social/readings/daily/detail'); setDetail(data.detail); } catch (_) {} finally { setDl(false); }
+    }
+  };
+  if (!d) return null;
+  return (
+    <LinearGradient colors={['#1e1b4b', '#4c1d95']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.daily}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Ionicons name="sparkles" size={15} color={D.gold} />
+        <Text style={st.dailyTitle}>Today’s reading</Text>
+        <Pressable testID="daily-reminder-toggle" onPress={toggle} style={[st.remBtn, rem.enabled && st.remBtnOn]}>
+          <Ionicons name="notifications" size={12} color={rem.enabled ? '#a7f3d0' : D.dim} />
+          <Text style={[st.remTxt, rem.enabled && { color: '#a7f3d0' }]}>{rem.enabled ? 'Nudge on' : 'Remind me'}</Text>
+        </Pressable>
+      </View>
+      <Text style={st.dailyHead}>{d.basic?.headline}</Text>
+      <Text style={st.dailySum}>{d.basic?.summary}</Text>
+      <View style={st.dailyChips}>
+        <View style={st.dailyChip} testID="daily-card-name"><Text style={st.dailyChipTxt}>🃏 {d.card?.name} · {d.card?.orientation}</Text></View>
+        {d.sign && <View style={st.dailyChip}><Text style={st.dailyChipTxt}>{d.sign}</Text></View>}
+      </View>
+      <Pressable testID={d.detail_locked ? 'daily-unlock' : 'daily-detail'} onPress={openDetail} style={st.dailyBtn}>
+        {d.detail_locked
+          ? <><Ionicons name="lock-closed" size={14} color={D.gold} /><Text style={st.dailyBtnTxt}>Unlock full daily tarot — Premium</Text></>
+          : <><Text style={st.dailyBtnTxt}>Read full daily tarot</Text><Ionicons name="chevron-forward" size={15} color="#fff" /></>}
+      </Pressable>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <View style={st.modalWrap}><View style={st.modalCard} testID="daily-modal">
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={st.modalTitle}>Your daily tarot</Text>
+            <Pressable onPress={() => setOpen(false)}><Ionicons name="close" size={20} color={D.text} /></Pressable>
+          </View>
+          {d.detail_locked
+            ? <View style={{ alignItems: 'center', paddingVertical: 8 }} testID="daily-premium-gate"><Ionicons name="lock-closed" size={26} color={D.gold} /><Text style={st.gateTitle}>Premium daily tarot</Text><Text style={st.gateSub}>{d.upgrade}</Text></View>
+            : dl ? <ActivityIndicator color={D.violet} style={{ marginVertical: 24 }} />
+            : <ReadingResult r={{ ...d, title: 'Daily tarot', result: detail, cards: [{ name: d.card?.name, orientation: d.card?.orientation, position: 'Today' }] }} />}
+        </View></View>
+      </Modal>
+    </LinearGradient>
+  );
+}
+
+function CompatPanel() {
+  const [cands, setCands] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<any>(null);
+  useEffect(() => { api.get('/social/compatibility/candidates').then(({ data }) => setCands(data.items || [])).catch(() => {}); }, []);
+  const run = async (uid: string) => {
+    setBusy(true); setRes(null);
+    try { const { data } = await api.post('/social/compatibility', { target_user_id: uid }); setRes(data); } catch (_) {} finally { setBusy(false); }
+  };
+  return (
+    <View testID="compat-panel">
+      <View style={st.card}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}><Ionicons name="heart" size={15} color="#fb7185" /><Text style={st.dailyTitle}>Dream compatibility</Text></View>
+        <Text style={st.compatNote}>A playful match from your shared dream themes & star signs — just for fun.</Text>
+        {cands.length === 0
+          ? <Text style={st.compatEmpty}>Add a friend first — Match works with your friends list.</Text>
+          : cands.map((c) => (
+            <Pressable key={c.user_id} testID={`compat-friend-${c.user_id}`} onPress={() => run(c.user_id)} disabled={busy} style={st.friendRow}>
+              <View style={st.friendAv}><Text style={st.friendAvTxt}>{(c.name || '?')[0]}</Text></View>
+              <Text style={st.friendName}>{c.name}</Text>
+              <Ionicons name="heart" size={16} color="#fb7185" />
+            </Pressable>
+          ))}
+      </View>
+      {busy && <ActivityIndicator color={D.violet} style={{ marginTop: 20 }} />}
+      {res && (
+        <LinearGradient colors={['#4c1d95', '#be185d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.compatRes} testID="compat-result">
+          <Text style={st.compatLabel}>{res.label}</Text>
+          <Text style={st.compatScore}>{res.score}%</Text>
+          <Text style={st.compatHead}>{res.headline}</Text>
+          <Text style={st.compatBlurb}>{res.blurb}</Text>
+          {res.shared_themes?.length > 0 && <View style={[st.themeWrap, { justifyContent: 'center' }]}>{res.shared_themes.map((t: string, i: number) => <View key={i} style={st.compatTheme}><Text style={st.compatThemeTxt}>{t}</Text></View>)}</View>}
+          <Text style={st.compatShared}>{res.shared_note}</Text>
+          <Text style={[st.disc, { textAlign: 'center' }]}>{res.disclaimer}</Text>
+        </LinearGradient>
+      )}
     </View>
   );
 }
@@ -180,4 +283,35 @@ const st = StyleSheet.create({
   affirm: { backgroundColor: 'rgba(168,85,247,0.10)', borderColor: 'rgba(168,85,247,0.2)', borderWidth: 1, borderRadius: 16, padding: 12, marginTop: 12 },
   affirmTxt: { color: '#ede9fe', fontSize: TFONT.sm, fontStyle: 'italic' },
   disc: { color: D.dim, fontSize: 11, marginTop: 10 },
+  daily: { borderRadius: 22, padding: 16, borderColor: 'rgba(168,85,247,0.25)', borderWidth: 1 },
+  dailyTitle: { color: '#fff', fontSize: TFONT.md, fontWeight: '900' },
+  remBtn: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)' },
+  remBtnOn: { backgroundColor: 'rgba(16,185,129,0.2)' },
+  remTxt: { color: D.dim, fontSize: 11, fontWeight: '800' },
+  dailyHead: { color: '#fff', fontSize: TFONT.lg, fontWeight: '900', marginTop: 8 },
+  dailySum: { color: '#ddd6fe', fontSize: TFONT.sm, lineHeight: 20, marginTop: 4 },
+  dailyChips: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+  dailyChip: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+  dailyChipTxt: { color: '#ede9fe', fontSize: 11, fontWeight: '700' },
+  dailyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 22, marginTop: 12, backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(251,191,36,0.3)', borderWidth: 1 },
+  dailyBtnTxt: { color: '#fff', fontWeight: '800', fontSize: TFONT.sm },
+  modalWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
+  modalCard: { backgroundColor: '#0d0a24', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, maxHeight: '85%', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 },
+  modalTitle: { color: D.text, fontSize: TFONT.lg, fontWeight: '900' },
+  gateTitle: { color: D.text, fontSize: TFONT.md, fontWeight: '900', marginTop: 8 },
+  gateSub: { color: D.dim, fontSize: TFONT.sm, textAlign: 'center', marginTop: 4 },
+  compatNote: { color: D.dim, fontSize: 11, marginBottom: 10 },
+  compatEmpty: { color: D.dim, fontSize: TFONT.sm, paddingVertical: 12, textAlign: 'center' },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 8 },
+  friendAv: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(168,85,247,0.2)', alignItems: 'center', justifyContent: 'center' },
+  friendAvTxt: { color: '#ddd6fe', fontWeight: '900' },
+  friendName: { flex: 1, color: D.text, fontSize: TFONT.sm, fontWeight: '800' },
+  compatRes: { borderRadius: 22, padding: 18, alignItems: 'center', marginTop: 4, borderColor: 'rgba(244,114,182,0.25)', borderWidth: 1 },
+  compatLabel: { color: '#fcd34d', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  compatScore: { color: '#fff', fontSize: 44, fontWeight: '900', marginVertical: 2 },
+  compatHead: { color: '#fff', fontSize: TFONT.lg, fontWeight: '900', textAlign: 'center' },
+  compatBlurb: { color: '#fce7f3', fontSize: TFONT.sm, lineHeight: 20, textAlign: 'center', marginTop: 6 },
+  compatTheme: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  compatThemeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  compatShared: { color: '#fbcfe8', fontSize: 11, textAlign: 'center', marginTop: 10 },
 });

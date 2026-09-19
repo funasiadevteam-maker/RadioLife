@@ -10,7 +10,7 @@ import {
   Shield, Star, ChevronLeft, Wand2, MessageCircle, Bookmark, Flag,
   BadgeCheck, Stethoscope, Lock, EyeOff, Clock, Users2, Video,
 } from "lucide-react";
-import { ClubsTab, AiReadingsTab, LiveTab, PayoutsCard } from "./DreamsExtras";
+import { ClubsTab, AiReadingsTab, LiveTab, PayoutsCard, ClustersStrip } from "./DreamsExtras";
 import { Avatar } from "./SocialV2";
 
 const api = axios.create({
@@ -71,7 +71,7 @@ export default function DreamsGuidance() {
         <div className="mt-6">
           {loading && <Center><Loader2 className="animate-spin text-violet-400" /></Center>}
           {!loading && tab === "dreams" && (
-            <DreamsTab config={config} onOpen={setOpenDream} onShare={() => setShowShare(true)} />
+            <><ClustersStrip /><DreamsTab config={config} onOpen={setOpenDream} onShare={() => setShowShare(true)} /></>
           )}
           {!loading && tab === "journal" && (
             <JournalTab onOpen={setOpenDream} onShare={() => setShowShare(true)} />
@@ -309,7 +309,10 @@ function AdvisorCard({ a, onOpen }) {
       <div className="flex items-center gap-3">
         <Avatar name={a.display_name} url={a.photo_url} size={44} />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-black truncate">{a.display_name}</div>
+          <div className="text-sm font-black truncate flex items-center gap-1.5">
+            {a.featured && <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 shrink-0" data-testid={`advisor-featured-${a.advisor_id}`}>★ Featured</span>}
+            <span className="truncate">{a.display_name}</span>
+          </div>
           <div className="text-[11px] text-violet-300 truncate">{a.category_label}</div>
         </div>
         <AdvisorBadges a={a} compact />

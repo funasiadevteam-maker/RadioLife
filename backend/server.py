@@ -1336,6 +1336,12 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_payouts_indexes(db)
         await ensure_live_indexes(db)
     except Exception as e: logger.warning(f"dreams phase2 bootstrap: {e}")
+    try:
+        from routes.dream_ads import ensure_ads_indexes
+        from routes.dream_clusters import ensure_clusters_ai_indexes
+        await ensure_ads_indexes(db)
+        await ensure_clusters_ai_indexes(db)
+    except Exception as e: logger.warning(f"dreams phase3 bootstrap: {e}")
     try: await ensure_compliance_indexes(db)
     except Exception as e: logger.warning(f"compliance indexes: {e}")
     try: await ensure_billing_indexes()
@@ -6446,6 +6452,14 @@ app.include_router(_clubs_router)
 app.include_router(_payouts_router)
 app.include_router(_payouts_admin_router)
 app.include_router(_dream_live_router)
+
+# Social V2 — Dreams & Guidance Phase 3 (advertising, clusters, compatibility).
+from routes.dream_ads import (router as _dream_ads_router,
+                             admin_router as _dream_ads_admin_router)
+from routes.dream_clusters import router as _dream_clusters_router
+app.include_router(_dream_ads_router)
+app.include_router(_dream_ads_admin_router)
+app.include_router(_dream_clusters_router)
 
 
 @app.on_event("startup")

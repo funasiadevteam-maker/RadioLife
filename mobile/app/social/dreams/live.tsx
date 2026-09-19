@@ -56,6 +56,7 @@ export default function LiveScreen() {
                         <View style={{ flex: 1 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             {it.status === 'live' && <View style={s.livePill}><Text style={s.livePillTxt}>● LIVE</Text></View>}
+                            {it.featured && <View style={{ backgroundColor: 'rgba(251,191,36,0.2)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 }} testID={`live-featured-${it.session_id}`}><Text style={{ color: '#fcd34d', fontSize: 9, fontWeight: '900' }}>★ FEATURED</Text></View>}
                             <Text style={s.sessTitle} numberOfLines={1}>{it.title}</Text>
                           </View>
                           <Text style={s.sessSub} numberOfLines={1}>{it.advisor_name} · {it.advisor_category_label}</Text>

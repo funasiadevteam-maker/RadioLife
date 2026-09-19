@@ -151,6 +151,7 @@ def _reading_public(r: dict) -> dict:
 async def ensure_ai_readings_indexes(db) -> None:
     await db.ai_readings.create_index([("user_id", 1), ("created_at", -1)], name="air_mine")
     await db.ai_readings.create_index("reading_id", unique=True, name="air_id")
+    await db.daily_readings.create_index([("user_id", 1), ("date", 1)], name="daily_ud")
 
 
 # ───────────────────────────── Config ──────────────────────────────
@@ -254,6 +255,115 @@ async def numerology(body: NumerologyBody, request: Request,
     result["life_path_meaning"] = meaning
     title = f"Life Path {lp} — {meaning}"
     return await _save(db, user["user_id"], "numerology", f"Life Path {lp}", title, result)
+
+
+# ───────────────────────── Daily + Reminders ───────────────────────
+def _today_str() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+@router.get("/daily")
+async def daily(request: Request, sign: Optional[str] = None,
+                dob: Optional[str] = None, user: dict = Depends(current_user)):
+    """Free basic daily reading for everyone; the DETAILED daily tarot is
+    Premium-only (free users get a locked teaser)."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    today = _today_str()
+    s = sign if sign in ZODIAC_SIGNS else (_sign_from_dob(dob) if dob else None)
+    if not s:
+        last = await db.ai_readings.find_one(
+            {"user_id": uid, "type": "horoscope"}, sort=[("created_at", -1)])
+        if last and last.get("subject") in ZODIAC_SIGNS:
+            s = last["subject"]
+    udoc = await db.users.find_one({"user_id": uid}) or {}
+    premium = bool(udoc.get("is_premium"))
+    key = f"{uid}:{today}"
+    doc = await db.daily_readings.find_one({"_id": key})
+    if not doc:
+        rng = random.Random(f"{uid}:{today}:tarot")
+        card = {"name": rng.choice(MAJOR_ARCANA),
+                "orientation": rng.choice(["upright", "reversed"])}
+        basic = await _generate(
+            _SYSTEM,
+            f"A VERY short daily note. Star sign: {s or 'unknown'}. Daily tarot card: "
+            f"{card['name']} ({card['orientation']}). Return JSON "
+            '{"headline":str,"summary":str,"affirmation":str} — summary max 2 sentences.',
+            f"daily_{uid}_{today}")
+        if not basic:
+            basic = {"headline": f"Your day, {s or 'friend'}",
+                     "summary": "A gentle day to move at your own pace.",
+                     "affirmation": "I trust my own timing."}
+        doc = {"_id": key, "user_id": uid, "date": today, "sign": s,
+               "card": card, "basic": basic, "detail": None, "created_at": _now()}
+        await db.daily_readings.insert_one(doc)
+    out = {"date": today, "sign": doc.get("sign"), "card": doc["card"],
+           "basic": doc["basic"], "premium": premium,
+           "label": READING_LABEL, "disclaimer": DISCLAIMER}
+    if premium:
+        # Detail is generated lazily via POST /daily/detail so this call stays fast.
+        out["detail"] = doc.get("detail")
+        out["detail_locked"] = False
+    else:
+        out["detail_locked"] = True
+        out["upgrade"] = "Unlock your full daily tarot reading with Premium."
+    return out
+
+
+@router.post("/daily/detail")
+async def daily_detail(request: Request, user: dict = Depends(current_user)):
+    """Premium-only: generate (once) + return the full daily tarot interpretation."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    today = _today_str()
+    udoc = await db.users.find_one({"user_id": uid}) or {}
+    if not bool(udoc.get("is_premium")):
+        raise HTTPException(403, {"code": "premium_required",
+                                  "upgrade": "Unlock your full daily tarot with Premium."})
+    key = f"{uid}:{today}"
+    doc = await db.daily_readings.find_one({"_id": key})
+    if not doc:
+        raise HTTPException(400, {"code": "load_daily_first"})
+    if not doc.get("detail"):
+        detail = await _generate(
+            _SYSTEM,
+            f"A fuller daily tarot reading. Card {doc['card']['name']} "
+            f"({doc['card']['orientation']}) for a {doc.get('sign') or 'seeker'}. "
+            'Return JSON {"headline":str,"summary":str,"themes":[str,str,str],'
+            '"guidance":[str,str],"affirmation":str}.',
+            f"dailyx_{uid}_{today}")
+        if not detail:
+            detail = _fallback("tarot", "your day")
+        await db.daily_readings.update_one({"_id": key}, {"$set": {"detail": detail}})
+        doc["detail"] = detail
+    return {"detail": doc["detail"], "card": doc["card"], "sign": doc.get("sign"),
+            "label": READING_LABEL, "disclaimer": DISCLAIMER}
+
+
+class ReminderBody(BaseModel):
+    enabled: bool = True
+    hour: int = Field(9, ge=0, le=23)
+
+
+@router.get("/reminders")
+async def get_reminders(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    p = await db.reading_reminder_prefs.find_one({"_id": user["user_id"]})
+    return {"enabled": bool(p and p.get("enabled")),
+            "hour": (p or {}).get("hour", 9),
+            "note": "In-app daily nudge. Push notifications arrive after the app "
+                    "is published to a device."}
+
+
+@router.put("/reminders")
+async def set_reminders(body: ReminderBody, request: Request,
+                        user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await db.reading_reminder_prefs.update_one(
+        {"_id": user["user_id"]},
+        {"$set": {"enabled": body.enabled, "hour": body.hour, "updated_at": _now()}},
+        upsert=True)
+    return {"ok": True, "enabled": body.enabled, "hour": body.hour}
 
 
 # ───────────────────────────── History ─────────────────────────────

@@ -92,10 +92,19 @@ async def list_sessions(request: Request, status: str = "live",
         q = {"status": "scheduled"}
     else:
         q = {"status": "live"}
+    featured_ids: set = set()
+    try:
+        from routes.dream_ads import active_featured_advisor_ids
+        featured_ids = await active_featured_advisor_ids(db, "live")
+    except Exception:
+        pass
     items = []
     async for s in db.dream_live_sessions.find(q).sort("created_at", -1).limit(40):
         qc = await db.dream_live_questions.count_documents({"session_id": s["session_id"]})
-        items.append(_session_public(s, qc))
+        pub = _session_public(s, qc)
+        pub["featured"] = s.get("advisor_id") in featured_ids
+        items.append(pub)
+    items.sort(key=lambda x: 0 if x.get("featured") else 1)  # featured first, stable
     return {"items": items, "live_mode": _live_mode()}
 
 

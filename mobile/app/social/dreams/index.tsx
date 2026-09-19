@@ -76,6 +76,7 @@ export default function DreamsHub() {
         style={{ flexGrow: 0 }} testID="dreams-shortcuts">
         {[
           { key: 'clubs', label: 'Clubs', icon: 'people-circle', route: '/social/dreams/clubs' },
+          { key: 'clusters', label: 'Clusters', icon: 'layers', route: '/social/dreams/clusters' },
           { key: 'readings', label: 'AI Readings', icon: 'sparkles', route: '/social/dreams/readings' },
           { key: 'live', label: 'Live Q&A', icon: 'radio', route: '/social/dreams/live' },
           { key: 'studio', label: 'Advisor Studio', icon: 'briefcase', route: '/social/dreams/studio' },
@@ -260,6 +261,7 @@ function AdvisorsTab({ config }: any) {
               <View style={{ flex: 1 }}><Text style={s.cardTitle}>{a.display_name}</Text>
                 <Text style={{ color: D.violet, fontSize: TFONT.xs }}>{a.category_label}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                  {a.featured && <View style={{ backgroundColor: 'rgba(251,191,36,0.2)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 }} testID={`advisor-featured-${a.advisor_id}`}><Text style={{ color: '#fcd34d', fontSize: 9, fontWeight: '900' }}>★ FEATURED</Text></View>}
                   <Ionicons name="star" size={11} color={D.gold} /><Text style={s.cardBody}>{a.rating} · {a.review_count}</Text></View>
               </View>
               <BadgesM badges={a.badges} />

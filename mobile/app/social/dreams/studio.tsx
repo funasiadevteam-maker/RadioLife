@@ -73,6 +73,8 @@ export default function StudioScreen() {
               <Pressable testID="studio-host-live" onPress={() => router.push('/social/dreams/live' as any)} style={[s.primary, { marginTop: 10 }]}><Text style={s.primaryTxt}>Open Live Q&A</Text></Pressable>
             </View>
 
+            <GetFeatured />
+
             {(data.ledger || []).length > 0 && (<>
               <Text style={s.section}>PAYOUT HISTORY</Text>
               {data.ledger.map((p: any, i: number) => (
@@ -91,8 +93,53 @@ function Stat({ label, value }: any) {
   return <View style={s.stat}><Text style={s.statVal}>{value}</Text><Text style={s.statLbl}>{label}</Text></View>;
 }
 
+function GetFeatured() {
+  const [cfg, setCfg] = useState<any>(null);
+  const [surface, setSurface] = useState('both');
+  const load = useCallback(async () => { try { const { data } = await api.get('/social/ads/config'); setCfg(data); } catch (_) {} }, []);
+  useEffect(() => { load(); }, [load]);
+  if (!cfg || !cfg.is_advisor) return null;
+  const active = cfg.active_promotion;
+  const buy = async (tier: string) => {
+    try { const { data } = await api.post('/social/ads/checkout', { tier, surface, origin_url: 'https://radiolife.app' }); if (data.checkout_url) Linking.openURL(data.checkout_url); } catch (_) {}
+  };
+  return (
+    <View style={s.card} testID="get-featured">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Ionicons name="rocket" size={18} color="#fbbf24" /><Text style={s.cardTitle}>Get featured</Text>
+        <Pressable onPress={load} style={{ marginLeft: 'auto' }}><Text style={s.link}>Refresh</Text></Pressable>
+      </View>
+      {active
+        ? <View style={s.featActive} testID="featured-active"><Text style={s.featActiveTxt}>★ Featured on {active.surface_label} until {new Date(active.ends_at).toLocaleDateString()}</Text></View>
+        : (<>
+          <Text style={[s.note, { marginTop: 6 }]}>Pin yourself to the top with a Featured badge. Doesn’t affect reviews or fairness.</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+            {cfg.surfaces.map((su: any) => (
+              <Pressable key={su.key} testID={`feature-surface-${su.key}`} onPress={() => setSurface(su.key)} style={[s.surf, surface === su.key && s.surfA]}><Text style={[s.surfTxt, surface === su.key && { color: '#fff' }]}>{su.label}</Text></Pressable>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+            {cfg.tiers.map((t: any) => (
+              <Pressable key={t.key} testID={`feature-tier-${t.key}`} onPress={() => buy(t.key)} style={s.tier}>
+                <Text style={s.tierPrice}>{money(t.price_cents)}</Text><Text style={s.tierLbl}>{t.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>)}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: D.bg },
+  featActive: { backgroundColor: 'rgba(251,191,36,0.1)', borderColor: 'rgba(251,191,36,0.25)', borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 8 },
+  featActiveTxt: { color: '#fcd34d', fontSize: TFONT.xs, lineHeight: 18 },
+  surf: { flex: 1, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' },
+  surfA: { backgroundColor: D.accent2 },
+  surfTxt: { color: D.dim, fontSize: 11, fontWeight: '800' },
+  tier: { flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderRadius: 16, paddingVertical: 12, alignItems: 'center' },
+  tierPrice: { color: D.text, fontSize: TFONT.md, fontWeight: '900' },
+  tierLbl: { color: '#6d6a86', fontSize: 10, marginTop: 2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 10 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 10 },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   Loader2, Sparkles, Wand2, Moon, Users2, Video, Radio, X, Send,
   Star, Trash2, ChevronLeft, DollarSign, ExternalLink, Plus, Dot,
+  Lock, Heart, Users, Bell, Rocket, Layers, ChevronRight,
 } from "lucide-react";
 
 const B = process.env.REACT_APP_BACKEND_URL || "";
@@ -13,6 +14,8 @@ const readingsApi = axios.create({ baseURL: `${B}/api/social/readings`, withCred
 const clubsApi = axios.create({ baseURL: `${B}/api/social/clubs`, withCredentials: true });
 const liveApi = axios.create({ baseURL: `${B}/api/social/live`, withCredentials: true });
 const payoutsApi = axios.create({ baseURL: `${B}/api/social/payouts`, withCredentials: true });
+const adsApi = axios.create({ baseURL: `${B}/api/social/ads`, withCredentials: true });
+const socialApi = axios.create({ baseURL: `${B}/api/social`, withCredentials: true });
 
 const card = "rounded-3xl bg-white/[0.03] border border-white/[0.06] p-5";
 const grad = { background: "linear-gradient(135deg,#7c3aed,#c026d3)" };
@@ -186,9 +189,11 @@ export function AiReadingsTab() {
     { key: "horoscope", label: "Horoscope", icon: Sparkles },
     { key: "tarot", label: "Tarot", icon: Wand2 },
     { key: "numerology", label: "Numerology", icon: Star },
+    { key: "compat", label: "Match", icon: Heart },
   ];
   return (
     <div data-testid="ai-readings">
+      <DailyCard />
       <div className="rounded-2xl bg-amber-400/10 border border-amber-400/20 px-4 py-2.5 text-[11px] text-amber-200/90 mb-4">
         ✦ AI-GENERATED · for entertainment &amp; reflection only — not advice, not a guaranteed prediction.
       </div>
@@ -196,13 +201,14 @@ export function AiReadingsTab() {
         {KINDS.map((k) => (
           <button key={k.key} type="button" onClick={() => { setKind(k.key); setResult(null); }}
                   data-testid={`reading-kind-${k.key}`}
-                  className={`flex-1 inline-flex items-center justify-center gap-2 h-11 rounded-full text-sm font-bold ${kind === k.key ? "text-white" : "bg-white/[0.03] text-slate-400"}`}
+                  className={`flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-full text-sm font-bold ${kind === k.key ? "text-white" : "bg-white/[0.03] text-slate-400"}`}
                   style={kind === k.key ? grad : undefined}>
             <k.icon size={16} /> {k.label}
           </button>
         ))}
       </div>
 
+      {kind === "compat" ? <CompatibilityPanel /> : (<>
       <div className={`${card} mb-4`}>
         {kind === "horoscope" && (
           <div className="space-y-3">
@@ -256,6 +262,7 @@ export function AiReadingsTab() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
@@ -295,6 +302,169 @@ function ReadingResult({ r }) {
       )}
       <p className="text-[11px] text-slate-500 mt-3">{r.disclaimer}</p>
     </div>
+  );
+}
+
+// ─────────────────────────── Daily + Reminders ─────────────────────
+function DailyCard() {
+  const [d, setD] = useState(null);
+  const [rem, setRem] = useState({ enabled: false, hour: 9 });
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [dl, setDl] = useState(false);
+  useEffect(() => {
+    readingsApi.get("/daily").then(({ data }) => setD(data)).catch(() => {});
+    readingsApi.get("/reminders").then(({ data }) => setRem(data)).catch(() => {});
+  }, []);
+  const toggle = async () => {
+    const next = { enabled: !rem.enabled, hour: rem.hour };
+    setRem(next);
+    try { await readingsApi.put("/reminders", next); toast.success(next.enabled ? "Daily nudge on" : "Reminders off"); } catch (_) {}
+  };
+  const openDetail = async () => {
+    setOpen(true);
+    if (!detail) {
+      setDl(true);
+      try { const { data } = await readingsApi.post("/daily/detail"); setDetail(data.detail); } catch (_) {} finally { setDl(false); }
+    }
+  };
+  if (!d) return null;
+  return (
+    <div className="rounded-3xl p-5 mb-4 border border-violet-500/25" style={{ background: "linear-gradient(135deg,#1e1b4b,#4c1d95)" }} data-testid="daily-card">
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles size={16} className="text-amber-300" />
+        <span className="font-black">Today’s reading</span>
+        <button type="button" onClick={toggle} data-testid="daily-reminder-toggle"
+                className={`ml-auto inline-flex items-center gap-1.5 text-[11px] font-bold px-3 h-8 rounded-full ${rem.enabled ? "bg-emerald-500/20 text-emerald-200" : "bg-white/[0.06] text-slate-300"}`}>
+          <Bell size={13} /> {rem.enabled ? "Nudge on" : "Remind me"}
+        </button>
+      </div>
+      <div className="text-lg font-black text-white">{d.basic?.headline}</div>
+      <p className="text-sm text-violet-100/90 mt-1">{d.basic?.summary}</p>
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.08] text-violet-100" data-testid="daily-card-name">
+          🃏 {d.card?.name} · {d.card?.orientation}
+        </span>
+        {d.sign && <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.08] text-violet-100">{d.sign}</span>}
+      </div>
+      {d.detail_locked ? (
+        <button type="button" onClick={() => setOpen(true)} data-testid="daily-unlock"
+                className="mt-3 w-full h-11 rounded-full font-bold text-white inline-flex items-center justify-center gap-2 bg-white/[0.08] border border-amber-400/30">
+          <Lock size={15} className="text-amber-300" /> Unlock full daily tarot — Premium
+        </button>
+      ) : (
+        <button type="button" onClick={openDetail} data-testid="daily-detail"
+                className="mt-3 w-full h-11 rounded-full font-bold text-white inline-flex items-center justify-center gap-2" style={grad}>
+          Read your full daily tarot <ChevronRight size={16} />
+        </button>
+      )}
+      {open && (
+        <Modal onClose={() => setOpen(false)} title="Your daily tarot">
+          {d.detail_locked ? (
+            <div className="text-center py-4" data-testid="daily-premium-gate">
+              <Lock className="mx-auto text-amber-300 mb-2" size={26} />
+              <p className="font-bold">Premium daily tarot</p>
+              <p className="text-sm text-slate-400 mt-1">{d.upgrade}</p>
+              <div className="mt-3 rounded-2xl bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
+                Free today: <b>{d.card?.name}</b> ({d.card?.orientation}). Premium unlocks the full interpretation, themes &amp; guidance every day.
+              </div>
+            </div>
+          ) : dl ? <Spin /> : <ReadingResult r={{ ...d, title: "Daily tarot", result: detail, label: d.label, disclaimer: d.disclaimer, cards: [{ name: d.card?.name, orientation: d.card?.orientation, position: "Today" }] }} />}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────── Compatibility ─────────────────────────
+function CompatibilityPanel() {
+  const [cands, setCands] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState(null);
+  useEffect(() => { socialApi.get("/compatibility/candidates").then(({ data }) => setCands(data.items || [])).catch(() => {}); }, []);
+  const run = async (uid) => {
+    setBusy(true); setRes(null);
+    try { const { data } = await socialApi.post("/compatibility", { target_user_id: uid }); setRes(data); }
+    catch (_) { toast.error("Couldn't compute a match."); } finally { setBusy(false); }
+  };
+  return (
+    <div data-testid="compat-panel">
+      <div className={`${card} mb-4`}>
+        <div className="flex items-center gap-2 mb-1"><Heart size={16} className="text-rose-300" /><span className="font-black">Dream compatibility</span></div>
+        <p className="text-[11px] text-slate-400 mb-3">A playful match from your shared dream themes &amp; star signs — just for fun.</p>
+        {cands.length === 0 ? (
+          <Empty icon={Users} title="Add a friend first" sub="Match works with people on your friends list." />
+        ) : (
+          <div className="space-y-2">
+            {cands.map((c) => (
+              <button key={c.user_id} type="button" onClick={() => run(c.user_id)} disabled={busy} data-testid={`compat-friend-${c.user_id}`}
+                      className="w-full flex items-center gap-3 rounded-2xl bg-white/[0.04] border border-white/[0.06] px-4 py-3 hover:border-rose-400/30">
+                <span className="w-9 h-9 rounded-full bg-violet-500/20 grid place-items-center text-sm font-black text-violet-200">{(c.name || "?")[0]}</span>
+                <span className="flex-1 text-left font-bold text-sm">{c.name}</span>
+                <Heart size={16} className="text-rose-300" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {busy && <Spin />}
+      {res && (
+        <div className="rounded-3xl p-5 text-center border border-rose-400/25" style={{ background: "linear-gradient(135deg,#4c1d95,#be185d)" }} data-testid="compat-result">
+          <div className="text-[10px] font-bold text-amber-200/90 uppercase tracking-wider">{res.label}</div>
+          <div className="text-5xl font-black text-white my-1">{res.score}%</div>
+          <div className="text-lg font-black text-white">{res.headline}</div>
+          <p className="text-sm text-rose-100/90 mt-2">{res.blurb}</p>
+          {res.shared_themes?.length > 0 && (
+            <div className="flex gap-2 flex-wrap justify-center mt-3">
+              {res.shared_themes.map((t, i) => <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.12] text-white">{t}</span>)}
+            </div>
+          )}
+          <p className="text-[11px] text-rose-100/70 mt-3">{res.shared_note}</p>
+          <p className="text-[10px] text-rose-100/60 mt-2">{res.disclaimer}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────── Dream Clusters ────────────────────────
+export function ClustersStrip() {
+  const [clusters, setClusters] = useState([]);
+  const [theme, setTheme] = useState(null);
+  useEffect(() => { socialApi.get("/clusters").then(({ data }) => setClusters(data.clusters || [])).catch(() => {}); }, []);
+  if (clusters.length === 0) return null;
+  return (
+    <div className="mb-4" data-testid="clusters-strip">
+      <div className="flex items-center gap-2 mb-2"><Layers size={15} className="text-violet-300" /><span className="text-xs font-bold text-slate-300 uppercase tracking-wide">Dream clusters · people who dreamed the same</span></div>
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
+        {clusters.map((c) => (
+          <button key={c.theme} type="button" onClick={() => setTheme(c)} data-testid={`cluster-chip-${c.theme}`}
+                  className="shrink-0 rounded-2xl bg-white/[0.04] border border-white/[0.06] px-4 py-2.5 text-left hover:border-violet-400/40">
+            <div className="font-bold text-sm whitespace-nowrap">{c.label}</div>
+            <div className="text-[11px] text-violet-300">{c.count} dreamed this</div>
+          </button>
+        ))}
+      </div>
+      {theme && <ClusterModal cluster={theme} onClose={() => setTheme(null)} />}
+    </div>
+  );
+}
+
+function ClusterModal({ cluster, onClose }) {
+  const [items, setItems] = useState(null);
+  useEffect(() => { socialApi.get(`/clusters/${cluster.theme}`).then(({ data }) => setItems(data.items || [])).catch(() => setItems([])); }, [cluster.theme]);
+  return (
+    <Modal onClose={onClose} title={`${cluster.label} · ${cluster.count} dreams`}>
+      <div className="max-h-[60vh] overflow-y-auto space-y-2" data-testid="cluster-modal">
+        {items === null ? <Spin /> : items.length === 0 ? <Empty icon={Moon} title="No dreams yet" /> : items.map((d) => (
+          <div key={d.dream_id} className="rounded-2xl bg-white/[0.03] border border-white/[0.06] px-4 py-3" data-testid={`cluster-dream-${d.dream_id}`}>
+            <div className="text-sm font-bold">{d.title || "Untitled dream"}</div>
+            <div className="text-xs text-slate-400 mt-0.5 line-clamp-2">{d.description}</div>
+            <div className="text-[11px] text-violet-300 mt-1">{d.author?.name || "Anonymous Dreamer"} · {d.similar_count} similar</div>
+          </div>
+        ))}
+      </div>
+    </Modal>
   );
 }
 
@@ -343,6 +513,7 @@ export function LiveTab() {
               <div className="flex-1 min-w-0">
                 <div className="font-black truncate flex items-center gap-2">
                   {s.status === "live" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 animate-pulse">● LIVE</span>}
+                  {s.featured && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200" data-testid={`live-featured-${s.session_id}`}>★ Featured</span>}
                   {s.title}
                 </div>
                 <div className="text-xs text-slate-400 truncate">{s.advisor_name} · {s.advisor_category_label}</div>
@@ -488,6 +659,54 @@ export function PayoutsCard() {
           </div>
         </div>
       )}
+      <GetFeatured />
+    </div>
+  );
+}
+
+function GetFeatured() {
+  const [cfg, setCfg] = useState(null);
+  const [surface, setSurface] = useState("both");
+  const load = useCallback(async () => {
+    try { const { data } = await adsApi.get("/config"); setCfg(data); } catch (_) {}
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  if (!cfg || !cfg.is_advisor) return null;
+  const active = cfg.active_promotion;
+  const buy = async (tier) => {
+    try {
+      const { data } = await adsApi.post("/checkout", { tier, surface, origin_url: window.location.origin });
+      window.open(data.checkout_url, "_blank");
+      toast.success("Complete checkout, then refresh.");
+    } catch (e) { toast.error(e?.response?.status === 403 ? "Advisors only." : "Couldn't start checkout."); }
+  };
+  return (
+    <div className="mt-4 pt-4 border-t border-white/[0.06]" data-testid="get-featured">
+      <div className="flex items-center gap-2 mb-1"><Rocket size={16} className="text-amber-300" /><span className="font-black">Get featured</span>
+        <button type="button" onClick={load} className="ml-auto text-xs text-slate-400 underline">Refresh</button></div>
+      {active ? (
+        <div className="rounded-2xl bg-amber-400/10 border border-amber-400/25 px-4 py-3 text-sm text-amber-100" data-testid="featured-active">
+          ★ Featured on {active.surface_label} until {new Date(active.ends_at).toLocaleDateString()}.
+        </div>
+      ) : (<>
+        <p className="text-[11px] text-slate-400 mb-2">Pin yourself to the top with a Featured badge. Doesn’t affect reviews or fairness.</p>
+        <div className="flex gap-2 mb-2">
+          {cfg.surfaces.map((s) => (
+            <button key={s.key} type="button" onClick={() => setSurface(s.key)} data-testid={`feature-surface-${s.key}`}
+                    className={`flex-1 h-9 rounded-full text-[11px] font-bold ${surface === s.key ? "text-white" : "bg-white/[0.05] text-slate-400"}`}
+                    style={surface === s.key ? grad : undefined}>{s.label}</button>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {cfg.tiers.map((t) => (
+            <button key={t.key} type="button" onClick={() => buy(t.key)} data-testid={`feature-tier-${t.key}`}
+                    className="rounded-2xl bg-white/[0.04] border border-white/[0.06] px-2 py-3 text-center hover:border-amber-400/40">
+              <div className="text-sm font-black">{money(t.price_cents)}</div>
+              <div className="text-[10px] text-slate-500">{t.label}</div>
+            </button>
+          ))}
+        </div>
+      </>)}
     </div>
   );
 }
