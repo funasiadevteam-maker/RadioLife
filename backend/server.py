@@ -1317,6 +1317,10 @@ async def _deferred_bootstrap(app_: FastAPI):
         except Exception as e: logger.error(f"ffmpeg install failed: {e}")
     try: await ensure_auth_indexes(db)
     except Exception as e: logger.warning(f"auth indexes: {e}")
+    try:
+        from routes.social_v2 import ensure_social_v2
+        await ensure_social_v2(db)
+    except Exception as e: logger.warning(f"social_v2 bootstrap: {e}")
     try: await ensure_compliance_indexes(db)
     except Exception as e: logger.warning(f"compliance indexes: {e}")
     try: await ensure_billing_indexes()
@@ -6405,6 +6409,10 @@ app.include_router(_admin_merchants_router)
 # Phase PORTAL.0 — Unified access context (AccessResolver source of truth).
 from routes.portal_context import router as _portal_context_router
 app.include_router(_portal_context_router)
+
+# Social V2 — Phase 1 (friends, Listen Together rooms, social home).
+from routes.social_v2 import router as _social_v2_router
+app.include_router(_social_v2_router)
 
 
 @app.on_event("startup")

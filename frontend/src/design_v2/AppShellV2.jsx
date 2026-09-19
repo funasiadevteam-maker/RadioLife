@@ -49,7 +49,7 @@ const NAV = [
   { key: "listen", label: "Listen", icon: Headphones, path: "/listen" },
   { key: "shop", label: "Shop", icon: ShoppingBag, path: "/shop" },
   { key: "play", label: "Play", icon: Gamepad2, path: "/play-and-win" },
-  { key: "social", label: "Social", icon: Users, path: "/community" },
+  { key: "social", label: "Social", icon: Users, path: "/social" },
 ];
 
 // Mobile bottom tab bar — Pay sits in the middle as a raised money button
@@ -146,7 +146,7 @@ function ShellV2Header() {
 
       {/* Right cluster */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
-        <Link to="/community" data-testid="nlv2-top-social" title="Social"
+        <Link to="/social" data-testid="nlv2-top-social" title="Social"
           className="lg:hidden w-9 h-9 rounded-full grid place-items-center text-[#8b96b8] hover:text-white">
           <Users size={18} />
         </Link>

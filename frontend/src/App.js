@@ -15,6 +15,8 @@ import Admin from "@/Admin";
 import AdminHome from "@/pages/admin/AdminHome";  // Phase T — Admin Home dashboard
 import AdminAppearance from "@/Admin/AdminAppearance";  // admin-only design switch
 import AdminSoftLaunch from "@/Admin/AdminSoftLaunch";  // V2 soft-launch admin
+import SocialV2 from "@/pages/social/SocialV2";  // Social V2 — Phase 1
+import ListenRoom from "@/pages/social/ListenRoom";  // Listen Together room
 import AdminGlobalSearch from "@/components/AdminGlobalSearch";  // Phase T — Cmd/Ctrl+K palette
 import AdminBulkUpload from "@/AdminBulkUpload";  // Phase 22a — bulk music upload
 import AdminVoices from "@/AdminVoices";
@@ -1063,6 +1065,10 @@ function AppRouter() {
       <Route path="/portal/login" element={<PortalLogin />} />
       <Route path="/portal" element={<PortalRouter />} />
       <Route path="/business/login" element={<Navigate to="/portal/login" replace />} />
+
+      {/* Social V2 — Phase 1 (design-independent; premium V2 presentation). */}
+      <Route path="/social" element={<ProtectedRoute><SocialV2 /></ProtectedRoute>} />
+      <Route path="/social/room/:id" element={<ProtectedRoute><ListenRoom /></ProtectedRoute>} />
       <Route path="/business/register" element={
         <ProtectedRoute><BusinessRegister /></ProtectedRoute>} />
       <Route path="/business" element={
