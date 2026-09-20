@@ -3,6 +3,13 @@
 > NOTE (2026-09 fork): This file grew changelog-style. Newest work is now also logged in **CHANGELOG.md** and the backlog lives in **ROADMAP.md**. The dated sections below remain the historical record.
 
 
+## 🪙 SOCIAL SHARE → +1 BIGPOINT (2026-09 fork, backend + web, self-tested via ledger)
+Every social share awards **+1 BigPoint** via the canonical `PointsService` (source `social_share`, explicit `delta=1`, idempotent per content, gated by the rule's 25/day cap so it can't be farmed). Helper `award_social_share()` in `routes/dreams_guidance.py`, wired into: share a dream (`POST /api/social/dreams`), post a dream to a club (`POST /api/social/clubs/{slug}/dreams`), and share an AI reading public (`POST /api/social/readings/{id}/share`). Responses now include `points_awarded`; web shows a "+1 point" toast on dream/club shares. Verified: freeuser balance 0→2 across two shares, idempotent re-award blocked. (Applies to both surfaces since the backend is shared.)
+
+## ⏳ QUEUED (awaiting user go-ahead): Ad Analytics, Cluster Alerts, Compatibility Sharing, Reminder Timezones
+Plan proposed (in-app notifications, shareable compat card+link, tz-aware daily nudge, per-promotion advisor impact metrics); user pivoted to the social-share points request before confirming. Resume on their nod.
+
+
 ## 🌙 SOCIAL V2 — DREAMS & GUIDANCE PHASE 3 (2026-09 fork, web + mobile + backend, testing agent PASS iter157 — 21/21 backend; UI code-reviewed + screenshot-verified)
 Four more features (Claude Sonnet 4.6 via Emergent key; Stripe env-driven test in preview):
 - **Advisor Advertising** (`routes/dream_ads.py`, `/api/social/ads/*` + admin `/api/admin/dreams/ads/*`): approved advisors buy a Featured slot (tiers **1-day $29.99 / 7-day $49.99 / 30-day $99.99**, admin-editable) via Stripe hosted checkout → active promotion pins + badges them atop the Advisors marketplace and/or Live tab (`active_featured_advisor_ids()` consumed by `dreams_guidance.list_advisors` + `dream_live.list_sessions`, featured-first stable sort). Admin edits tiers / stops promos. Collections `advisor_promotions`, `dream_ads_config`.

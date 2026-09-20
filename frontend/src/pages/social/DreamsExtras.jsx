@@ -136,7 +136,7 @@ function ClubPostModal({ slug, onClose, onDone }) {
   const submit = async () => {
     if (!desc.trim()) return;
     setBusy(true);
-    try { await clubsApi.post(`/${slug}/dreams`, { title, description: desc, anonymous: anon }); toast.success("Shared to club"); onDone(); }
+    try { const { data } = await clubsApi.post(`/${slug}/dreams`, { title, description: desc, anonymous: anon }); toast.success(data?.points_awarded ? "Shared to club  +1 point" : "Shared to club"); onDone(); }
     catch (_) { toast.error("Couldn't post."); } finally { setBusy(false); }
   };
   return (

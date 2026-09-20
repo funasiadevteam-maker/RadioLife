@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from auth import current_user
 from routes.social_v2 import _user_public
 from routes.dreams_guidance import (MOODS, TAGS, _dream_public, _require_flag,
-                                    _now as _dg_now)
+                                    award_social_share, _now as _dg_now)
 
 router = APIRouter(prefix="/api/social/clubs", tags=["dream_clubs"])
 
@@ -161,7 +161,15 @@ async def post_club_dream(slug: str, body: ClubDreamBody, request: Request,
            "status": "active", "report_count": 0,
            "created_at": _dg_now(), "updated_at": _dg_now()}
     await db.dreams.insert_one(doc)
-    return _dream_public(doc, user["user_id"], _user_public(user), detail=True)
+    try:
+        from routes.dream_clusters import extract_and_store_themes
+        await extract_and_store_themes(db, doc["_id"])
+    except Exception:
+        pass
+    pts = await award_social_share(db, user["user_id"], f"dream:{doc['_id']}")
+    out = _dream_public(doc, user["user_id"], _user_public(user), detail=True)
+    out["points_awarded"] = pts
+    return out
 
 
 __all__ = ["router", "ensure_clubs_indexes"]

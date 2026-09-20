@@ -676,7 +676,7 @@ function ShareModal({ config, onClose, onDone }) {
   const submit = async () => {
     if (f.description.trim().length < 1) { toast.info("Describe your dream first."); return; }
     setBusy(true);
-    try { await api.post("", { ...f, title: f.title.trim() || undefined, mood: f.mood || undefined }); toast.success("Dream shared 🌙"); onDone(); }
+    try { const { data } = await api.post("", { ...f, title: f.title.trim() || undefined, mood: f.mood || undefined }); toast.success(data?.points_awarded ? "Dream shared 🌙  +1 point" : "Dream shared 🌙"); onDone(); }
     catch (e) { toast.error(e?.response?.data?.detail?.code || "Couldn't share"); } finally { setBusy(false); }
   };
   return (

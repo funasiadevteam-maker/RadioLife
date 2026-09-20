@@ -403,7 +403,14 @@ async def share_reading(reading_id: str, body: ShareBody, request: Request,
         raise HTTPException(404, {"code": "reading_not_found"})
     await db.ai_readings.update_one({"reading_id": reading_id},
                                     {"$set": {"public": bool(body.public)}})
-    return {"ok": True, "public": bool(body.public)}
+    pts = 0
+    if body.public:   # +1 BigPoint for sharing a reading to the social section
+        try:
+            from routes.dreams_guidance import award_social_share
+            pts = await award_social_share(db, user["user_id"], f"reading:{reading_id}")
+        except Exception:
+            pts = 0
+    return {"ok": True, "public": bool(body.public), "points_awarded": pts}
 
 
 @router.delete("/{reading_id}")

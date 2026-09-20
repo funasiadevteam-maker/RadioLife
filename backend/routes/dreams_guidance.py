@@ -98,6 +98,23 @@ async def _extract_themes_bg(db, dream_id: str) -> None:
         pass
 
 
+async def award_social_share(db, user_id: str, source_id: str) -> int:
+    """+1 BigPoint whenever a user shares something in the social section.
+
+    Idempotent per share (unique idempotency_key) and gated by the
+    `social_share` earn-rule daily cap so it can't be farmed.
+    """
+    try:
+        from services.points_service import PointsService
+        r = await PointsService(db).award(
+            user_id=user_id, source="social_share", source_id=source_id,
+            delta=1, idempotency_key=f"social_share:{source_id}",
+            metadata={"section": "social"})
+        return 1 if (r.ok and not r.idempotency_hit and not r.capped) else 0
+    except Exception:
+        return 0
+
+
 def _iso(v: Any) -> Optional[str]:
     return v.isoformat() if isinstance(v, datetime) else v
 
@@ -236,7 +253,10 @@ async def share_dream(body: DreamBody, request: Request,
         "created_at": _now(), "updated_at": _now()}
     await db.dreams.insert_one(doc)
     background_tasks.add_task(_extract_themes_bg, db, did)
-    return _dream_public(doc, user["user_id"], _user_public(user), detail=True)
+    pts = await award_social_share(db, user["user_id"], f"dream:{did}")
+    out = _dream_public(doc, user["user_id"], _user_public(user), detail=True)
+    out["points_awarded"] = pts
+    return out
 
 
 @router.get("")
