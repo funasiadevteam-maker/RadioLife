@@ -111,6 +111,11 @@ async def award_social_share(db, user_id: str, source_id: str) -> int:
             user_id=user_id, source="social_share", source_id=source_id,
             delta=1, idempotency_key=f"social_share:{source_id}",
             metadata={"section": "social"})
+        try:  # sharing also counts toward the daily streak habit
+            from services.points_service import touch_daily_streak
+            await touch_daily_streak(db, user_id)
+        except Exception:
+            pass
         return 1 if (r.ok and not r.idempotency_hit and not r.capped) else 0
     except Exception:
         return 0
@@ -179,6 +184,14 @@ async def get_config(request: Request, user: dict = Depends(current_user)):
         "disclaimers": {"global": DISCLAIMER_GLOBAL, "booking": DISCLAIMER_BOOKING,
                         "ai_header": AI_HEADER},
     }
+
+
+@router.get("/streak")
+async def my_streak(request: Request, user: dict = Depends(current_user)):
+    """Current daily-habit streak (🔥). Increments by sharing OR reading."""
+    from services.points_service import get_streak
+    return await get_streak(request.app.state.db, user["user_id"])
+
 
 
 @router.post("/consent")

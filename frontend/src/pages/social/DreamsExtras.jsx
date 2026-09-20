@@ -7,7 +7,7 @@ import {
   Loader2, Sparkles, Wand2, Moon, Users2, Video, Radio, X, Send,
   Star, Trash2, ChevronLeft, DollarSign, ExternalLink, Plus, Dot,
   Lock, Heart, Users, Bell, Rocket, Layers, ChevronRight, Share2, Check,
-  BarChart3,
+  BarChart3, Download, Flame,
 } from "lucide-react";
 
 const B = process.env.REACT_APP_BACKEND_URL || "";
@@ -183,6 +183,7 @@ export function AiReadingsTab() {
       else if (kind === "tarot") { ({ data } = await readingsApi.post("/tarot", { question, spread })); }
       else { if (!dob) { toast.error("Add your birth date."); setBusy(false); return; } ({ data } = await readingsApi.post("/numerology", { full_name: name, dob })); }
       setResult(data); loadHistory();
+      window.dispatchEvent(new Event("dreams-streak-refresh"));
     } catch (_) { toast.error("Couldn't generate a reading."); } finally { setBusy(false); }
   };
 
@@ -388,9 +389,10 @@ function CompatibilityPanel() {
   const [res, setRes] = useState(null);
   const [lastUid, setLastUid] = useState(null);
   const [sharing, setSharing] = useState(false);
+  const [shared, setShared] = useState(null);
   useEffect(() => { socialApi.get("/compatibility/candidates").then(({ data }) => setCands(data.items || [])).catch(() => {}); }, []);
   const run = async (uid) => {
-    setBusy(true); setRes(null); setLastUid(uid);
+    setBusy(true); setRes(null); setShared(null); setLastUid(uid);
     try { const { data } = await socialApi.post("/compatibility", { target_user_id: uid }); setRes(data); }
     catch (_) { toast.error("Couldn't compute a match."); } finally { setBusy(false); }
   };
@@ -399,11 +401,22 @@ function CompatibilityPanel() {
     setSharing(true);
     try {
       const { data } = await socialApi.post("/compatibility/share", { target_user_id: lastUid });
-      const url = `${window.location.origin}${data.path}`;
-      if (navigator.share) { try { await navigator.share({ title: "Our dream match", url }); } catch (_) {} }
+      setShared(data);
+      window.dispatchEvent(new Event("dreams-streak-refresh"));
+      const url = `${B}${data.share_path || data.path}`;
+      if (navigator.share) { try { await navigator.share({ title: "Our dream match", text: `Our dream match: ${res?.score}% ✨`, url }); } catch (_) {} }
       else { await navigator.clipboard.writeText(url); }
-      toast.success(data?.points_awarded ? "Link copied 💫  +1 point" : "Share link copied 💫");
+      toast.success(data?.points_awarded ? "Match card shared 💫  +1 point" : "Share link copied 💫");
     } catch (_) { toast.error("Couldn't create a share link."); } finally { setSharing(false); }
+  };
+  const download = async () => {
+    if (!shared?.image_url) return;
+    try {
+      const r = await fetch(shared.image_url); const b = await r.blob();
+      const u = URL.createObjectURL(b); const a = document.createElement("a");
+      a.href = u; a.download = `dream-match-${shared.card_id}.png`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+    } catch (_) { toast.error("Couldn't download the image."); }
   };
   return (
     <div data-testid="compat-panel">
@@ -428,6 +441,10 @@ function CompatibilityPanel() {
       {busy && <Spin />}
       {res && (
         <div className="rounded-3xl p-5 text-center border border-rose-400/25" style={{ background: "linear-gradient(135deg,#4c1d95,#be185d)" }} data-testid="compat-result">
+          {shared?.image_url && (
+            <img src={shared.image_url} alt="Dream match card" data-testid="compat-card-art"
+                 className="w-full rounded-2xl border border-white/15 mb-4" style={{ aspectRatio: "1200 / 630", objectFit: "cover" }} />
+          )}
           <div className="text-[10px] font-bold text-amber-200/90 uppercase tracking-wider">{res.label}</div>
           <div className="text-5xl font-black text-white my-1">{res.score}%</div>
           <div className="text-lg font-black text-white">{res.headline}</div>
@@ -438,13 +455,45 @@ function CompatibilityPanel() {
             </div>
           )}
           <p className="text-[11px] text-rose-100/70 mt-3">{res.shared_note}</p>
-          <button type="button" onClick={share} disabled={sharing} data-testid="compat-share"
-                  className="mt-4 w-full h-11 rounded-full font-bold text-white inline-flex items-center justify-center gap-2 bg-white/[0.14]">
-            {sharing ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />} Share this match
-          </button>
+          <div className="flex gap-2 mt-4">
+            <button type="button" onClick={share} disabled={sharing} data-testid="compat-share"
+                    className="flex-1 h-11 rounded-full font-bold text-white inline-flex items-center justify-center gap-2 bg-white/[0.14]">
+              {sharing ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />} Share match card
+            </button>
+            {shared?.image_url && (
+              <button type="button" onClick={download} data-testid="compat-download"
+                      className="h-11 px-5 rounded-full font-bold text-white inline-flex items-center justify-center gap-2 bg-white/[0.14]">
+                <Download size={16} />
+              </button>
+            )}
+          </div>
           <p className="text-[10px] text-rose-100/60 mt-2">{res.disclaimer}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────── Streak badge (🔥) ─────────────────────
+export function StreakBadge() {
+  const [s, setS] = useState(null);
+  const load = useCallback(() => {
+    socialApi.get("/dreams/streak").then(({ data }) => setS(data)).catch(() => {});
+  }, []);
+  useEffect(() => {
+    load();
+    const on = () => load();
+    window.addEventListener("dreams-streak-refresh", on);
+    return () => window.removeEventListener("dreams-streak-refresh", on);
+  }, [load]);
+  if (!s) return null;
+  const active = s.current > 0;
+  return (
+    <div data-testid="streak-badge"
+         title={active ? `${s.current}-day streak · best ${s.longest}` : "Share or read daily to start a streak"}
+         className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-sm font-black border ${active ? "border-amber-400/40 text-amber-200 bg-amber-400/10" : "border-white/10 text-slate-400 bg-white/[0.03]"}`}>
+      <Flame size={15} className={active ? "text-amber-300 fill-amber-400/40" : "text-slate-500"} />
+      {s.current}
     </div>
   );
 }

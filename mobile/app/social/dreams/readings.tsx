@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
-  ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Share,
+  ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Share, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { TSPACE, TFONT } from '../../../src/constants/tube';
 import api from '../../../src/api/client';
 
@@ -34,6 +35,12 @@ export default function AiReadingsScreen() {
   const [question, setQuestion] = useState('');
   const [spread, setSpread] = useState('three');
   const [name, setName] = useState('');
+  const [streak, setStreak] = useState<any>(null);
+
+  const loadStreak = useCallback(async () => {
+    try { const { data } = await api.get('/social/dreams/streak'); setStreak(data); } catch (_) {}
+  }, []);
+  useEffect(() => { loadStreak(); }, [loadStreak]);
 
   const loadHistory = useCallback(async () => {
     try { const { data } = await api.get('/social/readings'); setHistory(data.items || []); } catch (_) {}
@@ -47,7 +54,7 @@ export default function AiReadingsScreen() {
       if (kind === 'horoscope') { if (!dob) { setBusy(false); return; } ({ data } = await api.post('/social/readings/horoscope', { dob, timeframe })); }
       else if (kind === 'tarot') { ({ data } = await api.post('/social/readings/tarot', { question, spread })); }
       else { if (!dob) { setBusy(false); return; } ({ data } = await api.post('/social/readings/numerology', { full_name: name, dob })); }
-      setResult(data); loadHistory();
+      setResult(data); loadHistory(); loadStreak();
     } catch (_) {} finally { setBusy(false); }
   };
 
@@ -56,6 +63,10 @@ export default function AiReadingsScreen() {
       <View style={st.header}>
         <Pressable testID="readings-back" onPress={() => router.back()} style={st.back}><Ionicons name="chevron-back" size={22} color={D.text} /></Pressable>
         <Text style={st.hTitle}>AI Readings</Text>
+        <View style={[st.streakBadge, streak?.current > 0 && st.streakBadgeOn]} testID="streak-badge">
+          <Ionicons name="flame" size={14} color={streak?.current > 0 ? '#fbbf24' : D.dim} />
+          <Text style={[st.streakTxt, streak?.current > 0 && { color: '#fcd34d' }]}>{streak?.current ?? 0}</Text>
+        </View>
       </View>
       <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 140, gap: 14 }} showsVerticalScrollIndicator={false} testID="ai-readings">
         <DailyCard />
@@ -74,7 +85,7 @@ export default function AiReadingsScreen() {
           })}
         </View>
 
-        {kind === 'match' ? <CompatPanel /> : (<>
+        {kind === 'match' ? <CompatPanel onActivity={loadStreak} /> : (<>
         <View style={st.card}>
           {kind === 'horoscope' && (<>
             <Text style={st.lbl}>Your birth date (YYYY-MM-DD)</Text>
@@ -205,15 +216,16 @@ function DailyCard() {
   );
 }
 
-function CompatPanel() {
+function CompatPanel({ onActivity }: { onActivity?: () => void }) {
   const [cands, setCands] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<any>(null);
   const [lastUid, setLastUid] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [shared, setShared] = useState<any>(null);
   useEffect(() => { api.get('/social/compatibility/candidates').then(({ data }) => setCands(data.items || [])).catch(() => {}); }, []);
   const run = async (uid: string) => {
-    setBusy(true); setRes(null); setLastUid(uid);
+    setBusy(true); setRes(null); setShared(null); setLastUid(uid);
     try { const { data } = await api.post('/social/compatibility', { target_user_id: uid }); setRes(data); } catch (_) {} finally { setBusy(false); }
   };
   const share = async () => {
@@ -221,11 +233,14 @@ function CompatPanel() {
     setSharing(true);
     try {
       const { data } = await api.post('/social/compatibility/share', { target_user_id: lastUid });
+      setShared(data);
+      onActivity?.();
       const base = (process.env.EXPO_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
-      const url = `${base}${data.path}`;
+      const url = `${base}${data.share_path || data.path}`;
       await Share.share({ message: `Our dream match: ${res?.score}% ✨ ${url}`, url });
     } catch (_) {} finally { setSharing(false); }
   };
+  const openImage = () => { if (shared?.image_url) Linking.openURL(shared.image_url).catch(() => {}); };
   return (
     <View testID="compat-panel">
       <View style={st.card}>
@@ -244,15 +259,25 @@ function CompatPanel() {
       {busy && <ActivityIndicator color={D.violet} style={{ marginTop: 20 }} />}
       {res && (
         <LinearGradient colors={['#4c1d95', '#be185d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.compatRes} testID="compat-result">
+          {shared?.image_url && (
+            <ExpoImage source={{ uri: shared.image_url }} style={st.compatArt} contentFit="cover" testID="compat-card-art" />
+          )}
           <Text style={st.compatLabel}>{res.label}</Text>
           <Text style={st.compatScore}>{res.score}%</Text>
           <Text style={st.compatHead}>{res.headline}</Text>
           <Text style={st.compatBlurb}>{res.blurb}</Text>
           {res.shared_themes?.length > 0 && <View style={[st.themeWrap, { justifyContent: 'center' }]}>{res.shared_themes.map((t: string, i: number) => <View key={i} style={st.compatTheme}><Text style={st.compatThemeTxt}>{t}</Text></View>)}</View>}
           <Text style={st.compatShared}>{res.shared_note}</Text>
-          <Pressable testID="compat-share" onPress={share} disabled={sharing} style={st.shareBtn}>
-            <Ionicons name="share-social" size={16} color="#fff" /><Text style={st.shareTxt}>{sharing ? 'Sharing…' : 'Share this match'}</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'stretch', marginTop: 14 }}>
+            <Pressable testID="compat-share" onPress={share} disabled={sharing} style={[st.shareBtn, { flex: 1, marginTop: 0 }]}>
+              <Ionicons name="share-social" size={16} color="#fff" /><Text style={st.shareTxt}>{sharing ? 'Sharing…' : 'Share match card'}</Text>
+            </Pressable>
+            {shared?.image_url && (
+              <Pressable testID="compat-download" onPress={openImage} style={[st.shareBtn, { marginTop: 0, paddingHorizontal: 18 }]}>
+                <Ionicons name="download-outline" size={18} color="#fff" />
+              </Pressable>
+            )}
+          </View>
           <Text style={[st.disc, { textAlign: 'center' }]}>{res.disclaimer}</Text>
         </LinearGradient>
       )}
@@ -265,6 +290,10 @@ const st = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 10 },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   hTitle: { color: D.text, fontSize: TFONT.xl, fontWeight: '900' },
+  streakBadge: { marginLeft: 'auto', marginRight: 6, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  streakBadgeOn: { backgroundColor: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.4)' },
+  streakTxt: { color: D.dim, fontSize: TFONT.sm, fontWeight: '900' },
+  compatArt: { width: '100%', aspectRatio: 1200 / 630, borderRadius: 16, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
   notice: { backgroundColor: 'rgba(251,191,36,0.10)', borderColor: 'rgba(251,191,36,0.22)', borderWidth: 1, borderRadius: 16, padding: 12 },
   noticeTxt: { color: '#fcd34d', fontSize: TFONT.xs, lineHeight: 17 },
   kindRow: { flexDirection: 'row', gap: 8 },

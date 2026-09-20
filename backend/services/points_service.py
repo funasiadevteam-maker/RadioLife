@@ -77,7 +77,18 @@ DEFAULT_RULES: list[dict] = [
     {"rule_id": "city_stamp_unlock",    "label": "City stamp earned",
      "base_points": 25,  "daily_cap_per_user": None,
      "weekly_cap_per_user": None, "monthly_cap_per_user": None},
+    # Dreams & Guidance — daily streak habit rewards.
+    {"rule_id": "daily_streak",         "label": "Daily streak",
+     "base_points": 2,   "daily_cap_per_user": None,
+     "weekly_cap_per_user": None, "monthly_cap_per_user": None},
+    {"rule_id": "streak_milestone",     "label": "Streak milestone",
+     "base_points": 0,   "daily_cap_per_user": None,
+     "weekly_cap_per_user": None, "monthly_cap_per_user": None},
 ]
+
+# Streak reward config — base awarded every consecutive day, milestones on top.
+STREAK_DAILY_POINTS = 2
+STREAK_MILESTONES = {7: 10, 30: 25}
 
 
 # ────────────────────── Bootstrap helpers ──────────────────────────
@@ -451,3 +462,86 @@ def _serialize(doc: dict) -> dict:
         if isinstance(v, datetime):
             out[k] = v.isoformat()
     return out
+
+
+# ────────────────────── Daily streak engine ────────────────────────
+# A single streak per user, stored in `user_streaks` keyed by user_id.
+# `touch_daily_streak` is called from any qualifying action (sharing OR
+# opening a reading). It increments on consecutive UTC days, resets to 1
+# after a missed day, awards +2 every counted day, and milestone bonuses
+# (+10 at day 7, +25 at day 30). All awards are idempotent per-day so the
+# same day can't be double-counted no matter how many actions fire.
+def _next_milestone(current: int) -> Optional[int]:
+    for m in sorted(STREAK_MILESTONES):
+        if current < m:
+            return m
+    return None
+
+
+async def touch_daily_streak(db, user_id: str) -> dict:
+    from datetime import date  # noqa: F401
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    today_s = today.isoformat()
+    yesterday_s = (today - timedelta(days=1)).isoformat()
+
+    doc = await db.dream_streaks.find_one({"_id": user_id}) or {}
+    last = doc.get("last_active_date")
+    current = int(doc.get("current") or 0)
+    longest = int(doc.get("longest") or 0)
+
+    if last == today_s:
+        return {"current": current, "longest": longest, "awarded": 0,
+                "milestone": None, "already_today": True,
+                "next_milestone": _next_milestone(current)}
+
+    current = current + 1 if last == yesterday_s else 1
+    longest = max(longest, current)
+
+    svc = PointsService(db)
+    awarded = 0
+    r = await svc.award(
+        user_id=user_id, source="daily_streak", source_id=today_s,
+        delta=STREAK_DAILY_POINTS, enforce_caps=False,
+        idempotency_key=f"streak_day:{user_id}:{today_s}",
+        metadata={"streak": current})
+    if r.ok and not r.idempotency_hit:
+        awarded += STREAK_DAILY_POINTS
+
+    milestone = None
+    bonus = STREAK_MILESTONES.get(current)
+    if bonus:
+        rm = await svc.award(
+            user_id=user_id, source="streak_milestone",
+            source_id=f"{today_s}:{current}", delta=bonus, enforce_caps=False,
+            idempotency_key=f"streak_ms:{user_id}:{today_s}:{current}",
+            metadata={"milestone": current})
+        if rm.ok and not rm.idempotency_hit:
+            awarded += bonus
+            milestone = current
+
+    await db.dream_streaks.update_one(
+        {"_id": user_id},
+        {"$set": {"user_id": user_id, "current": current, "longest": longest,
+                  "last_active_date": today_s, "updated_at": now}},
+        upsert=True)
+
+    return {"current": current, "longest": longest, "awarded": awarded,
+            "milestone": milestone, "already_today": False,
+            "next_milestone": _next_milestone(current)}
+
+
+async def get_streak(db, user_id: str) -> dict:
+    doc = await db.dream_streaks.find_one({"_id": user_id}) or {}
+    today = datetime.now(timezone.utc).date()
+    today_s = today.isoformat()
+    yesterday_s = (today - timedelta(days=1)).isoformat()
+    last = doc.get("last_active_date")
+    current = int(doc.get("current") or 0)
+    # A streak is only "live" if the last counted day was today or yesterday.
+    if last not in (today_s, yesterday_s):
+        current = 0
+    return {"current": current, "longest": int(doc.get("longest") or 0),
+            "active_today": last == today_s,
+            "next_milestone": _next_milestone(current),
+            "milestones": STREAK_MILESTONES}

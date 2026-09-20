@@ -10,7 +10,7 @@ import {
   Shield, Star, ChevronLeft, Wand2, MessageCircle, Bookmark, Flag,
   BadgeCheck, Stethoscope, Lock, EyeOff, Clock, Users2, Video,
 } from "lucide-react";
-import { ClubsTab, AiReadingsTab, LiveTab, PayoutsCard, ClustersStrip, AlertsBell } from "./DreamsExtras";
+import { ClubsTab, AiReadingsTab, LiveTab, PayoutsCard, ClustersStrip, AlertsBell, StreakBadge } from "./DreamsExtras";
 import { Avatar } from "./SocialV2";
 
 const api = axios.create({
@@ -67,7 +67,10 @@ export default function DreamsGuidance() {
                   className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white">
             <ChevronLeft size={16} /> Social
           </button>
-          <AlertsBell />
+          <div className="flex items-center gap-2">
+            <StreakBadge />
+            <AlertsBell />
+          </div>
         </div>
         <Header />
         <TabBar tab={tab} setTab={setTab} />

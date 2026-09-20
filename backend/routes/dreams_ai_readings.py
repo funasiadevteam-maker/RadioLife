@@ -172,7 +172,13 @@ async def _save(db, uid: str, kind: str, subject: str, title: str,
            "subject": subject, "title": title, "result": result,
            "cards": cards, "public": False, "created_at": _now()}
     await db.ai_readings.insert_one(doc)
-    return _reading_public(doc)
+    out = _reading_public(doc)
+    try:  # opening a reading counts toward the daily streak habit
+        from services.points_service import touch_daily_streak
+        out["streak"] = await touch_daily_streak(db, uid)
+    except Exception:
+        pass
+    return out
 
 
 class HoroscopeBody(BaseModel):

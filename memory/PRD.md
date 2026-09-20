@@ -1301,3 +1301,17 @@ Testing agent **iteration_117**: web **PASS, no blockers**. Mobile skip cue sour
 
 ## 2026-09-15 — New Look V2 is now the STANDARD customer look
 Per user directive, `new_look_v2` (premium dark cinematic streaming shell) is the default and only look for customers; the design switcher is admin-only (QA). V2 is fully responsive: desktop keeps the centered frame + a "Sponsored" right-rail ad stack (3 buyable 300x250 slots `right_rail_mpu_1/2/3`); mobile web uses a bottom tab bar (Home · Listen · Pay[scan-to-pay, center] · Shop · Play) with Social/Rewards/Profile in the top bar. Signup/login now offers a light/dark Appearance choice that persists to the profile. See CHANGELOG 2026-09-15 for file-level detail. Details/e2e: iteration_140.
+
+---
+
+## 2026-06 — Dreams & Guidance: Match Card Art (1c) + Streak Rewards (3a) [SHIPPED, tested iter159]
+
+### Match Card Art (share-ready image)
+- Backend `routes/dream_clusters.py`: on `POST /api/social/compatibility/share`, a dreamy background is generated via **Gemini Nano Banana** (`gemini-3.1-flash-image-preview`, EMERGENT_LLM_KEY), crisp branded text (score, both names + heart, headline, shared themes, star signs, RadioLife brand, disclaimer) is composited with **Pillow** at 1200×630, and the PNG is uploaded to object storage (`services/object_storage.get_storage()`, key `social/match_cards/{card_id}.png`). Falls back to a Pillow gradient background if the AI call fails.
+- New routes: `GET /api/social/compatibility/card/{id}/image.png` (public PNG, lazy-generates if missing); `GET /api/social/dreams/match/{id}` (SSR OG landing with og:image/twitter:image, redirects real browsers to SPA `/dreams/match/{id}`). `share` now returns `share_path` + absolute `image_url`; the card GET includes `image_url`.
+- Web `DreamMatchCard.jsx` + `DreamsExtras.jsx` CompatibilityPanel: shows the AI art, Download + Share buttons, sets OG meta. Mobile `readings.tsx` CompatPanel: shows the art via expo-image, Share (uses share_path) + open-image button.
+
+### Streak Rewards (daily habit)
+- `services/points_service.py`: `touch_daily_streak(db, user_id)` + `get_streak(...)`, backed by a NEW `dream_streaks` collection (keyed `_id=user_id`; distinct from the legacy daily-login `user_streaks`). Increments on consecutive UTC days, resets after a miss. Awards +2/day (`daily_streak` rule) and milestones +10 @ day 7, +25 @ day 30 (`streak_milestone`), all idempotent per day.
+- Triggers: `_save` in `dreams_ai_readings.py` (opening a reading) and `award_social_share` in `dreams_guidance.py` (any social share). Endpoint `GET /api/social/dreams/streak`.
+- UI: 🔥 streak-badge in the web Dreams header (`StreakBadge` in DreamsExtras) and the mobile AI Readings header; refreshes after readings/shares.

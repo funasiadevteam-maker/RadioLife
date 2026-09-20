@@ -7,18 +7,21 @@ people instantly find others who dreamed the same thing.
 Compatibility: a PLAYFUL, entertainment-only score between two people based
 on their shared dream themes + star signs. Never a real relationship claim.
 """
+import io
 import json
 import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from auth import current_user, current_user_optional
 from routes.social_v2 import _friend_ids, _user_public
 from routes.dreams_guidance import _dream_public
+from services.object_storage import get_storage
 
 router = APIRouter(prefix="/api/social", tags=["dream_clusters"])
 
@@ -61,6 +64,203 @@ def _now() -> datetime:
 
 def _iso(v: Any) -> Optional[str]:
     return v.isoformat() if isinstance(v, datetime) else v
+
+
+# ══════════════════ Match Card Art (AI bg + composited text) ═══════
+# Gemini Nano Banana paints a dreamy background; Pillow composites the
+# crisp branded card text on top; the PNG is stored in object storage
+# and served from a stable public URL for og:image previews + downloads.
+_CARD_W, _CARD_H = 1200, 630
+_F_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+_F_REG = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+_F_NARROW = "/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Bold.ttf"
+
+
+def _card_key(card_id: str) -> str:
+    return f"social/match_cards/{card_id}.png"
+
+
+def _base_url(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = (request.headers.get("x-forwarded-host")
+            or request.headers.get("host") or request.url.netloc)
+    return f"{proto}://{host}"
+
+
+def _card_image_url(request: Request, card_id: str) -> str:
+    return f"{_base_url(request)}/api/social/compatibility/card/{card_id}/image.png"
+
+
+async def _dreamy_bg() -> Optional[bytes]:
+    """Best-effort dreamy background via Gemini Nano Banana. None on failure."""
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return None
+    try:
+        import base64
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(api_key=key, session_id=f"matchbg_{uuid.uuid4().hex[:8]}",
+                       system_message="You are an artistic background image generator.")
+        chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(
+            modalities=["image", "text"])
+        msg = UserMessage(text=(
+            "A dreamy ethereal cosmic background for a romantic 'dream match' card: "
+            "soft violet, magenta and indigo nebula clouds, gentle glowing stars, "
+            "celestial haze and bokeh light, calm and magical. Abstract, no text, "
+            "no letters, no people, no faces. Wide cinematic composition, high quality."))
+        _text, images = await chat.send_message_multimodal_response(msg)
+        if images:
+            return base64.b64decode(images[0]["data"])
+    except Exception:
+        return None
+    return None
+
+
+def _grad_bg():
+    from PIL import Image
+    img = Image.new("RGB", (_CARD_W, _CARD_H))
+    c0, c1 = (46, 16, 101), (190, 24, 93)  # violet → rose
+    px = img.load()
+    for y in range(_CARD_H):
+        t = y / max(1, _CARD_H - 1)
+        row = (int(c0[0] * (1 - t) + c1[0] * t),
+               int(c0[1] * (1 - t) + c1[1] * t),
+               int(c0[2] * (1 - t) + c1[2] * t))
+        for x in range(_CARD_W):
+            px[x, y] = row
+    return img
+
+
+def _draw_heart(draw, cx, cy, size, color):
+    r = size / 4.0
+    draw.pieslice([cx - 2 * r, cy - r, cx, cy + r], 180, 360, fill=color)
+    draw.pieslice([cx, cy - r, cx + 2 * r, cy + r], 180, 360, fill=color)
+    draw.polygon([(cx - 2 * r, cy), (cx + 2 * r, cy), (cx, cy + 2 * r)], fill=color)
+
+
+def _font(path, size):
+    from PIL import ImageFont
+    try:
+        return ImageFont.truetype(path, size=size)
+    except Exception:
+        return ImageFont.load_default()
+
+
+def _compose_card(card: dict, bg_bytes: Optional[bytes]) -> bytes:
+    from PIL import Image, ImageDraw, ImageFilter
+    W, H = _CARD_W, _CARD_H
+    canvas = None
+    if bg_bytes:
+        try:
+            bg = Image.open(io.BytesIO(bg_bytes)).convert("RGB")
+            scale = max(W / bg.width, H / bg.height)
+            bg = bg.resize((max(1, int(bg.width * scale)),
+                            max(1, int(bg.height * scale))), Image.LANCZOS)
+            l = (bg.width - W) // 2
+            t = (bg.height - H) // 2
+            canvas = bg.crop((l, t, l + W, t + H))
+        except Exception:
+            canvas = None
+    if canvas is None:
+        canvas = _grad_bg()
+
+    # Darken + vignette so the crisp text always reads.
+    overlay = Image.new("RGBA", (W, H), (10, 6, 30, 150))
+    canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
+    draw = ImageDraw.Draw(canvas)
+    cx = W // 2
+
+    gold = (251, 191, 36)
+    white = (255, 255, 255)
+    rose = (251, 113, 133)
+    soft = (245, 224, 235)
+
+    # Eyebrow
+    eb = _font(_F_NARROW, 26)
+    draw.text((cx, 66), "RADIOLIFE  ·  DREAM MATCH", font=eb, fill=gold, anchor="mm")
+
+    # Names with a heart between them.
+    owner = (card.get("owner_name") or "You")[:22]
+    target = (card.get("target_name") or "Friend")[:22]
+    nf = _font(_F_BOLD, 46)
+    ow = draw.textlength(owner, font=nf)
+    tw = draw.textlength(target, font=nf)
+    heart_w, gap = 46, 26
+    total = ow + gap + heart_w + gap + tw
+    x = cx - total / 2
+    name_y = 132
+    draw.text((x, name_y), owner, font=nf, fill=white, anchor="lm")
+    hx = x + ow + gap + heart_w / 2
+    _draw_heart(draw, hx, name_y, heart_w, rose)
+    draw.text((x + ow + gap + heart_w + gap, name_y), target, font=nf,
+              fill=white, anchor="lm")
+
+    # Hero score.
+    sf = _font(_F_BOLD, 168)
+    draw.text((cx, 300), f"{int(card.get('score') or 0)}%", font=sf,
+              fill=white, anchor="mm")
+
+    # Headline (single line, trimmed).
+    hf = _font(_F_BOLD, 36)
+    head = (card.get("headline") or "Dream sync ✨")[:46]
+    draw.text((cx, 420), head, font=hf, fill=soft, anchor="mm")
+
+    # Shared themes chips (centered text row).
+    themes = (card.get("shared_themes") or [])[:4]
+    if themes:
+        cf = _font(_F_REG, 24)
+        label = "  ·  ".join(str(t) for t in themes)[:70]
+        draw.text((cx, 470), label, font=cf, fill=(214, 211, 232), anchor="mm")
+
+    # Signs line.
+    signs = " · ".join([s for s in [card.get("my_sign"), card.get("their_sign")] if s])
+    if signs:
+        gf = _font(_F_REG, 22)
+        draw.text((cx, 512), signs[:60], font=gf, fill=(196, 181, 253), anchor="mm")
+
+    # Footer disclaimer.
+    ff = _font(_F_NARROW, 22)
+    draw.text((cx, H - 44), "PLAYFUL · AI-GENERATED · ENTERTAINMENT ONLY",
+              font=ff, fill=(190, 170, 210), anchor="mm")
+
+    _ = ImageFilter  # keep import used if optimizer prunes
+    buf = io.BytesIO()
+    canvas.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def _storage_read(key: str) -> Optional[bytes]:
+    try:
+        st = get_storage()
+        if not st.exists(key=key):
+            return None
+        h = st.head(key=key)
+        size = int((h or {}).get("size") or 0)
+        if size <= 0:
+            return None
+        return st.open_range(key=key, start=0, end=size - 1)
+    except Exception:
+        return None
+
+
+async def _ensure_card_image(db, card: dict) -> Optional[str]:
+    """Generate (if missing) + persist the match-card PNG. Returns storage key."""
+    card_id = card["card_id"]
+    key = _card_key(card_id)
+    try:
+        st = get_storage()
+        if st.exists(key=key):
+            return key
+        bg = await _dreamy_bg()
+        png = _compose_card(card, bg)
+        st.upload_bytes(key=key, data=png, content_type="image/png")
+        await db.compat_cards.update_one(
+            {"card_id": card_id},
+            {"$set": {"image_key": key, "has_art": True,
+                      "art_ai": bool(bg), "art_at": _now()}})
+        return key
+    except Exception:
+        return None
 
 
 async def _llm(system: str, prompt: str, session: str) -> Optional[dict]:
@@ -384,6 +584,12 @@ async def compatibility_share(body: CompatBody, request: Request,
         "shared_note": res["shared_note"], "shared_themes": res["shared_themes"],
         "my_sign": res["my_sign"], "their_sign": res["their_sign"],
         "public": True, "created_at": _now()})
+    card_doc = {"card_id": card_id, "owner_name": me.get("name"),
+                "target_name": res["target"]["name"], "score": res["score"],
+                "headline": res["headline"], "shared_themes": res["shared_themes"],
+                "my_sign": res["my_sign"], "their_sign": res["their_sign"]}
+    # Generate the share-ready Match Card Art (AI bg + composited text).
+    await _ensure_card_image(db, card_doc)
     pts = 0
     try:
         from routes.dreams_guidance import award_social_share
@@ -391,7 +597,68 @@ async def compatibility_share(body: CompatBody, request: Request,
     except Exception:
         pts = 0
     return {"card_id": card_id, "path": f"/dreams/match/{card_id}",
+            "share_path": f"/api/social/dreams/match/{card_id}",
+            "image_url": _card_image_url(request, card_id),
             "points_awarded": pts, **res}
+
+
+@router.get("/compatibility/card/{card_id}/image.png")
+async def compat_card_image(card_id: str, request: Request):
+    """Public PNG of the Match Card Art — used for og:image + downloads."""
+    db = request.app.state.db
+    c = await db.compat_cards.find_one({"card_id": card_id, "public": True})
+    if not c:
+        raise HTTPException(404, {"code": "card_not_found"})
+    key = c.get("image_key") or _card_key(card_id)
+    data = _storage_read(key)
+    if data is None:
+        await _ensure_card_image(db, c)
+        data = _storage_read(key)
+    if data is None:
+        raise HTTPException(404, {"code": "image_unavailable"})
+    return Response(content=data, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400, "
+                                              "stale-while-revalidate=604800"})
+
+
+@router.get("/dreams/match/{card_id}")
+async def match_card_ssr(card_id: str, request: Request):
+    """SSR OG landing for a shared match card. Crawlers read the meta tags;
+    real browsers are redirected to the SPA view at /dreams/match/<id>."""
+    db = request.app.state.db
+    base = _base_url(request)
+    spa = f"{base}/dreams/match/{card_id}"
+    c = await db.compat_cards.find_one({"card_id": card_id, "public": True})
+    if not c:
+        return RedirectResponse(spa, status_code=302)
+    img = _card_image_url(request, card_id)
+    title = (f"{c.get('owner_name')} & {c.get('target_name')} — "
+             f"{c.get('score')}% dream match \u2728")
+    desc = (c.get("headline") or "A playful dream compatibility match on RadioLife.")
+    landing = f"{base}/api/social/dreams/match/{card_id}"
+    import html as _h
+    e = _h.escape
+    out = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{e(title)}</title>
+<meta name="description" content="{e(desc)}">
+<meta property="og:title" content="{e(title)}">
+<meta property="og:description" content="{e(desc)}">
+<meta property="og:url" content="{e(landing)}">
+<meta property="og:type" content="website">
+<meta property="og:image" content="{e(img)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="RadioLife">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{e(title)}">
+<meta name="twitter:description" content="{e(desc)}">
+<meta name="twitter:image" content="{e(img)}">
+<link rel="canonical" href="{e(landing)}">
+<style>body{{margin:0;background:#0d0a24;color:#fff;font-family:system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}}img{{max-width:520px;width:100%;border-radius:20px;box-shadow:0 18px 60px rgba(0,0,0,.5)}}</style>
+<script>(function(){{try{{var ua=navigator.userAgent||"";var bot=/facebookexternalhit|twitterbot|whatsapp|telegrambot|slackbot|linkedinbot|discordbot|preview|googlebot|bingbot|applebot|pinterest/i.test(ua);if(!bot)window.location.replace("{e(spa)}");}}catch(x){{}}}})();</script>
+</head><body><img src="{e(img)}" alt="{e(title)}"></body></html>"""
+    return HTMLResponse(out)
 
 
 @router.get("/compatibility/card/{card_id}")
@@ -408,6 +675,7 @@ async def compat_card(card_id: str, request: Request,
             "shared_note": c.get("shared_note"),
             "shared_themes": c.get("shared_themes") or [],
             "my_sign": c.get("my_sign"), "their_sign": c.get("their_sign"),
+            "image_url": _card_image_url(request, card_id),
             "label": "PLAYFUL · entertainment only", "disclaimer": DISCLAIMER,
             "created_at": _iso(c.get("created_at"))}
 
