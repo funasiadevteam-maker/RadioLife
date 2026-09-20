@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+from urllib.parse import urlparse
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -49,6 +51,26 @@ def _premium_price() -> dict:
                 "currency": (p.get("currency") or "USD").upper()}
     except Exception:
         return {"amount_cents": 0, "currency": "USD"}
+
+
+def _resolve_origin(request: Request, body_origin: Optional[str]) -> Optional[str]:
+    """Best-effort public site origin for Stripe redirect URLs.
+
+    Prefers an explicit body value, then the browser's Origin/Referer header
+    (so it works even when the client forgets to send origin_url), then the
+    configured public base URL, then the request base URL.
+    """
+    candidates = [body_origin, request.headers.get("origin"),
+                  request.headers.get("referer"),
+                  os.environ.get("BIGFM_PUBLIC_BASE_URL"),
+                  str(request.base_url)]
+    for c in candidates:
+        if c and str(c).startswith("http"):
+            p = urlparse(str(c))
+            if p.scheme and p.netloc:
+                return f"{p.scheme}://{p.netloc}"
+    return None
+
 
 
 async def _charge_id_for_session(session_id: str) -> Optional[str]:
@@ -147,8 +169,8 @@ async def subscribe(body: SubscribeBody, request: Request,
     if needs_payment and stripe_mode() == "live":
         prem = _premium_price()
         total_cents = (prem["amount_cents"] if not is_prem else 0) + access_fee
-        origin = (body.origin_url or "").rstrip("/")
-        if not origin.startswith("http"):
+        origin = _resolve_origin(request, body.origin_url)
+        if not origin:
             raise HTTPException(400, {"code": "origin_url_required"})
         from emergentintegrations.payments.stripe.checkout import CheckoutSessionRequest
         stripe = _stripe_client(request)
@@ -350,8 +372,8 @@ async def meal_checkout(body: CheckoutBody, request: Request,
         return {"status": "paid", **(await dc.get_pass(db, customer_id=user["user_id"], order_id=body.order_id))}
 
     if stripe_mode() == "live":
-        origin = (body.origin_url or "").rstrip("/")
-        if not origin.startswith("http"):
+        origin = _resolve_origin(request, body.origin_url)
+        if not origin:
             raise HTTPException(400, {"code": "origin_url_required"})
         from emergentintegrations.payments.stripe.checkout import CheckoutSessionRequest
         stripe = _stripe_client(request)

@@ -25,7 +25,7 @@ const unwrap = (p) => p.then((r) => r.data);
 
 export const diningApi = {
   home: () => unwrap(http.get("/dining-club")),
-  subscribe: (body) => unwrap(http.post("/dining-club/subscribe", body)),
+  subscribe: (body) => unwrap(http.post("/dining-club/subscribe", { ...body, origin_url: window.location.origin })),
   subscribeStatus: (sid) => unwrap(http.get(`/dining-club/subscribe/status/${sid}`)),
   credits: () => unwrap(http.get("/dining-club/credits")),
   start: (body) => unwrap(http.post("/dining-club/selection/start", body)),
