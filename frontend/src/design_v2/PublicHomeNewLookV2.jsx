@@ -19,11 +19,25 @@ const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const CONTAINER = "max-w-[1240px] mx-auto w-full px-4 sm:px-6 lg:px-8";
 
 const NAV_LINKS = [
+  { label: "Social", to: "/social" },
   { label: "Listen", to: "/listen" },
   { label: "Shop", to: "/shop" },
   { label: "Play", to: "/play-and-win" },
-  { label: "Dining Club", to: "/dining" },
+  { label: "Dining", to: "/dining" },
   { label: "For Business", to: "/for-business" },
+];
+
+// The whole FUUSIC ecosystem — Social first — shown right after the hero so
+// visitors understand the platform in seconds (not "a radio app").
+const ECOSYSTEM = [
+  { key: "social", Icon: Users, t: "Social", d: "Connect & do things together", to: "/social", featured: true },
+  { key: "listen", Icon: Headphones, t: "Listen", d: "Live + personalized audio", to: "/listen" },
+  { key: "live", Icon: Radio, t: "Live", d: "Watch & join what's happening", to: "/social" },
+  { key: "shop", Icon: ShoppingBag, t: "Shop", d: "Discover local businesses", to: "/shop" },
+  { key: "play", Icon: Gamepad2, t: "Play", d: "Games, trivia & challenges", to: "/play-and-win" },
+  { key: "dining", Icon: Utensils, t: "Dining", d: "Restaurants & Dining Club", to: "/dining" },
+  { key: "earn", Icon: Coins, t: "Earn", d: "BigPoints everywhere", to: "/wallet" },
+  { key: "explore", Icon: Sparkles, t: "Explore", d: "Moments, clubs & more", to: "/social" },
 ];
 
 const STATION_FALLBACK = [
@@ -573,13 +587,16 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
           <div className="nlv2-hero-grid grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-8 lg:gap-10 items-center">
             <div>
               <div className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest px-3 py-1 rounded-full nlv2-chip" style={{ color: "#c4b5fd" }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#f472b6" }} /> Live · Personalized · Rewarded
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#f472b6" }} /> Social · Live · Local · Rewarded
               </div>
               <h1 className="mt-4 font-black leading-[0.98] tracking-tight text-white text-4xl sm:text-5xl lg:text-6xl" data-testid="public-hero-h1">
-                LIVE RADIO.<br />AI RADIO.<br /><span className="nlv2-grad">MORE THAN RADIO.</span>
+                Everything you love,<br /><span className="nlv2-grad">together.</span>
               </h1>
+              <p className="mt-3 text-sm sm:text-base font-mono uppercase tracking-[0.2em]" style={{ color: "#c4b5fd" }}>
+                Listen · Connect · Play · Shop · Earn
+              </p>
               <p className="mt-5 text-[15px] leading-relaxed max-w-xl" style={{ color: "#a8b0cc" }}>
-                Listen to live stations from around the world, or let AI build a radio experience around what you love. Earn BigPoints while you listen — then play, shop, discover restaurants and connect with friends.
+                Your friends, entertainment, favorite places, games, rewards and local experiences — connected in one place. Listen live or with AI, do things together, and earn BigPoints along the way.
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <button onClick={ctaTo("hero_start", "/listen")} data-testid="public-cta-start"
@@ -598,8 +615,8 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
               </div>
               <div className="mt-8 flex flex-wrap gap-x-7 gap-y-3">
                 {[
-                  [stationCount, "Stations"], ["Global", "Radio"], ["AI", "Radio"],
-                  ["BigPoints", "Rewards"], ["Premium", "Ad-free"],
+                  ["Social", "Connect"], ["Live", "Audio"], [stationCount, "Stations"],
+                  ["Play", "Games"], ["BigPoints", "Rewards"],
                 ].map(([a, b]) => (
                   <div key={b} className="flex items-center gap-2">
                     <span className="font-black text-white text-base">{a}</span>
@@ -626,6 +643,35 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* ─── EVERYTHING ON FUUSIC (ecosystem — Social first) ──── */}
+        <section ref={howRef} className={`${CONTAINER} py-10`} data-testid="public-ecosystem">
+          <SectionHeader eyebrow="Everything you love. One connected experience." title="Everything on FUUSIC" center testid="public-how" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {ECOSYSTEM.map(({ key, Icon, t, d, to, featured }) => (
+              <button type="button" key={key} onClick={ctaTo(`pillar_${key}`, to)}
+                data-testid={`public-pillar-${key}`}
+                className={`group text-left nlv2-glass nlv2-card-hover rounded-2xl p-5 relative overflow-hidden ${featured ? "lg:col-span-2" : ""}`}
+                style={featured ? { borderColor: "rgba(45,212,191,0.5)" } : undefined}>
+                <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full"
+                  style={{ background: featured ? "rgba(45,212,191,0.18)" : "rgba(168,85,247,0.14)", filter: "blur(26px)" }} />
+                <div className="relative z-10 flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-2xl grid place-items-center shrink-0"
+                    style={{ background: featured ? "linear-gradient(135deg,#14b8a6,#22c55e)" : "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+                    <Icon size={20} className="text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-black text-white">{t}</div>
+                    <div className="mt-0.5 text-[12px]" style={{ color: "#97a3c2" }}>{d}</div>
+                    <div className="mt-3 inline-flex items-center gap-1 text-[12px] font-bold nlv2-grad">
+                      Explore <ArrowRight size={13} />
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
         </section>
 
@@ -669,28 +715,6 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* ─── MORE THAN RADIO ──────────────────────────────────── */}
-        <section ref={howRef} className={`${CONTAINER} py-10`}>
-          <SectionHeader eyebrow="More than radio" title="One app, your whole vibe" center testid="public-how" />
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            {[
-              { Icon: Headphones, t: "Listen", d: "Live + AI Radio", g: GRADS[0] },
-              { Icon: Coins, t: "Earn", d: "BigPoints as you engage", g: GRADS[6] },
-              { Icon: Gamepad2, t: "Play", d: "Games · Trivia · Predict & Win", g: GRADS[1] },
-              { Icon: ShoppingBag, t: "Discover", d: "Shop · Dining · Local deals", g: GRADS[2] },
-              { Icon: Users, t: "Social", d: "Listen & play together", g: GRADS[4] },
-            ].map(({ Icon, t, d, g }) => (
-              <div key={t} className="nlv2-glass nlv2-card-hover rounded-2xl p-5 text-center" data-testid={`public-concept-${t.toLowerCase()}`}>
-                <div className="w-12 h-12 rounded-2xl grid place-items-center mx-auto" style={{ background: g }}>
-                  <Icon size={22} className="text-white" />
-                </div>
-                <div className="mt-3 font-black text-white">{t}</div>
-                <div className="mt-1 text-[12px]" style={{ color: "#97a3c2" }}>{d}</div>
-              </div>
-            ))}
           </div>
         </section>
 
@@ -757,15 +781,15 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
         {/* ─── SHOP / PLAY / SOCIAL previews ────────────────────── */}
         <WinnersWall />
         <DealOfDay makeCta={ctaTo} city={city} />
+        <PreviewSection testid="public-social" eyebrow="Do it together" title="Social, built around doing things together."
+          items={[["Listen Together", GRADS[4], "/social"], ["Moments", GRADS[0], "/social"], ["Clubs", GRADS[1], "/social"], ["Live", GRADS[5], "/social"], ["Friends", GRADS[3], "/social"]]}
+          cta="Explore Social" onCta={ctaTo("social", "/social")} onTile={ctaTo} />
         <PreviewSection testid="public-shop" eyebrow={city ? `Near ${city}` : "Discover what's around you"} title="Shop FUUSIC"
           items={[["Local Deals", GRADS[2], "/shop/near-me"], ["Restaurant Pickup", GRADS[0], "/dining"], ["Services", GRADS[3], "/shop"], ["Memberships", GRADS[6], "/shop/memberships"], ["Featured Businesses", GRADS[4], "/shop"]]}
           cta="Explore Shop" onCta={ctaTo("shop", "/shop")} onTile={ctaTo} live={shopTiles} />
         <PreviewSection testid="public-play" eyebrow="Play & win" title="Games, trivia & prizes"
           items={[["Spin & Win", GRADS[6], "/play"], ["Trivia", GRADS[1], "/trivia"], ["Predict & Win", GRADS[0], "/predict-win"], ["Giveaways", GRADS[2], "/play"], ["Sponsored Games", GRADS[4], "/play"]]}
           cta="Explore Play" onCta={ctaTo("play", "/play-and-win")} onTile={ctaTo} />
-        <PreviewSection testid="public-social" eyebrow="Do it together" title="Listen. Play. Go out. Earn — together."
-          items={[["Listen Together", GRADS[4], "/community"], ["Trivia Teams", GRADS[1], "/trivia"], ["Prediction Groups", GRADS[0], "/predict-win"], ["Challenges", GRADS[6], "/community"], ["Groups & Events", GRADS[3], "/community"]]}
-          cta="Join FUUSIC" onCta={ctaTo("social", "/community")} onTile={ctaTo} />
 
         {/* ─── PREMIUM ──────────────────────────────────────────── */}
         <section className={`${CONTAINER} py-10`}>
@@ -1119,7 +1143,7 @@ function B2BCard({ Icon, title, desc, cta, to, testid }) {
 function PublicFooter() {
   const cols = [
     { h: "Listen", links: [["AI Radio", "/listen"], ["Live Radio", "/listen"], ["Podcasts", "/listen"]] },
-    { h: "Discover", links: [["Shop", "/shop"], ["Dining Club", "/dining"], ["Play", "/play-and-win"], ["Social", "/community"]] },
+    { h: "Discover", links: [["Shop", "/shop"], ["Dining Club", "/dining"], ["Play", "/play-and-win"], ["Social", "/social"]] },
     { h: "Business", links: [["For Business", "/for-business"], ["For Advertisers", "/for-advertisers"], ["Pricing", "/pricing"]] },
     { h: "Company", links: [["About", "/about"], ["Terms", "/legal/terms"], ["Privacy", "/legal/privacy"]] },
   ];

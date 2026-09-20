@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { API, useAuth } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import BannerAdSlot from "@/components/BannerAdSlot";
 import "./newlookv2.css";
 import HeroNewLookV2 from "./HeroNewLookV2";
+import FuusicWorldGridV2 from "./FuusicWorldGridV2";
+import WhatsHappeningNowV2 from "./WhatsHappeningNowV2";
 import ContinueListeningRowV2 from "./ContinueListeningRowV2";
 import RailV2 from "./RailV2";
-import ActionCardsV2 from "./ActionCardsV2";
+import TogetherActionsV2 from "./TogetherActionsV2";
 import PremiumBannerRowV2 from "./PremiumBannerRowV2";
 
 function greetingFor(d = new Date()) {
@@ -20,6 +22,8 @@ function greetingFor(d = new Date()) {
 export default function HomeNewLookV2() {
   const { user } = useAuth();
   const [home, setHome] = useState(null);
+  const [social, setSocial] = useState(null);
+  const happeningRef = useRef(null);
 
   const importedStation = usePlayerStore((s) => s.importedStation);
   const podcastEpisode = usePlayerStore((s) => s.podcastEpisode);
@@ -35,6 +39,9 @@ export default function HomeNewLookV2() {
     axios.get(`${API}/shell/home`, { withCredentials: true })
       .then((r) => { if (!cancel) setHome(r.data || {}); })
       .catch(() => { if (!cancel) setHome({}); });
+    axios.get(`${API}/social/home`, { withCredentials: true })
+      .then((r) => { if (!cancel) setSocial(r.data || {}); })
+      .catch(() => { if (!cancel) setSocial(null); });
     return () => { cancel = true; };
   }, []);
 
@@ -69,21 +76,58 @@ export default function HomeNewLookV2() {
   }
   const liveItems = (home?.live_now) || [];
 
+  // Config-driven layout (admin can reorder pillars / toggle sections).
+  const sections = home?.home_config || {};
+  const show = (k) => sections?.[k]?.visible !== false;
+  const heading = (k, dflt) => sections?.[k]?.title || dflt;
+
+  const scrollToHappening = () =>
+    happeningRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
   return (
     <div data-testid="home-new-look-v2" className="w-full space-y-10 pb-10">
-      <HeroNewLookV2 greeting={greetingFor()} name={name} topGenre={home?.top_genre} />
-      <ContinueListeningRowV2
-        continueItem={continueItem}
-        reward={home?.listening_reward}
-        dining={home?.dining}
-        onResume={onResume}
-      />
-      <RailV2 title="For You" subtitle="Based on your listening, location and interests"
-        items={forYouItems} testId="nlv2-foryou" />
-      <RailV2 title="Live Right Now" subtitle="Trending stations from around the world"
-        items={liveItems} testId="nlv2-live" />
-      <ActionCardsV2 />
-      <PremiumBannerRowV2 isPremium={!!home?.is_premium} />
+      <HeroNewLookV2 greeting={greetingFor()} name={name} topGenre={home?.top_genre}
+        onSeeHappening={scrollToHappening} />
+
+      {show("fuusic_world") && (
+        <FuusicWorldGridV2 title={heading("fuusic_world", "Your FUUSIC World")}
+          pillars={home?.fuusic_world} social={social?.happening_now} />
+      )}
+
+      {show("whats_happening") && (
+        <div ref={happeningRef} className="scroll-mt-24">
+          <WhatsHappeningNowV2 title={heading("whats_happening", "What's Happening Now")} data={social} />
+        </div>
+      )}
+
+      {show("continue") && (
+        <ContinueListeningRowV2
+          continueItem={continueItem}
+          reward={home?.listening_reward}
+          dining={home?.dining}
+          onResume={onResume}
+        />
+      )}
+
+      {show("for_you") && (
+        <RailV2 title={heading("for_you", "For You")}
+          subtitle="Based on your interests, activity and what's happening around you"
+          items={forYouItems} testId="nlv2-foryou" />
+      )}
+
+      {show("live_now") && (
+        <RailV2 title={heading("live_now", "Live Right Now")}
+          subtitle="What's happening across FUUSIC"
+          items={liveItems} testId="nlv2-live" />
+      )}
+
+      {show("together") && (
+        <TogetherActionsV2 title={heading("together", "Do Something Together")}
+          actions={home?.together_actions} />
+      )}
+
+      {show("premium") && <PremiumBannerRowV2 isPremium={!!home?.is_premium} />}
+
       {!home?.is_premium && (
         <section data-testid="nlv2-display-ad" className="nlv2-glass rounded-2xl p-2 flex justify-center">
           <BannerAdSlot slotKey="mid_horizontal" pageRoute="/" />

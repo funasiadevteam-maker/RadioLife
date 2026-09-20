@@ -1,0 +1,42 @@
+{
+  "summary": "Iter165 — FUUSIC New Look V2 Home realignment (Social-first ecosystem) tested across shared backend + web + mobile. All 10 backend tests PASS (test_iter165_fuusic_home.py). Backend proof: GET /api/shell/home returns new fields fuusic_world (Social first & featured), together_actions (4 items), pillar_order (default ['social','listen','live','shop','play','dining','earn','explore']), home_config (7 sections with visible+title incl 'together'='Do Something Together'), AND legacy fields (for_you, live_now, native_offer, listening_reward, dining, is_premium, top_genre). Admin GET/PUT /api/admin/home-config gated (401 anon / non-admin, 200 admin); PUT correctly validates pillar_order (drops unknown 'bogus_key', dedupes, appends missing pillars so set is always complete) and reflects immediately in /api/shell/home. GET /api/social/home returns happening_now{live_experiences,friends_listening,friends_online}, friends_now[], suggested_rooms[], counts{friends,friend_requests}, do_together[]. POST /api/shell/home-events accepts all 12 new events (home_fuusic_world_view, home_pillar_click, home_social_click, home_listen_click, home_live_click, home_shop_click, home_play_click, home_dining_click, home_earn_click, home_explore_click, home_together_action_click, home_whats_happening_click) → {ok:true}; unknown event → {ok:false}. Defaults restored on teardown (pillar_order social-first, together visible=true title='Do Something Together'). WEB logged-in Home (demo user, NLV2 default): top sequence VERIFIED — nlv2-hero (y=92) → nlv2-fuusic-world (584) → nlv2-whats-happening (1191) → nlv2-continue (1381) → nlv2-foryou (1636) → nlv2-live (1962) → nlv2-together (2288). Social pillar rendered wider/featured; nlv2-pillar-social click routes to /social. What's Happening honest empty state ('Discover Social') visible via nlv2-happening-empty (no fabricated counts). AppShellV2 top nav order: Home, Social, Listen, Shop, Play (nlv2-nav-social present, Social BEFORE Listen). Right rail copy '6 skips per rolling hour' PRESENT; phrase 'unlimited skips' ABSENT. WEB public landing (anon): nav order Social first (public-nav-logo, public-nav-social, public-nav-listen, public-nav-shop, public-nav-play, public-nav-dining, public-nav-for-business), broadened hero 'Everything you love, together.' present, 'Everything on FUUSIC' ecosystem grid (public-ecosystem y=684) BEFORE Shop (4075) and Play (4366); public-pillar-social featured; Social preview (public-social y=3785) ABOVE Shop/Play. WEB /admin/home-config renders full Pillar Order UI (Social FEATURED first) + Sections visibility/title toggles + Reload/Save buttons. MOBILE Home (/(tabs)/home.tsx via Expo web preview 390x844, demo login): greeting 'Hi, Demo — everything you love, together.' present; FUUSIC World horizontal pill rail with Social first & featured (home-pillar-social x=16 wider tile visible) then Listen(100)/Live(184)/Shop(268)/Play(352)/Dining/Earn; home-social-discover card ('Do things together / Listen together, join clubs & share Moments') shown as empty state; tapping home-pillar-social navigates to /social; existing sections (Start My Radio, For You, Live right now) still render. No red screen, no bundler crash.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/(tabs)/home.tsx", "issues": ["Mobile FUUSIC World rail has NO section heading ('Your FUUSIC World') above the horizontal pills — web shows the title, mobile omits it. Parity gap, cosmetic. All pill testIDs render + routing works."]}
+      ],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "FUUSIC World section heading", "platform": "mobile", "issue": "Web NLV2 shows 'Your FUUSIC World' + subtitle above the pillar grid; mobile omits the section heading entirely and jumps straight into the pill rail.", "expected": "Both surfaces show a matching 'Your FUUSIC World' label to anchor the section for users.", "actual": "Mobile shows no label; heading only exists on web."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter165_fuusic_home.py",
+    "/app/test_reports/pytest/iter165_fuusic_home.xml",
+    "/app/test_reports/iter165_public_landing.png",
+    "/app/test_reports/iter165_home_nlv2.png",
+    "/app/test_reports/iter165_admin_config.png",
+    "/app/test_reports/iter165_mobile_home.png"
+  ],
+  "action_items": [
+    "(Optional/minor) Add a 'Your FUUSIC World' section heading above the mobile home pill rail to match web NLV2 parity."
+  ],
+  "critical_code_review_comments": [
+    "core/home_config._valid_order correctly drops unknown pillars, dedupes, and appends missing pillars — verified via PUT with 'bogus_key' + partial order.",
+    "shell/home flattens home_config sections directly onto home_config (each entry {visible,title}) while admin/home-config nests them under 'sections'. Two different shapes for what is semantically the same object — consider unifying to always return {pillar_order, sections:{...}} so downstream clients don't have to branch. Not a bug, just consistency."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter165_fuusic_home.py"],
+  "success_rate": {"backend": "100% (10/10 pytest)", "frontend": "~98% (all critical flows verified; 1 minor parity gap: mobile missing FUUSIC World heading)"},
+  "test_credentials": "Admin: admin@bigfm.dubai / AdminPass123! (web cookie login). Demo: demo@bigfm.dubai / DemoPass123! (web cookie + mobile demo-login-btn). Free: freeuser@bigfm.dubai / FreePass123!.",
+  "seed_data_creation": "None; test suite restores default pillar_order ['social','listen','live','shop','play','dining','earn','explore'] and together section (visible=true, title='Do Something Together') on teardown. Verified GET /api/admin/home-config after run: pillar_order = default, together title = 'Do Something Together'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "FUUSIC Home realignment is production-ready across all 3 surfaces. Backend contract is stable + admin-persisted; web NLV2 renders the exact 7-section top sequence; mobile pill rail + empty-state routing works. Only remaining polish is the missing 'Your FUUSIC World' heading on mobile Home (design parity, non-blocking). Backend regression test lives at /app/backend/tests/test_iter165_fuusic_home.py — safe to re-run any time (self-restores admin defaults on final test).",
+  "rca of the issue": "No blocking issues found."
+}

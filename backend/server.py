@@ -7031,6 +7031,10 @@ app.include_router(_flagship_router)
 from routes.shell import router as _shell_router
 app.include_router(_shell_router)
 
+# FUUSIC Home realignment — admin pillar-order / section config (A/B ready).
+from routes.home_config_admin import router as _home_config_admin_router
+app.include_router(_home_config_admin_router)
+
 
 @app.on_event("startup")
 async def _phase_fun1_bootstrap() -> None:

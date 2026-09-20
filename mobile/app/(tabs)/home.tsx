@@ -28,6 +28,17 @@ const fireEvent = (event: string, extra: Record<string, any> = {}) => {
   api.post('/shell/home-events', { event, surface: 'mobile', ...extra }).catch(() => {});
 };
 
+// Your FUUSIC World — ecosystem pillars, Social first & featured.
+const FUUSIC_WORLD = [
+  { key: 'social', label: 'Social', icon: 'people', to: '/(tabs)/social', bg: '#14b8a6', featured: true },
+  { key: 'listen', label: 'Listen', icon: 'headset', to: '/(tabs)/listen', bg: '#a855f7' },
+  { key: 'live', label: 'Live', icon: 'radio', to: '/(tabs)/social', bg: '#f43f5e' },
+  { key: 'shop', label: 'Shop', icon: 'storefront', to: '/(tabs)/shop', bg: '#ec4899' },
+  { key: 'play', label: 'Play', icon: 'game-controller', to: '/(tabs)/games', bg: '#8b5cf6' },
+  { key: 'dining', label: 'Dining', icon: 'restaurant', to: '/dining', bg: '#fb923c' },
+  { key: 'earn', label: 'Earn', icon: 'diamond', to: '/(tabs)/wallet', bg: '#f59e0b' },
+];
+
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -35,6 +46,7 @@ export default function HomeScreen() {
   const { activeChannelName, activeChannelThumb, currentSeg, playing } = usePlayerStore();
 
   const [home, setHome] = useState<any>(null);
+  const [socialHome, setSocialHome] = useState<any>(null);
   const [points, setPoints] = useState<number | null>(null);
   const [cityLabel, setCityLabel] = useState('');
   const [loading, setLoading] = useState(true);
@@ -47,12 +59,14 @@ export default function HomeScreen() {
 
   const load = async () => {
     try {
-      const [hm, wl] = await Promise.allSettled([
+      const [hm, wl, sh] = await Promise.allSettled([
         api.get('/shell/home'),
         api.get('/bigcoin/me'),
+        api.get('/social/home'),
       ]);
       if (hm.status === 'fulfilled') setHome((hm.value as any).data || {});
       if (wl.status === 'fulfilled') setPoints((wl.value as any).data?.balance ?? null);
+      if (sh.status === 'fulfilled') setSocialHome((sh.value as any).data || null);
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -79,6 +93,12 @@ export default function HomeScreen() {
   const perMin = home?.listening_reward?.points_per_min ?? 1;
   const isPremium = !!home?.is_premium;
   const diningMember = !!home?.dining?.member;
+
+  const happening = socialHome?.happening_now || {};
+  const friendsActive = Number(happening.friends_online || happening.friends_listening || 0);
+  const liveExp = Number(happening.live_experiences || 0);
+  const socialReqs = Number(socialHome?.counts?.friend_requests || 0);
+  const socialActive = friendsActive > 0 || liveExp > 0 || socialReqs > 0;
 
   const forYou = chip === 'live'
     ? forYouRaw.filter((x) => x.live)
@@ -131,8 +151,56 @@ export default function HomeScreen() {
         {/* Greeting */}
         <View style={s.greetWrap}>
           <Text style={s.greetSub}>{new Date().getHours() < 12 ? 'GOOD MORNING' : new Date().getHours() < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING'}</Text>
-          <Text style={s.greet}>Hi{firstName ? `, ${firstName}` : ''} — ready to listen?</Text>
+          <Text style={s.greet}>Hi{firstName ? `, ${firstName}` : ''} — everything you love, together.</Text>
         </View>
+
+        {/* Your FUUSIC World — the whole ecosystem, Social first */}
+        <View style={s.worldWrap}>
+          <Text style={s.worldHead}>Your FUUSIC World</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 10 }}>
+            {FUUSIC_WORLD.map((p) => (
+              <Pressable key={p.key} testID={`home-pillar-${p.key}`} style={[s.pill, p.featured && s.pillFeatured]}
+                onPress={() => { fireEvent(`home_${p.key}_click`); router.push(p.to as any); }}>
+                <View style={[s.pillIcon, { backgroundColor: p.bg }]}>
+                  <Ionicons name={p.icon as any} size={16} color={p.featured ? TUBE.onAccent : '#fff'} />
+                </View>
+                <Text style={[s.pillLabel, p.featured && s.pillLabelFeatured]}>{p.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* What's Happening Now — Social bridge (real data / honest empty) */}
+        {socialActive ? (
+          <Pressable style={s.socialCard} testID="home-social-happening"
+            onPress={() => { fireEvent('home_whats_happening_click'); router.push('/(tabs)/social'); }}>
+            <View style={s.socialIcon}><Ionicons name="people" size={20} color="#fff" /></View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.socialLabel}>WHAT&apos;S HAPPENING NOW</Text>
+              <Text style={s.socialTitle} numberOfLines={1}>
+                {friendsActive > 0
+                  ? `${friendsActive} friend${friendsActive === 1 ? '' : 's'} active right now`
+                  : `${liveExp} live experience${liveExp === 1 ? '' : 's'} happening`}
+              </Text>
+              <Text style={s.socialSub} numberOfLines={1}>
+                {socialReqs > 0 ? `${socialReqs} friend request${socialReqs === 1 ? '' : 's'} · ` : ''}Do something together
+              </Text>
+            </View>
+            <View style={s.socialCta}><Text style={s.socialCtaText}>Join</Text></View>
+          </Pressable>
+        ) : (
+          <Pressable style={s.socialCard} testID="home-social-discover"
+            onPress={() => { fireEvent('home_whats_happening_click'); router.push('/(tabs)/social'); }}>
+            <View style={s.socialIcon}><Ionicons name="people" size={20} color="#fff" /></View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.socialLabel}>SOCIAL</Text>
+              <Text style={s.socialTitle} numberOfLines={1}>Do things together</Text>
+              <Text style={s.socialSub} numberOfLines={1}>Listen together, join clubs & share Moments</Text>
+            </View>
+            <View style={s.socialCta}><Text style={s.socialCtaText}>Explore</Text></View>
+          </Pressable>
+        )}
 
         {/* A · Continue Listening / Start My Radio */}
         {hasSession ? (
@@ -320,6 +388,29 @@ const s = StyleSheet.create({
   greetWrap: { paddingHorizontal: TSPACE.md, paddingTop: TSPACE.lg, paddingBottom: TSPACE.sm },
   greetSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 3, marginBottom: 4 },
   greet: { color: TUBE.text, fontSize: TFONT.xxl, fontWeight: '900', letterSpacing: -0.5 },
+
+  worldWrap: { marginTop: 4, marginBottom: 6 },
+  worldHead: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900', letterSpacing: -0.3, paddingHorizontal: TSPACE.md, marginBottom: TSPACE.sm },
+  pill: {
+    alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 12, minWidth: 74,
+    borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line,
+  },
+  pillFeatured: { backgroundColor: 'rgba(20,184,166,0.12)', borderColor: 'rgba(20,184,166,0.5)' },
+  pillIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  pillLabel: { color: TUBE.textDim, fontSize: TFONT.xs, fontWeight: '800' },
+  pillLabelFeatured: { color: TUBE.text },
+
+  socialCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: 8,
+    padding: TSPACE.md, borderRadius: TRADIUS.lg,
+    backgroundColor: 'rgba(20,184,166,0.08)', borderWidth: 1, borderColor: 'rgba(20,184,166,0.35)',
+  },
+  socialIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#14b8a6' },
+  socialLabel: { color: '#5eead4', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  socialTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 2 },
+  socialSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
+  socialCta: { backgroundColor: '#14b8a6', borderRadius: TRADIUS.full, paddingHorizontal: 14, paddingVertical: 8 },
+  socialCtaText: { color: TUBE.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
 
   continueCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: 6,

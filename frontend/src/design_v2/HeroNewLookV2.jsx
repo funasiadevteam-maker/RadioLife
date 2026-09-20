@@ -1,48 +1,48 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Play, Radio, Globe, MapPin, ShieldCheck, Music2 } from "lucide-react";
+import { Play, Radio, Users, ShoppingBag, Coins } from "lucide-react";
 import { HERO_VIBES, heroSlot } from "./analytics";
 
+// FUUSIC is a connected lifestyle platform — audio is a pillar, not the whole
+// brand. Hero leads with the platform promise + one primary social action.
 const STATS = [
-  { icon: Radio, label: "50,000+ Stations" },
-  { icon: Globe, label: "Global" },
-  { icon: MapPin, label: "Local" },
-  { icon: ShieldCheck, label: "Ad-Free (Premium)" },
+  { icon: Users, label: "Social" },
+  { icon: Radio, label: "Live audio" },
+  { icon: ShoppingBag, label: "Local shops" },
+  { icon: Coins, label: "BigPoints" },
 ];
 
-export default function HeroNewLookV2({ greeting, name, topGenre }) {
+export default function HeroNewLookV2({ greeting, name, topGenre, onSeeHappening }) {
   const navigate = useNavigate();
   const slot = heroSlot();
   const vibe = HERO_VIBES[slot] || HERO_VIBES.afternoon;
   const genre = (topGenre || "").trim();
 
-  const subCopy = genre
-    ? `Your ${genre} radio, tuned for ${vibe.slotLabel}. Skip what you don't, earn BigPoints as you listen.`
-    : `AI-personalized radio built around what you love. Skip what you don't, earn BigPoints as you listen.`;
-
   return (
     <section data-testid="nlv2-hero" data-vibe={slot} data-top-genre={genre || ""}
       className="nlv2-hero-grid grid grid-cols-[1.1fr_0.9fr] gap-6 xl:gap-10 items-stretch">
-      {/* Left — copy + CTAs */}
+      {/* Left — brand-first copy + CTAs */}
       <div className="flex flex-col justify-center py-2">
         <p data-testid="nlv2-greeting" className="text-sm font-semibold tracking-widest uppercase text-[#97a3c2] mb-3">
           {greeting}, {name}
         </p>
         <h1 data-testid="nlv2-hero-headline"
           className="font-black leading-[0.98] tracking-tight text-[44px] sm:text-[58px] xl:text-[68px]">
-          {vibe.h1}<br /><span className="nlv2-grad">{vibe.h2}</span>
+          Everything you love.<br /><span className="nlv2-grad">All together.</span>
         </h1>
         <p className="mt-5 text-[15px] sm:text-base text-[#aab4d0] max-w-md leading-relaxed">
-          {subCopy}
+          Friends are listening. Businesses are live. Games are happening.
+          {genre ? ` Your ${genre} radio is ready.` : " Your music is ready."}
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
-          <button type="button" data-testid="nlv2-cta-airadio" onClick={() => navigate("/radio")}
+          <button type="button" data-testid="nlv2-cta-happening"
+            onClick={() => (onSeeHappening ? onSeeHappening() : navigate("/social"))}
             className="nlv2-btn h-12 px-6 rounded-full font-bold text-sm inline-flex items-center gap-2">
-            <Play size={17} fill="currentColor" /> Start My AI Radio
+            <Users size={17} /> See What&apos;s Happening
           </button>
-          <button type="button" data-testid="nlv2-cta-live" onClick={() => navigate("/listen")}
+          <button type="button" data-testid="nlv2-cta-listen" onClick={() => navigate("/radio")}
             className="nlv2-btn-ghost h-12 px-6 rounded-full font-bold text-sm inline-flex items-center gap-2">
-            <Radio size={17} /> Explore Live Radio
+            <Play size={17} fill="currentColor" /> Start Listening
           </button>
         </div>
         <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3">
@@ -65,21 +65,12 @@ export default function HeroNewLookV2({ greeting, name, topGenre }) {
         <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: "inset 0 0 120px rgba(124,58,237,0.35)" }} />
         <div className="absolute left-6 bottom-7">
           <div style={{ fontFamily: "'Brush Script MT','Segoe Script',cursive" }}
-            className="text-white text-3xl sm:text-4xl drop-shadow-lg">{vibe.script}</div>
-          {genre && (
-            <div data-testid="nlv2-hero-genre"
-              className="mt-2 inline-flex items-center gap-1.5 px-2.5 h-6 rounded-full text-[11px] font-bold"
-              style={{ background: "rgba(124,58,237,0.35)", border: "1px solid rgba(192,132,252,0.5)", color: "#fff" }}>
-              <Music2 size={12} /> {genre}
-            </div>
-          )}
+            className="text-white text-3xl sm:text-4xl drop-shadow-lg">Everything, together</div>
         </div>
-        <div className="absolute right-5 top-6 text-right max-w-[150px]">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[#f9a8d4]">{vibe.kicker}</div>
+        <div className="absolute right-5 top-6 text-right max-w-[160px]">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[#f9a8d4]">FUUSIC</div>
           <div className="mt-1 text-sm font-semibold text-white/90 leading-snug">
-            {vibe.lines.map((l, i) => (
-              <React.Fragment key={i}>{l}{i < vibe.lines.length - 1 && <br />}</React.Fragment>
-            ))}
+            Listen · Connect<br />Play · Shop · Earn
           </div>
         </div>
       </div>

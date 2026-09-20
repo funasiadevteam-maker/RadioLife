@@ -46,10 +46,10 @@ const BARE_ROUTES = [
 
 const NAV = [
   { key: "home", label: "Home", icon: Home, path: "/" },
+  { key: "social", label: "Social", icon: Users, path: "/social" },
   { key: "listen", label: "Listen", icon: Headphones, path: "/listen" },
   { key: "shop", label: "Shop", icon: ShoppingBag, path: "/shop" },
   { key: "play", label: "Play", icon: Gamepad2, path: "/play-and-win" },
-  { key: "social", label: "Social", icon: Users, path: "/social" },
 ];
 
 // Mobile bottom tab bar — Pay sits in the middle as a raised money button
@@ -205,8 +205,8 @@ function RightRailV2() {
         </div>
         <div className="mt-1 text-[11px] leading-snug" style={{ color: "#a8b0cc" }}>
           {isPremium
-            ? "Enjoy unlimited skips and zero ads across FUUSIC."
-            : "Premium removes ads and unlocks unlimited skips."}
+            ? "Enjoy 6 skips per rolling hour and zero ads across FUUSIC."
+            : "Premium removes ads and unlocks 6 skips per rolling hour."}
         </div>
         {!isPremium && (
           <div className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold nlv2-grad">

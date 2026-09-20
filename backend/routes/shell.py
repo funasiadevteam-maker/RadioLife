@@ -8,6 +8,7 @@ route, auth, or earn-rate logic is touched.
 from fastapi import APIRouter, Request, Body, HTTPException
 from auth import current_user, current_user_optional
 from services.station_art import resolve_art as _resolve_art
+from core.home_config import get_home_config, build_fuusic_world, TOGETHER_ACTIONS
 from datetime import datetime, timezone
 import re
 
@@ -285,6 +286,12 @@ HOME_EVENT_ALLOWLIST = {
     "native_offer_impression", "native_offer_click",
     "companion_impression", "companion_click",
     "audio_ad_start", "audio_ad_complete", "attributed_conversion",
+    # FUUSIC Home realignment — ecosystem/social engagement.
+    "home_fuusic_world_view", "home_pillar_click",
+    "home_social_click", "home_listen_click", "home_live_click",
+    "home_shop_click", "home_play_click", "home_dining_click",
+    "home_earn_click", "home_explore_click",
+    "home_together_action_click", "home_whats_happening_click",
 }
 
 
@@ -469,6 +476,11 @@ async def shell_home(request: Request, city: str = ""):
         except Exception:
             dining = {"member": False}
 
+    # FUUSIC ecosystem — config-driven pillars + section layout (Social-first
+    # default). Backward-compatible: existing fields above are unchanged.
+    cfg = await get_home_config(db)
+    fuusic_world = build_fuusic_world(cfg["pillar_order"])
+
     return {
         "for_you": for_you,
         "live_now": live_now,
@@ -477,6 +489,10 @@ async def shell_home(request: Request, city: str = ""):
         "dining": dining,
         "is_premium": is_premium,
         "top_genre": top_genre,
+        "fuusic_world": fuusic_world,
+        "together_actions": TOGETHER_ACTIONS,
+        "pillar_order": cfg["pillar_order"],
+        "home_config": cfg["sections"],
     }
 
 

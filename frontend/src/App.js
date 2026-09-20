@@ -189,6 +189,7 @@ import MerchantOps from "@/admin/MerchantOps";
 import RateCard from "@/admin/RateCard";
 import PriceParity from "@/admin/PriceParity";
 import Promotions from "@/admin/Promotions";
+import HomeConfig from "@/admin/HomeConfig";  // FUUSIC Home layout (pillar order + sections)
 import Premium from "@/premium/Premium";
 import Billing from "@/Billing";
 import Audition from "@/Audition";
@@ -568,6 +569,9 @@ function AppRouter() {
       } />
       <Route path="/admin/landing-analytics" element={
         <ProtectedRoute requireAdmin><AdminLandingAnalytics /></ProtectedRoute>
+      } />
+      <Route path="/admin/home-config" element={
+        <ProtectedRoute requireAdmin><HomeConfig /></ProtectedRoute>
       } />
       <Route path="/admin/predict-win/self-serve" element={
         <ProtectedRoute requireAdmin><AdminPredictWinSelfServe /></ProtectedRoute>
