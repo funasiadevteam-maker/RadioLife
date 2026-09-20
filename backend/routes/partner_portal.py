@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user, require_admin
+from core.brand import BRAND_PARTNER_EMAIL
 from services import partner_api as pa
 from services import partner_marketplace as mkt
 from services import trivia_sponsorship_service as tr
@@ -295,7 +296,7 @@ async def _ensure_partner_adv(db, p, env):
         return adv["advertiser_id"]
     created = await ad.create_advertiser(
         db, owner_user_id=owner, name=p.get("name") or "Partner Console",
-        contact_email=p.get("contact_email") or "partner@radiolife.app")
+        contact_email=p.get("contact_email") or BRAND_PARTNER_EMAIL)
     aid = created["advertiser_id"]
     await db.advertisers_v2.update_one(
         {"advertiser_id": aid},

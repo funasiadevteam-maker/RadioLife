@@ -16,8 +16,9 @@ export const BRAND = {
   ] as [string, string][],
   meaningLine:
     'Friends · Unite · Unique Experiences · Social · Interaction · Commerce',
-  supportEmail: 'support@fuusic.com',
+  supportEmail: 'support@radiolife.app',
   domain: 'fuusic.com',
+  webUrl: (process.env.EXPO_PUBLIC_WEB_URL || 'https://radiolife.app').replace(/\/$/, ''),
   businessName: 'FUUSIC Business',
   premiumName: 'FUUSIC Premium',
   socialName: 'FUUSIC Social',

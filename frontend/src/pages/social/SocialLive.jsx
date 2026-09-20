@@ -7,7 +7,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import {
   Loader2, Video, Radio, X, Send, ShoppingBag, Plus, Tag, Users,
-  Trash2, StopCircle, Sparkles, Scissors, UserPlus,
+  Trash2, StopCircle, Sparkles, Scissors, UserPlus, Share2, Download,
 } from "lucide-react";
 import { Avatar } from "./SocialV2";
 
@@ -174,6 +174,20 @@ function LiveViewer({ showId, onClose }) {
       else toast.success("Added — it’s free! 🎁");
     } catch (_) { toast.error("Couldn’t start checkout."); } finally { setBuying(null); }
   };
+  const shareClip = async (clip) => {
+    const url = `${B}${clip.share_path}`;
+    try {
+      if (navigator.share) await navigator.share({ title: clip.title, text: clip.caption, url });
+      else { await navigator.clipboard.writeText(url); toast.success("Clip link copied 🔗"); }
+    } catch (_) {}
+  };
+  const downloadClip = async (clip) => {
+    try {
+      const r = await fetch(clip.image_url); const b = await r.blob();
+      const u = URL.createObjectURL(b); const a = document.createElement("a");
+      a.href = u; a.download = `fuusic-clip-${clip.clip_id}.png`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+    } catch (_) { toast.error("Couldn’t download the image."); }
+  };
 
   if (!show) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-purple-400" /></div>;
 
@@ -239,7 +253,9 @@ function LiveViewer({ showId, onClose }) {
               <div key={c.clip_id} className="rounded-2xl bg-white/[0.04] border border-white/10 p-3" data-testid={`live-clip-${c.clip_id}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-9 h-9 rounded-xl grid place-items-center" style={grad}><Sparkles size={16} className="text-white" /></div>
-                  <div className="min-w-0"><div className="text-sm font-black truncate">{c.title}</div><div className="text-[11px] text-slate-400 truncate">{c.caption}</div></div>
+                  <div className="min-w-0 flex-1"><div className="text-sm font-black truncate">{c.title}</div><div className="text-[11px] text-slate-400 truncate">{c.caption}</div></div>
+                  <button onClick={() => shareClip(c)} data-testid={`clip-share-${c.clip_id}`} className="w-8 h-8 grid place-items-center rounded-full bg-white/[0.08] text-slate-200" title="Share clip"><Share2 size={14} /></button>
+                  <button onClick={() => downloadClip(c)} data-testid={`clip-download-${c.clip_id}`} className="w-8 h-8 grid place-items-center rounded-full bg-white/[0.08] text-slate-200" title="Download image"><Download size={14} /></button>
                 </div>
                 {c.products?.length > 0 && (
                   <div className="flex gap-2 overflow-x-auto no-scrollbar mt-3">

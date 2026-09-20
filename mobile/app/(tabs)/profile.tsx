@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { BRAND } from '../../src/config/brand';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import ChipGrid from '../../src/components/ChipGrid';
 import FunAsiaFooter from '../../src/components/FunAsiaFooter';
@@ -151,9 +152,9 @@ export default function ProfileScreen() {
           <MenuItem icon="refresh" label="Re-do Onboarding" sub="Reset preferences and restart setup"
             onPress={redoOnboarding} loading={resetting} testID="redo-onboarding-btn" />
           <MenuItem icon="help-circle-outline" label="Help & Support" sub="FAQ, contact support"
-            onPress={() => Alert.alert('Help', 'Email: support@radiolife.app')} testID="menu-help" />
+            onPress={() => Alert.alert('Help', `Email: ${BRAND.supportEmail}`)} testID="menu-help" />
           <MenuItem icon="information-circle-outline" label="About FUUSIC" sub="Version 1.0.0 · Phase 11.5"
-            onPress={() => Alert.alert('FUUSIC.app', 'AI-powered Hinglish internet radio for the Indian diaspora in Dubai/UAE.\n\nVersion 1.0.0')} testID="menu-about" />
+            onPress={() => Alert.alert('FUUSIC', `${BRAND.tagline}\n\nEverything you love — audio, friends, local businesses, games, rewards and live experiences — together.\n\nVersion 1.0.0`)} testID="menu-about" />
 
           <Text style={[st.menuLabel, { marginTop: SPACING.lg }]}>DANGER ZONE</Text>
           <MenuItem icon="log-out" label="Sign Out" color={COLORS.orange}

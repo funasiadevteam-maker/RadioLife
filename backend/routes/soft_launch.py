@@ -668,7 +668,8 @@ async def _notify_waitlist_launched(db) -> int:
         logger.warning("mailgun client unavailable: %s", _e)
         return 0
     base = (os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
-    html = _LAUNCH_EMAIL_HTML.format(base=base or "https://radiolife.app")
+    from core.brand import PUBLIC_WEB_URL
+    html = _LAUNCH_EMAIL_HTML.format(base=base or PUBLIC_WEB_URL)
     live = False
     try:
         live = bool(is_live())
@@ -909,7 +910,8 @@ async def _send_teaser(db, min_hours_between: int = 48) -> int:
             days_txt = f"Just {days} day{'s' if days != 1 else ''} to go."
         except Exception:
             pass
-    base = (os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/") or "https://radiolife.app"
+    from core.brand import PUBLIC_WEB_URL
+    base = (os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/") or PUBLIC_WEB_URL
     html = _TEASER_EMAIL_HTML.format(days=days_txt, base=base)
     live = False
     try:

@@ -19,6 +19,7 @@ import SocialV2 from "@/pages/social/SocialV2";  // Social V2 — Phase 1
 import ListenRoom from "@/pages/social/ListenRoom";  // Listen Together room
 import DreamsGuidance from "@/pages/social/DreamsGuidance";  // Dreams & Guidance
 import DreamMatchCard from "@/pages/social/DreamMatchCard";  // Public match card
+import SocialClip from "@/pages/social/SocialClip";  // Public live-clip share page
 import AdminGlobalSearch from "@/components/AdminGlobalSearch";  // Phase T — Cmd/Ctrl+K palette
 import AdminBulkUpload from "@/AdminBulkUpload";  // Phase 22a — bulk music upload
 import AdminVoices from "@/AdminVoices";
@@ -1073,6 +1074,7 @@ function AppRouter() {
       <Route path="/social/room/:id" element={<ProtectedRoute><ListenRoom /></ProtectedRoute>} />
       <Route path="/social/dreams" element={<ProtectedRoute><DreamsGuidance /></ProtectedRoute>} />
       <Route path="/dreams/match/:cardId" element={<DreamMatchCard />} />
+      <Route path="/clips/:clipId" element={<SocialClip />} />
       <Route path="/business/register" element={
         <ProtectedRoute><BusinessRegister /></ProtectedRoute>} />
       <Route path="/business" element={

@@ -66,6 +66,7 @@ async def ensure_phase45_indexes(db) -> None:
     await db.group_carts.create_index([("members", 1), ("created_at", -1)],
                                       name="gc_members")
     await db.group_carts.create_index("owner_id", name="gc_owner")
+    await db.cart_payments.create_index("session_id", name="cp_session")
     await db.translation_cache.create_index("key", unique=True, name="tc_key")
 
 
@@ -82,12 +83,39 @@ class CartItemBody(BaseModel):
     qty: int = Field(1, ge=1, le=99)
 
 
+def _cart_line(i: dict) -> int:
+    return int(i.get("price_cents") or 0) * int(i.get("qty") or 1)
+
+
 def _cart_public(c: dict, members: list[dict], viewer: str) -> dict:
     items = c.get("items") or []
-    total = sum(int(i.get("price_cents") or 0) * int(i.get("qty") or 1) for i in items)
+    total = sum(_cart_line(i) for i in items)
+    paid_total = sum(_cart_line(i) for i in items if i.get("paid"))
+    name_of = {m["user_id"]: m.get("name") for m in members}
+    by: dict[str, dict] = {}
+    for i in items:
+        uid = i.get("added_by")
+        b = by.setdefault(uid, {"subtotal_cents": 0, "paid_cents": 0, "item_count": 0})
+        b["subtotal_cents"] += _cart_line(i)
+        b["item_count"] += 1
+        if i.get("paid"):
+            b["paid_cents"] += _cart_line(i)
+    splits = [{"user_id": uid, "name": name_of.get(uid, "Member"),
+               "subtotal_cents": v["subtotal_cents"], "paid_cents": v["paid_cents"],
+               "owed_cents": v["subtotal_cents"] - v["paid_cents"],
+               "item_count": v["item_count"],
+               "all_paid": (v["subtotal_cents"] - v["paid_cents"]) <= 0}
+              for uid, v in by.items()]
+    mine = next((s for s in splits if s["user_id"] == viewer), None)
     return {"cart_id": c["_id"], "name": c.get("name"), "owner_id": c.get("owner_id"),
             "is_owner": c.get("owner_id") == viewer, "members": members,
-            "items": items, "item_count": len(items), "total_cents": total,
+            "items": [{**i, "line_cents": _cart_line(i), "paid": bool(i.get("paid"))} for i in items],
+            "item_count": len(items), "total_cents": total,
+            "paid_cents": paid_total, "owed_cents": total - paid_total,
+            "fully_paid": total > 0 and (total - paid_total) <= 0,
+            "splits": splits,
+            "my_subtotal_cents": mine["subtotal_cents"] if mine else 0,
+            "my_owed_cents": mine["owed_cents"] if mine else 0,
             "status": c.get("status"), "created_at": _iso(c.get("created_at"))}
 
 
@@ -198,6 +226,90 @@ async def checkout_cart(cid: str, body: CartCheckoutBody, request: Request,
         metadata={"kind": "group_cart", "cart_id": cid, "by": user["user_id"]})
     return {"ok": True, "checkout_url": session.url, "session_id": session.id,
             "total_cents": total}
+
+
+class SettleBody(BaseModel):
+    session_id: Optional[str] = None
+
+
+@router.post("/carts/{cid}/checkout/mine")
+async def checkout_my_share(cid: str, body: CartCheckoutBody, request: Request,
+                            user: dict = Depends(current_user)):
+    """Pay ONLY for the items the current member added (their own share)."""
+    db = request.app.state.db
+    c = await _cart_or_404(db, cid, user["user_id"])
+    uid = user["user_id"]
+    mine = [i for i in (c.get("items") or [])
+            if i.get("added_by") == uid and not i.get("paid")]
+    total = sum(_cart_line(i) for i in mine)
+    if not mine or total <= 0:
+        raise HTTPException(400, {"code": "nothing_to_pay"})
+    stripe = _stripe()
+    if not stripe.api_key:
+        raise HTTPException(503, {"code": "stripe_unconfigured"})
+    origin = resolve_origin(request, body.origin_url)
+    if not origin:
+        raise HTTPException(400, {"code": "origin_required"})
+    line_items = [{"price_data": {"currency": "usd",
+                   "product_data": {"name": i.get("title")},
+                   "unit_amount": int(i.get("price_cents") or 0)},
+                   "quantity": int(i.get("qty") or 1)} for i in mine]
+    item_ids = [i["item_id"] for i in mine]
+    session = stripe.checkout.Session.create(
+        mode="payment", line_items=line_items,
+        success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}&cart={cid}",
+        cancel_url=f"{origin}/payment/cancel",
+        metadata={"kind": "cart_split", "cart_id": cid, "user_id": uid,
+                  "item_ids": ",".join(item_ids)})
+    pid = f"cpay_{uuid.uuid4().hex[:14]}"
+    await db.cart_payments.insert_one({
+        "_id": pid, "cart_id": cid, "user_id": uid, "item_ids": item_ids,
+        "amount_cents": total, "session_id": session.id, "status": "pending",
+        "created_at": _now()})
+    return {"ok": True, "checkout_url": session.url, "session_id": session.id,
+            "amount_cents": total}
+
+
+@router.post("/carts/{cid}/settle")
+async def settle_my_share(cid: str, body: SettleBody, request: Request,
+                          user: dict = Depends(current_user)):
+    """Confirm a member's share payment by retrieving the Stripe session and,
+    if paid, marking their items paid. Safe to poll (idempotent)."""
+    db = request.app.state.db
+    await _cart_or_404(db, cid, user["user_id"])
+    stripe = _stripe()
+    if not stripe.api_key:
+        raise HTTPException(503, {"code": "stripe_unconfigured"})
+    session_id = body.session_id
+    if not session_id:  # fall back to this member's latest pending share payment
+        pend = await db.cart_payments.find_one(
+            {"cart_id": cid, "user_id": user["user_id"], "status": "pending"},
+            sort=[("created_at", -1)])
+        session_id = pend.get("session_id") if pend else None
+    if not session_id:
+        c = await db.group_carts.find_one({"_id": cid})
+        mem = list((await _users_map(db, c.get("members") or [])).values())
+        return {"paid": False, "status": "no_pending",
+                "cart": _cart_public(c, mem, user["user_id"])}
+    try:
+        sess = stripe.checkout.Session.retrieve(session_id)
+    except Exception:
+        raise HTTPException(400, {"code": "invalid_session"})
+    paid = sess.get("payment_status") == "paid"
+    if paid:
+        pay = await db.cart_payments.find_one({"session_id": session_id})
+        for iid in (pay.get("item_ids") if pay else []):
+            await db.group_carts.update_one(
+                {"_id": cid, "items.item_id": iid},
+                {"$set": {"items.$.paid": True, "items.$.paid_by": user["user_id"],
+                          "items.$.paid_session_id": session_id}})
+        if pay:
+            await db.cart_payments.update_one(
+                {"_id": pay["_id"]}, {"$set": {"status": "paid"}})
+    c = await db.group_carts.find_one({"_id": cid})
+    mem = list((await _users_map(db, c.get("members") or [])).values())
+    return {"paid": paid, "status": sess.get("payment_status"),
+            "cart": _cart_public(c, mem, user["user_id"])}
 
 
 # ═══════════════════════════ AI Discovery ══════════════════════════

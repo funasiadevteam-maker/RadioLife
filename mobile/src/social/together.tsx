@@ -422,6 +422,9 @@ export function ShopTogetherSheet({ visible, onClose }: any) {
   const addItem = async () => { if (!itTitle.trim()) return; try { const { data } = await api.post(`/social/carts/${active.cart_id}/items`, { title: itTitle.trim(), price_cents: Math.round(parseFloat(itPrice || '0') * 100), qty: 1 }); setActive(data); setItTitle(''); setItPrice(''); } catch (_) {} };
   const removeItem = async (id: string) => { try { const { data } = await api.delete(`/social/carts/${active.cart_id}/items/${id}`); setActive(data); } catch (_) {} };
   const checkout = async () => { try { const { data } = await api.post(`/social/carts/${active.cart_id}/checkout`, {}); if (data.checkout_url) Linking.openURL(data.checkout_url); } catch (_) {} };
+  const payMine = async () => { try { const { data } = await api.post(`/social/carts/${active.cart_id}/checkout/mine`, {}); if (data.checkout_url) Linking.openURL(data.checkout_url); } catch (_) {} };
+  const settle = async () => { try { const { data } = await api.post(`/social/carts/${active.cart_id}/settle`, {}); setActive(data.cart); } catch (_) {} };
+  const openCart = (c: any) => { setActive(c); setTimeout(settle, 400); };
   return (
     <Sheet visible={visible} onClose={onClose} title="Shop Together" testID="shop-together-sheet">
       {!active ? (
@@ -439,7 +442,7 @@ export function ShopTogetherSheet({ visible, onClose }: any) {
           ) : null}
           <Pressable onPress={create} disabled={busy} testID="cart-create"><LinearGradient colors={['#a855f7', '#ec4899']} style={st.sheetBtn}>{busy ? <ActivityIndicator color="#fff" /> : <><Ionicons name="people" size={16} color="#fff" /><Text style={st.sheetBtnTxt}>Create cart</Text></>}</LinearGradient></Pressable>
           {carts.map((c) => (
-            <Pressable key={c.cart_id} onPress={() => setActive(c)} testID={`cart-open-${c.cart_id}`} style={st.pulseRow}>
+            <Pressable key={c.cart_id} onPress={() => openCart(c)} testID={`cart-open-${c.cart_id}`} style={st.pulseRow}>
               <View style={[st.pulseIcon, { backgroundColor: 'rgba(168,85,247,0.15)' }]}><Ionicons name="people" size={18} color="#d8b4fe" /></View>
               <View style={{ flex: 1 }}><Text style={st.pulseTitle} numberOfLines={1}>{c.name}</Text><Text style={st.pulseMeta}>{c.item_count} items · {c.members.length} people</Text></View>
               <Ionicons name="chevron-forward" size={16} color={TUBE.textMuted} />
@@ -452,10 +455,12 @@ export function ShopTogetherSheet({ visible, onClose }: any) {
           <Text style={st.sheetTitle}>{active.name}</Text>
           {active.items.length === 0 ? <Text style={st.dim2}>No items yet — add the first one.</Text> : null}
           {active.items.map((it: any) => (
-            <View key={it.item_id} style={[st.pulseRow, { gap: 8 }]} testID={`cart-item-${it.item_id}`}>
+            <View key={it.item_id} style={[st.pulseRow, { gap: 8 }, it.paid && st.paidRow]} testID={`cart-item-${it.item_id}`}>
               <View style={{ flex: 1 }}><Text style={st.pulseTitle} numberOfLines={1}>{it.title}</Text><Text style={st.pulseMeta}>added by {it.added_by_name}</Text></View>
-              <Text style={{ color: TUBE.text, fontWeight: '900', fontSize: TFONT.sm }}>${((it.price_cents || 0) / 100).toFixed(2)}</Text>
-              <Pressable onPress={() => removeItem(it.item_id)}><Ionicons name="trash-outline" size={15} color={TUBE.textMuted} /></Pressable>
+              <Text style={{ color: TUBE.text, fontWeight: '900', fontSize: TFONT.sm }}>${(((it.line_cents ?? it.price_cents) || 0) / 100).toFixed(2)}</Text>
+              {it.paid
+                ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}><Ionicons name="checkmark-circle" size={15} color="#34d399" /><Text style={{ color: '#34d399', fontSize: 10, fontWeight: '900' }}>PAID</Text></View>
+                : <Pressable onPress={() => removeItem(it.item_id)}><Ionicons name="trash-outline" size={15} color={TUBE.textMuted} /></Pressable>}
             </View>
           ))}
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -463,10 +468,27 @@ export function ShopTogetherSheet({ visible, onClose }: any) {
             <TextInput value={itPrice} onChangeText={setItPrice} placeholder="$" keyboardType="numeric" placeholderTextColor={TUBE.textMuted} style={[st.sheetInput, { width: 64 }]} testID="cart-item-price" />
             <Pressable onPress={addItem} testID="cart-item-add"><LinearGradient colors={['#a855f7', '#ec4899']} style={st.chatSend2}><Ionicons name="send" size={15} color="#fff" /></LinearGradient></Pressable>
           </View>
+          {active.splits?.length > 0 ? (
+            <View style={st.splitBox} testID="cart-splits">
+              <Text style={[st.pulseMeta, { fontWeight: '900', marginBottom: 4 }]}>WHO PAYS WHAT</Text>
+              {active.splits.map((s: any) => (
+                <View key={s.user_id} style={{ flexDirection: 'row', justifyContent: 'space-between' }} testID={`cart-split-${s.user_id}`}>
+                  <Text style={st.pulseTitle} numberOfLines={1}>{s.name}</Text>
+                  <Text style={{ color: s.all_paid ? '#34d399' : TUBE.text, fontWeight: '800', fontSize: TFONT.sm }}>{s.all_paid ? 'Paid ✓' : `owes $${(s.owed_cents / 100).toFixed(2)}`}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: TUBE.text, fontWeight: '900', fontSize: TFONT.md }}>Total ${((active.total_cents || 0) / 100).toFixed(2)}</Text>
-            <Pressable onPress={checkout} testID="cart-checkout"><LinearGradient colors={['#a855f7', '#ec4899']} style={st.joinBtn}><Text style={st.joinTxt}>Checkout</Text></LinearGradient></Pressable>
+            <Pressable onPress={settle} testID="cart-settle"><Text style={st.trTxt}>Check payment</Text></Pressable>
           </View>
+          {active.my_owed_cents > 0
+            ? <Pressable onPress={payMine} testID="cart-pay-mine"><LinearGradient colors={['#a855f7', '#ec4899']} style={st.sheetBtn}><Ionicons name="card" size={16} color="#fff" /><Text style={st.sheetBtnTxt}>Pay my share · ${(active.my_owed_cents / 100).toFixed(2)}</Text></LinearGradient></Pressable>
+            : <View style={[st.sheetBtn, st.paidBtn]} testID="cart-mine-paid"><Ionicons name="checkmark-circle" size={16} color="#34d399" /><Text style={[st.sheetBtnTxt, { color: '#34d399' }]}>Your share is paid</Text></View>}
+          {active.is_owner && active.owed_cents > 0 ? (
+            <Pressable onPress={checkout} testID="cart-checkout" style={st.payAll}><Text style={st.payAllTxt}>Pay the whole cart instead</Text></Pressable>
+          ) : null}
         </View>
       )}
     </Sheet>
@@ -575,4 +597,9 @@ const st = StyleSheet.create({
   discName: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '900', marginTop: 6 },
   discReason: { color: TUBE.textMuted, fontSize: 10, marginBottom: 4 },
   discBtn: { width: '100%', height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  paidRow: { backgroundColor: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.25)' },
+  splitBox: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: TUBE.line, borderRadius: 14, padding: 12, gap: 4 },
+  paidBtn: { backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' },
+  payAll: { height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
+  payAllTxt: { color: TUBE.textMuted, fontSize: TFONT.sm, fontWeight: '700' },
 });

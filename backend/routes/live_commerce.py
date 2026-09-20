@@ -9,18 +9,21 @@ pinned-product, presence and live-chat layers work fully without live video.
 """
 from __future__ import annotations
 
+import io
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from auth import current_user
+from auth import current_user, current_user_optional
 from core.origins import resolve_origin
 from routes.social_v2 import _user_public, _users_map
 from services import livekit_client
+from services.object_storage import get_storage
 
 router = APIRouter(prefix="/api/social/liveshows", tags=["live_commerce"])
 
@@ -319,7 +322,10 @@ async def create_clip(sid: str, body: ClipBody, request: Request,
            "products": products, "business_name": s.get("business_name"),
            "created_at": _now()}
     await db.live_clips.insert_one(doc)
-    return _clip_public(doc)
+    await _ensure_clip_image(db, doc)
+    return {**_clip_public(doc),
+            "image_url": _clip_image_url(request, clip_id),
+            "share_path": f"/api/social/liveshows/clips/{clip_id}/share"}
 
 
 def _clip_public(c: dict) -> dict:
@@ -330,13 +336,146 @@ def _clip_public(c: dict) -> dict:
             "created_at": _iso(c.get("created_at"))}
 
 
+# ─────────────── Clip Sharing (branded share card + OG) ────────────
+_F_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+_F_REG = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+_F_NAR = "/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Bold.ttf"
+
+
+def _base_url(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = (request.headers.get("x-forwarded-host")
+            or request.headers.get("host") or request.url.netloc)
+    return f"{proto}://{host}"
+
+
+def _clip_image_url(request: Request, clip_id: str) -> str:
+    return f"{_base_url(request)}/api/social/liveshows/clips/{clip_id}/image.png"
+
+
+def _font(path, size):
+    from PIL import ImageFont
+    try:
+        return ImageFont.truetype(path, size=size)
+    except Exception:
+        return ImageFont.load_default()
+
+
+def _wrap(draw, text, font, max_w, max_lines):
+    words = (text or "").split()
+    lines, cur = [], ""
+    for w in words:
+        t = (cur + " " + w).strip()
+        if draw.textlength(t, font=font) <= max_w:
+            cur = t
+        else:
+            if cur:
+                lines.append(cur)
+            cur = w
+        if len(lines) >= max_lines:
+            break
+    if cur and len(lines) < max_lines:
+        lines.append(cur)
+    if len(lines) == max_lines and words:
+        lines[-1] = lines[-1].rstrip(".") + "…"
+    return lines
+
+
+def _clean(s: Optional[str]) -> str:
+    """Strip emoji/symbols the Liberation fonts can't render (avoids tofu boxes)."""
+    import re
+    if not s:
+        return ""
+    s = re.sub(r"[\U0001F000-\U0001FAFF\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF"
+               r"\uFE0F\u200D\u2022]", "", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _compose_clip_card(clip: dict) -> bytes:
+    from PIL import Image, ImageDraw
+    W, H = 1200, 630
+    img = Image.new("RGB", (W, H))
+    c0, c1 = (46, 16, 101), (190, 24, 93)  # violet → rose
+    px = img.load()
+    for y in range(H):
+        t = y / (H - 1)
+        row = (int(c0[0] * (1 - t) + c1[0] * t), int(c0[1] * (1 - t) + c1[1] * t),
+               int(c0[2] * (1 - t) + c1[2] * t))
+        for x in range(W):
+            px[x, y] = row
+    d = ImageDraw.Draw(img)
+    gold, white, soft = (251, 191, 36), (255, 255, 255), (245, 224, 235)
+    d.text((70, 66), "FUUSIC LIVE  ·  HIGHLIGHT", font=_font(_F_NAR, 28), fill=gold)
+    y = 150
+    for ln in _wrap(d, _clean(clip.get("title")) or "Live highlight", _font(_F_BOLD, 66), W - 140, 2):
+        d.text((70, y), ln, font=_font(_F_BOLD, 66), fill=white)
+        y += 78
+    y += 6
+    for ln in _wrap(d, _clean(clip.get("caption")), _font(_F_REG, 34), W - 140, 2):
+        d.text((70, y), ln, font=_font(_F_REG, 34), fill=soft)
+        y += 46
+    prods = clip.get("products") or []
+    if prods:
+        cy = 470
+        cx = 70
+        for p in prods[:3]:
+            label = f"{_clean(p.get('title'))}  ${int(p.get('price_cents') or 0) / 100:.0f}"
+            tw = d.textlength(label, font=_font(_F_BOLD, 26))
+            d.rounded_rectangle([cx, cy, cx + tw + 40, cy + 52], radius=26,
+                                fill=(255, 255, 255, 255))
+            d.text((cx + 20, cy + 12), label, font=_font(_F_BOLD, 26), fill=(76, 29, 149))
+            cx += int(tw) + 60
+            if cx > W - 200:
+                break
+    if clip.get("business_name"):
+        d.text((70, H - 58), f"by {clip['business_name']}", font=_font(_F_NAR, 26),
+               fill=(214, 211, 232))
+    d.text((W - 360, H - 58), "Watch & shop on FUUSIC", font=_font(_F_NAR, 24),
+           fill=(196, 181, 253))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def _storage_read(key: str) -> Optional[bytes]:
+    try:
+        st = get_storage()
+        if not st.exists(key=key):
+            return None
+        h = st.head(key=key)
+        size = int((h or {}).get("size") or 0)
+        return st.open_range(key=key, start=0, end=size - 1) if size > 0 else None
+    except Exception:
+        return None
+
+
+def _clip_key(clip_id: str) -> str:
+    return f"social/clips/{clip_id}.png"
+
+
+async def _ensure_clip_image(db, clip: dict) -> Optional[str]:
+    key = _clip_key(clip["_id"])
+    try:
+        st = get_storage()
+        if st.exists(key=key):
+            return key
+        st.upload_bytes(key=key, data=_compose_clip_card(clip), content_type="image/png")
+        await db.live_clips.update_one({"_id": clip["_id"]},
+                                       {"$set": {"image_key": key}})
+        return key
+    except Exception:
+        return None
+
+
 @router.get("/{sid}/clips")
 async def list_clips(sid: str, request: Request,
                      user: dict = Depends(current_user)):
     db = request.app.state.db
     rows = []
     async for c in db.live_clips.find({"show_id": sid}).sort("created_at", -1).limit(30):
-        rows.append(_clip_public(c))
+        rows.append({**_clip_public(c),
+                     "image_url": _clip_image_url(request, c["_id"]),
+                     "share_path": f"/api/social/liveshows/clips/{c['_id']}/share"})
     return {"items": rows}
 
 
@@ -346,8 +485,79 @@ async def clips_feed(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
     rows = []
     async for c in db.live_clips.find({}).sort("created_at", -1).limit(30):
-        rows.append(_clip_public(c))
+        rows.append({**_clip_public(c),
+                     "image_url": _clip_image_url(request, c["_id"]),
+                     "share_path": f"/api/social/liveshows/clips/{c['_id']}/share"})
     return {"items": rows}
+
+
+@router.get("/clips/{clip_id}")
+async def clip_detail(clip_id: str, request: Request,
+                      user: Optional[dict] = Depends(current_user_optional)):
+    """PUBLIC clip detail — powers the shareable /clips/<id> page."""
+    db = request.app.state.db
+    c = await db.live_clips.find_one({"_id": clip_id})
+    if not c:
+        raise HTTPException(404, {"code": "clip_not_found"})
+    return {**_clip_public(c),
+            "image_url": _clip_image_url(request, clip_id),
+            "share_path": f"/api/social/liveshows/clips/{clip_id}/share"}
+
+
+@router.get("/clips/{clip_id}/image.png")
+async def clip_image(clip_id: str, request: Request):
+    db = request.app.state.db
+    c = await db.live_clips.find_one({"_id": clip_id})
+    if not c:
+        raise HTTPException(404, {"code": "clip_not_found"})
+    key = c.get("image_key") or _clip_key(clip_id)
+    data = _storage_read(key)
+    if data is None:
+        await _ensure_clip_image(db, c)
+        data = _storage_read(key)
+    if data is None:
+        raise HTTPException(404, {"code": "image_unavailable"})
+    return Response(content=data, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400, "
+                                              "stale-while-revalidate=604800"})
+
+
+@router.get("/clips/{clip_id}/share")
+async def clip_share_ssr(clip_id: str, request: Request):
+    """SSR OG landing for a shared clip. Crawlers read the meta; browsers
+    are redirected to the SPA clip page at /clips/<id>."""
+    db = request.app.state.db
+    base = _base_url(request)
+    spa = f"{base}/clips/{clip_id}"
+    c = await db.live_clips.find_one({"_id": clip_id})
+    if not c:
+        return RedirectResponse(spa, status_code=302)
+    img = _clip_image_url(request, clip_id)
+    landing = f"{base}/api/social/liveshows/clips/{clip_id}/share"
+    title = f"{c.get('title')} — FUUSIC Live"
+    desc = c.get("caption") or "A shoppable highlight from FUUSIC Live."
+    import html as _h
+    e = _h.escape
+    out = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{e(title)}</title>
+<meta name="description" content="{e(desc)}">
+<meta property="og:title" content="{e(title)}">
+<meta property="og:description" content="{e(desc)}">
+<meta property="og:url" content="{e(landing)}">
+<meta property="og:type" content="video.other">
+<meta property="og:image" content="{e(img)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="FUUSIC">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{e(title)}">
+<meta name="twitter:image" content="{e(img)}">
+<link rel="canonical" href="{e(landing)}">
+<style>body{{margin:0;background:#0d0a24;color:#fff;font-family:system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}}img{{max-width:640px;width:100%;border-radius:20px;box-shadow:0 18px 60px rgba(0,0,0,.5)}}</style>
+<script>(function(){{try{{var ua=navigator.userAgent||"";var bot=/facebookexternalhit|twitterbot|whatsapp|telegrambot|slackbot|linkedinbot|discordbot|preview|googlebot|bingbot|applebot|pinterest/i.test(ua);if(!bot)window.location.replace("{e(spa)}");}}catch(x){{}}}})();</script>
+</head><body><img src="{e(img)}" alt="{e(title)}"></body></html>"""
+    return HTMLResponse(out)
 
 
 async def _create_checkout(request: Request, seller: str, product: dict,

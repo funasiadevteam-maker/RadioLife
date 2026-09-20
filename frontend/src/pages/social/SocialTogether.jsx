@@ -511,6 +511,20 @@ export function ShopTogetherModal({ onClose }) {
     try { const { data } = await api.post(`/carts/${active.cart_id}/checkout`, { origin_url: window.location.origin }); if (data.checkout_url) window.location.href = data.checkout_url; }
     catch (e) { toast.error(e?.response?.data?.detail?.code === "empty_cart" ? "Add an item first." : "Couldn’t checkout."); }
   };
+  const payMine = async () => {
+    try {
+      const { data } = await api.post(`/carts/${active.cart_id}/checkout/mine`, { origin_url: window.location.origin });
+      if (data.checkout_url) window.location.href = data.checkout_url;
+      else toast.info("You have nothing to pay for.");
+    } catch (e) { toast.error(e?.response?.data?.detail?.code === "nothing_to_pay" ? "You have no unpaid items." : "Couldn’t start checkout."); }
+  };
+  const settle = async (silent) => {
+    try {
+      const { data } = await api.post(`/carts/${active.cart_id}/settle`, {});
+      setActive(data.cart);
+      if (!silent) { data.paid ? toast.success("Payment confirmed 🎉") : toast.info("No completed payment found yet."); }
+    } catch (_) { if (!silent) toast.error("Couldn’t check payment."); }
+  };
 
   return (
     <ModalShell title="Shop Together" onClose={onClose} testid="shop-together-modal">
@@ -535,7 +549,7 @@ export function ShopTogetherModal({ onClose }) {
             <div className="pt-2 space-y-2">
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Your carts</div>
               {carts.map((c) => (
-                <button key={c.cart_id} onClick={() => setActive(c)} data-testid={`cart-open-${c.cart_id}`} className="w-full flex items-center gap-3 rounded-2xl bg-white/[0.04] border border-white/10 px-3 py-2.5 text-left">
+                <button key={c.cart_id} onClick={() => { setActive(c); setTimeout(() => settle(true), 300); }} data-testid={`cart-open-${c.cart_id}`} className="w-full flex items-center gap-3 rounded-2xl bg-white/[0.04] border border-white/10 px-3 py-2.5 text-left">
                   <span className="grid place-items-center w-10 h-10 rounded-xl bg-purple-500/15 text-purple-300"><Users size={16} /></span>
                   <span className="flex-1 min-w-0"><span className="block text-sm font-black truncate">{c.name}</span><span className="block text-[11px] text-slate-400">{c.item_count} items · {c.members.length} people</span></span>
                   <ChevronRight size={16} className="text-slate-500" />
@@ -552,10 +566,11 @@ export function ShopTogetherModal({ onClose }) {
           <div className="space-y-2">
             {active.items.length === 0 && <div className="text-sm text-slate-500">No items yet — add the first one.</div>}
             {active.items.map((it) => (
-              <div key={it.item_id} className="flex items-center gap-2 rounded-2xl bg-white/[0.04] border border-white/10 px-3 py-2" data-testid={`cart-item-${it.item_id}`}>
+              <div key={it.item_id} className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${it.paid ? "bg-emerald-500/[0.08] border-emerald-400/25" : "bg-white/[0.04] border-white/10"}`} data-testid={`cart-item-${it.item_id}`}>
                 <div className="flex-1 min-w-0"><div className="text-sm font-bold truncate">{it.title}</div><div className="text-[11px] text-slate-400">added by {it.added_by_name}</div></div>
-                <div className="text-sm font-black">${((it.price_cents || 0) / 100).toFixed(2)}</div>
-                <button onClick={() => removeItem(it.item_id)} className="text-slate-500 hover:text-red-400"><Trash2 size={14} /></button>
+                <div className="text-sm font-black">${(((it.line_cents ?? it.price_cents) || 0) / 100).toFixed(2)}</div>
+                {it.paid ? <span className="text-[10px] font-black text-emerald-300 inline-flex items-center gap-1"><Check size={12} /> PAID</span>
+                         : <button onClick={() => removeItem(it.item_id)} className="text-slate-500 hover:text-red-400"><Trash2 size={14} /></button>}
               </div>
             ))}
           </div>
@@ -564,10 +579,39 @@ export function ShopTogetherModal({ onClose }) {
             <input value={itPrice} onChange={(e) => setItPrice(e.target.value)} placeholder="$" type="number" data-testid="cart-item-price" className="w-20 rounded-xl bg-white/[0.05] border border-white/10 px-3 h-10 text-sm outline-none" />
             <button onClick={addItem} data-testid="cart-item-add" className="w-10 h-10 grid place-items-center rounded-full text-white" style={grad}><Send size={15} /></button>
           </div>
+
+          {/* Per-member split */}
+          {active.splits?.length > 0 && (
+            <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3 space-y-1.5" data-testid="cart-splits">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1">Who pays what</div>
+              {active.splits.map((s) => (
+                <div key={s.user_id} className="flex items-center justify-between text-sm" data-testid={`cart-split-${s.user_id}`}>
+                  <span className="text-slate-300 truncate">{s.name}</span>
+                  <span className={s.all_paid ? "text-emerald-300 font-bold" : "text-slate-200 font-bold"}>
+                    {s.all_paid ? "Paid ✓" : `owes $${(s.owed_cents / 100).toFixed(2)}`}
+                    <span className="text-slate-500 font-normal"> / ${(s.subtotal_cents / 100).toFixed(2)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center justify-between pt-1">
-            <div className="text-sm font-black">Total ${((active.total_cents || 0) / 100).toFixed(2)}</div>
-            <button onClick={checkout} data-testid="cart-checkout" className="px-5 h-11 rounded-full text-white font-black inline-flex items-center gap-2" style={grad}>Checkout</button>
+            <div className="text-sm font-black">Total ${((active.total_cents || 0) / 100).toFixed(2)}
+              <span className="text-[11px] text-slate-400 font-normal"> · paid ${((active.paid_cents || 0) / 100).toFixed(2)}</span>
+            </div>
+            <button onClick={() => settle(false)} data-testid="cart-settle" className="text-[11px] font-bold text-purple-300">Check payment</button>
           </div>
+          {active.my_owed_cents > 0 ? (
+            <button onClick={payMine} data-testid="cart-pay-mine" className="w-full h-11 rounded-full text-white font-black inline-flex items-center justify-center gap-2" style={grad}>
+              Pay my share · ${(active.my_owed_cents / 100).toFixed(2)}
+            </button>
+          ) : (
+            <div className="w-full h-11 rounded-full bg-emerald-500/10 border border-emerald-400/25 text-emerald-300 font-black inline-flex items-center justify-center gap-2" data-testid="cart-mine-paid"><Check size={16} /> Your share is paid</div>
+          )}
+          {active.is_owner && active.owed_cents > 0 && (
+            <button onClick={checkout} data-testid="cart-checkout" className="w-full h-10 rounded-full bg-white/[0.06] text-slate-300 text-sm font-bold">Pay the whole cart instead</button>
+          )}
         </div>
       )}
     </ModalShell>

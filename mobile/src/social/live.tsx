@@ -151,6 +151,10 @@ function LiveViewer({ showId, onClose }: any) {
       if (data.checkout_url) Linking.openURL(data.checkout_url);
     } catch (_) {} finally { setBuying(null); }
   };
+  const shareClip = async (clip: any) => {
+    const base = (process.env.EXPO_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
+    try { await Share.share({ message: `${clip.title} — on FUUSIC Live ${base}${clip.share_path}` }); } catch (_) {}
+  };
 
   if (!show) return <View style={st.center}><ActivityIndicator color={TUBE.magenta} /></View>;
 
@@ -204,6 +208,7 @@ function LiveViewer({ showId, onClose }: any) {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <LinearGradient colors={['#a855f7', '#ec4899']} style={st.clipIcon}><Ionicons name="sparkles" size={15} color="#fff" /></LinearGradient>
                 <View style={{ flex: 1 }}><Text style={st.productTitle} numberOfLines={1}>{c.title}</Text><Text style={st.dim} numberOfLines={1}>{c.caption}</Text></View>
+                <Pressable onPress={() => shareClip(c)} testID={`clip-share-${c.clip_id}`} style={st.clipShare}><Ionicons name="share-social" size={16} color="#fff" /></Pressable>
               </View>
               {c.products?.length > 0 && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginTop: 10 }}>
@@ -330,6 +335,7 @@ const st = StyleSheet.create({
   ghostBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)' },
   clipCard: { backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, padding: 12, marginBottom: 10 },
   clipIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  clipShare: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   clipProduct: { width: 130, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: TUBE.line, borderRadius: 12, padding: 10, gap: 3 },
   clipBuy: { height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   coRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: TUBE.line, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
