@@ -154,7 +154,7 @@ async def main():
                     "post_id":      pid,
                     "station_slug": "p41-audit-test",
                     "author_id":    uid,
-                    "author_name":  "RadioLife Test",
+                    "author_name":  "FUUSIC Test",
                     "body":         f"Phase 41M seed comment #{i+1}",
                     "created_at":   _now().isoformat(),
                     "deleted_at":   None,

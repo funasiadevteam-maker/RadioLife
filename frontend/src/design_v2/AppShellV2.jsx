@@ -121,11 +121,11 @@ function ShellV2Header() {
       <div className={`${CONTAINER} flex items-center gap-4 h-full`}>
       {/* Brand */}
       <Link to="/" className="flex flex-col leading-none shrink-0">
-        <span className="font-black text-lg tracking-tight">
-          Radio<span className="nlv2-grad">Life</span>
+        <span className="font-black text-lg tracking-tight nlv2-grad">
+          FUUSIC
         </span>
         <span className="hidden lg:block text-[9.5px] font-mono uppercase tracking-widest" style={{ color: "#8b96b8" }}>
-          Listen · Earn · Shop · Play · Social
+          Listen · Connect · Play · Shop · Earn
         </span>
       </Link>
 
@@ -205,7 +205,7 @@ function RightRailV2() {
         </div>
         <div className="mt-1 text-[11px] leading-snug" style={{ color: "#a8b0cc" }}>
           {isPremium
-            ? "Enjoy unlimited skips and zero ads across RadioLife."
+            ? "Enjoy unlimited skips and zero ads across FUUSIC."
             : "Premium removes ads and unlocks unlimited skips."}
         </div>
         {!isPremium && (

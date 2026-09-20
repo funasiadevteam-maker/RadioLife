@@ -63,7 +63,7 @@ def _cfg() -> dict:
         "api_base":  os.environ.get("MAILGUN_API_BASE",
                                                             "https://api.mailgun.net/v3"),
         "from":        os.environ.get("MAILGUN_FROM",
-            f"RadioLife <noreply@{os.environ.get('MAILGUN_DOMAIN', 'bigfantv.com')}>"),
+            f"FUUSIC <noreply@{os.environ.get('MAILGUN_DOMAIN', 'bigfantv.com')}>"),
     }
 
 
@@ -138,7 +138,7 @@ def _pick_domain(cfg: dict) -> tuple[Optional[str], dict]:
 
 def send_email(to, subject: str, html: str, *,
                               text: Optional[str] = None,
-                              from_name: str = "RadioLife",
+                              from_name: str = "FUUSIC",
                               tags: Optional[list] = None,
                               template_vars: Optional[dict] = None) -> dict:
     """Send a single transactional email via Mailgun's HTTP API.
@@ -157,11 +157,16 @@ def send_email(to, subject: str, html: str, *,
                       "message_id": None}
 
     url = f"{cfg['api_base']}/{domain}/messages"
-    # Override "from" address to use the resolved (verified) domain so
-    # we don't try to send through an unverified primary.
-    sender = cfg["from"].replace(cfg["domain"], domain) \
-                          if cfg["domain"] and cfg["domain"] in cfg["from"] \
-                          else f'{from_name} <noreply@{domain}>'
+    # Preserve the verified email ADDRESS from config/domain, but always
+    # present the current consumer brand (FUUSIC) as the display name so the
+    # "From" line never shows stale branding. The @domain stays untouched.
+    import re as _re
+    raw = cfg["from"].replace(cfg["domain"], domain) \
+        if (cfg["domain"] and cfg["domain"] in cfg["from"]) \
+        else f'noreply@{domain}'
+    _m = _re.search(r'<([^>]+)>', raw)
+    addr = _m.group(1) if _m else (raw if "@" in raw else f'noreply@{domain}')
+    sender = f'{from_name} <{addr}>'
 
     recipients = to if isinstance(to, list) else [to]
     data = {"from": sender, "to": recipients, "subject": subject, "html": html}

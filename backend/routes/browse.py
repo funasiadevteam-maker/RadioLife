@@ -56,8 +56,8 @@ async def _originals(db, n: int) -> list[dict]:
             cats = f.get("flagship_categories") or []
             out.append(_card(
                 f.get("id") or slug, "original",
-                f.get("name") or "RadioLife Original",
-                (cats[0].title() if cats else "RadioLife Original"),
+                f.get("name") or "FUUSIC Original",
+                (cats[0].title() if cats else "FUUSIC Original"),
                 _img(f, "favicon", "logo_url", "image", "artwork_url", "image_url"),
                 f"/radio?ch={slug}" if slug else "/radio", "ORIGINAL", slug))
     except Exception as e:
@@ -157,11 +157,11 @@ async def _shop_products(db, n: int) -> list[dict]:
                 title = p.get("name") or p.get("title") or "Product"
                 img = p.get("image_url") or bi.get("img")
                 card = _card(p.get("product_id") or p.get("id"), "shop", title,
-                             bi.get("name") or "RadioLife Shop", img, "/shop", "SHOP", bi.get("slug"))
+                             bi.get("name") or "FUUSIC Shop", img, "/shop", "SHOP", bi.get("slug"))
                 card["price"] = _price(p.get("price_cents"), p.get("currency"))
                 card["price_cents"] = int(p.get("price_cents") or 0)
                 card["business_id"] = bid
-                card["business_name"] = bi.get("name") or "RadioLife Shop"
+                card["business_name"] = bi.get("name") or "FUUSIC Shop"
                 card["in_stock"] = int(p.get("stock", 0)) > 0 or bool(p.get("variants"))
                 card["buyable"] = bid in elig and card["in_stock"] and card["price_cents"] > 0
                 _extra(card, p, bi)
@@ -181,12 +181,12 @@ async def _shop_products(db, n: int) -> list[dict]:
                 bi = elig.get(p.get("business_id"), {})
                 title = p.get("name") or p.get("title") or "Product"
                 card = _card(p.get("product_id") or p.get("id"), "shop", title,
-                             bi.get("name") or "RadioLife Shop",
+                             bi.get("name") or "FUUSIC Shop",
                              p.get("image_url") or bi.get("img"), "/shop", "SHOP", bi.get("slug"))
                 card["price"] = _price(p.get("price_cents"), p.get("currency"))
                 card["price_cents"] = int(p.get("price_cents") or 0)
                 card["business_id"] = p.get("business_id")
-                card["business_name"] = bi.get("name") or "RadioLife Shop"
+                card["business_name"] = bi.get("name") or "FUUSIC Shop"
                 card["in_stock"] = int(p.get("stock", 0)) > 0 or bool(p.get("variants"))
                 card["buyable"] = card["in_stock"] and card["price_cents"] > 0
                 _extra(card, p, bi)
@@ -262,12 +262,12 @@ async def browse_home(request: Request):
         hero = {**h, "tagline": "Stream live radio, shows, games and deals — all in one place."}
 
     rails = [
-        {"key": "originals", "title": "RadioLife Originals", "accent": True, "items": originals},
+        {"key": "originals", "title": "FUUSIC Originals", "accent": True, "items": originals},
         {"key": "recommended", "title": "Recommended for You", "items": recommended},
         {"key": "stations", "title": "Live Stations", "items": stations},
         {"key": "podcasts", "title": "Podcasts & Shows", "items": podcasts},
         {"key": "games", "title": "Play & Win", "items": games},
-        {"key": "shop", "title": "Shop on RadioLife", "items": shop},
+        {"key": "shop", "title": "Shop on FUUSIC", "items": shop},
         {"key": "deals", "title": "Deals Near You", "items": deals},
     ]
     rails = [r for r in rails if r["items"]]
@@ -399,7 +399,7 @@ async def browse_feed(request: Request, page: int = 0, cat: str = "all", subcat:
             blocks.append({"kind": "shelf", "variant": "playables",
                            "title": "Play & Win — instant games", "items": _rot(games, page * 6, min(10, len(games)))})
         elif variant == 2 and shop:
-            blocks.append({"kind": "shelf", "variant": "shop", "title": "Shop on RadioLife",
+            blocks.append({"kind": "shelf", "variant": "shop", "title": "Shop on FUUSIC",
                            "items": _rot(shop, page * 6, min(10, len(shop)))})
         else:
             feat = (shop[page % len(shop)] if shop else (videos[page % len(videos)] if videos else None))

@@ -92,10 +92,10 @@ export default function PrivacyCenter() {
       <h1 style={{ color: "#fff", fontSize: 26, fontWeight: 700,
                               margin: "0 0 6px",
                               display: "flex", alignItems: "center", gap: 10 }}>
-        <ShieldCheck size={22} color="#10b981" /> Your RadioLife Privacy
+        <ShieldCheck size={22} color="#10b981" /> Your FUUSIC Privacy
       </h1>
       <p style={{ color: "#9aa3af", fontSize: 13, margin: "0 0 24px" }}>
-        Control what RadioLife knows about your location.  All changes are logged.
+        Control what FUUSIC knows about your location.  All changes are logged.
       </p>
 
       <section data-testid="privacy-consent-section"
@@ -271,7 +271,7 @@ function LocationShareToggle() {
         <MapPin size={14} /> Share my location for personalised offers
       </h3>
       <p style={{ color: "#9aa3af", fontSize: 12, margin: "0 0 12px" }}>
-        RadioLife uses your live location ONLY to show geofenced offers from
+        FUUSIC uses your live location ONLY to show geofenced offers from
         nearby advertisers. Auto-expires after 60 min unless refreshed.
       </p>
       {state.has_location ? (

@@ -1,4 +1,4 @@
-// AI-generated branded game cover art (RadioLife dark-cinematic set).
+// AI-generated branded game cover art (FUUSIC dark-cinematic set).
 // Keyed by canonical game type; `gameArtFor()` maps the many type /
 // template aliases used across the app onto one of these.
 export const GAME_ART = {

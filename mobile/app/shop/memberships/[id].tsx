@@ -1,4 +1,4 @@
-// RadioLife Shop — venue memberships: subscribe + claim benefits (mobile).
+// FUUSIC Shop — venue memberships: subscribe + claim benefits (mobile).
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,

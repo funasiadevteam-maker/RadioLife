@@ -131,7 +131,7 @@ function HostModal({ onClose, onDone }: any) {
               <Pressable key={k} testID={`host-mode-${k}`} onPress={() => setMode(k)} style={[s.modeBtn, mode === k && s.modeBtnA]}><Ionicons name={ic as any} size={15} color={mode === k ? '#fff' : D.dim} /><Text style={[s.modeTxt, mode === k && { color: '#fff' }]}>{l}</Text></Pressable>
             ))}
           </View>
-          <Text style={s.hint}>Full live audio/video plays in the RadioLife app. The question queue works everywhere.</Text>
+          <Text style={s.hint}>Full live audio/video plays in the FUUSIC app. The question queue works everywhere.</Text>
           {err ? <Text style={s.err}>{err}</Text> : null}
           <Pressable testID="host-submit" onPress={submit} disabled={busy} style={[s.btnPrimary, { marginTop: 12 }]}><Text style={s.btnPrimaryTxt}>{busy ? 'Starting…' : 'Go live'}</Text></Pressable>
         </Pressable>

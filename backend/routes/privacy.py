@@ -145,8 +145,8 @@ async def post_consent(body: ConsentIn, request: Request,
             if is_live() and fresh.get("email"):
                 send_email(
                     to=fresh["email"],
-                    subject="RadioLife privacy level lowered",
-                    html=(f"<p>You just lowered your RadioLife location consent "
+                    subject="FUUSIC privacy level lowered",
+                    html=(f"<p>You just lowered your FUUSIC location consent "
                                 f"from level {prev} to {new_level}. "
                                 f"If this wasn't you, secure your account.</p>"))
         except Exception as e:

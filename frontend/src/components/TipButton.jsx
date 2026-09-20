@@ -107,7 +107,7 @@ function TipModal({ receiver, onClose }) {
           <p className="text-xs text-text-secondary">
             {receiver?.type === "persona_rj"
               ? "Tips for AI hosts go to a house pool that funds listener prize draws."
-              : "Send a small thank-you to the creator. 10% supports RadioLife."}
+              : "Send a small thank-you to the creator. 10% supports FUUSIC."}
           </p>
         </header>
 
@@ -161,7 +161,7 @@ function TipModal({ receiver, onClose }) {
             <span className="text-accent-gold">{credit.toLocaleString()} pts</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-text-secondary">RadioLife fee (10%)</span>
+            <span className="text-text-secondary">FUUSIC fee (10%)</span>
             <span className="text-text-secondary">{fee.toLocaleString()} pts</span>
           </div>
           {balance !== null && (

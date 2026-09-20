@@ -423,15 +423,15 @@ async def admin_list_winners(request: Request,
 # ─── Win Wall (public) ────────────────────────────────────────
 def _first_name(u: Optional[dict]) -> str:
     if not u:
-        return "A RadioLife listener"
+        return "A FUUSIC listener"
     for k in ("first_name", "firstName", "name", "display_name", "full_name"):
         v = (u.get(k) or "").strip()
         if v:
             return v.split()[0]
     email = (u.get("email") or "").strip()
     if email:
-        return email.split("@")[0].split(".")[0].title() or "A RadioLife listener"
-    return "A RadioLife listener"
+        return email.split("@")[0].split(".")[0].title() or "A FUUSIC listener"
+    return "A FUUSIC listener"
 
 
 @router.get("/games/winners/recent",

@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — DREAMS & GUIDANCE (Phase 1, shared backend).
+"""FUUSIC Social V2 — DREAMS & GUIDANCE (Phase 1, shared backend).
 
 A reflective community layer inside Social V2:
 
@@ -61,12 +61,12 @@ CATEGORY_LABELS = {
 DELIVERY_TYPES = ["written", "voice", "video_recorded", "live_video", "live_audio"]
 
 DISCLAIMER_GLOBAL = (
-    "RadioLife's spiritual, astrology, tarot, numerology and dream features are "
+    "FUUSIC's spiritual, astrology, tarot, numerology and dream features are "
     "provided for entertainment, reflection and general informational purposes. "
     "They are not medical, mental-health, legal or financial advice and no result "
     "or prediction is guaranteed.")
 DISCLAIMER_BOOKING = (
-    "Advisor opinions and interpretations are the advisor's own. RadioLife does not "
+    "Advisor opinions and interpretations are the advisor's own. FUUSIC does not "
     "guarantee the accuracy, outcome or predictive value of spiritual, astrology, "
     "tarot, numerology or dream-reading services.")
 AI_HEADER = ("This is one possible interpretation, not a factual diagnosis or "
@@ -449,7 +449,7 @@ async def delete_dream(dream_id: str, request: Request,
 
 # ───────────────────────── AI reflection ───────────────────────────
 AI_SYSTEM = (
-    "You are RadioLife's Dream Reflection guide. You offer gentle, reflective, "
+    "You are FUUSIC's Dream Reflection guide. You offer gentle, reflective, "
     "symbolic and cultural readings of dreams for entertainment and self-reflection. "
     "You are NOT a doctor or therapist. You must NEVER diagnose any psychiatric or "
     "sleep illness, never state supernatural explanations as verified fact, never "

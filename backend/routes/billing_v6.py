@@ -554,7 +554,7 @@ async def stripe_webhook_v6(request: Request):
     elif event_type == "customer.subscription.trial_will_end":
         from services.dunning import log_notification as _ln
         await _ln(db, user_id=user_id, kind="trial_ending",
-                    subject="Your RadioLife Premium trial ends soon",
+                    subject="Your FUUSIC Premium trial ends soon",
                     body="Your 7-day trial ends in 3 days. You'll be charged automatically unless you cancel at /billing.",
                     metadata={"stripe_event_id": event_id})
     else:

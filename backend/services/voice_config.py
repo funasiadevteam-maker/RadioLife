@@ -32,7 +32,7 @@ OPENAI_TTS_VOICES: Dict[str, dict] = {
             "Channel American-Indian DJ vibe. Confident, loud, magnetic."
         ),
         "display_name": "DJ Charlie",
-        "persona": "American-Indian club DJ, late 20s, party hype voice, RadioLife",
+        "persona": "American-Indian club DJ, late 20s, party hype voice, FUUSIC",
         "duo_label": "CHARLIE",
         "duo_blurb": "American-Indian club DJ, late-20s, Dubai-based, hyped party MC. Always shouting boss/yaar.",
         "accent_target": "american",
@@ -259,12 +259,12 @@ def pick_voice_for_lang_and_energy(lang: str, energy: str) -> str:
 
 # ---------- Voice preview scripts (per-language) ----------
 PREVIEW_SCRIPTS_BY_ACCENT = {
-    "american": "Hands in the air! You're locked into RadioLife — non-stop hits, all night long. Let's go!",
-    "indian_english": "Welcome to RadioLife. Your home for music, mehfil, and the very best of the night.",
-    "hindi_native": "Namaste! Aap sun rahe hain RadioLife par. Aaj raat ki party shuru ho chuki hai, hands up doston!",
-    "hinglish": "[warm] Aap sun rahe ho... [excited] RadioLife! [warm] Dil se, doston.",
-    "punjabi": "Sat sri akal! Tussi sun rahe ho RadioLife, je kal raat di party shuru ho gayi hai!",
-    "devotional": "[warm] Aap sun rahe hain... [soft] RadioLife par bhakti sangeet. Om shanti.",
+    "american": "Hands in the air! You're locked into FUUSIC — non-stop hits, all night long. Let's go!",
+    "indian_english": "Welcome to FUUSIC. Your home for music, mehfil, and the very best of the night.",
+    "hindi_native": "Namaste! Aap sun rahe hain FUUSIC par. Aaj raat ki party shuru ho chuki hai, hands up doston!",
+    "hinglish": "[warm] Aap sun rahe ho... [excited] FUUSIC! [warm] Dil se, doston.",
+    "punjabi": "Sat sri akal! Tussi sun rahe ho FUUSIC, je kal raat di party shuru ho gayi hai!",
+    "devotional": "[warm] Aap sun rahe hain... [soft] FUUSIC par bhakti sangeet. Om shanti.",
 }
 
 
@@ -273,14 +273,14 @@ def preview_script_for(voice_key: str) -> str:
     accent = v.get("accent_target", "hinglish")
     # Per-voice override hook for richer demos
     overrides = {
-        "charlie_dj":      "HANDS IN THE AIR! You are LOCKED IN to RadioLife — non-stop party, all night long. Let's GOOO!",
-        "riya_dj":         "Hey hey! It's your girl Riya on RadioLife — the night is JUST getting started, boss!",
-        "marcus_dj":       "Late night vibes... this is Marcus on RadioLife. Smooth ride, all the way home.",
-        "aisha_english":   "Welcome to RadioLife. Your premium soundtrack — handpicked for the moment.",
-        "raghav_hindi":    "Namaste! Yeh hai Raghav, RadioLife par. Aaj ka mood mast hai, gaana sun lo!",
-        "aanya_hindi":     "Aap sun rahe hain RadioLife. Main hoon Aanya, aapki shaam ki saheli.",
-        "kabir_hindi":     "Yeh hai Kabir, RadioLife par! Hands up dosto, aaj raat ki party shuru hai!",
-        "ishita_hindi":    "Hello! Main hoon Ishita, RadioLife par. Mast vibe, full energy — ready ho?",
+        "charlie_dj":      "HANDS IN THE AIR! You are LOCKED IN to FUUSIC — non-stop party, all night long. Let's GOOO!",
+        "riya_dj":         "Hey hey! It's your girl Riya on FUUSIC — the night is JUST getting started, boss!",
+        "marcus_dj":       "Late night vibes... this is Marcus on FUUSIC. Smooth ride, all the way home.",
+        "aisha_english":   "Welcome to FUUSIC. Your premium soundtrack — handpicked for the moment.",
+        "raghav_hindi":    "Namaste! Yeh hai Raghav, FUUSIC par. Aaj ka mood mast hai, gaana sun lo!",
+        "aanya_hindi":     "Aap sun rahe hain FUUSIC. Main hoon Aanya, aapki shaam ki saheli.",
+        "kabir_hindi":     "Yeh hai Kabir, FUUSIC par! Hands up dosto, aaj raat ki party shuru hai!",
+        "ishita_hindi":    "Hello! Main hoon Ishita, FUUSIC par. Mast vibe, full energy — ready ho?",
     }
     if voice_key in overrides:
         return overrides[voice_key]

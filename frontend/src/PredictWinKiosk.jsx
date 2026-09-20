@@ -82,8 +82,8 @@ export default function PredictWinKiosk() {
 
   useEffect(() => {
     document.title = state?.sponsor?.name
-      ? `${state.sponsor.name} · RadioLife Predict & Win`
-      : "RadioLife Predict & Win · TV";
+      ? `${state.sponsor.name} · FUUSIC Predict & Win`
+      : "FUUSIC Predict & Win · TV";
   }, [state?.sponsor?.name]);
 
   if (err === "tv_pairing_not_found") {
@@ -97,7 +97,7 @@ export default function PredictWinKiosk() {
   }
   if (!state) {
     return <ErrorScreen title="Loading…" code={code}
-                                    message="Reaching the RadioLife kiosk service." />;
+                                    message="Reaching the FUUSIC kiosk service." />;
   }
 
   // Use the local tick to smooth the displayed countdown between
@@ -158,7 +158,7 @@ function KioskHeader({ state }) {
         <h1 data-testid="kiosk-sponsor-name"
                 style={{ fontSize: "clamp(28px, 3.5vw, 64px)",
                             fontWeight: 800, lineHeight: 0.98, margin: 0 }}>
-          {sp.name || "RadioLife"}
+          {sp.name || "FUUSIC"}
         </h1>
         <div style={{ display: "flex", gap: 14, marginTop: 14,
                                 flexWrap: "wrap", alignItems: "center",
@@ -398,7 +398,7 @@ function WinnerOverlay({ state }) {
       </div>
       <div style={{ marginTop: 14, color: "rgba(255,255,255,0.75)",
                               fontSize: 15 }}>
-        Winners credited to wallets on the RadioLife app.
+        Winners credited to wallets on the FUUSIC app.
       </div>
     </div>);
 }

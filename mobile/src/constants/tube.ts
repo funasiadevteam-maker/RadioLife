@@ -1,4 +1,4 @@
-/* RadioLife "Tube" dark tokens — mirrors the web YouTube-style shell so the
+/* FUUSIC "Tube" dark tokens — mirrors the web YouTube-style shell so the
    phone shell + Home feed feel like the same product. Scoped to the shell +
    Home tab; other screens keep the warm light theme for now. */
 export const TUBE = {

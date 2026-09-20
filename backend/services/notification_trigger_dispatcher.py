@@ -78,7 +78,7 @@ RECIPES: List[Dict[str, Any]] = [
       "default_delay_minutes": 0},
     {"id": "wallet_top_up",
       "label": "Wallet top-up",
-      "description": "Fires when a user tops up their RadioLife wallet.",
+      "description": "Fires when a user tops up their FUUSIC wallet.",
       "event_name": "wallet_top_up",
       "category":  "wallet",
       "default_delay_minutes": 0},

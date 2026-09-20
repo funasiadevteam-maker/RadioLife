@@ -61,7 +61,7 @@ async def portal_context(request: Request, user: dict = Depends(current_user)):
         workspaces.append({
             "type":              "admin",
             "id":                  "platform",
-            "name":              "RadioLife Admin",
+            "name":              "FUUSIC Admin",
             "logo_url":        None,
             "role":              "admin",
             "permissions":  sorted(permissions_for_role("admin")),

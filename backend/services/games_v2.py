@@ -240,7 +240,7 @@ _TEMPLATES = [
          "phrases": [
              {"phrase": "TUM HI HO", "hint": "Aashiqui 2 lead single"},
              {"phrase": "KARAK CHAI", "hint": "Dubai's favourite drink"},
-             {"phrase": "FRIDAY NIGHT MEHFIL", "hint": "RadioLife channel"},
+             {"phrase": "FRIDAY NIGHT MEHFIL", "hint": "FUUSIC channel"},
              {"phrase": "BOLLYWOOD HITS", "hint": "Music genre"},
              {"phrase": "DJ NIGHTS", "hint": "Late-week vibes"},
          ],
@@ -357,7 +357,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
 
     house = [
         {"id": HOUSE_SPIN_ID, "template_id": "tpl_spin_wheel",
-         "title": "RadioLife Daily Spin",
+         "title": "FUUSIC Daily Spin",
          "description": "Spin every 4 hours for BigPoints & sponsor perks.",
          "prizes": [
              {"title": "5 BigPoints", "prize_type": "bigcoin", "value_amount": 5,
@@ -383,7 +383,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
          ],
          "config_overrides": None},
         {"id": HOUSE_TRIVIA_ID, "template_id": "tpl_quiz",
-         "title": "RadioLife Music Trivia",
+         "title": "FUUSIC Music Trivia",
          "description": "Test your music knowledge — up to 3 plays per day.",
          "prizes": [
              {"title": "10 BigPoints (correct)", "prize_type": "bigcoin",
@@ -395,7 +395,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
                                 "dynamic_source": "tracks",
                                 "time_per_question_s": 15}},
         {"id": HOUSE_LYRIC_ID, "template_id": "tpl_quiz",
-         "title": "RadioLife Lyric Hunt",
+         "title": "FUUSIC Lyric Hunt",
          "description": "Complete the lyric in 4 tries — up to 3 plays per day.",
          "prizes": [
              {"title": "15 BigPoints (correct)", "prize_type": "bigcoin",
@@ -428,7 +428,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
             "advertiser_id": None, "business_id": None,
             "template_id": h["template_id"], "title": h["title"],
             "description": h["description"],
-            "sponsor_name": "RadioLife", "sponsor_logo_url": "/static/bigfm_logo.png",
+            "sponsor_name": "FUUSIC", "sponsor_logo_url": "/static/bigfm_logo.png",
             "brand_colors_json": {"primary": "#ff2d95", "secondary": "#0a0a0b"},
             "game_config_json": cfg,
             "objective": "listener_engagement",
@@ -486,7 +486,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
         })
         await db.game_compliance_settings.insert_one({
             "_id": h["id"], "campaign_id": h["id"],
-            "terms_text": "Standard RadioLife platform terms.",
+            "terms_text": "Standard FUUSIC platform terms.",
             "odds_disclosure": "Odds vary by prize tier.",
             "no_purchase_necessary_text":
                 "No purchase necessary; void where prohibited.",
@@ -509,7 +509,7 @@ async def migrate_phase5_games(db, actor_user_id: str = "system") -> dict:
 # =====================================================================
 EXTRA_HOUSE_GAMES = [
     {"id": "cmp_house_scratch", "template_id": "tpl_scratch_card",
-     "title": "RadioLife Scratch & Win",
+     "title": "FUUSIC Scratch & Win",
      "description": "Scratch the foil to reveal instant BigPoints. Play daily!",
      "prizes": [
          {"title": "5 BigPoints", "prize_type": "bigcoin", "value_amount": 5,
@@ -522,7 +522,7 @@ EXTRA_HOUSE_GAMES = [
           "probability_weight": 7, "inventory_total": 6000, "redemption_method": "in_app_wallet"},
      ]},
     {"id": "cmp_house_mystery", "template_id": "tpl_mystery_box",
-     "title": "RadioLife Mystery Box",
+     "title": "FUUSIC Mystery Box",
      "description": "Pick a box and reveal a surprise BigPoints prize.",
      "prizes": [
          {"title": "10 BigPoints", "prize_type": "bigcoin", "value_amount": 10,
@@ -533,7 +533,7 @@ EXTRA_HOUSE_GAMES = [
           "probability_weight": 20, "inventory_total": 10000, "redemption_method": "in_app_wallet"},
      ]},
     {"id": "cmp_house_memory", "template_id": "tpl_memory_match",
-     "title": "RadioLife Memory Match",
+     "title": "FUUSIC Memory Match",
      "description": "Match all the pairs before time runs out to win BigPoints.",
      "prizes": [
          {"title": "30 BigPoints", "prize_type": "bigcoin", "value_amount": 30,
@@ -541,7 +541,7 @@ EXTRA_HOUSE_GAMES = [
           "redemption_method": "in_app_wallet"},
      ]},
     {"id": "cmp_house_word", "template_id": "tpl_word_puzzle",
-     "title": "RadioLife Word Puzzle",
+     "title": "FUUSIC Word Puzzle",
      "description": "Guess the phrase before your strikes run out. Win BigPoints!",
      "prizes": [
          {"title": "25 BigPoints", "prize_type": "bigcoin", "value_amount": 25,
@@ -554,6 +554,18 @@ EXTRA_HOUSE_GAMES = [
 async def seed_extra_house_games(db, actor_user_id: str = "system") -> dict:
     """Idempotent — seed 4 additional always-on platform games so every
     listener has more to play in production.  Safe to call on every boot."""
+    # Brand migration: refresh any stale "RadioLife" display text on house
+    # games so pre-existing DB rows show FUUSIC (seeder below skips existing).
+    try:
+        await db.game_campaigns.update_many(
+            {"sponsor_name": "RadioLife"}, {"$set": {"sponsor_name": "FUUSIC"}})
+        for field in ("title", "description"):
+            await db.game_campaigns.update_many(
+                {field: {"$regex": "RadioLife"}},
+                [{"$set": {field: {"$replaceAll": {
+                    "input": f"${field}", "find": "RadioLife", "replacement": "FUUSIC"}}}}])
+    except Exception:
+        pass
     summary = {"created": 0, "existing": 0}
     for h in EXTRA_HOUSE_GAMES:
         existing = await db.game_campaigns.find_one({"campaign_id": h["id"]})
@@ -572,7 +584,7 @@ async def seed_extra_house_games(db, actor_user_id: str = "system") -> dict:
             "advertiser_id": None, "business_id": None,
             "template_id": h["template_id"], "title": h["title"],
             "description": h["description"],
-            "sponsor_name": "RadioLife", "sponsor_logo_url": "/static/bigfm_logo.png",
+            "sponsor_name": "FUUSIC", "sponsor_logo_url": "/static/bigfm_logo.png",
             "brand_colors_json": {"primary": "#F26B2A", "secondary": "#FBF5EC"},
             "game_config_json": cfg,
             "objective": "listener_engagement",
@@ -616,7 +628,7 @@ async def seed_extra_house_games(db, actor_user_id: str = "system") -> dict:
         })
         await db.game_compliance_settings.insert_one({
             "_id": h["id"], "campaign_id": h["id"],
-            "terms_text": "Standard RadioLife platform terms.",
+            "terms_text": "Standard FUUSIC platform terms.",
             "odds_disclosure": "Odds vary by prize tier.",
             "no_purchase_necessary_text": "No purchase necessary; void where prohibited.",
             "age_restriction": None, "geo_restrictions_json": {"allowed_countries": ["*"]},
@@ -777,7 +789,7 @@ async def seed_fpk_sponsored_games(db, actor_user_id: str = "system") -> dict:
         })
         await db.game_compliance_settings.insert_one({
             "_id": g["id"], "campaign_id": g["id"],
-            "terms_text": "FPK sponsored game. Standard RadioLife terms apply.",
+            "terms_text": "FPK sponsored game. Standard FUUSIC terms apply.",
             "odds_disclosure": "Odds vary by discount tier.",
             "no_purchase_necessary_text": "No purchase necessary; void where prohibited.",
             "age_restriction": None, "geo_restrictions_json": {"allowed_countries": ["*"]},
@@ -1496,9 +1508,9 @@ async def submit_session(db, user: dict, session_id: str,
         "prize": _public_prize_view(prize_picked) if prize_picked else None,
         "bigcoin_earned": bigcoin_earned,
         "quiz_meta": quiz_meta,
-        "share_text": (f"I just won {prize_picked['title']} on RadioLife!"
+        "share_text": (f"I just won {prize_picked['title']} on FUUSIC!"
                             if prize_picked else
-                            "Better luck next time on RadioLife Play & Win!"),
+                            "Better luck next time on FUUSIC Play & Win!"),
         "server_seed": sess["server_seed"],
         "client_seed": sess["client_seed"],
     }
@@ -1859,7 +1871,7 @@ async def _campaign_public_view(db, c: dict) -> dict:
         "template_id": c["template_id"],
         "title": c["title"],
         "description": c.get("description"),
-        "sponsor_name": c.get("sponsor_name") or "RadioLife",
+        "sponsor_name": c.get("sponsor_name") or "FUUSIC",
         "sponsor_logo_url": c.get("sponsor_logo_url"),
         "brand_colors_json": c.get("brand_colors_json") or {},
         "top_prize_title": top_prize_title,
@@ -2023,7 +2035,7 @@ def _announce_view(c: dict, *, source: str) -> dict:
     return {
         "campaign_id": c["campaign_id"],
         "title": c["title"],
-        "sponsor_name": c.get("sponsor_name") or "RadioLife",
+        "sponsor_name": c.get("sponsor_name") or "FUUSIC",
         "sponsor_logo_url": c.get("sponsor_logo_url"),
         "brand_colors_json": c.get("brand_colors_json") or {},
         "description": c.get("description") or "",

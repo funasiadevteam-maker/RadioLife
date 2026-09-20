@@ -1,5 +1,5 @@
 // Phase I — M1 Sponsored AI-RJ Reads · Advertiser dashboard.
-// Dual-design (Legacy dark + RadioLife light).  End-to-end wizard:
+// Dual-design (Legacy dark + FUUSIC light).  End-to-end wizard:
 //     persona + stations + product spec → auto-draft (LLM) OR paste
 //     script → edit → submit (moderation gate) → Stripe prepay →
 //     ElevenLabs TTS render → LIVE on the AI-RJ stream.
@@ -73,7 +73,7 @@ export default function AdvertiserRJSponsoredReads() {
         </button>
       </div>
       <p className={`text-sm ${muted} mb-6`}>
-        Buy short, scripted host reads voiced by a RadioLife persona.  Reads
+        Buy short, scripted host reads voiced by a FUUSIC persona.  Reads
         get injected between songs on the AI-RJ stream on the stations
         you pick.  Total budget = plays × cost/play + 30% platform fee.
       </p>

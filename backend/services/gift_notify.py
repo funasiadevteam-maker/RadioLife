@@ -22,7 +22,7 @@ def _shell(title: str, body_html: str, cta_label: str, cta_url: str) -> str:
 <div style="margin:0;padding:24px;background:#0b0b0d;font-family:'Plus Jakarta Sans',Arial,sans-serif;">
   <div style="max-width:520px;margin:0 auto;background:#17171b;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.08);">
     <div style="background:{_BRAND};padding:20px 24px;">
-      <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-.5px;">RadioLife</div>
+      <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-.5px;">FUUSIC</div>
     </div>
     <div style="padding:28px 24px;color:#e4e4e7;">
       <h1 style="margin:0 0 12px;font-size:22px;color:#f4f4f5;">{title}</h1>
@@ -30,7 +30,7 @@ def _shell(title: str, body_html: str, cta_label: str, cta_url: str) -> str:
       <a href="{cta_url}" style="display:inline-block;margin-top:20px;background:{_BRAND};color:#fff;text-decoration:none;font-weight:800;padding:12px 22px;border-radius:999px;font-size:14px;">{cta_label}</a>
     </div>
     <div style="padding:16px 24px;color:#71717a;font-size:12px;border-top:1px solid rgba(255,255,255,.06);">
-      RadioLife · Shop local, earn BigPoints.
+      FUUSIC · Shop local, earn BigPoints.
     </div>
   </div>
 </div>"""
@@ -64,7 +64,7 @@ def send_gift_emails(*, kind: str, item_name: str, sponsor_name: str | None,
             f'<p style="margin:0;font-size:18px;font-weight:800;color:#f4f4f5;">{item_name}</p>'
             f'{msg_block}'
             f'<p style="margin:16px 0 0;font-size:14px;color:#b4b4bb;line-height:1.6;">'
-            f'Sign in to RadioLife with this email address to find it in your wallet and start using it.</p>'
+            f'Sign in to FUUSIC with this email address to find it in your wallet and start using it.</p>'
         )
         res = send_email(
             to=recipient_email,
@@ -88,7 +88,7 @@ def send_gift_emails(*, kind: str, item_name: str, sponsor_name: str | None,
         res = send_email(
             to=buyer_email,
             subject=f"Your {kind_label} gift to {who} is confirmed",
-            html=_shell("Gift confirmed ✅", body, "View in RadioLife", cta_url),
+            html=_shell("Gift confirmed ✅", body, "View in FUUSIC", cta_url),
             tags=["gift-confirm", f"gift-{kind}"],
         )
         log.info("[gift] buyer email kind=%s ok=%s", kind, res.get("ok"))

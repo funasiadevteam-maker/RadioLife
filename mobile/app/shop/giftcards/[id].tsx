@@ -1,4 +1,4 @@
-// RadioLife Shop — buy a venue gift card (points or card) — mobile.
+// FUUSIC Shop — buy a venue gift card (points or card) — mobile.
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,

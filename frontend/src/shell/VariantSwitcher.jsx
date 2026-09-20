@@ -1,5 +1,5 @@
 // 3-way design switcher: Classic A (original) · Classic B (new consumer
-// nav) · New Look (RadioLife). Replaces the old 2-state "Try new look".
+// nav) · New Look (FUUSIC). Replaces the old 2-state "Try new look".
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Check, ChevronDown } from "lucide-react";
 import { useAuth } from "@/AuthContext";
@@ -8,7 +8,7 @@ import { useDesignVariantStore } from "@/hooks/useDesignVariant";
 const OPTIONS = [
   { key: "legacy",    label: "Classic A", hint: "Original shell" },
   { key: "classic_b", label: "Classic B", hint: "New consumer nav" },
-  { key: "radiolife", label: "New Look",  hint: "RadioLife design" },
+  { key: "radiolife", label: "New Look",  hint: "FUUSIC design" },
   { key: "new_look_v2", label: "New Look V2", hint: "Premium dark streaming" },
 ];
 

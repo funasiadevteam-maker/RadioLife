@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — Phase 2: "Do things together".
+"""FUUSIC Social V2 — Phase 2: "Do things together".
 
 Four surfaces on the shared /api/social contract:
   • Moments      — photo / video / voice posts with rich context (what you're

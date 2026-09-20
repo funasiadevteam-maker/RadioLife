@@ -34,7 +34,7 @@ SAMPLE_SCRIPTS = {
     "p39_friday_night_hype":      "The weekend starts NOW. City's on tonight — turn it up, we're going in.",
     "p39_late_night_confidant":  "Still up? You're not alone. Raat ki chuppi mein bhi music chal raha hai — let's keep each other company.",
     "p39_devotional_murmur":      "Om Shanti. Sab thik hoga. Yeh thodi der ki shanti aapke liye hai.",
-    "p39_bilingual_news_anchor": "Here is what you need to know — the headlines this hour, sirf RadioLife par.",
+    "p39_bilingual_news_anchor": "Here is what you need to know — the headlines this hour, sirf FUUSIC par.",
     "p39_weekend_vibe_curator":  "Weekend mood, locked in. No rush today, let it flow — we'll be right here with you.",
 }
 

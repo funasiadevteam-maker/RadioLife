@@ -58,7 +58,7 @@ export default function MockStripeCheckout() {
       </h1>
       <div style={{fontSize: 13, color: "#cbd5e1", marginBottom: 14,
                               lineHeight: 1.5}}>
-        RadioLife does not currently process real card payments. This page
+        FUUSIC does not currently process real card payments. This page
         simulates the Stripe checkout flow so the rest of the subscription
         lifecycle (webhook → status → paywall unlock) can be exercised.
       </div>

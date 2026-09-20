@@ -1,4 +1,4 @@
-// Sell on RadioLife — business registration (single-scroll wizard).
+// Sell on FUUSIC — business registration (single-scroll wizard).
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
@@ -17,7 +17,7 @@ const SELL_OPTIONS = [
   ['gift_cards', 'Gift Cards'], ['events', 'Events'],
 ];
 
-export default function SellOnRadioLife() {
+export default function SellOnFUUSIC() {
   const router = useRouter();
   const { celebrate } = useReward();
   const [cats, setCats] = useState<any[]>([]);
@@ -89,7 +89,7 @@ export default function SellOnRadioLife() {
         <TouchableOpacity onPress={() => router.back()} testID="sell-back" style={{ padding: 2 }}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={s.topTitle}>Sell on RadioLife</Text>
+        <Text style={s.topTitle}>Sell on FUUSIC</Text>
         <View style={{ width: 22 }} />
       </View>
 
@@ -146,7 +146,7 @@ export default function SellOnRadioLife() {
             placeholder="Tell customers about your business" placeholderTextColor={COLORS.textMuted} testID="sell-desc" />
 
           <Text style={s.section}>BigPoints Reward</Text>
-          <Text style={s.hint}>Choose how many BigPoints customers earn. BigPoints help attract & retain RadioLife customers.</Text>
+          <Text style={s.hint}>Choose how many BigPoints customers earn. BigPoints help attract & retain FUUSIC customers.</Text>
 
           <Text style={s.label}>BIGPOINTS PER TRANSACTION</Text>
           <TextInput style={s.input} value={f.default_points} onChangeText={(v) => set('default_points', v)}
@@ -166,7 +166,7 @@ export default function SellOnRadioLife() {
           <TouchableOpacity style={s.checkRow} onPress={() => setCommissionAgreed((v) => !v)} testID="sell-commission-agree">
             <Ionicons name={commissionAgreed ? 'checkbox' : 'square-outline'} size={22}
               color={commissionAgreed ? COLORS.primary : COLORS.textMuted} />
-            <Text style={s.checkText}>I agree to the RadioLife commission for my category
+            <Text style={s.checkText}>I agree to the FUUSIC commission for my category
               {selectedCat ? ` (${selectedCat.commission_pct}%)` : ''}.</Text>
           </TouchableOpacity>
 
@@ -174,7 +174,7 @@ export default function SellOnRadioLife() {
             <TouchableOpacity style={s.checkRow} onPress={() => setParityCertified((v) => !v)} testID="sell-parity">
               <Ionicons name={parityCertified ? 'checkbox' : 'square-outline'} size={22}
                 color={parityCertified ? COLORS.primary : COLORS.textMuted} />
-              <Text style={s.checkText}>I certify my RadioLife menu prices match my own website&apos;s prices.</Text>
+              <Text style={s.checkText}>I certify my FUUSIC menu prices match my own website&apos;s prices.</Text>
             </TouchableOpacity>
           )}
 

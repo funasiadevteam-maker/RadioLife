@@ -331,13 +331,13 @@ function ScratchGrid({ prizes, light, revealed, outcome, onScratch, playing }) {
 // ── Share your win ─────────────────────────────────────────────
 function ShareWin({ outcome, meta, light }) {
   const url = typeof window !== "undefined" ? window.location.origin : "";
-  const text = `I just won ${outcome.outcome_label} at ${meta.merchant_name || "RadioLife"} on RadioLife! 🎉 Play & win too:`;
+  const text = `I just won ${outcome.outcome_label} at ${meta.merchant_name || "FUUSIC"} on FUUSIC! 🎉 Play & win too:`;
   const enc = encodeURIComponent(text);
   const encUrl = encodeURIComponent(url);
   const nativeShare = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({ title: "I won on RadioLife!", text, url });
+        await navigator.share({ title: "I won on FUUSIC!", text, url });
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(`${text} ${url}`);
         toast.success("Copied — paste it anywhere!");

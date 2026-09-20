@@ -64,7 +64,7 @@ export default function Coupons() {
     <div className="biz-shell" data-testid="coupons-shell">
       <div className="coupons-header">
         <Link to="/" className="paw-back" data-testid="coupons-back">
-          <ChevronLeft size={14} /> RadioLife
+          <ChevronLeft size={14} /> FUUSIC
         </Link>
         <h1>My Coupons</h1>
         <p className="dim small">Active claims, recently redeemed, and history</p>

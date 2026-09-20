@@ -431,13 +431,13 @@ async def _send_receipt(db, tx: dict, *, points_earned: int = 0) -> None:
             {"business_id": tx["merchant_id"]}, {"_id": tx["merchant_id"]}]})
         merchant_name = (biz or {}).get("name") or "the merchant"
         amount_str = f"{tx['amount_cents']/100:.2f} {tx['currency']}"
-        subject = f"Your RadioLife receipt — {merchant_name}"
-        pts_line = (f"<p style='color:#059669'><b>+{points_earned} RadioLife points</b> added to your wallet 🎉</p>"
+        subject = f"Your FUUSIC receipt — {merchant_name}"
+        pts_line = (f"<p style='color:#059669'><b>+{points_earned} FUUSIC points</b> added to your wallet 🎉</p>"
                           if points_earned else "")
         html = (
             f"<div style='font-family:system-ui,sans-serif;color:#111'>"
             f"<h2 style='color:#7c3aed'>Payment successful</h2>"
-            f"<p>Thanks for paying <b>{merchant_name}</b> through RadioLife.</p>"
+            f"<p>Thanks for paying <b>{merchant_name}</b> through FUUSIC.</p>"
             f"<table cellpadding='6' style='margin-top:12px;border-collapse:collapse'>"
             f"<tr><td style='color:#666'>Amount</td><td><b>{amount_str}</b></td></tr>"
             f"<tr><td style='color:#666'>Item</td><td>{tx.get('transaction_type','payment')}</td></tr>"
@@ -445,13 +445,13 @@ async def _send_receipt(db, tx: dict, *, points_earned: int = 0) -> None:
             f"<tr><td style='color:#666'>Date</td><td>{_now().strftime('%Y-%m-%d %H:%M UTC')}</td></tr>"
             f"</table>"
             f"{pts_line}"
-            f"<p style='color:#666;font-size:12px;margin-top:20px'>— RadioLife Team</p>"
+            f"<p style='color:#666;font-size:12px;margin-top:20px'>— FUUSIC Team</p>"
             f"</div>"
         )
         text = (f"Payment successful — {amount_str} to {merchant_name}\n"
                     f"Reference: {tx['transaction_id']}\n"
-                    + (f"+{points_earned} RadioLife points added\n" if points_earned else "")
-                    + "— RadioLife Team")
+                    + (f"+{points_earned} FUUSIC points added\n" if points_earned else "")
+                    + "— FUUSIC Team")
         send_email(to=tx["customer_email"], subject=subject,
                           html=html, text=text, tags=["sc5_receipt"])
         logger.info(f"[sc5] receipt sent to={tx['customer_email']} tx={tx['transaction_id']}")

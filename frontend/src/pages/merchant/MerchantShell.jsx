@@ -245,7 +245,7 @@ function PortalBandV2({ merchant, onSwitch }) {
       <div className="relative px-6 lg:px-10 py-5 flex items-center gap-5 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-300">RadioLife</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-300">FUUSIC</span>
             <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200">
               <Sparkles size={9} /> Soft Launch
             </span>
@@ -386,7 +386,7 @@ function SidebarInner({ light, merchant, permissions, role, onLogout, onNav }) {
                       light ? "text-slate-600 hover:bg-slate-50"
                               : "text-slate-400 hover:bg-slate-800"
                     }`}>
-          <ExternalLink size={12}/> Explore RadioLife
+          <ExternalLink size={12}/> Explore FUUSIC
         </Link>
         <button onClick={onLogout} data-testid="merchant-shell-logout"
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold ${

@@ -43,9 +43,9 @@ RJ_VOICES: Dict[str, dict] = {**RJ_VOICES_CORE, **RJ_VOICES_EXT}
 DEFAULT_VOICE_KEY = "veer_dubai"
 
 VOICE_PREVIEW_SCRIPTS_CORE: Dict[str, str] = {
-    "veer_dubai":   "[warm] Aap sun rahe ho... [soft] RadioLife. [warm] Dil se, doston.",
-    "monika_dubai": "[excited] Heyy! [warm] Aapki Monika, RadioLife par. [chuckles] Music chalega NON-stop!",
-    "dj_dubai":     "[shouts] RadioLife!!! [hyped] DJ Charlie on the mic... [excited] LET'S GO!!!",
+    "veer_dubai":   "[warm] Aap sun rahe ho... [soft] FUUSIC. [warm] Dil se, doston.",
+    "monika_dubai": "[excited] Heyy! [warm] Aapki Monika, FUUSIC par. [chuckles] Music chalega NON-stop!",
+    "dj_dubai":     "[shouts] FUUSIC!!! [hyped] DJ Charlie on the mic... [excited] LET'S GO!!!",
 }
 VOICE_PREVIEW_SCRIPTS: Dict[str, str] = {
     **VOICE_PREVIEW_SCRIPTS_CORE, **VOICE_PREVIEW_SCRIPTS_EXT,

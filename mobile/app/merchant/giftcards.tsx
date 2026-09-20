@@ -1,4 +1,4 @@
-// RadioLife Merchant — sell your own branded gift cards (mobile).
+// FUUSIC Merchant — sell your own branded gift cards (mobile).
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,

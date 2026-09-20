@@ -112,7 +112,7 @@ async def subscription_checkout(body: SubCheckoutBody, request: Request,
         mode="subscription",
         line_items=[{"price_data": {
             "currency": "usd",
-            "product_data": {"name": f"RadioLife {plan['name']} — Merchant Plan"},
+            "product_data": {"name": f"FUUSIC {plan['name']} — Merchant Plan"},
             "unit_amount": int(plan["price_cents"]),
             "recurring": {"interval": plan.get("interval", "month")}},
             "quantity": 1}],

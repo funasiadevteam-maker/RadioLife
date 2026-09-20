@@ -1,5 +1,5 @@
 // Phase PORTAL.0 — Unified portal login (design-independent route).
-// Route: /portal/login  — for business owners, staff, cashiers, RadioLife
+// Route: /portal/login  — for business owners, staff, cashiers, FUUSIC
 // admins and approved advertisers. ONE shared login system; the ACTIVE
 // design variant only controls appearance. New Look V2 gets the premium
 // dark-cinematic screen; other variants get a compatible themed card.
@@ -106,7 +106,7 @@ export default function PortalLogin() {
               <Store size={26} className="text-white" />
             </span>
             <div className="font-black text-2xl tracking-tight">
-              Radio<span className="nlv2-grad">Life</span> Portal
+              <span className="nlv2-grad">FUUSIC</span> Portal
             </div>
             <div className="text-[11px] font-mono uppercase tracking-widest mt-1"
                         style={{ color: "#8b96b8" }}>
@@ -143,7 +143,7 @@ export default function PortalLogin() {
         <div className="flex flex-col items-center text-center mb-6">
           <ShieldCheck size={30} className={light ? "text-purple-600 mb-2" : "text-cyan-400 mb-2"} />
           <div className={`font-black text-2xl ${light ? "text-slate-900" : "text-white"}`}>
-            RadioLife Portal
+            FUUSIC Portal
           </div>
           <div className={`text-xs mt-1 ${light ? "text-slate-500" : "text-slate-400"}`}>
             Business · Staff · Admin

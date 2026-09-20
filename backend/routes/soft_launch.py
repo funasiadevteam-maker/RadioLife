@@ -318,7 +318,7 @@ async def launch_deal_of_day(request: Request, city: str = ""):
         if bp and img:
             return {"available": True, "ends_at": ends_at,
                     "deal": _prof_deal(bp, booking.get("headline") or f"Featured: {bp.get('public_name')}",
-                                       booking.get("subtext") or f"Today's spotlight on RadioLife", featured=True)}
+                                       booking.get("subtext") or f"Today's spotlight on FUUSIC", featured=True)}
 
     ckey = f"{day}:{city}"
     if _DEAL_CACHE["key"] == ckey and _DEAL_CACHE["val"] is not None:
@@ -362,7 +362,7 @@ async def launch_deal_of_day(request: Request, city: str = ""):
         async for p in db.marketplace_profiles.find({"status": "approved"}).sort("updated_at", -1).limit(40):
             if not _ok(p):
                 continue
-            d = _prof_deal(p, "Featured this week", f"Discover {p.get('public_name')} on RadioLife")
+            d = _prof_deal(p, "Featured this week", f"Discover {p.get('public_name')} on FUUSIC")
             d["_near"] = _near(p)
             cands.append(d)
     if city:
@@ -642,19 +642,19 @@ _LAUNCH_EMAIL_HTML = """\
   background:#0b0f24;color:#fff;border-radius:16px;overflow:hidden">
   <div style="padding:32px 28px;background:linear-gradient(135deg,#a855f7,#ec4899)">
     <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.9">
-      RadioLife</div>
+      FUUSIC</div>
     <div style="font-size:28px;font-weight:900;margin-top:8px;line-height:1.1">
       We&rsquo;re live. 🎉</div>
   </div>
   <div style="padding:28px">
     <p style="font-size:15px;line-height:1.6;color:#d7dcf0">
-      Thanks for waiting! RadioLife is now open to listeners. Live radio, AI radio,
+      Thanks for waiting! FUUSIC is now open to listeners. Live radio, AI radio,
       and rewards for every minute you listen &mdash; dive in.</p>
     <a href="{base}" style="display:inline-block;margin-top:14px;background:#fff;
       color:#0b0f24;font-weight:800;text-decoration:none;padding:13px 26px;
       border-radius:999px;font-size:14px">Start listening &rarr;</a>
     <p style="font-size:12px;color:#8b96b8;margin-top:24px">
-      You&rsquo;re receiving this because you joined the RadioLife waitlist.</p>
+      You&rsquo;re receiving this because you joined the FUUSIC waitlist.</p>
   </div>
 </div>"""
 
@@ -683,7 +683,7 @@ async def _notify_waitlist_launched(db) -> int:
         try:
             if live:
                 await asyncio.to_thread(
-                    send_email, email, "RadioLife is live \U0001F389", html,
+                    send_email, email, "FUUSIC is live \U0001F389", html,
                     tags=["launch", "waitlist"])
             await db.consumer_waitlist.update_one(
                 {"email": email},
@@ -802,7 +802,7 @@ async def featured_checkout(request: Request, body: dict = Body(default={}),
         line_items=[{
             "price_data": {
                 "currency": "usd",
-                "product_data": {"name": f"RadioLife {label} — {date_str}"},
+                "product_data": {"name": f"FUUSIC {label} — {date_str}"},
                 "unit_amount": price,
             },
             "quantity": 1,
@@ -869,7 +869,7 @@ _TEASER_EMAIL_HTML = """\
   background:#0b0f24;color:#fff;border-radius:16px;overflow:hidden">
   <div style="padding:30px 28px;background:linear-gradient(135deg,#3b82f6,#8b5cf6)">
     <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.9">
-      RadioLife &middot; sneak peek</div>
+      FUUSIC &middot; sneak peek</div>
     <div style="font-size:26px;font-weight:900;margin-top:8px;line-height:1.15">
       Something good is coming \U0001F440</div>
   </div>
@@ -884,7 +884,7 @@ _TEASER_EMAIL_HTML = """\
       color:#0b0f24;font-weight:800;text-decoration:none;padding:13px 26px;
       border-radius:999px;font-size:14px">See what's coming &rarr;</a>
     <p style="font-size:12px;color:#8b96b8;margin-top:24px">
-      You&rsquo;re receiving this because you joined the RadioLife waitlist.</p>
+      You&rsquo;re receiving this because you joined the FUUSIC waitlist.</p>
   </div>
 </div>"""
 
@@ -930,7 +930,7 @@ async def _send_teaser(db, min_hours_between: int = 48) -> int:
         try:
             if live:
                 await asyncio.to_thread(
-                    send_email, email, "A sneak peek at RadioLife \U0001F440", html,
+                    send_email, email, "A sneak peek at FUUSIC \U0001F440", html,
                     tags=["teaser", "waitlist"])
             await db.consumer_waitlist.update_one(
                 {"email": email},

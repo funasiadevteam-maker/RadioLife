@@ -31,7 +31,7 @@ export default function PrerollOverlay({
   const startedRef = useRef(false);
   const terminalFiredRef = useRef(false);
   // Sub-Phase 42-B2 — companion creative renders ONLY when the ad has
-  // an attached offer.  Audio-only ads (RadioLife house spots + SSP fill)
+  // an attached offer.  Audio-only ads (FUUSIC house spots + SSP fill)
   // show just sponsor + progress + skip.
   const hasOffer = !!ad?.attached_offer_id;
 
@@ -305,7 +305,7 @@ export default function PrerollOverlay({
                 {ad?.name || "Sponsored message"}
               </div>
               <div className="text-xs text-white/50 truncate">
-                {ad?.advertiser_name || "RadioLife Advertiser"}
+                {ad?.advertiser_name || "FUUSIC Advertiser"}
               </div>
               {/* Progress bar */}
               <div className="mt-1.5 h-1 rounded-full bg-white/[0.06]

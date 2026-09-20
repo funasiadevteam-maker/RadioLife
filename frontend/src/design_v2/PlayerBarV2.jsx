@@ -30,12 +30,12 @@ export default function PlayerBarV2() {
   React.useEffect(() => { if (!favLoaded) favBootstrap(); }, [favLoaded, favBootstrap]);
 
   let activeSource = null;
-  let displayTrack = `RadioLife${channelName ? " · " + channelName : ""}`;
+  let displayTrack = `FUUSIC${channelName ? " · " + channelName : ""}`;
   let displayArtist = currentSeg?.track_artist || channelName || "Tap a station to start";
   if (currentRjSegment) {
     activeSource = "AI_RJ";
     displayTrack = "AI RJ";
-    displayArtist = currentRjSegment.persona_name || currentRjSegment.voice_id || channelName || "RadioLife";
+    displayArtist = currentRjSegment.persona_name || currentRjSegment.voice_id || channelName || "FUUSIC";
   } else if (podcastEpisode) {
     activeSource = "PODCAST";
     displayTrack = podcastEpisode.title || "Podcast episode";

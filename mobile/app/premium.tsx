@@ -34,7 +34,7 @@ export default function PremiumScreen() {
         <TouchableOpacity onPress={() => router.back()} testID="premium-back" style={{ padding: 2 }}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={s.topTitle}>RadioLife Premium</Text>
+        <Text style={s.topTitle}>FUUSIC Premium</Text>
         <View style={{ width: 22 }} />
       </View>
 
@@ -99,7 +99,7 @@ export default function PremiumScreen() {
         <View style={s.adNote} testID="premium-adfree-note">
           <Ionicons name="shield-checkmark" size={15} color={COLORS.green} />
           <Text style={s.adNoteText}>
-            No RadioLife-inserted audio or display ads. Third-party live stations
+            No FUUSIC-inserted audio or display ads. Third-party live stations
             may carry their own broadcast advertising. Opt-in extras like local
             offers, Dining Club and games stay available.
           </Text>

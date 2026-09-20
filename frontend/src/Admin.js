@@ -511,7 +511,7 @@ export default function Admin() {
       )}
 
       <footer className="bigfm-foot">
-        <span>RADIOLIFE · ADMIN · {user?.email}</span>
+        <span>FUUSIC · ADMIN · {user?.email}</span>
         <span>PHASE 1 · PERSONALIZED RADIO</span>
       </footer>
       </div>

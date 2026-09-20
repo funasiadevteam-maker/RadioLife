@@ -24,9 +24,9 @@ TIMEOUT  = 12.0
 
 
 _MOCK_HEADLINES = [
-    {"news_id": "mock_n1", "title": "RadioLife expands AI Radio to three new markets",
+    {"news_id": "mock_n1", "title": "FUUSIC expands AI Radio to three new markets",
      "link": "https://example.com/bigfm-expands",
-     "description": ("RadioLife today announced AI-personalized radio is now live "
+     "description": ("FUUSIC today announced AI-personalized radio is now live "
                      "in three new metropolitan markets, doubling its reach."),
      "pubDate": "2026-06-07 10:00:00", "source_id": "bigfm",
      "image_url": None, "categories": ["technology", "business"]},

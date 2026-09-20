@@ -8,7 +8,7 @@ import { useDesignVariantStore } from "@/hooks/useDesignVariant";
 
 const OPTIONS = [
   { key: "new_look_v2", label: "New Look V2", hint: "Premium dark cinematic — the customer-facing default", primary: true },
-  { key: "radiolife",    label: "New Look (RadioLife)", hint: "Light RadioLife treatment" },
+  { key: "radiolife",    label: "New Look (FUUSIC)", hint: "Light FUUSIC treatment" },
   { key: "classic_b",    label: "Classic B", hint: "New consumer nav shell" },
   { key: "legacy",          label: "Classic A (Legacy)", hint: "Original operational shell" },
 ];

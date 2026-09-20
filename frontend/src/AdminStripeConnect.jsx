@@ -1,4 +1,4 @@
-// Phase SC.1 — Admin: Stripe Connect merchants table.  Legacy + RadioLife
+// Phase SC.1 — Admin: Stripe Connect merchants table.  Legacy + FUUSIC
 // both render this at /admin/stripe-connect.  Basic styling — will get
 // designed properly in SC.2 when the merchant self-service portal ships.
 import React, { useEffect, useState, useCallback } from "react";

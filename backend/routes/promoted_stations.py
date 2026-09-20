@@ -94,7 +94,7 @@ async def _resolve_card(db, station_id: str) -> Optional[Dict[str, Any]]:
             or await db.community_radio_stations.find_one({"station_id": sid})
         if c:
             return _community_to_card(c)
-    # RadioLife AI channel (matched by slug).
+    # FUUSIC AI channel (matched by slug).
     ch = await db.channels.find_one({"slug": sid}) \
         or await db.channels.find_one({"slug": sid.replace("ai_", "")})
     if ch:
@@ -551,7 +551,7 @@ async def wallet_topup(body: TopupBody, request: Request,
         line_items=[{
             "price_data": {
                 "currency": "usd",
-                "product_data": {"name": f"RadioLife Ad Wallet top-up (${amount_cents/100:.0f})"},
+                "product_data": {"name": f"FUUSIC Ad Wallet top-up (${amount_cents/100:.0f})"},
                 "unit_amount": amount_cents,
             },
             "quantity": 1,

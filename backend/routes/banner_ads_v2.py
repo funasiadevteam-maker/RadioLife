@@ -87,7 +87,7 @@ SEED_SLOTS = [
 # rotation with 12 slots per page.
 HOUSE_CREATIVES = [
     {"headline": "Tired of ads?",
-     "sub_text": "Go ad-free with RadioLife Premium →",  "click_url": "/premium"},
+     "sub_text": "Go ad-free with FUUSIC Premium →",  "click_url": "/premium"},
     {"headline": "Discover community radio",
      "sub_text": "Listener-built stations, on every vibe →",
      "click_url": "/community"},
@@ -96,7 +96,7 @@ HOUSE_CREATIVES = [
      "click_url": "/radio/create"},
     {"headline": "Listen, earn rewards",
      "sub_text": "BigPoints for every session →",  "click_url": "/wallet"},
-    {"headline": "New on RadioLife: News Radio",
+    {"headline": "New on FUUSIC: News Radio",
      "sub_text": "AI-curated headlines, in your dialect →",
      "click_url": "/radio/news"},
     {"headline": "Win concert tickets weekly",
@@ -196,7 +196,7 @@ async def banner_decision(request: Request,
                            page_route: str,
                            user: dict = Depends(current_user)):
     """Waterfall: direct-sold → AdSense backfill (if configured) → house.
-    Premium (ad-free) users get NO RadioLife-inserted display banners —
+    Premium (ad-free) users get NO FUUSIC-inserted display banners —
     only opt-in offers/games/Dining remain for them."""
     db = request.app.state.db
     # Premium ad-free short-circuit (Phase COMPANION.1). Mirrors the audio

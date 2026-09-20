@@ -50,7 +50,7 @@ export default function TubeDrawer({ open, onClose }: { open: boolean; onClose: 
       <View style={[s.panel, { paddingTop: insets.top + TSPACE.md, width: PANEL_W }]} testID="tube-drawer">
         <View style={s.brandRow}>
           <View style={s.brandDot} />
-          <Text style={s.brand}>RadioLife<Text style={{ color: TUBE.textMuted }}>.app</Text></Text>
+          <Text style={s.brand}>FUUSIC<Text style={{ color: TUBE.textMuted }}>.app</Text></Text>
         </View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
           {PRIMARY.map((it) => <Row key={it.label} it={it} />)}

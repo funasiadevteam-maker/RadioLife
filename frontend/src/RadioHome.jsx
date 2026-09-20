@@ -1,4 +1,4 @@
-// Phase RL.2 — RadioLife /radio look refresh + marketing splash.
+// Phase RL.2 — FUUSIC /radio look refresh + marketing splash.
 // Renders at `/radio` (both design variants).  Replaces the old
 // RadioDiscover-first landing with a marketing hero + flagship rail +
 // gamified tiles + browse teaser.  The existing RadioDiscover is still
@@ -128,7 +128,7 @@ export default function RadioHome() {
 // ═══════════════════════════════════════════════════════════════════
 function MarketingHero({ light, onStartListening, onSeeRewards,
                                                       primaryFlagship }) {
-  // RadioLife light: purple/pink gradient card with white text.
+  // FUUSIC light: purple/pink gradient card with white text.
   // Legacy dark: deep slate with amber accents.
   const bg = light
     ? "bg-gradient-to-br from-fuchsia-500 via-purple-600 to-indigo-600"
@@ -169,7 +169,7 @@ function MarketingHero({ light, onStartListening, onSeeRewards,
           {/* Copy */}
           <div>
             <div className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${accent}`}>
-              <Sparkles className="w-3 h-3" /> Only on RadioLife
+              <Sparkles className="w-3 h-3" /> Only on FUUSIC
             </div>
             <h1 data-testid="radio-hero-headline"
                     className={`mt-3 text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] ${headlineCls}`}>

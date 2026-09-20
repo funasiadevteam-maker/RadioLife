@@ -1,4 +1,4 @@
-// Business / restaurant detail — RadioLife Shop (mobile).
+// Business / restaurant detail — FUUSIC Shop (mobile).
 // Full inline ordering surface (parity with the web store page): instant "+"
 // add, per-item Customize sheet, in-cart badge + stepper, combo badges,
 // "Get your usual" + Reorder-last, save-for-later, and a floating cart bar.

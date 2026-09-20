@@ -117,7 +117,7 @@ export function TopGameRecCard() {
         </div>
         <div className="text-xs text-text-secondary">
           {rec.cold_start
-            ? "Most played in RadioLife"
+            ? "Most played in FUUSIC"
             : `Last ${ago(rec.last_played_at)} · played ${rec.play_count}×`}
         </div>
         <button

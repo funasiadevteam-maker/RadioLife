@@ -115,9 +115,9 @@ export default function StationTV() {
   // Browser TAB color
   useEffect(() => {
     if (state?.station?.name) {
-      document.title = `${state.station.name} · RadioLife TV`;
+      document.title = `${state.station.name} · FUUSIC TV`;
     } else {
-      document.title = "RadioLife · TV Display";
+      document.title = "FUUSIC · TV Display";
     }
   }, [state?.station?.name]);
 

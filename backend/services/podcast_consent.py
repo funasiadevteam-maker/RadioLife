@@ -12,7 +12,7 @@ CONSENT_TEMPLATE_VERSION = 1
 CONSENT_TEMPLATE_V1 = (
     "By joining this recording, you grant {creator_display_name} permission "
     "to record, edit, and publish your contribution as part of the podcast "
-    "'{channel_title}' on RadioLife and any third-party podcast directories "
+    "'{channel_title}' on FUUSIC and any third-party podcast directories "
     "(Apple Podcasts, Spotify, Amazon Music, etc.).\n\n"
     "Your audio recording will be processed by automated transcription and "
     "may be edited for length, clarity, or content moderation. You retain "

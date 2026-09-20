@@ -331,15 +331,19 @@ function ComingSoonHero({ offerMonths = 6, waitlistEnabled = true, launchAt = nu
       <section className={`${CONTAINER} pt-12 lg:pt-20 pb-8`} data-testid="coming-soon-hero">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest px-3 py-1 rounded-full nlv2-chip" style={{ color: "#c4b5fd" }}>
-            <Sparkles size={13} /> Launching soon
+            <Sparkles size={13} /> FUUSIC is coming
           </div>
           <h1 className="mt-5 font-black leading-[0.98] tracking-tight text-white text-4xl sm:text-5xl lg:text-6xl" data-testid="coming-soon-h1">
-            Radio that rewards you.<br />
-            <span className="nlv2-grad">Almost here.</span>
+            Everything you love,<br />
+            <span className="nlv2-grad">together.</span>
           </h1>
+          <p className="mt-4 text-sm sm:text-base font-mono uppercase tracking-[0.2em]" style={{ color: "#c4b5fd" }}>
+            Listen · Connect · Play · Shop · Earn
+          </p>
           <p className="mt-5 text-base sm:text-lg leading-relaxed" style={{ color: "#a8b0cc" }}>
-            We&apos;re building the business network first — great local shops, restaurants and brands are
-            setting up now. Join the waitlist and be first in line when RadioLife opens to listeners.
+            From live and personalized audio to local businesses, games, rewards and
+            social experiences — FUUSIC brings the things you love into one connected
+            place. Join the waitlist and be first in line when FUUSIC opens to you.
           </p>
           <LaunchCountdown launchAt={launchAt} />
           {waitlistEnabled && (
@@ -448,10 +452,10 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
   }, []);
 
   useEffect(() => {
-    document.title = "RadioLife — Radio that rewards you · Live + AI Radio";
+    document.title = "FUUSIC — Everything You Love, Together.";
     let meta = document.querySelector('meta[name="description"]');
     if (!meta) { meta = document.createElement("meta"); meta.name = "description"; document.head.appendChild(meta); }
-    meta.content = "RadioLife is a better way to listen. Live stations from around the world + AI radio built around you — and your listening earns BigPoints you spend on rewards, dining and local deals.";
+    meta.content = "FUUSIC brings audio, social experiences, local businesses, live commerce, games, rewards and more together in one connected experience. Listen, connect, play, shop and earn.";
   }, []);
 
   useEffect(() => {
@@ -589,7 +593,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
                 <button onClick={() => howRef.current?.scrollIntoView({ behavior: "smooth" })}
                   data-testid="public-cta-how"
                   className="inline-flex items-center gap-1 font-semibold text-sm px-2 py-3" style={{ color: "#8b96b8" }}>
-                  See how RadioLife works <ChevronRight size={15} />
+                  See how FUUSIC works <ChevronRight size={15} />
                 </button>
               </div>
               <div className="mt-8 flex flex-wrap gap-x-7 gap-y-3">
@@ -606,7 +610,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
             </div>
 
             <div className="relative rounded-3xl overflow-hidden nlv2-glass" style={{ minHeight: 380 }} data-testid="public-hero-image">
-              <img src={HERO_IMG} alt="A listener enjoying RadioLife" loading="eager"
+              <img src={HERO_IMG} alt="A listener enjoying FUUSIC" loading="eager"
                 className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0.92 }} />
               <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(7,10,23,0.15) 0%, rgba(7,10,23,0.35) 55%, rgba(7,10,23,0.85) 100%)" }} />
               <div className="absolute top-5 right-5 text-right">
@@ -650,7 +654,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
               <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#c4b5fd" }}>Radio made for you</div>
               <h2 className="mt-2 text-3xl sm:text-4xl font-black text-white leading-tight">Your station changes<br /><span className="nlv2-grad">with you.</span></h2>
               <p className="mt-4 text-[15px] max-w-md" style={{ color: "#a8b0cc" }}>
-                Tell us what you like — or just start listening. RadioLife learns from your listening, skips and preferences and rebuilds your radio in real time.
+                Tell us what you like — or just start listening. FUUSIC learns from your listening, skips and preferences and rebuilds your radio in real time.
               </p>
               <button onClick={ctaTo("create_radio", "/radio/create")} data-testid="public-cta-createradio"
                 className="nlv2-btn inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full mt-6">
@@ -699,7 +703,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
               <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#f5c563" }}>BigPoints</div>
               <h2 className="mt-2 text-3xl sm:text-4xl font-black text-white leading-tight">Listen. Play. <span style={{ color: "#f5c563" }}>Earn.</span></h2>
               <p className="mt-4 text-[15px] max-w-md" style={{ color: "#c9cfe6" }}>
-                Earn BigPoints when you listen, play and engage. Spend them across RadioLife rewards, offers and participating businesses.
+                Earn BigPoints when you listen, play and engage. Spend them across FUUSIC rewards, offers and participating businesses.
               </p>
               <button onClick={ctaTo("start_earning", "/wallet")} data-testid="public-cta-earn"
                 className="mt-6 inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full"
@@ -728,10 +732,10 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
         <section className={`${CONTAINER} py-10`}>
           <div className="rounded-3xl overflow-hidden nlv2-glass p-6 sm:p-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center" data-testid="public-dining">
             <div>
-              <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#fca5a5" }}>RadioLife Dining Club</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#fca5a5" }}>FUUSIC Dining Club</div>
               <h2 className="mt-2 text-3xl sm:text-4xl font-black text-white leading-tight">Spin for your next <span className="nlv2-grad">$9.99 meal.</span></h2>
               <p className="mt-4 text-[15px] max-w-md" style={{ color: "#a8b0cc" }}>
-                Choose Veg or Non-Veg, spin (or hit Surprise Me) and RadioLife reveals a participating restaurant. A Premium perk that goes way beyond audio.
+                Choose Veg or Non-Veg, spin (or hit Surprise Me) and FUUSIC reveals a participating restaurant. A Premium perk that goes way beyond audio.
               </p>
               <button onClick={ctaTo("dining", "/dining")} data-testid="public-cta-dining"
                 className="nlv2-btn inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full mt-6">
@@ -753,7 +757,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
         {/* ─── SHOP / PLAY / SOCIAL previews ────────────────────── */}
         <WinnersWall />
         <DealOfDay makeCta={ctaTo} city={city} />
-        <PreviewSection testid="public-shop" eyebrow={city ? `Near ${city}` : "Discover what's around you"} title="Shop RadioLife"
+        <PreviewSection testid="public-shop" eyebrow={city ? `Near ${city}` : "Discover what's around you"} title="Shop FUUSIC"
           items={[["Local Deals", GRADS[2], "/shop/near-me"], ["Restaurant Pickup", GRADS[0], "/dining"], ["Services", GRADS[3], "/shop"], ["Memberships", GRADS[6], "/shop/memberships"], ["Featured Businesses", GRADS[4], "/shop"]]}
           cta="Explore Shop" onCta={ctaTo("shop", "/shop")} onTile={ctaTo} live={shopTiles} />
         <PreviewSection testid="public-play" eyebrow="Play & win" title="Games, trivia & prizes"
@@ -761,7 +765,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
           cta="Explore Play" onCta={ctaTo("play", "/play-and-win")} onTile={ctaTo} />
         <PreviewSection testid="public-social" eyebrow="Do it together" title="Listen. Play. Go out. Earn — together."
           items={[["Listen Together", GRADS[4], "/community"], ["Trivia Teams", GRADS[1], "/trivia"], ["Prediction Groups", GRADS[0], "/predict-win"], ["Challenges", GRADS[6], "/community"], ["Groups & Events", GRADS[3], "/community"]]}
-          cta="Join RadioLife" onCta={ctaTo("social", "/community")} onTile={ctaTo} />
+          cta="Join FUUSIC" onCta={ctaTo("social", "/community")} onTile={ctaTo} />
 
         {/* ─── PREMIUM ──────────────────────────────────────────── */}
         <section className={`${CONTAINER} py-10`}>
@@ -772,12 +776,12 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
               <Crown size={18} style={{ color: "#f5c563" }} />
               <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#f5c563" }}>Premium</div>
             </div>
-            <h2 className="mt-2 text-3xl sm:text-4xl font-black text-white">Get more from RadioLife</h2>
+            <h2 className="mt-2 text-3xl sm:text-4xl font-black text-white">Get more from FUUSIC</h2>
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="nlv2-glass rounded-2xl p-5">
                 <div className="text-sm font-black text-white">Free</div>
                 <ul className="mt-3 space-y-2 text-[13px]" style={{ color: "#a8b0cc" }}>
-                  {["1 skip per rolling hour", "Live + AI radio", "Earn BigPoints", "Occasional RadioLife ads"].map((t) => (
+                  {["1 skip per rolling hour", "Live + AI radio", "Earn BigPoints", "Occasional FUUSIC ads"].map((t) => (
                     <li key={t} className="flex items-center gap-2"><Check size={14} style={{ color: "#6ea8fe" }} /> {t}</li>
                   ))}
                 </ul>
@@ -785,7 +789,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
               <div className="rounded-2xl p-5" style={{ background: "linear-gradient(135deg, rgba(245,197,99,0.12), rgba(236,72,153,0.08))", border: "1px solid rgba(245,197,99,0.45)" }}>
                 <div className="text-sm font-black flex items-center gap-1.5" style={{ color: "#f5c563" }}><Star size={14} fill="currentColor" /> Premium</div>
                 <ul className="mt-3 space-y-2 text-[13px] text-white">
-                  {["6 skips per rolling hour", "Fewer / no RadioLife ads", "Dining Club eligibility", "Premium rewards & perks"].map((t) => (
+                  {["6 skips per rolling hour", "Fewer / no FUUSIC ads", "Dining Club eligibility", "Premium rewards & perks"].map((t) => (
                     <li key={t} className="flex items-center gap-2"><Check size={14} style={{ color: "#f5c563" }} /> {t}</li>
                   ))}
                 </ul>
@@ -810,7 +814,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-white font-black">Your brand, on every listen</div>
-              <div className="text-[13px]" style={{ color: "#a8b0cc" }}>Audio, display, sponsored games & local commerce — reach engaged listeners on RadioLife.</div>
+              <div className="text-[13px]" style={{ color: "#a8b0cc" }}>Audio, display, sponsored games & local commerce — reach engaged listeners on FUUSIC.</div>
             </div>
             <ArrowRight size={18} className="text-white shrink-0" />
           </a>
@@ -818,8 +822,8 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
 
         {/* ─── B2B ──────────────────────────────────────────────── */}
         <section className={`${CONTAINER} py-10 grid grid-cols-1 md:grid-cols-2 gap-4`}>
-          <B2BCard Icon={Store} title="For Businesses" desc="Reach local customers through RadioLife — offers, pickup and memberships." cta="Join as a business" to="/for-business" testid="public-b2b-business" />
-          <B2BCard Icon={Megaphone} title="For Advertisers" desc="Audio, display, sponsored games and local commerce campaigns." cta="Advertise on RadioLife" to="/for-advertisers" testid="public-b2b-advertiser" />
+          <B2BCard Icon={Store} title="For Businesses" desc="Reach local customers through FUUSIC — offers, pickup and memberships." cta="Join as a business" to="/for-business" testid="public-b2b-business" />
+          <B2BCard Icon={Megaphone} title="For Advertisers" desc="Audio, display, sponsored games and local commerce campaigns." cta="Advertise on FUUSIC" to="/for-advertisers" testid="public-b2b-advertiser" />
         </section>
 
         {/* ─── APP CTA ──────────────────────────────────────────── */}
@@ -827,7 +831,7 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
           <div className="rounded-3xl overflow-hidden nlv2-glass p-6 sm:p-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center" data-testid="public-appcta">
             <div>
               <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: "#c4b5fd" }}>Take it with you</div>
-              <h2 className="mt-2 text-3xl sm:text-4xl font-black text-white leading-tight">Take RadioLife<br />with you.</h2>
+              <h2 className="mt-2 text-3xl sm:text-4xl font-black text-white leading-tight">Take FUUSIC<br />with you.</h2>
               <p className="mt-4 text-[15px] max-w-md" style={{ color: "#a8b0cc" }}>Your radio. Your rewards. Your local life — anywhere you go.</p>
               <button onClick={ctaTo("app", "/listen")} data-testid="public-cta-app"
                 className="nlv2-btn inline-flex items-center gap-2 font-black text-sm px-6 py-3 rounded-full mt-6">
@@ -837,10 +841,10 @@ export default function PublicHomeNewLookV2({ comingSoon = false, offerMonths = 
             <div className="grid place-items-center">
               <div className="w-44 rounded-[28px] p-2 nlv2-glass" style={{ border: "1px solid rgba(255,255,255,0.14)" }}>
                 <div className="rounded-[22px] overflow-hidden relative" style={{ aspectRatio: "9/19" }}>
-                  <img src={HERO_IMG} alt="RadioLife app" className="absolute inset-0 w-full h-full object-cover" />
+                  <img src={HERO_IMG} alt="FUUSIC app" className="absolute inset-0 w-full h-full object-cover" />
                   <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(7,10,23,0.1), rgba(7,10,23,0.8))" }} />
                   <div className="absolute bottom-4 left-0 right-0 text-center">
-                    <div className="inline-flex items-center gap-1.5 text-white font-black text-sm"><Radio size={14} /> RadioLife</div>
+                    <div className="inline-flex items-center gap-1.5 text-white font-black text-sm"><Radio size={14} /> FUUSIC</div>
                   </div>
                 </div>
               </div>
@@ -879,8 +883,8 @@ function PublicNav({ onSignIn, onStart }) {
     <header className="nlv2-glass-strong sticky top-0 z-40">
       <div className={`${CONTAINER} h-[64px] flex items-center gap-4`}>
         <Link to="/" className="flex flex-col leading-none shrink-0" data-testid="public-nav-logo">
-          <span className="font-black text-lg text-white">Radio<span className="nlv2-grad">Life</span></span>
-          <span className="text-[9px] font-mono uppercase tracking-[0.2em] hidden sm:block" style={{ color: "#6b7392" }}>Listen · Earn · Shop · Play · Social</span>
+          <span className="font-black text-lg text-white nlv2-grad">FUUSIC</span>
+          <span className="text-[9px] font-mono uppercase tracking-[0.2em] hidden sm:block" style={{ color: "#6b7392" }}>Listen · Connect · Play · Shop · Earn</span>
         </Link>
         <nav className="hidden lg:flex items-center gap-1 mx-auto">
           {NAV_LINKS.map((l) => (
@@ -1123,7 +1127,7 @@ function PublicFooter() {
     <footer className="relative z-10 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }} data-testid="public-footer">
       <div className={`${CONTAINER} py-12 grid grid-cols-2 lg:grid-cols-5 gap-8`}>
         <div className="col-span-2 lg:col-span-1">
-          <div className="font-black text-lg text-white">Radio<span className="nlv2-grad">Life</span></div>
+          <div className="font-black text-lg text-white nlv2-grad">FUUSIC</div>
           <p className="mt-2 text-[12px]" style={{ color: "#6b7392" }}>A better way to listen — and your listening unlocks more.</p>
         </div>
         {cols.map((c) => (
@@ -1139,7 +1143,7 @@ function PublicFooter() {
           </div>
         ))}
       </div>
-      <div className={`${CONTAINER} pb-8 text-[11px]`} style={{ color: "#5a6280" }}>© {new Date().getFullYear()} RadioLife. All rights reserved.</div>
+      <div className={`${CONTAINER} pb-8 text-[11px]`} style={{ color: "#5a6280" }}>© {new Date().getFullYear()} FUUSIC. All rights reserved.</div>
     </footer>
   );
 }

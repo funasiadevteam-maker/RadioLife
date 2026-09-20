@@ -131,7 +131,7 @@ export default function MerchantDashboard() {
             <Ionicons name="storefront-outline" size={22} color={COLORS.primary} />
             <Text style={s.noticeText}>You don&apos;t have a business yet.</Text>
             <TouchableOpacity style={[common.btnPrimary, { marginTop: 12 }]} onPress={() => router.push('/sell')} testID="merchant-sell-cta">
-              <Text style={common.btnPrimaryText}>Sell on RadioLife</Text>
+              <Text style={common.btnPrimaryText}>Sell on FUUSIC</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -139,7 +139,7 @@ export default function MerchantDashboard() {
             {inactive && (
               <TouchableOpacity style={s.subBanner} onPress={() => router.push('/merchant/subscribe')} testID="merchant-sub-banner">
                 <Ionicons name="lock-closed" size={18} color="#fff" />
-                <Text style={s.subBannerText}>Subscribe to list & sell on RadioLife →</Text>
+                <Text style={s.subBannerText}>Subscribe to list & sell on FUUSIC →</Text>
               </TouchableOpacity>
             )}
 

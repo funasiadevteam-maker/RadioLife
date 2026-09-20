@@ -70,7 +70,7 @@ export default function ScanToPayScreen() {
           <View style={s.webCenter}>
             <Ionicons name="qr-code" size={56} color={COLORS.primary} />
             <Text style={s.webTitle}>Scan to Pay</Text>
-            <Text style={s.webSubtitle}>Camera scanning is available in the RadioLife mobile app. Enter a payment code below.</Text>
+            <Text style={s.webSubtitle}>Camera scanning is available in the FUUSIC mobile app. Enter a payment code below.</Text>
             <Text style={common.label}>PAYMENT CODE</Text>
             <TextInput
               style={common.input}
@@ -104,7 +104,7 @@ export default function ScanToPayScreen() {
           <Ionicons name="camera-outline" size={48} color={COLORS.textMuted} />
           <Text style={s.permTitle}>Camera Access Required</Text>
           <Text style={s.permText}>
-            RadioLife needs your camera to scan payment QR codes. Please enable camera access in your device settings.
+            FUUSIC needs your camera to scan payment QR codes. Please enable camera access in your device settings.
           </Text>
           <TouchableOpacity style={common.btnPrimary} onPress={() => Linking.openSettings()}>
             <Text style={common.btnPrimaryText}>Open Settings</Text>
@@ -127,7 +127,7 @@ export default function ScanToPayScreen() {
           </TouchableOpacity>
           <Ionicons name="qr-code" size={48} color={COLORS.primary} />
           <Text style={s.permTitle}>Scan to Pay</Text>
-          <Text style={s.permText}>Allow RadioLife to access your camera to scan merchant QR codes.</Text>
+          <Text style={s.permText}>Allow FUUSIC to access your camera to scan merchant QR codes.</Text>
           <TouchableOpacity style={common.btnPrimary} onPress={requestPermission} testID="camera-perm-btn">
             <Ionicons name="camera" size={18} color="#fff" />
             <Text style={common.btnPrimaryText}>Allow Camera</Text>
@@ -168,7 +168,7 @@ export default function ScanToPayScreen() {
             <View style={[s.corner, s.cornerBL]} />
             <View style={[s.corner, s.cornerBR]} />
           </View>
-          <Text style={s.hint}>Point at a RadioLife merchant QR code</Text>
+          <Text style={s.hint}>Point at a FUUSIC merchant QR code</Text>
         </View>
 
         {showManual && (

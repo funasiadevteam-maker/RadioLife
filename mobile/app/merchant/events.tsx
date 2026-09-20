@@ -1,4 +1,4 @@
-// RadioLife Merchant — create ticketed events with limited capacity (mobile).
+// FUUSIC Merchant — create ticketed events with limited capacity (mobile).
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,

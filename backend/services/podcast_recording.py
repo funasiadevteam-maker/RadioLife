@@ -801,7 +801,7 @@ async def finalize_session(db, *, session_id: str) -> dict:
         "channel_id":             s["channel_id"],
         "guid":                         f"bigfm-ep-{epid}",
         "title":                        s["title"],
-        "description":           f"Recorded in RadioLife Studio on "
+        "description":           f"Recorded in FUUSIC Studio on "
                                               f"{_now().strftime('%b %d, %Y')}.",
         "show_notes":             "",
         "duration_seconds": duration,

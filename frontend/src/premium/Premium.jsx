@@ -38,7 +38,7 @@ export default function Premium() {
         <div className="inline-flex items-center gap-2 text-accent-magenta">
           <Sparkles size={20} />
           <h1 className="font-display font-bold text-3xl tracking-display-tight">
-            RadioLife Premium
+            FUUSIC Premium
           </h1>
         </div>
         <p className="text-text-secondary text-sm">
@@ -51,7 +51,7 @@ export default function Premium() {
           <Check size={28} className="text-accent-mint inline-block" />
           <div className="font-display font-bold text-lg">You&apos;re a Premium member</div>
           <div className="text-sm text-text-secondary">
-            Enjoy every benefit below — thanks for supporting RadioLife.
+            Enjoy every benefit below — thanks for supporting FUUSIC.
           </div>
         </Card>
       ) : (

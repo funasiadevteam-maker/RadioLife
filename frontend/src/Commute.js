@@ -739,7 +739,7 @@ export function CommuteExplainerHero() {
         <h1 className="font-display font-bold text-4xl sm:text-5xl
                               tracking-display-tight"
             data-testid="commute-hero-headline">
-          Drive smarter with RadioLife.
+          Drive smarter with FUUSIC.
         </h1>
         <p className="text-text-secondary text-sm sm:text-base max-w-2xl">
           Set your destination and we'll surface lunch deals, coffee

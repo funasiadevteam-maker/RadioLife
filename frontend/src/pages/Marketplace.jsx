@@ -1,7 +1,7 @@
 // Phase K — M3 Wallet-Deal Marketplace · listener browse.
 // URL: /marketplace  (chose /marketplace over /deals — /offers is
 // already used by the AD.4-only CouponOffers page).
-// Dual-design (Legacy dark + RadioLife light).  Grid of listings with
+// Dual-design (Legacy dark + FUUSIC light).  Grid of listings with
 // featured-first placement, filter chips, save + view impressions.
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";

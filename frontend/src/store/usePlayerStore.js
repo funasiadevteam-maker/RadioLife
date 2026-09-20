@@ -163,6 +163,6 @@ export const selectIsActiveSession = (s) => !!s.sessionId;
 export const selectCurrentTrackLabel = (s) => {
   if (!s.currentSeg) return null;
   const title = s.currentSeg.track_title || "Now playing";
-  const artist = s.currentSeg.track_artist || s.activeChannelName || "RadioLife";
+  const artist = s.currentSeg.track_artist || s.activeChannelName || "FUUSIC";
   return { title, artist };
 };

@@ -221,8 +221,8 @@ import AdvertiserInsights from "@/AdvertiserInsights";
 import { AdminGamesAnalytics, AdminGamesInventory } from "@/AdminPhase8c";
 import Commute from "@/Commute";
 import CommuteMode from "@/pages/CommuteMode";
-// Phase R.1 — RadioLife design variant overlay + stub for unmapped routes.
-import RadioLifeOverlay from "@/design_radiolife/RadioLifeOverlay";
+// Phase R.1 — FUUSIC design variant overlay + stub for unmapped routes.
+import FUUSICOverlay from "@/design_radiolife/RadioLifeOverlay";
 import ShopInShell from "@/design_radiolife/ShopInShell";
 import { useDesignVariantStore } from "@/hooks/useDesignVariant";
 import PublicBusiness from "@/PublicBusiness";
@@ -1125,14 +1125,14 @@ function AppRouter() {
       {/* Phase 15a — dev-only styleguide. Excluded from shell chrome
           via BARE_ROUTES regex in shell/AppShell.jsx. */}
       <Route path="/dev/styleguide" element={<Styleguide />} />
-      {/* Phase R.1 — RadioLife-only routes.  In legacy variant these
-          render nothing meaningful (RadioLifeVariantWrapper intercepts
-          them in RadioLife mode).  We register no-op placeholders so
+      {/* Phase R.1 — FUUSIC-only routes.  In legacy variant these
+          render nothing meaningful (FUUSICVariantWrapper intercepts
+          them in FUUSIC mode).  We register no-op placeholders so
           the router doesn't 404 on direct-load. */}
       <Route path="/pay" element={
         <ProtectedRoute><ScanEntry /></ProtectedRoute>} />
       <Route path="/discover" element={
-        <ProtectedRoute><RadioLifeStubPage title="Discover" hint="Enable RadioLife design to preview Discover." /></ProtectedRoute>} />
+        <ProtectedRoute><FUUSICStubPage title="Discover" hint="Enable FUUSIC design to preview Discover." /></ProtectedRoute>} />
       <Route path="/shop" element={
         <ProtectedRoute><ShopInShell /></ProtectedRoute>} />
       <Route path="/shop/*" element={
@@ -1140,7 +1140,7 @@ function AppRouter() {
       <Route path="/sell" element={
         <ProtectedRoute><ShopInShell /></ProtectedRoute>} />
       <Route path="/coupon/:coupon_id" element={
-        <ProtectedRoute><RadioLifeStubPage title="Coupon" hint="Enable RadioLife design to preview Redeem." /></ProtectedRoute>} />
+        <ProtectedRoute><FUUSICStubPage title="Coupon" hint="Enable FUUSIC design to preview Redeem." /></ProtectedRoute>} />
       {/* Soft-launch — Business Setup Mode routes. */}
       <Route path="/preview" element={<PreviewEntry />} />
       <Route path="/merchant/soft-launch" element={<ProtectedRoute><MerchantSoftLaunch /></ProtectedRoute>} />
@@ -1149,11 +1149,11 @@ function AppRouter() {
       </LaunchModeGate>
       </Shell>
       </PageFrame>
-      {/* Phase R.1 — Overlay RadioLife variant on top of the legacy shell
+      {/* Phase R.1 — Overlay FUUSIC variant on top of the legacy shell
             when the variant toggle is ON.  The wrapper reads the current
-            pathname and renders the RadioLife screen; when there's no
-            RadioLife screen for a path, it returns null (legacy shows through). */}
-      <RadioLifeOverlay />
+            pathname and renders the FUUSIC screen; when there's no
+            FUUSIC screen for a path, it returns null (legacy shows through). */}
+      <FUUSICOverlay />
     </>
   );
 }
@@ -1240,9 +1240,9 @@ export function PricingGate() {
 }
 
 // Phase R.1 — Stub component for the new /pay, /discover, /coupon/:id
-// routes.  In legacy variant they render this friendly hint; in RadioLife
-// variant, RadioLifeOverlay covers the page with the real screen.
-export function RadioLifeStubPage({ title, hint }) {
+// routes.  In legacy variant they render this friendly hint; in FUUSIC
+// variant, FUUSICOverlay covers the page with the real screen.
+export function FUUSICStubPage({ title, hint }) {
   const setVariant = useDesignVariantStore((s) => s.setVariant);
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-6"
@@ -1250,7 +1250,7 @@ export function RadioLifeStubPage({ title, hint }) {
       <div className="max-w-sm w-full bg-bg-elevated border border-white/[0.06]
                               rounded-2xl p-6 text-center">
         <div className="text-[11px] font-mono uppercase tracking-widest
-                                text-accent-electric">RadioLife · Phase R.1</div>
+                                text-accent-electric">FUUSIC · Phase R.1</div>
         <div className="text-lg font-display font-bold mt-1">{title}</div>
         <p className="text-sm text-text-secondary mt-2">{hint}</p>
         <button
@@ -1261,7 +1261,7 @@ export function RadioLifeStubPage({ title, hint }) {
                               bg-accent-electric/15 text-accent-electric text-sm
                               font-semibold uppercase tracking-wider
                               hover:bg-accent-electric/25 transition-colors">
-          ✨ Enable RadioLife
+          ✨ Enable FUUSIC
         </button>
       </div>
     </div>

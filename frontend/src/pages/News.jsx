@@ -87,7 +87,7 @@ export default function News() {
         <div className="mb-6">
           <div className={`text-[10px] font-mono uppercase tracking-widest ${
               light ? "text-red-600" : "text-red-400"}`}>
-            RadioLife News · Phase R
+            FUUSIC News · Phase R
           </div>
           <h1 className="mt-1 text-3xl md:text-4xl xl:text-5xl font-black
                                       tracking-tight inline-flex items-center gap-3">

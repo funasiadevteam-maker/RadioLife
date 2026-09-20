@@ -126,7 +126,7 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         mode="payment",
         line_items=[{"price_data": {
             "currency": "usd",
-            "product_data": {"name": f"RadioLife Promotion — {tier['name']} "
+            "product_data": {"name": f"FUUSIC Promotion — {tier['name']} "
                                      f"({tier['days']}d) · {p.get('public_name')}"},
             "unit_amount": int(tier["price_cents"])}, "quantity": 1}],
         success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
@@ -426,7 +426,7 @@ async def sweep_renewals(db, throttle_seconds: int = 45):
                     pm = (list_cards(cust) or {}).get("default_id")
                 if cust and pm and owns_payment_method(cust, pm):
                     charge_saved_card(amount_cents=tier["price_cents"], cust_id=cust, pm_id=pm,
-                                      description=f"RadioLife promotion auto-renew — {tier['name']}",
+                                      description=f"FUUSIC promotion auto-renew — {tier['name']}",
                                       metadata={"kind": "promotion_renewal", "business_id": promo["business_id"]})
                     charged = True
             except Exception:
@@ -472,7 +472,7 @@ async def _email_renewal_receipt(u, shop_name, tier, expires_iso):
             f"<p style='color:#64748b;font-size:13px'>You can turn off auto-renew any time from Promote my Shop.</p>"
             f"</div>")
         await asyncio.to_thread(send_email, u["email"],
-                                f"Your RadioLife promotion renewed — {tier['name']}",
+                                f"Your FUUSIC promotion renewed — {tier['name']}",
                                 html, tags=["promotion_renewal"])
     except Exception:
         pass
@@ -535,7 +535,7 @@ async def _send_weekly_digest(db, business_id, owner_user_id, shop_name):
         spend = f"${d['spend_cents'] / 100:.2f}"
         html = (
             f"<div style='font-family:sans-serif;max-width:520px'>"
-            f"<h2 style='color:#ea580c;margin:0 0 8px'>Your week on RadioLife 📈</h2>"
+            f"<h2 style='color:#ea580c;margin:0 0 8px'>Your week on FUUSIC 📈</h2>"
             f"<p>Hi {u.get('name') or 'there'}, here's how <b>{shop_name}</b> did over the last 7 days:</p>"
             f"<table style='border-collapse:collapse;margin:12px 0'>"
             f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Views</td><td style='padding:4px 0'><b>{d['views']}</b> (+{d['extra_views']} vs prior week)</td></tr>"
@@ -545,7 +545,7 @@ async def _send_weekly_digest(db, business_id, owner_user_id, shop_name):
             f"</table>"
             f"<p style='color:#64748b;font-size:13px'>Keep your promotion running from Promote my Shop.</p>"
             f"</div>")
-        await asyncio.to_thread(send_email, u["email"], f"Your RadioLife week — {shop_name}",
+        await asyncio.to_thread(send_email, u["email"], f"Your FUUSIC week — {shop_name}",
                                 html, tags=["weekly_digest"])
         return True
     except Exception:

@@ -267,7 +267,7 @@ async def select_ad_for_play(db,
     consumable by the `/preroll/request` endpoint.
 
     `station` is the full row from `imported_radio_stations` (used to
-    derive country/language/category targeting).  AI-curated RadioLife
+    derive country/language/category targeting).  AI-curated FUUSIC
     channels MUST NOT call this — they have their own ad-insertion
     pipeline in the queue builder.
     """
@@ -359,7 +359,7 @@ async def select_ad_for_play(db,
                 "country_code": country, "language": lang,
             })
             # Don't bump preroll_ads.impressions_served — that collection
-            # tracks RadioLife-managed creatives only.  SSP fill is counted
+            # tracks FUUSIC-managed creatives only.  SSP fill is counted
             # at the impression-row level via `source`.
             return {
                 "has_preroll": True,

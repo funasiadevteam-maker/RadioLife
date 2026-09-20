@@ -14,12 +14,12 @@ import { consumeIntent } from "@/utils/intent";
 
 export default function Login() {
   const { user, login, register, demoLogin, loading } = useAuth();
-  // When the RadioLife overlay is active, the /login route is served by
-  // OnboardingRadioLife.jsx (which mounts its own SignInWithGoogleButton).
+  // When the FUUSIC overlay is active, the /login route is served by
+  // OnboardingFUUSIC.jsx (which mounts its own SignInWithGoogleButton).
   // Skip mounting our copy here to avoid duplicate `sign-in-with-google-button`
   // testids in the DOM.  `useDesignVariant()` returns the variant STRING.
   const design = useDesignVariant();
-  const isRadioLife = design === "radiolife";
+  const isFUUSIC = design === "radiolife";
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, setTheme } = useTheme();
@@ -115,7 +115,7 @@ export default function Login() {
       <div className="auth-card" data-testid="login-card">
         <div className="auth-brand">
           <span className="brand-dot" />
-          <span className="brand-name">RadioLife</span>
+          <span className="brand-name">FUUSIC</span>
         </div>
 
         <h1 className="auth-h1" data-testid="login-title">
@@ -127,7 +127,7 @@ export default function Login() {
             : "Tell us your taste once, then non-stop music."}
         </p>
 
-        {!isRadioLife && (
+        {!isFUUSIC && (
           <>
             <SignInWithGoogleButton
               fullWidth
@@ -280,7 +280,7 @@ export default function Login() {
             setBusy(true);
             try {
               const u = await demoLogin();
-              toast.success("Welcome to the RadioLife demo — sign up to save your progress.");
+              toast.success("Welcome to the FUUSIC demo — sign up to save your progress.");
               navigate(u.onboarding_complete ? (consumeIntent() || "/") : "/onboarding", { replace: true });
             } catch (e2) {
               const status = e2?.response?.status;
@@ -313,7 +313,7 @@ export default function Login() {
         <div className="auth-switch">
           {mode === "login" ? (
             <>
-              <span>New to RadioLife?</span>{" "}
+              <span>New to FUUSIC?</span>{" "}
               <button type="button" className="linkish" onClick={() => setMode("register")}
                       data-testid="switch-to-register">Create an account</button>
             </>
@@ -327,7 +327,7 @@ export default function Login() {
         </div>
 
         <p className="auth-footer mono">
-          RADIOLIFE · PHASE 1 · <Link to="/" className="back-link">BACK TO RADIO</Link>
+          FUUSIC · PHASE 1 · <Link to="/" className="back-link">BACK TO RADIO</Link>
         </p>
       </div>
     </div>

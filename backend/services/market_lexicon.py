@@ -126,7 +126,7 @@ MARKET_LEXICON: Dict[str, MarketEntry] = {
     },
     # Phase 15d.1 — Dallas–Fort Worth (DFW). The existing `user.market === "dfw"`
     # carve-out in Radio.js routes to FunAsia branding for legacy DFW users; the
-    # geo-resolved DFW market defaults to the RadioLife brand. The frontend reads
+    # geo-resolved DFW market defaults to the FUUSIC brand. The frontend reads
     # `users.funasia_brand_opt_in` (added in this phase) to decide which logo
     # to render — see Radio.js header logic.
     "dfw": {

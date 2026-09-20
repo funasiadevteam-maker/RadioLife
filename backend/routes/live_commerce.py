@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — Phase 3: RadioLife LIVE (video livestream commerce).
+"""FUUSIC Social V2 — Phase 3: FUUSIC LIVE (video livestream commerce).
 
 A business (or any host) goes live, pins products/offers, and viewers buy them
 mid-stream via Stripe checkout — all on the shared /api/social contract.
@@ -136,7 +136,7 @@ async def create_show(body: ShowBody, request: Request,
     biz = body.business_name.strip()
     if not biz:
         u = await db.users.find_one({"user_id": uid}, {"name": 1, "_id": 0})
-        biz = (u or {}).get("name") or "RadioLife Live"
+        biz = (u or {}).get("name") or "FUUSIC Live"
     sid = f"ls_{uuid.uuid4().hex[:16]}"
     room = f"liveshow_{sid}"
     doc = {"_id": sid, "host_id": uid, "business_name": biz,
@@ -390,7 +390,7 @@ async def clip_checkout(clip_id: str, body: ClipCheckoutBody, request: Request,
         raise HTTPException(404, {"code": "product_not_found"})
     oid = f"lo_{uuid.uuid4().hex[:16]}"
     res = await _create_checkout(
-        request, c.get("business_name") or "RadioLife", product,
+        request, c.get("business_name") or "FUUSIC", product,
         {"kind": "clip_purchase", "order_id": oid, "clip_id": clip_id,
          "product_id": body.product_id}, body.origin_url)
     await db.live_orders.insert_one(

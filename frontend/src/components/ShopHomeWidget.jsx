@@ -1,5 +1,5 @@
 // Home Shop Widget (legacy dashboard) — a prominent "highlight card" that
-// surfaces the RadioLife marketplace on the web home page with a gradient
+// surfaces the FUUSIC marketplace on the web home page with a gradient
 // hero band, a jump-in CTA, and a few featured local venues.
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";

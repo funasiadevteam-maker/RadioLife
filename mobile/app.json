@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "RadioLife",
+    "name": "FUUSIC",
     "slug": "mobile",
     "version": "1.0.1",
     "orientation": "portrait",
@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#F26B2A"
+        "backgroundColor": "#0B1020"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -59,7 +59,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#FBF5EC"
+          "backgroundColor": "#0B1020"
         }
       ],
       "expo-audio",

@@ -391,7 +391,7 @@ async def create_checkout(db, *, sponsorship_id: str,
         line_items=[{"price_data": {
             "currency": "usd", "unit_amount": amount,
             "product_data": {
-                "name": f"RadioLife Trivia Sponsorship — {s.get('display_name') or sponsorship_id}"[:120],
+                "name": f"FUUSIC Trivia Sponsorship — {s.get('display_name') or sponsorship_id}"[:120],
                 "description": "Prize pool + platform fee"}},
             "quantity": 1}],
         success_url=s_url, cancel_url=c_url,

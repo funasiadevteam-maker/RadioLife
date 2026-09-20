@@ -108,7 +108,7 @@ export default function NotificationsScreen() {
           <Text style={st.backText}>back</Text>
         </TouchableOpacity>
         <Text style={st.title}>Notifications</Text>
-        <Text style={st.sub}>Control what RadioLife can notify you about.</Text>
+        <Text style={st.sub}>Control what FUUSIC can notify you about.</Text>
 
         {/* Inbox feed */}
         <Text style={st.sectionLabel}>YOUR ALERTS</Text>
@@ -143,7 +143,7 @@ export default function NotificationsScreen() {
           <View style={st.webBanner} testID="notif-web-banner">
             <Ionicons name="information-circle" size={18} color={COLORS.secondary} />
             <Text style={st.webBannerText}>
-              Push notifications are available on the RadioLife mobile app for iOS/Android. This preview runs in a web browser where native push is not supported.
+              Push notifications are available on the FUUSIC mobile app for iOS/Android. This preview runs in a web browser where native push is not supported.
             </Text>
           </View>
         )}

@@ -1,4 +1,4 @@
-// RadioLife Social V2 — Phase 3 web: RadioLife LIVE (livestream commerce).
+// FUUSIC Social V2 — Phase 3 web: FUUSIC LIVE (livestream commerce).
 // Video transport is LiveKit (client SDK not bundled → the stage shows a live
 // placeholder); the commerce, pinned products, live checkout and chat are fully
 // interactive on the shared /api/social/liveshows contract.

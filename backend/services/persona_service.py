@@ -143,7 +143,7 @@ def build_persona_chat_prompt(persona: dict, listener_input: str) -> str:
     phrases  = ", ".join(persona.get("signature_phrases") or [])
     langs    = ", ".join(persona.get("language_mix") or ["English"])
     return (
-        f"You are {name}, a RadioLife radio persona.  Archetype: {archetype}.\n"
+        f"You are {name}, a FUUSIC radio persona.  Archetype: {archetype}.\n"
         f"Style: {desc}\n"
         f"Language mix: {langs}.  Use natural code-switching, not "
         f"forced.  Sprinkle catchphrases occasionally: {phrases}\n\n"

@@ -59,9 +59,9 @@ async def _try_house_ad(db) -> Optional[dict]:
                 "creative_id": "house_default",
                 "image_url": None,
                 "click_url": "/premium",
-                "alt_text": "Upgrade to RadioLife Premium — ad-free listening",
+                "alt_text": "Upgrade to FUUSIC Premium — ad-free listening",
                 "headline": "Tired of ads?",
-                "sub_text": "Go ad-free with RadioLife Premium →",
+                "sub_text": "Go ad-free with FUUSIC Premium →",
                 "cta": "Try free for 7 days"}
     return {"tier": "house",
             "creative_id": str(c.get("_id") or c.get("creative_id")),

@@ -104,7 +104,7 @@ export default function MerchantSoftLaunch() {
           <Sparkles size={13} /> Soft launch
         </div>
         <h1 className="mt-4 text-3xl sm:text-4xl font-black leading-tight">
-          <span className="nlv2-grad">{months} months free</span> on RadioLife
+          <span className="nlv2-grad">{months} months free</span> on FUUSIC
         </h1>
         <p className="mt-3 text-base" style={{ color: "#a8b0cc" }}>
           Get your storefront ready before we open to listeners. No monthly subscription fee for {months} months —
@@ -192,7 +192,7 @@ export default function MerchantSoftLaunch() {
             </div>
             {checklist.launch_ready && (
               <p className="mt-4 text-[13px] text-center" style={{ color: "#4ade80" }}>
-                🎉 You&apos;re all set — your storefront will go live the moment RadioLife opens to listeners.
+                🎉 You&apos;re all set — your storefront will go live the moment FUUSIC opens to listeners.
               </p>
             )}
           </div>

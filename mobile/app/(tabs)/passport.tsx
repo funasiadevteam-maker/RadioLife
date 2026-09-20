@@ -168,7 +168,7 @@ function BadgesSection({ data, catalog }: any) {
   }
 
   const shareBadge = async (b: any) => {
-    try { await Share.share({ message: `I earned the "${b.name}" badge on RadioLife! 🏆` }); } catch {}
+    try { await Share.share({ message: `I earned the "${b.name}" badge on FUUSIC! 🏆` }); } catch {}
   };
 
   return (
@@ -285,7 +285,7 @@ function ReferralsSection({ data }: any) {
   };
 
   const shareRef = async () => {
-    try { await Share.share({ message: `Join me on RadioLife! ${shareUrl}`, url: shareUrl }); }
+    try { await Share.share({ message: `Join me on FUUSIC! ${shareUrl}`, url: shareUrl }); }
     catch { copyRef(); }
   };
 

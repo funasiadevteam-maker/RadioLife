@@ -1,4 +1,4 @@
-// RadioLife Social V2 — Dreams & Guidance (web).
+// FUUSIC Social V2 — Dreams & Guidance (web).
 // Reflection · entertainment · spiritual guidance — never medical/legal/financial
 // advice, no result guaranteed. Reuses the shared /api/social/dreams contract.
 import { useCallback, useEffect, useState } from "react";

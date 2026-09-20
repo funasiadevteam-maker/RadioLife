@@ -257,7 +257,7 @@ export function MiniPlayer({ className = "" }) {
   const currentRjSegment = usePlayerStore((s) => s.currentRjSegment);
 
   let activeSource = null;        // "AI" | "LIVE" | "COMMUNITY" | "AI_RJ" | "PODCAST" | null
-  let displayTrack = `RadioLife${channelName ? " · " + channelName : ""}`;
+  let displayTrack = `FUUSIC${channelName ? " · " + channelName : ""}`;
   let displayArtist = currentSeg?.track_artist
                                               || channelName || "Tap a station to start";
   if (currentRjSegment) {
@@ -266,7 +266,7 @@ export function MiniPlayer({ className = "" }) {
     displayArtist = (currentRjSegment.persona_name
                                               || currentRjSegment.voice_id
                                               || channelName
-                                              || "RadioLife");
+                                              || "FUUSIC");
   } else if (podcastEpisode) {
     // Phase B — podcast episode is playing.  Show episode title +
     // podcast name.

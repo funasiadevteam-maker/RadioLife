@@ -73,7 +73,7 @@ export default function BannerSlot({ id, className }) {
       ) : (
         <>
           <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
-            {ad.headline || "RadioLife"}
+            {ad.headline || "FUUSIC"}
           </div>
           {ad.sub_text && (
             <div style={{ color: "#cbd5e1", fontSize: 12 }}>

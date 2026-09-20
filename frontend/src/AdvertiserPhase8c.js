@@ -206,7 +206,7 @@ export function WebhooksPanel() {
           <div className="secret-help">
             Sign each receiver-side with HMAC-SHA256 of
             <code>{`<timestamp>.<body>`}</code>. Headers:
-            <code>X-RadioLife-Signature</code>, <code>X-RadioLife-Timestamp</code>.
+            <code>X-FUUSIC-Signature</code>, <code>X-FUUSIC-Timestamp</code>.
           </div>
           <button className="lead-submit" onClick={() => {
             navigator.clipboard.writeText(reveal.raw_secret);

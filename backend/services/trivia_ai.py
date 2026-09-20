@@ -65,7 +65,7 @@ def _build_system_prompt(market: str, category: str, difficulty: int) -> str:
         "Hinglish terms (e.g. karak, biryani) where natural."
     )
     return (
-        f"You are a trivia question writer for RadioLife, an AI radio app "
+        f"You are a trivia question writer for FUUSIC, an AI radio app "
         f"serving the South Asian diaspora in {display}.\n"
         f"Generate trivia questions for the category '{category}' at "
         f"difficulty {difficulty}/5 (1=easy, 5=hard).\n\n"

@@ -91,7 +91,7 @@ async def mark_past_due(db, user_id: str, *,
                           stripe_event_id=stripe_event_id, metadata=metadata)
     # Fire first notification immediately
     await log_notification(db, user_id=user_id, kind="dunning_day_1",
-                              subject="Your RadioLife payment failed",
+                              subject="Your FUUSIC payment failed",
                               body=f"We couldn't process your payment. You have {GRACE_PERIOD_DAYS} days to update your card before losing Premium.",
                               metadata={"grace_period_ends_at": grace_end.isoformat()})
     return {"billing_status": "past_due", "grace_period_ends_at": grace_end}
@@ -119,7 +119,7 @@ async def mark_payment_recovered(db, user_id: str, *,
                               from_state="past_due", to_state="active",
                               stripe_event_id=stripe_event_id)
         await log_notification(db, user_id=user_id, kind="dunning_recovered",
-                                  subject="RadioLife payment recovered",
+                                  subject="FUUSIC payment recovered",
                                   body="Your card went through. You're all set — thanks for sticking with us.")
     return {"billing_status": "active"}
 
@@ -151,7 +151,7 @@ async def expire_grace_period(db, user_id: str) -> dict:
     await log_lifecycle(db, user_id=user_id, event_type="grace_period_expired",
                           from_state="past_due", to_state="canceled_for_nonpayment")
     await log_notification(db, user_id=user_id, kind="dunning_downgraded",
-                              subject="RadioLife Premium ended",
+                              subject="FUUSIC Premium ended",
                               body="Your Premium grace period ended without payment. You're now on Free. Resubscribe any time at /billing.")
     return {"billing_status": "canceled_for_nonpayment"}
 
@@ -204,7 +204,7 @@ async def sweep_grace_periods(db, as_of: Optional[datetime] = None) -> dict:
             days_left = max(0, (grace_end - now).days)
             await log_notification(
                 db, user_id=u["user_id"], kind=kind,
-                subject=f"Your RadioLife Premium ends in {days_left} days",
+                subject=f"Your FUUSIC Premium ends in {days_left} days",
                 body=f"You're on day {days_elapsed} of a {GRACE_PERIOD_DAYS}-day grace period. Update your card at /billing to keep Premium.",
                 metadata={"days_elapsed": days_elapsed, "days_left": days_left},
             )

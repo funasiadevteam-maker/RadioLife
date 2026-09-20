@@ -8,7 +8,7 @@ export default function LegalFooter() {
                   className="border-t border-white/[0.06] mt-auto py-6 px-4
                                     text-[11px] text-text-secondary
                                     flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-      <span>© {new Date().getFullYear()} RadioLife.app</span>
+      <span>© {new Date().getFullYear()} FUUSIC.app</span>
       <span data-testid="funasia-footer">part of{" "}
         <a href="https://funasianetwork.com" target="_blank" rel="noreferrer"
            data-testid="funasia-footer-link" className="underline hover:text-white">

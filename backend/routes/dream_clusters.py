@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — DREAM CLUSTERS + COMPATIBILITY.
+"""FUUSIC Social V2 — DREAM CLUSTERS + COMPATIBILITY.
 
 Clusters: Claude maps each shared dream to normalized themes (Falling,
 Being Chased, Water …); the Clusters view groups public dreams by theme so
@@ -177,7 +177,7 @@ def _compose_card(card: dict, bg_bytes: Optional[bytes]) -> bytes:
 
     # Eyebrow
     eb = _font(_F_NARROW, 26)
-    draw.text((cx, 66), "RADIOLIFE  ·  DREAM MATCH", font=eb, fill=gold, anchor="mm")
+    draw.text((cx, 66), "FUUSIC  ·  DREAM MATCH", font=eb, fill=gold, anchor="mm")
 
     # Names with a heart between them.
     owner = (card.get("owner_name") or "You")[:22]
@@ -634,7 +634,7 @@ async def match_card_ssr(card_id: str, request: Request):
     img = _card_image_url(request, card_id)
     title = (f"{c.get('owner_name')} & {c.get('target_name')} — "
              f"{c.get('score')}% dream match \u2728")
-    desc = (c.get("headline") or "A playful dream compatibility match on RadioLife.")
+    desc = (c.get("headline") or "A playful dream compatibility match on FUUSIC.")
     landing = f"{base}/api/social/dreams/match/{card_id}"
     import html as _h
     e = _h.escape
@@ -649,7 +649,7 @@ async def match_card_ssr(card_id: str, request: Request):
 <meta property="og:image" content="{e(img)}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:site_name" content="RadioLife">
+<meta property="og:site_name" content="FUUSIC">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{e(title)}">
 <meta name="twitter:description" content="{e(desc)}">

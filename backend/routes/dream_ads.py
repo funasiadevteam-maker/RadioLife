@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — ADVISOR ADVERTISING (Featured placement).
+"""FUUSIC Social V2 — ADVISOR ADVERTISING (Featured placement).
 
 Approved advisors buy a Featured slot (Stripe hosted checkout, env-driven
 test keys in preview). While active, the advisor is pinned + badged at the

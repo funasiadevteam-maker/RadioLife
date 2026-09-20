@@ -110,7 +110,7 @@ export default function HomeScreen() {
         </Pressable>
         <View style={s.brandRow}>
           <View style={s.brandDot} />
-          <Text style={s.brand}>RadioLife</Text>
+          <Text style={s.brand}>FUUSIC</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Pressable style={s.pointsPill} testID="home-points-pill" onPress={() => router.push('/(tabs)/wallet')} hitSlop={6}>
@@ -251,7 +251,7 @@ export default function HomeScreen() {
           onPress={() => router.push('/dining')}>
           <View style={s.diningIcon}><Ionicons name="restaurant" size={18} color={TUBE.electric} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={s.diningTitle}>{diningMember ? 'Your Dining Club' : 'RadioLife Dining Club'}</Text>
+            <Text style={s.diningTitle}>{diningMember ? 'Your Dining Club' : 'FUUSIC Dining Club'}</Text>
             <Text style={s.diningSub}>{diningMember ? "Pick this week's meals · spin for tonight" : 'Spin the wheel · $9.99 meals near you'}</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={TUBE.textMuted} />

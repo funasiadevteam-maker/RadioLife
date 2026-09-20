@@ -1,4 +1,4 @@
-"""AI + file menu import for RadioLife Marketplace merchants.
+"""AI + file menu import for FUUSIC Marketplace merchants.
 
 Parses a restaurant menu from an uploaded image, a PDF, or a website URL
 using a vision-capable LLM (Gemini via the Emergent universal key), and
@@ -108,7 +108,7 @@ async def import_from_url(url: str) -> List[Dict[str, Any]]:
     from bs4 import BeautifulSoup
 
     async with httpx.AsyncClient(timeout=25, follow_redirects=True,
-                                 headers={"User-Agent": "Mozilla/5.0 RadioLifeBot"}) as client:
+                                 headers={"User-Agent": "Mozilla/5.0 FUUSICBot"}) as client:
         r = await client.get(url)
         r.raise_for_status()
         html = r.text

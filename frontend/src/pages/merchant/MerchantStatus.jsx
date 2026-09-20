@@ -19,7 +19,7 @@ const STATUS_PRESET = {
   approved:          {icon: CheckCircle2, tint: "emerald",  title: "Approved",
                                     sub: "You're in!  Your merchant dashboard ships in the next release — SC.4."},
   active:              {icon: CheckCircle2, tint: "emerald",  title: "Active",
-                                    sub: "Approved and Stripe-activated.  You can now transact through RadioLife."},
+                                    sub: "Approved and Stripe-activated.  You can now transact through FUUSIC."},
   rejected:          {icon: XCircle,      tint: "rose",        title: "Not approved",
                                     sub: "See the reason below.  You may reapply after addressing the feedback."},
   suspended:        {icon: AlertTriangle, tint: "amber",     title: "Suspended",
@@ -129,7 +129,7 @@ export default function MerchantStatus() {
                                 : "text-slate-400 hover:text-cyan-400"
                       }`}
                       data-testid="merchant-status-home-btn">
-          <ArrowLeft size={16}/> Back to RadioLife
+          <ArrowLeft size={16}/> Back to FUUSIC
         </button>
 
         <div className={`rounded-3xl p-8 sm:p-10 ${

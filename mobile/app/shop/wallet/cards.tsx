@@ -99,7 +99,7 @@ export default function WalletCards() {
               </View>
             ))}
             <Text style={s.note}>
-              <Ionicons name="lock-closed" size={11} color={COLORS.green} />  Cards are stored securely by Stripe — RadioLife never sees your card number.
+              <Ionicons name="lock-closed" size={11} color={COLORS.green} />  Cards are stored securely by Stripe — FUUSIC never sees your card number.
             </Text>
           </ScrollView>
 

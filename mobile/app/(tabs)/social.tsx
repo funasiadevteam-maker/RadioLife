@@ -113,7 +113,7 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
     try {
       const content = {
         id: activeChannel || 'radiolife',
-        name: activeChannelName || 'RadioLife Radio',
+        name: activeChannelName || 'FUUSIC Radio',
         favicon: activeChannelThumb || '',
       };
       const { data } = await api.post('/social/rooms', {
@@ -332,7 +332,7 @@ function BtnM({ icon, label, onPress, tone, tid }: any) {
 }
 function ComingSoon({ tab }: any) {
   const map: any = {
-    live: { icon: 'videocam', title: 'RadioLife Live', blurb: 'Live video commerce from local businesses — going live soon.' },
+    live: { icon: 'videocam', title: 'FUUSIC Live', blurb: 'Live video commerce from local businesses — going live soon.' },
     moments: { icon: 'camera', title: 'Moments', blurb: "Share what you're listening to and doing — with context." },
     clubs: { icon: 'people-circle', title: 'Clubs', blurb: 'Communities around what you love — coming soon.' },
   };

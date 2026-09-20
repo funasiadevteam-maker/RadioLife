@@ -53,7 +53,7 @@ ART_DIR.mkdir(parents=True, exist_ok=True)
 
 
 BRAND = ("Dark cinematic photography, deep purple and cyan and magenta neon "
-              "accents, RadioLife brand palette, premium editorial composition, "
+              "accents, FUUSIC brand palette, premium editorial composition, "
               "no text or logos visible. 1:1 square frame.")
 
 ASSETS = [

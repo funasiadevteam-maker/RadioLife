@@ -25,7 +25,7 @@ export default function StudioScreen() {
   useEffect(() => { load(); }, [load]);
 
   const onboard = async () => {
-    try { const { data } = await api.post('/social/payouts/onboarding/start', { origin_url: 'https://radiolife.app' }); if (data.onboarding_url) Linking.openURL(data.onboarding_url); }
+    try { const { data } = await api.post('/social/payouts/onboarding/start', { origin_url: (process.env.EXPO_PUBLIC_BACKEND_URL || '') }); if (data.onboarding_url) Linking.openURL(data.onboarding_url); }
     catch (_) {}
   };
   const refresh = async () => { try { await api.post('/social/payouts/status/refresh'); load(); } catch (_) {} };
@@ -105,7 +105,7 @@ function GetFeatured() {
   if (!cfg || !cfg.is_advisor) return null;
   const active = cfg.active_promotion;
   const buy = async (tier: string) => {
-    try { const { data } = await api.post('/social/ads/checkout', { tier, surface, origin_url: 'https://radiolife.app' }); if (data.checkout_url) Linking.openURL(data.checkout_url); } catch (_) {}
+    try { const { data } = await api.post('/social/ads/checkout', { tier, surface, origin_url: (process.env.EXPO_PUBLIC_BACKEND_URL || '') }); if (data.checkout_url) Linking.openURL(data.checkout_url); } catch (_) {}
   };
   return (
     <View style={s.card} testID="get-featured">

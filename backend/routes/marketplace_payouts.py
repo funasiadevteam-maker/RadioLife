@@ -29,12 +29,12 @@ stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_A
 router = APIRouter(prefix="/api/merchant/marketplace", tags=["marketplace-payouts"])
 
 _DONE_HTML = """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RadioLife Payouts</title><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#FBF5EC;color:#1C1917;
+<title>FUUSIC Payouts</title><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#FBF5EC;color:#1C1917;
 display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.c{text-align:center;padding:32px;max-width:420px}
 .b{width:64px;height:64px;border-radius:50%;background:#059669;color:#fff;display:flex;align-items:center;justify-content:center;
 font-size:34px;margin:0 auto 16px}h1{font-size:22px;margin:0 0 8px}p{color:#57534E;font-size:15px;line-height:1.5}</style></head>
 <body><div class="c"><div class="b">✓</div><h1>You're all set</h1>
-<p>Your payout details were saved. You can close this window and return to the RadioLife app.</p></div></body></html>"""
+<p>Your payout details were saved. You can close this window and return to the FUUSIC app.</p></div></body></html>"""
 
 
 async def _my_business(db, user) -> Dict[str, Any]:

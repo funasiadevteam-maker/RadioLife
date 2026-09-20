@@ -297,7 +297,7 @@ export default function Radio() {
           if (a2) { a2.src = `${BACKEND_URL}${next.segment_url}`; a2.load(); }
         }
       }, 200);
-      toast.success(`ON AIR — ${seg.channel_name || "RadioLife"}, dil se`);
+      toast.success(`ON AIR — ${seg.channel_name || "FUUSIC"}, dil se`);
     } catch (e) {
       const detail = e?.response?.data?.detail;
       // Phase 41 S1.6 — backend returns either `code` (newer endpoints)
@@ -920,7 +920,7 @@ export default function Radio() {
       <CommunityRadioStrip limit={10} />
 
       <footer className="radio-foot">
-        <span>RADIOLIFE · PHASE 3 · PREMIUM + BILLING</span>
+        <span>FUUSIC · PHASE 3 · PREMIUM + BILLING</span>
         <span>Made for the Indian community in the UAE.</span>
       </footer>
 

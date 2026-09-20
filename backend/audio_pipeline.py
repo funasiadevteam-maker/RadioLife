@@ -1,4 +1,4 @@
-"""FFmpeg pipeline helpers for RadioLife Phase 0.
+"""FFmpeg pipeline helpers for FUUSIC Phase 0.
 
 Builds a continuous radio stream from N tracks + (N-1) RJ voiceovers by:
 - Equal-power crossfading adjacent tracks (4 seconds).

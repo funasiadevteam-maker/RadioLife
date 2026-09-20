@@ -86,7 +86,7 @@ export default function TriviaRoomScreen() {
 
   const shareInvite = async () => {
     try {
-      await Share.share({ message: `Join my RadioLife trivia room! Code: ${code}` });
+      await Share.share({ message: `Join my FUUSIC trivia room! Code: ${code}` });
     } catch {}
   };
 

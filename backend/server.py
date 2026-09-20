@@ -1,4 +1,4 @@
-"""RadioLife Phase 2 — Channels, Music Clocks, Compliance, Share-this-break.
+"""FUUSIC Phase 2 — Channels, Music Clocks, Compliance, Share-this-break.
 
 Phases 0+1 are fully preserved. Phase 2 layers on:
 - 8 channels (Bollywood Mehfil / Party Dubai / Late Night Drive / Punjabi Beats /
@@ -298,9 +298,9 @@ RJ_VOICES: Dict[str, dict] = {**RJ_VOICES_CORE, **RJ_VOICES_EXT, **_PHASE36_VOIC
 DEFAULT_VOICE_KEY = "veer_dubai"
 
 VOICE_PREVIEW_SCRIPTS_CORE: Dict[str, str] = {
-    "veer_dubai":   "[warm] Aap sun rahe ho... [soft] RadioLife. [warm] Dil se, doston.",
-    "monika_dubai": "[excited] Heyy! [warm] Aapki Monika, RadioLife par. [chuckles] Music chalega NON-stop!",
-    "dj_dubai":     "[shouts] RadioLife!!! [hyped] DJ Charlie on the mic... [excited] LET'S GO!!!",
+    "veer_dubai":   "[warm] Aap sun rahe ho... [soft] FUUSIC. [warm] Dil se, doston.",
+    "monika_dubai": "[excited] Heyy! [warm] Aapki Monika, FUUSIC par. [chuckles] Music chalega NON-stop!",
+    "dj_dubai":     "[shouts] FUUSIC!!! [hyped] DJ Charlie on the mic... [excited] LET'S GO!!!",
 }
 # Phase 3.6 voices come with their own preview scripts
 _PHASE36_PREVIEWS = {k: _phase36_preview_script(k) for k in _PHASE36_VOICES}
@@ -568,14 +568,14 @@ ACCENT_PURITY_RULES = {
     ),
     "hindi_native": (
         "ACCENT TARGET: hindi_native. Write 90%+ Hindi in Roman script. English only "
-        "for unavoidable brand names (RadioLife, Dubai, Friday, party). Use young casual "
+        "for unavoidable brand names (FUUSIC, Dubai, Friday, party). Use young casual "
         "Hindi: 'kya scene hai', 'yaar', 'sun lo', 'mast', 'dekho', 'arre yaar'. "
         "Keep ElevenLabs [tags] like [hyped] [excited] [shouts] for emotion. "
         "Sound like a young Indian Hindi-speaking radio host."
     ),
     "hinglish": (
         "ACCENT TARGET: hinglish. Mix English + Hindi freely (~60% English, 40% Hindi "
-        "connectors). Use ElevenLabs [tags] for emotion. Standard RadioLife Hinglish blend."
+        "connectors). Use ElevenLabs [tags] for emotion. Standard FUUSIC Hinglish blend."
     ),
     "punjabi": (
         "ACCENT TARGET: punjabi. Write 70% Punjabi/Hindi in Roman script, 30% English. "
@@ -599,14 +599,14 @@ def _accent_purity_clause(voice_key: str) -> str:
                                     ACCENT_PURITY_RULES["hinglish"])
 
 
-HINGLISH_SYSTEM_PROMPT = """You are writing scripts for an ElevenLabs eleven_v3 voice on RadioLife. The voice can render emotion ONLY if you tag it. Untagged text = monotone. ALWAYS tag your output.
+HINGLISH_SYSTEM_PROMPT = """You are writing scripts for an ElevenLabs eleven_v3 voice on FUUSIC. The voice can render emotion ONLY if you tag it. Untagged text = monotone. ALWAYS tag your output.
 
 CRITICAL — MARKET LOCALISATION:
 - The user prompt will include a MARKET CONTEXT block (city, country, lexicon, brands, landmarks, food, weather idioms).
 - Whatever city is named in MARKET CONTEXT IS the city you broadcast in.
 - Replace ALL default Dubai/UAE references with that market's references.
 - NEVER mix markets. If the market is New York, do NOT mention Dubai, Karama, JLT, Sharjah, Bur Dubai, UAE, RTA, Sheikh Zayed Road, Global Village, JBR, Burj, karak chai, biryani-as-Dubai-anchor, or any Gulf-specific token. Use the lexicon's brands/landmarks/food instead.
-- The station identity is just "RadioLife" — append the market city ONLY when the lexicon's display_name is present (e.g. "RadioLife <market_city>", spelled in full per the lexicon).
+- The station identity is just "FUUSIC" — append the market city ONLY when the lexicon's display_name is present (e.g. "FUUSIC <market_city>", spelled in full per the lexicon).
 
 OUTPUT FORMAT — use these inline tags liberally:
 - [excited] [hyped] [shouts] for high-energy moments and opening hooks
@@ -626,11 +626,11 @@ COLLOQUIAL RULES:
 - Drop authentic references that match the MARKET CONTEXT lexicon: areas, brands, food, commute, weather. DO NOT invent foreign cities.
 - Never reveal the upcoming song's title or artist — only mood/vibe/energy hints.
 - Always reference the previous song's mood briefly, then transition into the next energy.
-- Vary sign-offs: "RadioLife, dil se" / "Music chalega non-stop" / "Aap sun rahe ho RadioLife" / "Stay locked in yaar". You may suffix the market city, e.g. "RadioLife <market_city>, dil se".
+- Vary sign-offs: "FUUSIC, dil se" / "Music chalega non-stop" / "Aap sun rahe ho FUUSIC" / "Stay locked in yaar". You may suffix the market city, e.g. "FUUSIC <market_city>, dil se".
 - No stage directions in brackets OTHER than the tag list above. No emojis.
 - NEVER invent specific clock times (e.g. "7 AM", "3 PM", "midnight", "noon"). Use only the daypart phrase provided in the user prompt ("morning", "afternoon", "evening drive time", "late night"). Saying a wrong hour breaks listener trust."""
 
-DUO_HINGLISH_SYSTEM_PROMPT = """You are scripting a Hinglish radio banter between TWO co-hosts on RadioLife. Output is a tagged dialogue between exactly two speakers.
+DUO_HINGLISH_SYSTEM_PROMPT = """You are scripting a Hinglish radio banter between TWO co-hosts on FUUSIC. Output is a tagged dialogue between exactly two speakers.
 
 CRITICAL — MARKET LOCALISATION:
 - The user prompt will include a MARKET CONTEXT block. Whatever city it names IS the city your hosts broadcast in tonight.
@@ -662,7 +662,7 @@ Rules:
 - Drop authentic references that match the MARKET CONTEXT lexicon (areas, brands, food, commute, weather). NEVER invent foreign cities or import Gulf-specific tokens into other markets.
 - Match energy of the next song.
 - Always end with a hook into the next song mood — never reveal title/artist.
-- Station identity is just "RadioLife" (you may suffix the market city when natural). Pronunciation dictionary already covers Dubai/Karama/JLT/RadioLife — write them normally if and only if the market is Dubai.
+- Station identity is just "FUUSIC" (you may suffix the market city when natural). Pronunciation dictionary already covers Dubai/Karama/JLT/FUUSIC — write them normally if and only if the market is Dubai.
 - Use [tags] every turn. ALL-CAPS one word per turn for emphasis.
 
 TOTAL spoken length: 25-40 seconds (50-90 words across all turns combined). DO NOT exceed 42 seconds."""
@@ -680,19 +680,19 @@ def _is_mirchi_party(channel: dict, energy: str) -> bool:
     return slug in PARTY_CHANNEL_SLUGS and energy in ("high", "party")
 
 
-MIRCHI_SOLO_SYSTEM_PROMPT = """You are scripting a Hinglish radio jockey moment for RadioLife's PARTY channel, in the style of Radio Mirchi 98.3 FM with DJ Richard and RJ Ayontika.
+MIRCHI_SOLO_SYSTEM_PROMPT = """You are scripting a Hinglish radio jockey moment for FUUSIC's PARTY channel, in the style of Radio Mirchi 98.3 FM with DJ Richard and RJ Ayontika.
 
 CRITICAL — MARKET LOCALISATION:
 - The user prompt will include a MARKET CONTEXT block (city, country, lexicon, brands, landmarks, food).
 - NEVER mix markets. If the market is New York, do NOT mention Dubai/Karama/JLT/JBR/Sharjah/UAE/Burj/Sheikh Zayed/Global Village/Marina Walk/Atlantis. Use the lexicon's brands/landmarks/food/commute instead.
-- The station identity is "RadioLife" (optionally suffix the market city, e.g. "RadioLife <market_city>", spelled in full per the lexicon).
+- The station identity is "FUUSIC" (optionally suffix the market city, e.g. "FUUSIC <market_city>", spelled in full per the lexicon).
 
 This is COMMERCIAL DANCE RADIO. Match Mirchi's exact vibe:
 - Constant high energy, NO lulls, no slow moments
 - Rapid Hinglish code-switching mid-sentence (60% English, 40% Hindi connectors)
 - DJ-style hype phrases — embed at least 3 per script. Use the MARKET CITY in any "Turn it UP, <CITY>!" line; never hardcode "Dubai":
   "Turn it UP, <CITY>!" · "Hands in the AIR!" · "Dance floor BLAZING!" · "Drop your phones!"
-  "Volume FULL!" · "Yaar this is INSANE!" · "RadioLife, NONSTOP!"
+  "Volume FULL!" · "Yaar this is INSANE!" · "FUUSIC, NONSTOP!"
   "Are you READY??" · "Let's GOOO!" · "Beat drop incoming!" · "Crowd se SHOUT karo!"
 
 OUTPUT FORMAT — use eleven_v3 audio tags HEAVILY. Mandatory minimum 5 tags per script:
@@ -707,12 +707,12 @@ LENGTH: 18-28 seconds total spoken time (35-55 words). Always end with a hook in
 """
 
 
-MIRCHI_DUO_SYSTEM_PROMPT = """You are scripting Mirchi 98.3 FM-style DUO BANTER between TWO hosts on RadioLife's PARTY channel, in the style of DJ Richard × RJ Ayontika.
+MIRCHI_DUO_SYSTEM_PROMPT = """You are scripting Mirchi 98.3 FM-style DUO BANTER between TWO hosts on FUUSIC's PARTY channel, in the style of DJ Richard × RJ Ayontika.
 
 CRITICAL — MARKET LOCALISATION:
 - The user prompt will include a MARKET CONTEXT block. Whatever city it names IS the city your hosts broadcast in tonight.
 - NEVER mix markets. If the market is New York, do NOT mention Dubai/Karama/JLT/JBR/Sharjah/UAE/Burj/Sheikh Zayed/Global Village/Marina Walk/Atlantis. Use the lexicon's brands/landmarks/food/commute instead.
-- Station identity is "RadioLife" (optionally suffix the market city).
+- Station identity is "FUUSIC" (optionally suffix the market city).
 
 Output is a tagged rapid-fire dialogue between exactly two speakers. The user will tell you which two hosts to use as HOST_A and HOST_B. Hosts available:
 - VEER, MONIKA, CHARLIE, RIYA, ANAND, GURPREET, AARTI, KISHORE, SIMRAN.
@@ -731,7 +731,7 @@ CRITICAL Mirchi-style RULES:
 - ALL-CAPS one word per turn for emphasis.
 - Embed at least 3 DJ-hype phrases across the script. Use the MARKET CITY in any "<CITY>" shout-out; never hardcode "Dubai":
   "Turn it UP <CITY>!" · "Hands in the AIR!" · "Dance floor BLAZING!" · "Drop your phones!"
-  "Volume FULL!" · "Yaar this is INSANE!" · "RadioLife NONSTOP!"
+  "Volume FULL!" · "Yaar this is INSANE!" · "FUUSIC NONSTOP!"
   "Are you READY??" · "Let's GOOO!" · "Beat drop incoming!" · "Crowd se SHOUT karo!"
 
 LOCAL REFERENCES — pull from the MARKET CONTEXT lexicon ONLY (areas, brands, food, commute). Do NOT invent foreign-city anchors.
@@ -743,7 +743,7 @@ EXAMPLE STRUCTURE (use SAME shape but vary content — substitute the market cit
 [RIYA] [hyped] Yaar this beat is INSANE!!
 [CHARLIE] [chuckles] Riya, control yourself...
 [RIYA] [excited] Nahi nahi, VOLUME FULL boss!!
-[CHARLIE] [hyped] RadioLife NONSTOP!!
+[CHARLIE] [hyped] FUUSIC NONSTOP!!
 [RIYA] [shouts] Are you READY for the drop??
 
 TOTAL spoken length: 22-35 seconds (50-85 words across all turns). DO NOT exceed 40 seconds. End with a hook into the next song mood — never reveal title/artist.
@@ -1092,7 +1092,7 @@ def _pick_voice_for_energy(energy):
 
 # ---------- FastAPI app ----------
 app = FastAPI(
-    title="RadioLife POC",
+    title="FUUSIC POC",
     openapi_url="/api/openapi.json",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -2342,7 +2342,7 @@ def _ensure_tuning_sfx() -> None:
 
 
 def _ensure_og_default_image() -> None:
-    """Generate a 1200x630 RadioLife-branded OG image for share landings."""
+    """Generate a 1200x630 FUUSIC-branded OG image for share landings."""
     out = STORAGE_DIR / "og_default.png"
     if out.exists() and out.stat().st_size > 1_000:
         return
@@ -2382,7 +2382,7 @@ def _ensure_og_default_image() -> None:
     if title_font is None:
         title_font = ImageFont.load_default()
         sub_font = ImageFont.load_default()
-    draw.text((W // 2, H // 2 - 30), "RadioLife", fill=(255, 255, 255),
+    draw.text((W // 2, H // 2 - 30), "FUUSIC", fill=(255, 255, 255),
               font=title_font, anchor="mm")
     draw.text((W // 2, H // 2 + 60), "DUBAI", fill=(255, 45, 149),
               font=title_font, anchor="mm")
@@ -5621,7 +5621,7 @@ try:
         StaticFiles(directory="/app/backend/storage/station_intros"),
         name="station_intros",
     )
-    # 2026-07-31 — public download route for the RadioLife investor +
+    # 2026-07-31 — public download route for the FUUSIC investor +
     # sales PPTX decks.  Files live under
     # `/app/backend/storage/decks/*.pptx` and are served as
     # application/octet-stream by StaticFiles (browsers infer the
@@ -5867,7 +5867,7 @@ try:
 except Exception as _e:
     logger.warning("Phase 42-A live_radio routers not loaded: %s", _e)
 
-# Phase 42-A2 — Unified Radio router (RadioLife AI + Community + imported).
+# Phase 42-A2 — Unified Radio router (FUUSIC AI + Community + imported).
 try:
     from routes.radio_unified import router as radio_unified_router
     app.include_router(radio_unified_router)
@@ -6108,7 +6108,7 @@ try:
 except Exception as _e:
     logger.warning("category-bid router not loaded: %s", _e)
 
-# RadioLife Ads Public API (v1) — partner/programmatic marketing.
+# FUUSIC Ads Public API (v1) — partner/programmatic marketing.
 # Mounts a dedicated sub-app at /api/v1 (docs at /api/v1/docs) that facades the
 # internal ad platform, plus the self-serve portal + admin management routers.
 try:
@@ -6131,7 +6131,7 @@ try:
         _aio_pa.get_event_loop().create_task(_ensure_phase_e_indexes(db))
     except RuntimeError:
         pass
-    logger.info("RadioLife Ads API v1 wired: /api/v1 (+ /api/v1/docs), "
+    logger.info("FUUSIC Ads API v1 wired: /api/v1 (+ /api/v1/docs), "
                 "/api/partner, /api/admin/partner-api")
 except Exception as _e:
     logger.warning("partner API v1 not loaded: %s", _e)
@@ -6477,7 +6477,7 @@ app.include_router(_dream_clusters_router)
 from routes.social_together import router as _social_together_router
 app.include_router(_social_together_router)
 
-# Social V2 — Phase 3: RadioLife Live (video livestream commerce).
+# Social V2 — Phase 3: FUUSIC Live (video livestream commerce).
 from routes.live_commerce import router as _live_commerce_router
 app.include_router(_live_commerce_router)
 
@@ -7629,7 +7629,7 @@ async def _trial_reminder_cron():
                     if is_live() and u.get("email"):
                         send_email(
                             to=u["email"],
-                            subject="Your RadioLife Premium trial ends in 24 hours — claim 50% off",
+                            subject="Your FUUSIC Premium trial ends in 24 hours — claim 50% off",
                             html=(f"<h2>24 hours left on your trial</h2>"
                                         f"<p>Get <b>50% off your first month</b> with code "
                                         f"<code>{code}</code>. Sliders, premium voices, "
@@ -7717,12 +7717,12 @@ async def share_ssr_landing(share_id: str, request: Request):
     await increment_view(db, share_id)
 
     base = _public_base_url(request)
-    hosts = doc.get("host_names") or ["RadioLife RJ"]
+    hosts = doc.get("host_names") or ["FUUSIC RJ"]
     hosts_join = " × ".join(hosts)
-    channel = doc.get("channel_name") or "RadioLife"
+    channel = doc.get("channel_name") or "FUUSIC"
     track = doc.get("track_title") or "a live break"
-    title = f"{hosts_join} on RadioLife · {channel}"
-    description = f"Heard on RadioLife — a {int(doc.get('duration_sec') or 0)}s break from {channel}{' after ' + track if track else ''}."
+    title = f"{hosts_join} on FUUSIC · {channel}"
+    description = f"Heard on FUUSIC — a {int(doc.get('duration_sec') or 0)}s break from {channel}{' after ' + track if track else ''}."
     audio_url = f"{base}/api/share/{share_id}/audio"
     cover_url = f"{base}/api/og_default.png"
     landing_url = f"{base}/api/r/{share_id}"
@@ -7745,7 +7745,7 @@ async def share_ssr_landing(share_id: str, request: Request):
 <meta property="og:image" content="{esc(cover_url)}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:site_name" content="RadioLife">
+<meta property="og:site_name" content="FUUSIC">
 
 <meta name="twitter:card" content="player">
 <meta name="twitter:title" content="{esc(title)}">
@@ -7785,12 +7785,12 @@ async def share_ssr_landing(share_id: str, request: Request):
 </head>
 <body>
   <main class="card">
-    <div class="brand">RadioLife <span>AI RADIO</span></div>
+    <div class="brand">FUUSIC <span>AI RADIO</span></div>
     <div class="hosts">{esc(hosts_join)}</div>
     <h1>A break from {esc(channel)}</h1>
     <div class="meta">{int(doc.get('duration_sec') or 0)}s · MP3</div>
     <audio controls preload="metadata" src="{esc(audio_url)}"></audio>
-    <a class="cta" href="{esc(base)}/" rel="noopener">▶ Listen on RadioLife</a>
+    <a class="cta" href="{esc(base)}/" rel="noopener">▶ Listen on FUUSIC</a>
     <div class="foot">SHARED · BIGFM · AI HINGLISH RADIO</div>
   </main>
 </body>

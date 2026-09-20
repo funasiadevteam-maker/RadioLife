@@ -1,4 +1,4 @@
-"""RadioLife Ads Public API — partner authentication + SDK.
+"""FUUSIC Ads Public API — partner authentication + SDK.
 
 External systems (ad agencies, brands, DSPs) authenticate to the versioned
 public API (`/api/v1/*`) with either:
@@ -581,9 +581,9 @@ async def _deliver(db, wh: dict, event: dict) -> bool:
     body = json.dumps(event, separators=(",", ":"), default=str)
     ts = str(int(time.time()))
     sig = hmac.new(wh["secret"].encode(), f"{ts}.{body}".encode(), hashlib.sha256).hexdigest()
-    headers = {"Content-Type": "application/json", "X-RadioLife-Event": event["type"],
-               "X-RadioLife-Delivery": event["id"],
-               "X-RadioLife-Signature": f"t={ts},v1={sig}"}
+    headers = {"Content-Type": "application/json", "X-FUUSIC-Event": event["type"],
+               "X-FUUSIC-Delivery": event["id"],
+               "X-FUUSIC-Signature": f"t={ts},v1={sig}"}
     status, ok, err = None, False, None
     for attempt in range(3):
         try:

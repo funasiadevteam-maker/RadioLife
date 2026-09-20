@@ -48,7 +48,7 @@ log = logging.getLogger("bigfm.migrate_local_to_tigris")
 DIR_CATALOG = [
     # /app/backend/static/* — image assets served via /api/static/*
     ("/app/backend/static/channel_thumbnails",          "static/channel_thumbnails",          "Channel thumbnails (Phase 16-prep)"),
-    ("/app/backend/static/station_artwork",                "static/station_artwork",                "RadioLife AI station artwork (Phase C)"),
+    ("/app/backend/static/station_artwork",                "static/station_artwork",                "FUUSIC AI station artwork (Phase C)"),
     ("/app/backend/static/landing_images",                "static/landing_images",                "Marketing landing hero images (K.7)"),
     ("/app/backend/static/city_stamps",                      "static/city_stamps",                      "Passport city stamps (K.2)"),
     ("/app/backend/static/game_thumbnails",                "static/game_thumbnails",                "Game tile thumbnails (K.7c)"),

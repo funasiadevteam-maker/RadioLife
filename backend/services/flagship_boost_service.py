@@ -464,7 +464,7 @@ async def bid_transparency(db, *,
 async def _charge_stripe_for_bid(db, *, bid: Dict[str, Any]
                                                                 ) -> Dict[str, Any]:
     """Stripe PaymentIntent for the winning bid.  Advertiser pays the
-    platform (RadioLife) directly — no `transfer_data.destination`. The
+    platform (FUUSIC) directly — no `transfer_data.destination`. The
     20% platform-fee number is recorded as accounting metadata only."""
     amount = int(bid["bid_amount_cents"])
     currency = (bid.get("currency") or "usd").lower()

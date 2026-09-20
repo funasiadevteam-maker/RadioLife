@@ -100,7 +100,7 @@ _HTTP_ALLOWLIST_SUFFIXES: tuple[str, ...] = (
     "dancewave.online",
     "reyfm.de",
     "icecast.vrtcdn.be",
-    # RadioLife-native infra (not usually proxied, but safe to allow).
+    # FUUSIC-native infra (not usually proxied, but safe to allow).
     "bigfm.dubai",
     "emergentagent.com",
 )
@@ -239,7 +239,7 @@ async def stream_proxy(
     # metadata; leave it enabled so the <audio> element gets consistent
     # framing even if the source is a legacy Shoutcast v1 mount.
     fwd_headers.setdefault("Icy-MetaData", "1")
-    fwd_headers.setdefault("User-Agent", "RadioLife-Proxy/1.0")
+    fwd_headers.setdefault("User-Agent", "FUUSIC-Proxy/1.0")
 
     # Fast connect, generous read (live streams are open-ended).
     timeout = httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0)

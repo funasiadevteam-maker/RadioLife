@@ -33,7 +33,7 @@ _MARKET_BANNED = {
 }
 
 
-_SYS_PROMPT = """You are RadioLife's creative-safety reviewer for radio ads. Examine the AD CREATIVE TRANSCRIPT and return a single JSON object — nothing else.
+_SYS_PROMPT = """You are FUUSIC's creative-safety reviewer for radio ads. Examine the AD CREATIVE TRANSCRIPT and return a single JSON object — nothing else.
 
 Flag any of these categories (severity: "low"|"medium"|"high"):
 - profanity / hate speech / slurs (HIGH)

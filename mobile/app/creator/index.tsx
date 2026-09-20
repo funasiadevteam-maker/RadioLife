@@ -97,7 +97,7 @@ export default function CreatorDashboard() {
         {!creator && (
           <View testID="mobile-creator-apply-cta" style={s.applyCta}>
             <Ionicons name="mic-outline" size={40} color={COLORS.textDim} />
-            <Text style={s.applyText}>Start creating podcasts on RadioLife.</Text>
+            <Text style={s.applyText}>Start creating podcasts on FUUSIC.</Text>
             <TouchableOpacity style={s.applyBtn} onPress={() => setShowApply(true)}>
               <Text style={s.applyBtnText}>Apply to become a creator</Text>
             </TouchableOpacity>

@@ -1,38 +1,30 @@
-// Phase 15d.2 — single source of truth for the "RadioLife <city>" brand lockup.
-// Reads `geoCity` from useGeoStore so every page renders the listener's
-// resolved market consistently. Anon visitors / marketing pages can omit
-// the city suffix via `showCity={false}` (default true) — they fall back
-// to plain "RadioLife" with no city, since we don't know the market yet.
+// FUUSIC — single source of truth for the primary brand lockup/wordmark.
+// Renders the FUUSIC wordmark (no city suffix). Reads the name from the
+// central brand config so it can be swapped in one place.
 //
-// Replaces 5+ hardcoded `<h1>RadioLife Dubai</h1>` lockups across the app.
+// `showCity` / `cityClassName` props are kept for backwards-compat with
+// existing call-sites but are intentionally ignored — the FUUSIC brand is
+// presented on its own (per the approved brand direction).
 import React from "react";
-import { useGeoStore } from "@/store/useGeoStore";
+import { BRAND } from "@/config/brand";
 
 export default function BigFmBrand({
-  showCity   = true,
-  variant    = "lockup",   // "lockup" (h1) | "inline" (span)
-  className  = "",
-  cityClassName = "dxb",
-  testId     = "bigfm-brand",
+  showCity = true, // eslint-disable-line no-unused-vars
+  variant = "lockup", // "lockup" (h1) | "inline" (span)
+  className = "",
+  cityClassName = "dxb", // eslint-disable-line no-unused-vars
+  testId = "bigfm-brand",
 }) {
-  const geoCity = useGeoStore((s) => s.city);
-  // Anon visitor protection: only render the city span when we've actually
-  // resolved one. `geoCity` is hydrated from localStorage at boot, but a
-  // brand-new visitor on a marketing page may not have it yet.
-  const city = showCity ? (geoCity || "") : "";
-  const cityNode = city
-    ? <span className={cityClassName} data-testid={`${testId}-city`}>{city}</span>
-    : null;
   if (variant === "lockup") {
     return (
       <h1 className={className} data-testid={testId}>
-        RadioLife{cityNode ? " " : ""}{cityNode}
+        {BRAND.name}
       </h1>
     );
   }
   return (
     <span className={`brand-name ${className}`} data-testid={testId}>
-      RadioLife{cityNode ? " " : ""}{cityNode}
+      {BRAND.name}
     </span>
   );
 }

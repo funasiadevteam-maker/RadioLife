@@ -120,7 +120,7 @@ async def promotion_checkout(db, *, business_id: str, tier_key: str, partner_id:
         mode="payment",
         line_items=[{"price_data": {
             "currency": "usd", "unit_amount": int(tier["price_cents"]),
-            "product_data": {"name": f"RadioLife Promotion — {tier['name']} "
+            "product_data": {"name": f"FUUSIC Promotion — {tier['name']} "
                                      f"({tier['days']}d) · {prof.get('public_name')}"[:120]}},
             "quantity": 1}],
         success_url=s_url, cancel_url=c_url,

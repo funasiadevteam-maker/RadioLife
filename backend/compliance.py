@@ -1,4 +1,4 @@
-"""RadioLife Phase 2 — Compliance + Playback Logs + Rolling Windows.
+"""FUUSIC Phase 2 — Compliance + Playback Logs + Rolling Windows.
 
 Non-interactive radio compliance (CRTC/FCC-style) rules applied server-side:
 

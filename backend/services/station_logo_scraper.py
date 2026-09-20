@@ -27,7 +27,7 @@ log = logging.getLogger("bigfm.station_logo_scraper")
 LOGOS_DIR = Path("/app/backend/storage/station_logos_scraped")
 LOGOS_DIR.mkdir(parents=True, exist_ok=True)
 
-UA = "RadioLifeLogoBot/1.0 (+https://bigfantv.com)"
+UA = "FUUSICLogoBot/1.0 (+https://bigfantv.com)"
 DEFAULT_TIMEOUT = 5.0
 MIN_PX = 80      # below this the asset is too low-quality to cache.
 TARGET_PX = 512  # resized for the radio-card surface.

@@ -67,7 +67,7 @@ export default function NewsPreferences() {
         <Newspaper size={22} color="#00d9ff" /> News Interests
       </h1>
       <p style={{ color: "#9aa3af", fontSize: 14, marginBottom: 22 }}>
-        Pick up to 8 topics — we'll filter your daily news feed and RadioLife
+        Pick up to 8 topics — we'll filter your daily news feed and FUUSIC
         News Radio summaries to match.
       </p>
 

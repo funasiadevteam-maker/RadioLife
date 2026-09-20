@@ -38,7 +38,7 @@ export default function AdvisorDetail() {
     try {
       const { data } = await api.post('/social/dreams/bookings/checkout', {
         advisor_id: id, service_id: svc.service_id, question: question.trim() || undefined,
-        origin_url: 'https://radiolife.app',
+        origin_url: (process.env.EXPO_PUBLIC_BACKEND_URL || ''),
       });
       if (data.checkout_url) { await WebBrowser.openBrowserAsync(data.checkout_url); setNote('Complete payment, then open My Readings.'); }
       else setNote('Booked! See it under My Readings.');

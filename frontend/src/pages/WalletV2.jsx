@@ -104,7 +104,7 @@ export default function WalletV2() {
             <div className={`text-[10px] font-bold uppercase tracking-widest ${
               light ? "text-purple-600" : "text-cyan-400"}`}>Wallet</div>
             <h1 className={`text-4xl font-black tracking-tight ${
-              light ? "text-slate-900" : "text-white"}`}>Your RadioLife Wallet</h1>
+              light ? "text-slate-900" : "text-white"}`}>Your FUUSIC Wallet</h1>
           </div>
           <div className={`rounded-2xl px-5 py-3 ${
             light ? "bg-purple-600 text-white" : "bg-cyan-500 text-slate-950"}`}

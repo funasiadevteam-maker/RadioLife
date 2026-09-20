@@ -150,7 +150,7 @@ function CampaignCard({ campaign, drivingMode, router }: any) {
       )}
       {campaign.description && <Text style={s.cardDesc} numberOfLines={2}>{campaign.description}</Text>}
       {campaign.is_platform_funded && (
-        <View style={s.houseTag}><Text style={s.houseTagText}>RADIOLIFE HOUSE</Text></View>
+        <View style={s.houseTag}><Text style={s.houseTagText}>FUUSIC HOUSE</Text></View>
       )}
       <TouchableOpacity
         style={[s.playBtn, drivingMode && { backgroundColor: COLORS.card }]}

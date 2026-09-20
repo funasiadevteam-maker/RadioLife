@@ -6,7 +6,7 @@ import { Sparkles, ChevronRight } from "lucide-react";
 import { usePremiumStatus } from "@/rewards/premiumApi";
 
 const MESSAGES = {
-  listen: "Enjoy this station without RadioLife platform audio ads.",
+  listen: "Enjoy this station without FUUSIC platform audio ads.",
   rewards: "Premium members earn boosted reward points.",
   games: "Premium unlocks extra daily game entries.",
   podcast: "Premium unlocks exclusive & early podcast episodes.",

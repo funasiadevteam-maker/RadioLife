@@ -87,7 +87,7 @@ export default function StaffInvite() {
                         className={`inline-block mt-6 h-11 px-6 rounded-full font-bold text-sm inline-flex items-center gap-1 ${
                           light ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
                                   : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-                        }`}>Back to RadioLife <ArrowRight size={14}/></Link>
+                        }`}>Back to FUUSIC <ArrowRight size={14}/></Link>
           </div>
         </div>
       </div>
@@ -225,7 +225,7 @@ export default function StaffInvite() {
 
         <div className={`text-center mt-4 text-[10px] font-black uppercase tracking-widest ${
           light ? "text-slate-500" : "text-slate-500"
-        }`}>Powered by RadioLife</div>
+        }`}>Powered by FUUSIC</div>
       </div>
     </div>
   );

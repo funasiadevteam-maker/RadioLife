@@ -170,7 +170,7 @@ export default function NewsRadio() {
       </Link>
       <h1 style={{ display: "flex", alignItems: "center", gap: 10,
                    fontSize: 26, fontWeight: 700, margin: "0 0 18px" }}>
-        <Radio size={22} color="#00d9ff" /> RadioLife News Radio
+        <Radio size={22} color="#00d9ff" /> FUUSIC News Radio
       </h1>
 
       <NewsTicker items={items} activeIdx={idx} onPick={setIdx} />

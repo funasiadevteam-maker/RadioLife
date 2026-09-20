@@ -170,7 +170,7 @@ async def _radio_browser_lookup(name: str) -> Optional[dict]:
         import urllib.parse as _p
         url = f"https://de1.api.radio-browser.info/json/stations/byname/{_p.quote(name)}"
         async with httpx.AsyncClient(timeout=6.0,
-                                          headers={"User-Agent": "RadioLife/1.0"}) as c:
+                                          headers={"User-Agent": "FUUSIC/1.0"}) as c:
             r = await c.get(url)
             if r.status_code != 200:
                 return None
@@ -394,7 +394,7 @@ async def _probe_stream(url: str) -> tuple[str, Optional[str]]:
     try:
         async with httpx.AsyncClient(timeout=5.0,
                                           follow_redirects=True,
-                                          headers={"User-Agent": "RadioLife-HealthCheck/1.0",
+                                          headers={"User-Agent": "FUUSIC-HealthCheck/1.0",
                                                             "Range": "bytes=0-1024",
                                                             "Icy-MetaData": "1"}) as c:
             r = await c.get(url)
@@ -438,7 +438,7 @@ async def health_check_all_flagships(db) -> dict:
                 await _send(
                     to_email=os.environ.get("FLAGSHIP_ALERT_EMAIL",
                                                                     "admin@bigfm.dubai"),
-                    subject=f"[RadioLife Flagship ALERT] {d.get('name')} unreachable",
+                    subject=f"[FUUSIC Flagship ALERT] {d.get('name')} unreachable",
                     text=f"Stream {d.get('url_resolved')} returned: {err}\n\nPlease investigate.")
             except Exception:
                 pass

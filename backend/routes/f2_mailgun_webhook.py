@@ -125,7 +125,7 @@ def _mask_email(e: str) -> str:
 
 @router.post("/api/webhooks/mailgun/events")
 async def mailgun_event(request: Request) -> dict:
-    """Mailgun → RadioLife event ingest.  Always 200s so Mailgun stops
+    """Mailgun → FUUSIC event ingest.  Always 200s so Mailgun stops
     retrying once we've persisted; bad sig still gets 200 + logged."""
     try:
         body = await request.json()

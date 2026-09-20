@@ -1,4 +1,4 @@
-// /pricing — RadioLife Premium upgrade page. Free vs Premium comparison, currency
+// /pricing — FUUSIC Premium upgrade page. Free vs Premium comparison, currency
 // auto-detected with `?currency=` override, test-mode banner when applicable.
 //
 // The pricing page is intentionally aspirational: gold accent on premium card,
@@ -31,7 +31,7 @@ const FREE_FEATURES = [
 const PREMIUM_HEADLINE_FEATURES = [
   { icon: Zap,         copy: "6 skips per hour" },
   { icon: Crown,       copy: "2 exclusive VIP channels" },
-  { icon: ShieldCheck, copy: "Ad-free listening (no RadioLife ads)" },
+  { icon: ShieldCheck, copy: "Ad-free listening (no FUUSIC ads)" },
   { icon: Sparkles,    copy: "VIP badge on your profile" },
 ];
 
@@ -140,7 +140,7 @@ export default function Pricing() {
       )}
 
       <section className="pricing-hero">
-        <div className="hero-eyebrow mono">RADIOLIFE PREMIUM</div>
+        <div className="hero-eyebrow mono">FUUSIC PREMIUM</div>
         <h1 className="hero-h1">
           Six skips every hour.<br/>
           <span className="hero-accent">Mehfil, on gold standard.</span>
@@ -247,14 +247,14 @@ export default function Pricing() {
           <dt>What's a VIP channel?</dt>
           <dd>VIP Lounge (mellow, late-night) and Premium Mehfil (deep Bollywood cuts) — only premium can tune in.</dd>
           <dt>Does premium remove ads?</dt>
-          <dd>Yes — no RadioLife-inserted audio ads (pre-roll / mid-roll) or display banners. Third-party live radio stations may still carry their own broadcast advertising inside their stream. Opt-in extras like local offers, Dining Club and games stay available.</dd>
+          <dd>Yes — no FUUSIC-inserted audio ads (pre-roll / mid-roll) or display banners. Third-party live radio stations may still carry their own broadcast advertising inside their stream. Opt-in extras like local offers, Dining Club and games stay available.</dd>
           <dt>Is this billing in test mode?</dt>
           <dd>{config?.mode === "test" ? "Yes — no real cards will be charged during Phase 3 testing." : "We are live. Real charges apply."}</dd>
         </dl>
       </section>
 
       <footer className="pricing-foot">
-        <span>RADIOLIFE · PHASE 3 · BILLING</span>
+        <span>FUUSIC · PHASE 3 · BILLING</span>
         <span>Stripe-secured · {config?.mode?.toUpperCase()} MODE</span>
       </footer>
     </div>

@@ -65,7 +65,7 @@ export default function ListenRoomMobile() {
       setMessages((p) => p.some((m) => m.id === data.id) ? p : [...p, data]); } catch (_) {}
   };
   const react = async (e: string) => { try { await api.post(`/social/rooms/${id}/reactions`, { emoji: e }); } catch (_) {} };
-  const invite = async () => { try { await Share.share({ message: `Join my RadioLife listening room: radiolife.app/social/room/${id}` }); } catch (_) {} };
+  const invite = async () => { try { await Share.share({ message: `Join my FUUSIC listening room: ${(process.env.EXPO_PUBLIC_BACKEND_URL || '').replace(/\/$/, '')}/social/room/${id}` }); } catch (_) {} };
   const leave = () => router.replace('/(tabs)/social');
 
   if (error) return (

@@ -47,8 +47,8 @@ async def main():
         n = await db.products.count_documents({"business_id": AMB})
         await db.products.insert_one({
             "product_id": tee_id, "business_id": AMB, "sort": n,
-            "name": "RadioLife Signature Tee",
-            "description": "Soft 100% combed-cotton crew tee with the RadioLife mark. Unisex fit.",
+            "name": "FUUSIC Signature Tee",
+            "description": "Soft 100% combed-cotton crew tee with the FUUSIC mark. Unisex fit.",
             "category": "Apparel", "price_cents": 4500, "stock": 0, "bigpoints": 45,
             "image_url": "https://images.unsplash.com/photo-1581655353564-df123a1eb820?crop=entropy&cs=srgb&fm=jpg&q=85&w=800",
             "variants": [

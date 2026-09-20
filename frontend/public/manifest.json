@@ -1,13 +1,13 @@
 {
-  "name": "RadioLife.app — AI Radio",
-  "short_name": "RadioLife",
-  "description": "RadioLife.app is the personalised AI radio for the South Asian diaspora — channels, RJs, games, and rewards in one continuous stream.",
+  "name": "FUUSIC — Everything You Love, Together.",
+  "short_name": "FUUSIC",
+  "description": "FUUSIC brings audio, social experiences, local businesses, live commerce, games, rewards and more together in one connected experience. Listen · Connect · Play · Shop · Earn.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0a0a0f",
-  "theme_color": "#0a0a0f",
-  "categories": ["entertainment", "music", "lifestyle"],
+  "background_color": "#0B1020",
+  "theme_color": "#0B1020",
+  "categories": ["entertainment", "social", "shopping", "lifestyle", "music"],
   "icons": [
     {
       "src": "/favicon.ico",

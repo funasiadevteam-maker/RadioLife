@@ -1,4 +1,4 @@
-"""RadioLife Phase 13e — Sign in with Apple routes (web + mobile)."""
+"""FUUSIC Phase 13e — Sign in with Apple routes (web + mobile)."""
 from __future__ import annotations
 import logging
 import secrets
@@ -61,7 +61,7 @@ async def apple_login_redirect(request: Request):
             f"<html><body style='font-family:sans-serif;padding:40px;"
             f"background:#0a0a0f;color:#fff'>"
             f"<h2>Sign in with Apple — not configured</h2>"
-            f"<p>This RadioLife instance hasn't been provisioned with Apple "
+            f"<p>This FUUSIC instance hasn't been provisioned with Apple "
             f"credentials yet. Admins: set APPLE_SIWA_SERVICE_ID and "
             f"APPLE_SIWA_REDIRECT_URI in backend/.env.</p>"
             f"<p style='color:#888'>{e}</p>"

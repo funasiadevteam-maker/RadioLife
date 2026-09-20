@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — Phase 1 (shared backend, design-agnostic).
+"""FUUSIC Social V2 — Phase 1 (shared backend, design-agnostic).
 
 "Do things together": the social layer that connects PEOPLE + AUDIO +
 activity.  Phase 1 ships the shared services the web + mobile clients both

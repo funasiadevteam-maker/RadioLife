@@ -53,7 +53,7 @@ function StationGridCard({ s, onPlay }) {
            title={s.name}>{s.name}</div>
       <div className="text-xs text-white/50 truncate mt-0.5">
         {isAI
-          ? "RadioLife AI-Curated"
+          ? "FUUSIC AI-Curated"
           : [s.country, s.language].filter(Boolean).join(" · ") || "Live"}
       </div>
       {s.music_genre && (

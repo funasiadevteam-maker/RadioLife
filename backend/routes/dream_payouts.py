@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — ADVISOR PAYOUTS (Stripe Connect).
+"""FUUSIC Social V2 — ADVISOR PAYOUTS (Stripe Connect).
 
 Approved advisors onboard a Stripe Connect account; when a customer pays for a
 private reading, the platform keeps an admin-configurable commission and the

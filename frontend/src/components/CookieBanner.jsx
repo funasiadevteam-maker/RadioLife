@@ -42,7 +42,7 @@ export default function CookieBanner() {
   // Phase AD.11 — suppress on admin routes (ops staff consent
   // separately via internal onboarding).  Rendered as null so the
   // banner never obscures admin tables / actions.  Also suppressed on
-  // RadioLife Shop/Sell surfaces where a fixed bottom CTA would clash.
+  // FUUSIC Shop/Sell surfaces where a fixed bottom CTA would clash.
   if (pathname.startsWith("/admin")) return null;
   if (pathname === "/shop" || pathname.startsWith("/shop/") || pathname === "/sell") return null;
 
@@ -72,7 +72,7 @@ export default function CookieBanner() {
       <header className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 text-accent-gold
                                 font-display font-bold tracking-display-tight">
-          <Cookie size={16} /> Cookies on RadioLife
+          <Cookie size={16} /> Cookies on FUUSIC
         </div>
         <button onClick={acceptEssentialOnly}
                         aria-label="Dismiss with essential cookies only"
@@ -82,7 +82,7 @@ export default function CookieBanner() {
         </button>
       </header>
       <p className="text-text-secondary text-xs leading-relaxed">
-        We use essential cookies to keep RadioLife working. With your permission,
+        We use essential cookies to keep FUUSIC working. With your permission,
         we&apos;ll also use analytics + advertising cookies to make the
         experience smarter and partly fund free radio.{" "}
         <Link to="/cookies" className="underline text-accent-electric">

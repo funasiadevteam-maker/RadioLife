@@ -221,7 +221,7 @@ export default function Home() {
     }
     return (
       <div data-testid="home-root" className="space-y-9 max-w-[1400px]">
-        <OGMeta entityType="home" entityId="x" title="RadioLife" description="Radio, shop & eat, games, news and rewards." />
+        <OGMeta entityType="home" entityId="x" title="FUUSIC" description="Radio, shop & eat, games, news and rewards." />
         {greeting()}
         {body}
         <div className="h-24" />
@@ -233,7 +233,7 @@ export default function Home() {
   return (
     <div data-testid="home-root" className="space-y-9 max-w-[1400px]">
       <OGMeta entityType="home" entityId="x"
-        title="RadioLife — Personalized radio, news, and rewards"
+        title="FUUSIC — Personalized radio, news, and rewards"
         description="Radio, shop & eat, games, news, and rewards — all in one feed." />
 
       {greeting()}

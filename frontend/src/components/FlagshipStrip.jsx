@@ -1,6 +1,6 @@
 // Phase FUN.1 — Reusable Flagship strip.  Renders a horizontal scrollable
 // row (mobile) / grid (desktop) of flagship stations.  Used on Home,
-// Business Profile, RadioLife /listen, Landing, admin dashboard, etc.
+// Business Profile, FUUSIC /listen, Landing, admin dashboard, etc.
 //
 // Every station card fires the SAME player pathway used by imported
 // stations (`usePlayerStore.setImportedStation`) so pre-roll ads still
@@ -137,7 +137,7 @@ function FlagshipCard({ station: s, onPlay, light, boost, onImpression }) {
       </span>
     </div>
   ) : null;
-  // Phase A Item 2: RadioLife (light) branch shows a purple/pink gradient
+  // Phase A Item 2: FUUSIC (light) branch shows a purple/pink gradient
   // border ring wrapping the card. Legacy dark branch stays untouched.
   if (light) {
     return (

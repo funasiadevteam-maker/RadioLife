@@ -133,7 +133,7 @@ async def create_topup_checkout(db, *, advertiser_id: str,
             "price_data": {
                 "currency": "usd",
                 "unit_amount": int(amount_usd * 100),
-                "product_data": {"name": f"RadioLife ad spend top-up ${amount_usd:.2f}"},
+                "product_data": {"name": f"FUUSIC ad spend top-up ${amount_usd:.2f}"},
             },
             "quantity": 1,
         }],

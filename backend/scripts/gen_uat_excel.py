@@ -1,10 +1,10 @@
-"""Generate RadioLife_UAT_TestCases.xlsx — a ready-to-run UAT matrix."""
+"""Generate FUUSIC_UAT_TestCases.xlsx — a ready-to-run UAT matrix."""
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 
-OUT = "/app/RadioLife_UAT_TestCases.xlsx"
+OUT = "/app/FUUSIC_UAT_TestCases.xlsx"
 
 # TC = (Module, Feature, Priority, Platform, Type, Preconditions, Steps, TestData, Expected)
 CASES = [
@@ -163,7 +163,7 @@ CASES = [
      "On /shop",
      "1. Scroll to bottom of Shop page",
      "-",
-     "'Sell on RadioLife' / 'Merchant Dashboard' banner appears at the BOTTOM, not between categories and content"),
+     "'Sell on FUUSIC' / 'Merchant Dashboard' banner appears at the BOTTOM, not between categories and content"),
     ("Shop & Eat", "Order-by-chat floating capsule", "P2", "Web", "Functional",
      "On /shop",
      "1. Observe right side of screen\n2. Tap the capsule",
@@ -389,7 +389,7 @@ ws0.sheet_view.showGridLines = False
 ws0.column_dimensions["A"].width = 3
 ws0.column_dimensions["B"].width = 110
 lines = [
-    ("RadioLife.app — UAT & Test Cases", "title"),
+    ("FUUSIC.app — UAT & Test Cases", "title"),
     ("", ""),
     ("Environments", "h"),
     ("• PRODUCTION (live): https://radiolife.app — test the real, deployed app here.", "p"),
@@ -487,7 +487,7 @@ sm.sheet_view.showGridLines = False
 sm.column_dimensions["A"].width = 26
 for col in "BCDEF":
     sm.column_dimensions[col].width = 14
-sm["A1"] = "RadioLife UAT — Summary"
+sm["A1"] = "FUUSIC UAT — Summary"
 sm["A1"].font = Font(bold=True, size=16, color=ACCENT)
 
 sm["A3"] = "Overall status"

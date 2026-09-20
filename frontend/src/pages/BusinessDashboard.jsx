@@ -251,11 +251,11 @@ export default function BusinessDashboard() {
             <Button size="sm" variant="gold"
                             onClick={async () => {
                               const url = `${window.location.origin}${launchResult.public_share_url}`;
-                              const text = launchResult.share_text || `Check out our offer on RadioLife: ${url}`;
+                              const text = launchResult.share_text || `Check out our offer on FUUSIC: ${url}`;
                               try {
                                 if (navigator.share) {
                                   await navigator.share({
-                                    title: launchResult.title || "RadioLife Offer",
+                                    title: launchResult.title || "FUUSIC Offer",
                                     text, url,
                                   });
                                 } else {

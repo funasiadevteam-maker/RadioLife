@@ -1,4 +1,4 @@
-"""RadioLife Premium Dining Club — HTTP routes (Phase 1).
+"""FUUSIC Premium Dining Club — HTTP routes (Phase 1).
 
 Consumer flow (Premium-only): browse program → subscribe → get meal credits →
 start a selection session → SPIN or SURPRISE ME (equal-probability, server-decided)

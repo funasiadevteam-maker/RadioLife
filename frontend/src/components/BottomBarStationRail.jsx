@@ -14,7 +14,7 @@
  *
  * Dual-design: `useDesignVariant()` swaps colors between the dark
  * "legacy" surface and the light "radiolife" surface.  Legacy = amber
- * ring on the #1 favorite; RadioLife = fuchsia ring.
+ * ring on the #1 favorite; FUUSIC = fuchsia ring.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Heart } from "lucide-react";

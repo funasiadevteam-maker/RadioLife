@@ -1,4 +1,4 @@
-"""RadioLife Phase 1 — Auth + Sessions module.
+"""FUUSIC Phase 1 — Auth + Sessions module.
 
 Cookie-based sessions shared between Google OAuth (via Emergent Auth) and
 email/password registration. Exposes:
@@ -95,7 +95,7 @@ class UserOut(BaseModel):
     subscription_status: Optional[str] = None
     subscription_period_end: Optional[datetime] = None
     cancel_at_period_end: bool = False
-    # Phase 3.7 — Multi-market support (RadioLife default, RadioLife DFW opt-in)
+    # Phase 3.7 — Multi-market support (FUUSIC default, FUUSIC DFW opt-in)
     market: str = "dubai"
     # Phase 8a — Advertiser surface
     is_advertiser: bool = False
@@ -642,12 +642,12 @@ async def forgot_password(req: ForgotPasswordReq, request: Request):
     try:
         from services.mailgun_client import send_email, is_live as _mg_live
         if _mg_live():
-            subject = "Reset your RadioLife password"
+            subject = "Reset your FUUSIC password"
             html = (
                 f'<div style="font-family:system-ui,sans-serif;'
                 f'line-height:1.5;color:#0f172a">'
                 f'<h2 style="color:#0f172a;margin:0 0 8px">'
-                f'Reset your RadioLife password</h2>'
+                f'Reset your FUUSIC password</h2>'
                 f'<p>You requested a password reset.  Click the button below '
                 f'to choose a new one.  This link expires in <b>1 hour</b> '
                 f'and can be used only once.</p>'
@@ -663,7 +663,7 @@ async def forgot_password(req: ForgotPasswordReq, request: Request):
                 f'email — your password won\'t be changed.</p></div>'
             )
             text = (
-                f"Reset your RadioLife password:\n{reset_url}\n\n"
+                f"Reset your FUUSIC password:\n{reset_url}\n\n"
                 f"This link expires in 1 hour and can be used once.\n"
                 f"If you didn't request this, ignore this email."
             )

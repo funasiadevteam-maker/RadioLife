@@ -181,7 +181,7 @@ async def get_ad_settings(request: Request,
         "ad_free_enabled": bool(settings.get("ad_free_enabled", is_prem)),
         "disclosure_acknowledged_at": settings.get("disclosure_acknowledged_at"),
         "disclosure_text": (
-            "Premium removes RadioLife platform ads. Some third-party live "
+            "Premium removes FUUSIC platform ads. Some third-party live "
             "stations may still include ads within their original "
             "broadcast stream."),
     }

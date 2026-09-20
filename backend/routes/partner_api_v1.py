@@ -1,4 +1,4 @@
-"""RadioLife Ads Public API — v1 (mounted at /api/v1).
+"""FUUSIC Ads Public API — v1 (mounted at /api/v1).
 
 A versioned, partner-authenticated facade over the internal ad platform
 (`services.ad1_advertiser_service`). External systems use it to discover
@@ -37,10 +37,10 @@ from services.partner_api import Caller, require_scopes
 log = logging.getLogger("bigfm.partner_api.v1")
 
 partner_app = FastAPI(
-    title="RadioLife Ads API",
+    title="FUUSIC Ads API",
     version="1.0.0",
     description=(
-        "Programmatic access to RadioLife marketing inventory — audio ads, "
+        "Programmatic access to FUUSIC marketing inventory — audio ads, "
         "display banners, sponsorships, programmatic (OpenRTB) and marketplace "
         "promotion. Authenticate with a partner API key or an OAuth2 "
         "client-credentials token. Use a `SANDBOX` key to test end-to-end "
@@ -58,7 +58,7 @@ async def _usage_mw(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:20]}"
     request.state.request_id = request_id
     response = await call_next(request)
-    response.headers["X-RadioLife-API-Version"] = reg.API_VERSION
+    response.headers["X-FUUSIC-API-Version"] = reg.API_VERSION
     response.headers["X-Request-ID"] = request_id
     # Phase F security headers
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -106,7 +106,7 @@ def _error_body(request: Request, status_code: int, detail: Any) -> dict:
 async def _http_exc_handler(request: Request, exc: HTTPException):
     body = _error_body(request, exc.status_code, exc.detail)
     headers = dict(exc.headers or {})
-    headers["X-RadioLife-API-Version"] = reg.API_VERSION
+    headers["X-FUUSIC-API-Version"] = reg.API_VERSION
     headers["X-Request-ID"] = getattr(request.state, "request_id", "") or ""
     return JSONResponse(status_code=exc.status_code, content=body, headers=headers)
 
@@ -116,7 +116,7 @@ async def _unhandled_exc_handler(request: Request, exc: Exception):
     log.warning("[v1] unhandled error: %s", exc)
     body = _error_body(request, 500, {"code": "internal_error"})
     return JSONResponse(status_code=500, content=body,
-                        headers={"X-RadioLife-API-Version": reg.API_VERSION,
+                        headers={"X-FUUSIC-API-Version": reg.API_VERSION,
                                  "X-Request-ID": getattr(request.state, "request_id", "") or ""})
 
 
@@ -166,7 +166,7 @@ async def _assert_adv(db, caller: Caller, advertiser_id: str) -> dict:
 # ══════════════════════════ meta ════════════════════════════════════
 @partner_app.get("/", tags=["meta"])
 async def root():
-    return {"api": "RadioLife Ads API", "version": "1.0.0",
+    return {"api": "FUUSIC Ads API", "version": "1.0.0",
             "docs": "/api/v1/docs", "openapi": "/api/v1/openapi.json",
             "auth": "Bearer partner API key or OAuth2 client-credentials token",
             "token_url": "/api/v1/oauth/token"}
@@ -247,7 +247,7 @@ async def stations_ep(request: Request,
                       limit: int = 50,
                       caller: Caller = Depends(require_scopes("catalog:read"))):
     """Cursor-paginated station directory. `station_type=radiolife` returns the
-    RadioLife AI stations; otherwise the imported live-radio directory."""
+    FUUSIC AI stations; otherwise the imported live-radio directory."""
     db = request.app.state.db
     limit = max(1, min(int(limit), 100))
 
@@ -635,7 +635,7 @@ async def create_campaign(body: CampaignCreate, request: Request,
     if not prod.get("bookable") or not prod.get("campaign_type"):
         raise HTTPException(409, {"code": "product_not_bookable_via_api",
                                   "product": body.product, "status": prod.get("status"),
-                                  "hint": "Contact RadioLife to onboard this product."})
+                                  "hint": "Contact FUUSIC to onboard this product."})
     creative = body.creative.model_dump(exclude_none=True)
     if prod["campaign_type"] == "audio_preroll_stub" and body.creative.audio_url:
         creative["image_url"] = creative.get("image_url") or body.creative.audio_url

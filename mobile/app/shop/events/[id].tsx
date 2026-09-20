@@ -1,4 +1,4 @@
-// RadioLife Shop — buy tickets to venue events (mobile).
+// FUUSIC Shop — buy tickets to venue events (mobile).
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,

@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — AI READINGS (horoscope · tarot · numerology).
+"""FUUSIC Social V2 — AI READINGS (horoscope · tarot · numerology).
 
 Entertainment / reflection only — clearly labelled AI-GENERATED, never
 medical / legal / financial advice, no guaranteed prediction. Deterministic

@@ -65,7 +65,7 @@ class MockedSSPProvider:
             return None
         # Synthetic VAST creative — never has an offer / companion.  This
         # mirrors the realistic case where SSP demand is generic brand
-        # awareness, not RadioLife-managed couponed ads.
+        # awareness, not FUUSIC-managed couponed ads.
         return {
             "ad_id": "ssp_mock_creative_001",
             "name": "House sponsor",

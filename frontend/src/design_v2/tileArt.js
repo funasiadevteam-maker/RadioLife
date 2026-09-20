@@ -1,4 +1,4 @@
-// Shared RadioLife-branded category tile art — custom neon illustrations in the
+// Shared FUUSIC-branded category tile art — custom neon illustrations in the
 // V2 palette, hosted on the platform image store (absolute URLs → production-safe).
 // Reused by both the public landing (PublicHomeNewLookV2) and the logged-in home
 // (ActionCardsV2) so the whole app shares one look.

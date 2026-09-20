@@ -27,7 +27,7 @@ function readQueryVariant() {
   }
 }
 
-// NOTE (in-shell Shop): the Shop used to force the RadioLife variant on
+// NOTE (in-shell Shop): the Shop used to force the FUUSIC variant on
 // every /shop route (so it opened as a full-screen app overlay). That made
 // the classic left sidebar + top bar disappear. The Shop now renders INSIDE
 // the legacy shell (<ShopInShell>), so we no longer force the variant here —

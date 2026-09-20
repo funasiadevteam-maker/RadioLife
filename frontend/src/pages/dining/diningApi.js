@@ -1,4 +1,4 @@
-// RadioLife Premium Dining Club — shared web API client + brand tokens.
+// FUUSIC Premium Dining Club — shared web API client + brand tokens.
 // Cookie-auth (withCredentials) against the shared FastAPI backend.
 import axios from "axios";
 

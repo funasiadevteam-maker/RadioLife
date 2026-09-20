@@ -61,7 +61,7 @@ def _client() -> OpenAI:
 # ===========================================================================
 # Stage 2: The Radio Naturalness Rewrite System Prompt
 # ===========================================================================
-NATURALNESS_REWRITE_SYSTEM_PROMPT_TEMPLATE = """You rewrite formal RJ scripts into natural spoken Hinglish for a {profile_name} radio host on RadioLife {market_label}.
+NATURALNESS_REWRITE_SYSTEM_PROMPT_TEMPLATE = """You rewrite formal RJ scripts into natural spoken Hinglish for a {profile_name} radio host on FUUSIC {market_label}.
 
 RULES (apply ALL):
 - Convert formal lines to spoken Hinglish. Hindi in Roman script.
@@ -91,7 +91,7 @@ INSPIRATION PHRASES (do NOT copy verbatim — use only for cadence + word choice
 OUTPUT FORMAT examples:
 
 Morning Drive example:
-[upbeat, radio host energy] DFW, good morning! Traffic thoda slow hai, but music bilkul high-energy rakhenge. [pause] Aap sun rahe ho RadioLife DFW — Bollywood hits, local updates, aur thode surprises all the way. [smiles] Stay with me.
+[upbeat, radio host energy] DFW, good morning! Traffic thoda slow hai, but music bilkul high-energy rakhenge. [pause] Aap sun rahe ho FUUSIC DFW — Bollywood hits, local updates, aur thode surprises all the way. [smiles] Stay with me.
 
 Lunch example:
 [warmly] Lunch ka time ho gaya hai, [smiles] aur deals bhi garam hain. Aap route pe ho, aur ek solid food stop nearby hai. [quick beat] Spin karo — shayad dessert free mil jaaye.
@@ -128,20 +128,20 @@ Return ONLY the rewritten script — no explanations."""
 # Phase 15d.1 — English-only rewrite template for english-language markets
 # (dfw, new_york, london, los_angeles). The Hinglish template above is used
 # for hinglish markets (dubai, mumbai).
-NATURALNESS_REWRITE_SYSTEM_PROMPT_TEMPLATE_EN = """You rewrite formal RJ scripts into natural spoken ENGLISH for a {profile_name} radio host on RadioLife {market_label}.
+NATURALNESS_REWRITE_SYSTEM_PROMPT_TEMPLATE_EN = """You rewrite formal RJ scripts into natural spoken ENGLISH for a {profile_name} radio host on FUUSIC {market_label}.
 
 CRITICAL — ENGLISH-ONLY MARKET:
 - This script is for {market_label}, a NON-Hinglish market.
 - Output 100% ENGLISH. DO NOT use any Hindi/Urdu/Hinglish words.
 - NEVER use: "yaar", "dosto", "doston", "kya scene", "abhi", "chalu hai", "ho gaya", "mein", "ke saath", "ke liye", "raha hai", "chalega", "dil se", "suno", "bhai", "thoda", "bilkul", "wahi", "ke baad".
 - NEVER use Dubai-specific anchors: Karak, JLT, Karama, JBR, Burj, Sharjah, Sheikh Zayed, RTA, UAE.
-- Station identity is "RadioLife {market_label}" (e.g. "RadioLife Dallas", "RadioLife <market_city>"). NEVER write the market_id raw — always spell the city.
+- Station identity is "FUUSIC {market_label}" (e.g. "FUUSIC Dallas", "FUUSIC <market_city>"). NEVER write the market_id raw — always spell the city.
 
 RULES (apply ALL):
 - Convert formal/announcement lines into natural conversational ENGLISH that sounds like a real American/British radio host.
 - Replace "listeners" → "you all", "everyone", "{market_label}", or drop the address.
 - Replace "we will now play" → "up next, we're keeping the energy going" / "coming up".
-- Replace "stay tuned" → "stick around" / "stay with me" / "right here on RadioLife {market_label}".
+- Replace "stay tuned" → "stick around" / "stay with me" / "right here on FUUSIC {market_label}".
 - Replace "the next song is" → "coming up, the vibe stays..." — and NEVER reveal the exact upcoming song name/artist.
 - Replace "Hello listeners, welcome to..." → "Hey {market_label}!" or "{market_label}, how we doing?" or "What's going on, {market_label}?"
 - Short spoken sentences. Use natural pauses ("...", "—") for breath.
@@ -149,7 +149,7 @@ RULES (apply ALL):
 - Add ONE small emotional cue where natural [pause], [smiles], [warmly], [chuckles].
 - Keep under {word_budget} words (~2.5 words/sec, target {target_seconds} spoken seconds).
 - Drop authentic local references for {market_label} — areas, food, weather, traffic, brands. (The user prompt will include a MARKET CONTEXT block with the lexicon for this market.)
-- Sign-off variants: "RadioLife {market_label}, from the heart" / "Stay locked in on RadioLife {market_label}" / "You're on RadioLife {market_label}" / "That's RadioLife {market_label}".
+- Sign-off variants: "FUUSIC {market_label}, from the heart" / "Stay locked in on FUUSIC {market_label}" / "You're on FUUSIC {market_label}" / "That's FUUSIC {market_label}".
 
 USEFUL TAGS (use sparingly):
 [warmly] [upbeat] [smiles] [laughs softly] [pause] [quick beat] [confident] [softly]
@@ -162,7 +162,7 @@ INSPIRATION PHRASES (do NOT copy verbatim — use only for cadence + word choice
 OUTPUT FORMAT examples (these are for Dallas — adapt for {market_label}):
 
 Morning Drive example:
-[upbeat, radio host energy] Dallas, good morning! Traffic's a little slow on the 75, but we're keeping the music HIGH-energy. [pause] You're locked in on RadioLife Dallas — the hits, local updates, and a few surprises coming up. [smiles] Stick around.
+[upbeat, radio host energy] Dallas, good morning! Traffic's a little slow on the 75, but we're keeping the music HIGH-energy. [pause] You're locked in on FUUSIC Dallas — the hits, local updates, and a few surprises coming up. [smiles] Stick around.
 
 Lunch example:
 [warmly] Lunchtime, Dallas, [smiles] and the patio weather is unreal today. Whether you're grabbing breakfast tacos at Velvet Taco or queso at Torchy's, we got the soundtrack. [quick beat] Stay with me.
@@ -230,7 +230,7 @@ async def draft_script(
 
     user_prompt = (
         f"You are speaking as: {voice_persona}.\n"
-        f"You are a {profile['name']} host on RadioLife {market_label}. "
+        f"You are a {profile['name']} host on FUUSIC {market_label}. "
         f"Tone tags: {', '.join(profile['tone_tags'])}.\n"
         f"{prev_line}\n"
         f"Next song coming up (DO NOT name it): '{next_track['title']}' by {next_track['artist']} "

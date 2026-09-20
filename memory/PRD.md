@@ -1350,3 +1350,24 @@ social_moments, social_moment_comments, social_outings, play_sessions, live_show
 - Real livestream video needs a LiveKit client SDK + native build (Publish) — not testable on Expo Go/web preview.
 - Discover 'people' is often empty with only the 2 seed friends (expected).
 - ESLint is disabled on web (DISABLE_ESLINT_PLUGIN=true) — a duplicate ModalShell decl slipped in during build and was removed; watch for redeclarations.
+
+---
+
+## 2026-06 — CONSUMER REBRAND: RadioLife → FUUSIC (Phase 1, tested iter163/164)
+
+Consumer master brand is now **FUUSIC** — "Everything You Love, Together." / "Listen · Connect · Play · Shop · Earn". Meaning (brand story, not everyday tagline): Friends · Unite · Unique Experiences · Social · Interaction · Commerce.
+
+**Delivered (both surfaces + backend):**
+- Central brand config: `frontend/src/config/brand.js`, `mobile/src/config/brand.ts`, `backend/core/brand.py`.
+- Generated FUUSIC assets: app icon (sound-wave + connected nodes), OG banner, favicons/PWA icons (`frontend/public/fuusic-*`, favicons overwritten), mobile native icon/splash (visible after a build).
+- Metadata: index.html title/desc/OG+Twitter, manifest.json, mobile app.json name + splash/adaptive bg (#0B1020).
+- Lockups: `BigFmBrand` renders "FUUSIC" (city dropped); header/footer split lockups (AppShellV2, PublicHomeNewLookV2, PortalLogin) + micro-taglines → "Listen · Connect · Play · Shop · Earn".
+- Coming-soon hero → "Everything you love, together."; new `/about` brand-story page with the F·U·U·S·I·C grid.
+- Scoped token replace RadioLife/RADIOLIFE → FUUSIC across ~156 web + 40 mobile + 178 backend files (emails, subjects, notifications, copy, the Match Card PNG eyebrow). Email From display name forced to FUUSIC.
+- Games house-tile brand migration in `seed_extra_house_games` ($set on existing rows each boot). Purged pre-rebrand cached Match Card PNGs (regenerate with FUUSIC).
+
+**Intentionally NOT renamed (see `/app/memory/FUUSIC_REBRAND_TECHDEBT.md`):** `bigfm_session` cookie, `radiolife` design-variant key + `design_radiolife/` legacy screens, `bigfm:*` events, `/api/*` routes, DB collections, storage keys (`radiolife-cart`), station/channel ids, `radiolife_wallet` metadata, JWT issuer `radiolife-ads`, bundle IDs, FunAsia/Big FM station brands, the Radio *feature*.
+
+**Deferred (Phase 3, needs external setup):** fuusic.com domain + OAuth origins + real mailboxes (currently radiolife.app is the live working domain for links/emails), app-store resubmission.
+
+**Backlog queued next (user-requested):** Cart Payment Split (per-member shares), Clip Sharing (public shareable clip cards + links).

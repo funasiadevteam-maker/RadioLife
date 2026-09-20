@@ -1,4 +1,4 @@
-"""RadioLife Phase 13d — Cache-Control + ETag middleware.
+"""FUUSIC Phase 13d — Cache-Control + ETag middleware.
 
 Splits public read-only routes from auth-gated routes:
   * Public routes (channel list, public passport profiles, public
@@ -109,7 +109,7 @@ class CacheControlMiddleware(BaseHTTPMiddleware):
                 headers={
                     "ETag": etag,
                     "Cache-Control": PUBLIC_CACHE_HEADER,
-                    "X-RadioLife-Region": response.headers.get("X-RadioLife-Region", ""),
+                    "X-FUUSIC-Region": response.headers.get("X-FUUSIC-Region", ""),
                 })
         # Rebuild the response with the buffered body so downstream
         # clients see exactly what the route produced — only headers

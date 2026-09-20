@@ -161,11 +161,11 @@ async def invite_staff(advertiser_id: str, body: InviteBody, request: Request,
         from services.mailgun_client import send_email, is_live
         if is_live():
             subject = (f"You’ve been invited to {adv.get('name', 'an advertiser')} "
-                                  "on RadioLife Ads")
+                                  "on FUUSIC Ads")
             html = (
                 "<div style='font-family:system-ui,sans-serif;max-width:520px;'>"
                 f"<h2 style='color:#f59e0b'>You’ve got an invite ✨</h2>"
-                f"<p><b>{adv.get('name', 'A RadioLife advertiser')}</b> invited you to join "
+                f"<p><b>{adv.get('name', 'A FUUSIC advertiser')}</b> invited you to join "
                 f"their team as <b>{body.role}</b>.</p>"
                 f"<p style='margin:24px 0'>"
                 f"<a href='{invite_url}' style='background:#f59e0b;color:#0f172a;"

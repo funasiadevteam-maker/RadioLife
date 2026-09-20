@@ -638,7 +638,7 @@ function HostModal({ onClose, onDone }) {
                   style={mode === k ? grad : undefined}><I size={15} /> {l}</button>
         ))}
       </div>
-      <p className="text-[11px] text-slate-500 mb-3">Full live audio/video plays in the RadioLife mobile app. The question queue works everywhere.</p>
+      <p className="text-[11px] text-slate-500 mb-3">Full live audio/video plays in the FUUSIC mobile app. The question queue works everywhere.</p>
       <button type="button" onClick={submit} disabled={busy} data-testid="host-submit"
               className="w-full h-11 rounded-full font-bold text-white" style={grad}>{busy ? "Starting…" : "Go live"}</button>
     </Modal>
@@ -676,7 +676,7 @@ function LiveRoom({ sessionId, onBack }) {
         </div>
         <div className="mt-3 rounded-2xl bg-violet-500/10 border border-violet-400/20 px-4 py-3 text-sm text-violet-100">
           {s.status !== "live" ? "This session has ended." : s.join_token
-            ? `🎧 You're connected to the ${s.mode} room. Full ${s.mode} plays in the RadioLife app; ask questions below.`
+            ? `🎧 You're connected to the ${s.mode} room. Full ${s.mode} plays in the FUUSIC app; ask questions below.`
             : "Ask your questions below — the advisor answers live."}
         </div>
         {s.is_host && s.status === "live" && (

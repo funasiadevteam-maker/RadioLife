@@ -365,7 +365,7 @@ async def maybe_award_onboarding(db, user_id: str) -> dict:
     )
     if existing:
         return {"awarded": False, "reason": "already_awarded"}
-    res = await award(db, user_id, 50, "onboarding", note="Welcome to RadioLife!")
+    res = await award(db, user_id, 50, "onboarding", note="Welcome to FUUSIC!")
     res["awarded"] = True
     return res
 

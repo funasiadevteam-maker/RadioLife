@@ -38,7 +38,7 @@ const SAMPLES = [
     title: "Morning Drive · Aanya (Hindi-native)",
     voice_meta: "ElevenLabs eleven_v3 · Aanya · profile=morning_drive · two-stage pipeline",
     channel: "morning_masala", hosts: ["Aanya"], format: "solo",
-    excerpt: "Dubai, good morning! 4:00 AM ho chuki hai, aur morning ride ka scene set hai yahan Morning Masala, RadioLife par! [smiles] Kaise ho guys? Weekend ka mood kaisa chal raha hai? Bahar thandi hawa hai, aur traffic jams bhi shuru hone wale hain!",
+    excerpt: "Dubai, good morning! 4:00 AM ho chuki hai, aur morning ride ka scene set hai yahan Morning Masala, FUUSIC par! [smiles] Kaise ho guys? Weekend ka mood kaisa chal raha hai? Bahar thandi hawa hai, aur traffic jams bhi shuru hone wale hain!",
   },
   {
     key: "phase37_lunch",
@@ -66,7 +66,7 @@ const SAMPLES = [
     title: "Chill Late Night · Veer (intimate)",
     voice_meta: "ElevenLabs eleven_v3 · Veer · profile=chill_late_night · two-stage pipeline",
     channel: "late_night_drive", hosts: ["Veer"], format: "solo",
-    excerpt: "[softly] Kya scene hai dosto! Late Night Drive pe aapka swagat hai RadioLife par. [pause] Is suhani raat mein sab kuch thoda aur romantic hai. Aapki khushiyan aur khwab hi toh maayne rakhte hain. Toh relax ho jaao…",
+    excerpt: "[softly] Kya scene hai dosto! Late Night Drive pe aapka swagat hai FUUSIC par. [pause] Is suhani raat mein sab kuch thoda aur romantic hai. Aapki khushiyan aur khwab hi toh maayne rakhte hain. Toh relax ho jaao…",
   },
   {
     key: "phase37_talk_news",
@@ -81,7 +81,7 @@ const SAMPLES = [
     title: "Party Dubai · DJ Charlie · solo open",
     voice_meta: "OpenAI gpt-4o-mini-tts · voice 'ash' · American club DJ",
     channel: "party_dubai", hosts: ["DJ Charlie"], format: "solo",
-    excerpt: "Yo, yo, yo! What's up, Dubai?! It's your boy DJ Richard on RadioLife's PARTY channel, and we're about to TURN IT UP tonight!! Whether you're cruising down Sheikh Zayed or vibing at the JBR beach club, the PARTY is just getting started, yaar!!",
+    excerpt: "Yo, yo, yo! What's up, Dubai?! It's your boy DJ Richard on FUUSIC's PARTY channel, and we're about to TURN IT UP tonight!! Whether you're cruising down Sheikh Zayed or vibing at the JBR beach club, the PARTY is just getting started, yaar!!",
   },
   {
     key: "party_charlie_solo_2",
@@ -95,7 +95,7 @@ const SAMPLES = [
     title: "Party Dubai · Charlie × Riya · DUO rapid-fire",
     voice_meta: "OpenAI gpt-4o-mini-tts · 'ash' + 'nova' · 6-turn Mirchi ping-pong",
     channel: "party_dubai", hosts: ["DJ Charlie", "DJ Riya"], format: "duo",
-    excerpt: "[CHARLIE] Yaar, Riya, what a MAST night, doston!! [RIYA] Absolutely, Charlie! Dance floor is BLAZING!! [CHARLIE] This crowd is just AMAZING, doston!! [RIYA] And the energy? It's through the ROOF!! [CHARLIE] Are you READY for the next DROP, boss?? [RIYA] Let's GOOO! RadioLife NONSTOP!!",
+    excerpt: "[CHARLIE] Yaar, Riya, what a MAST night, doston!! [RIYA] Absolutely, Charlie! Dance floor is BLAZING!! [CHARLIE] This crowd is just AMAZING, doston!! [RIYA] And the energy? It's through the ROOF!! [CHARLIE] Are you READY for the next DROP, boss?? [RIYA] Let's GOOO! FUUSIC NONSTOP!!",
   },
   {
     key: "bollywood_raghav_aanya_duo",
@@ -115,7 +115,7 @@ export default function Audition() {
     <div className="audition-shell" data-testid="audition-page">
       <main className="audition-main">
         <header className="audition-head" data-testid="audition-header">
-          <div className="brand mono">RadioLife · Voice Audition</div>
+          <div className="brand mono">FUUSIC · Voice Audition</div>
           <h1>Phase 3.6 — <span className="accent">multi-provider voices</span></h1>
           <p className="lede">
             Four fresh samples comparing OpenAI{" "}
@@ -171,7 +171,7 @@ export default function Audition() {
         ))}
 
         <footer className="audition-foot mono">
-          <span>RadioLife · Phase 3.6</span>
+          <span>FUUSIC · Phase 3.6</span>
           <Link to="/" data-testid="audition-back-link">← Back to radio</Link>
         </footer>
       </main>

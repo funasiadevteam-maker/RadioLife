@@ -247,8 +247,8 @@ async def seed_sample_games(db) -> Dict[str, Any]:
                 {"$set": {
                     "campaign_id": cid, "advertiser_id": None, "business_id": None,
                     "template_id": tid, "title": titles[i % len(titles)],
-                    "description": "A RadioLife house game — play free and win BigCoin.",
-                    "sponsor_name": "RadioLife", "sponsor_logo_url": None, "brand_colors_json": {},
+                    "description": "A FUUSIC house game — play free and win BigCoin.",
+                    "sponsor_name": "FUUSIC", "sponsor_logo_url": None, "brand_colors_json": {},
                     "game_config_json": base_cfg, "objective": "platform_engagement",
                     "budget_cents": 0, "bid_type": "per_save", "bid_amount_cents": 0,
                     "start_at": n, "end_at": end, "targeting_json": {},
@@ -285,7 +285,7 @@ async def seed_sample_games(db) -> Dict[str, Any]:
                  "$setOnInsert": {"_id": cid, "created_at": n}}, upsert=True)
             await db.game_compliance_settings.update_one(
                 {"campaign_id": cid},
-                {"$set": {"campaign_id": cid, "terms_text": "Standard RadioLife game terms apply.",
+                {"$set": {"campaign_id": cid, "terms_text": "Standard FUUSIC game terms apply.",
                           "odds_disclosure": "Odds vary by prize inventory.",
                           "no_purchase_necessary_text": "No purchase necessary.",
                           "age_restriction": None,
@@ -335,7 +335,7 @@ async def seed_demo_user_fixtures(db) -> Dict[str, Any]:
             await db.events.update_one(
                 {"event_id": eid},
                 {"$set": {"event_id": eid, "business_id": bid, "sponsor_name": dp.get("public_name"),
-                          "title": "RadioLife Live Showcase", "description": "Demo event for ticket check-in.",
+                          "title": "FUUSIC Live Showcase", "description": "Demo event for ticket check-in.",
                           "location": "Main Stage", "starts_at": (now() + timedelta(days=7)).isoformat(),
                           "price_cents": 2500, "capacity": 200, "allow_points": True, "allow_card": True,
                           "points_per_dollar": 100, "active": True, "updated_at": now()},
@@ -344,7 +344,7 @@ async def seed_demo_user_fixtures(db) -> Dict[str, Any]:
                 await db.event_tickets.update_one(
                     {"code": code},
                     {"$set": {"code": code, "event_id": eid, "business_id": bid,
-                              "event_title": "RadioLife Live Showcase",
+                              "event_title": "FUUSIC Live Showcase",
                               "starts_at": (now() + timedelta(days=7)).isoformat(),
                               "user_id": uid, "qty": 1, "method": "card", "status": "active"},
                      "$setOnInsert": {"ticket_id": f"tkt_{code.lower()}", "created_at": now()},

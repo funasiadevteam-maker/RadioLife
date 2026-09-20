@@ -28,7 +28,7 @@ ADS_DIR = STORAGE_DIR / "ads"
 ADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-SPONSOR_READ_SYSTEM = """You write radio sponsor reads for RadioLife {market_label}.
+SPONSOR_READ_SYSTEM = """You write radio sponsor reads for FUUSIC {market_label}.
 
 OUTPUT FORMAT: a single block of natural Hinglish radio voice text (no headings, no labels).
 
@@ -36,7 +36,7 @@ STYLE RULES:
 - {duration_sec}-second read (~{word_budget} words)
 - Tone: {tone}
 - Mention the business name TWICE, the offer ONCE, end with the business name
-- Include a clear call-to-action that references tapping the Action Card on the RadioLife player
+- Include a clear call-to-action that references tapping the Action Card on the FUUSIC player
 - Use ElevenLabs v3 audio tags inline where natural: [warm], [excited], [hyped], [smiles], [pause]
 - NO formal Hindi opener (no "namaskar", "main aapka RJ hoon", "hello listeners")
 - Natural radio voice — like a human host endorsing the business, not reading a brochure

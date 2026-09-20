@@ -513,14 +513,14 @@ export default function PayPage() {
           <div className={`mt-3 flex items-center justify-center gap-1 text-[10px] font-semibold ${
             light ? "text-slate-500" : "text-slate-500"
           }`}>
-            <ShieldCheck size={12}/> Secured by RadioLife &amp; Stripe
+            <ShieldCheck size={12}/> Secured by FUUSIC &amp; Stripe
           </div>
         </div>
 
         <div className={`text-center text-[10px] font-bold uppercase tracking-widest ${
           light ? "text-slate-500" : "text-slate-500"
         }`}>
-          Powered by RadioLife
+          Powered by FUUSIC
         </div>
       </div>
 
@@ -758,7 +758,7 @@ function InactiveState({ light, kind, customTitle, customText }) {
         <div className={`mt-6 text-[10px] font-bold uppercase tracking-widest ${
           light ? "text-slate-500" : "text-slate-500"
         }`}>
-          Powered by RadioLife
+          Powered by FUUSIC
         </div>
       </div>
     </div>

@@ -25,7 +25,7 @@ const ACTIVITIES = [
   { id: "nightlife", label: "Nightlife", Icon: Moon,     hint: "Late-night" },
 ];
 
-// Map dark styling — matches RadioLife dark theme.
+// Map dark styling — matches FUUSIC dark theme.
 const MAP_STYLE_ID = null;
 
 export default function CommuteMode() {

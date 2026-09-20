@@ -244,7 +244,7 @@ export default function PartnerCheckout() {
       if (env === "sandbox") { setRjr((s) => ({ ...s, sponsorship_id: sid, advertiser_id: aid, result: { sandbox: true, status: "active" } })); toast.success("Read booked (sandbox)"); return; }
       await axios.post(`${API}/partner/commerce/sponsorships/${sid}/submit`, {
         type: "rj_read", advertiser_id: aid, environment: env,
-        final_script: `Sponsored by ${rjr.product_name}. ${rjr.key_message} — ${rjr.cta}, only on RadioLife.`,
+        final_script: `Sponsored by ${rjr.product_name}. ${rjr.key_message} — ${rjr.cta}, only on FUUSIC.`,
       });
       const k = await axios.post(`${API}/partner/commerce/sponsorships/${sid}/checkout`, { type: "rj_read", advertiser_id: aid, environment: env, origin_url: origin });
       setRjr((s) => ({ ...s, sponsorship_id: sid, advertiser_id: aid, result: k.data }));

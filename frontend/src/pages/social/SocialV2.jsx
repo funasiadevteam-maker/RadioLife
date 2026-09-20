@@ -1,4 +1,4 @@
-// RadioLife Social V2 — Phase 1 web shell.
+// FUUSIC Social V2 — Phase 1 web shell.
 // "Do things together": Together (default) · Live · Moments · Clubs · Friends.
 // Design-independent functionality; premium New Look V2 presentation.
 import { useCallback, useEffect, useRef, useState } from "react";

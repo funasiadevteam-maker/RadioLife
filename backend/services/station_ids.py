@@ -1,6 +1,6 @@
 """Phase 3.5 — Pre-generated station ID stings for Mirchi-style party rotation.
 
-Generates 10 short (1-2s) RadioLife station-ID stings via ElevenLabs TTS
+Generates 10 short (1-2s) FUUSIC station-ID stings via ElevenLabs TTS
 at first boot, then randomly picks one between songs on party channels.
 Idempotent — skips files that already exist.
 """
@@ -26,16 +26,16 @@ STATION_ID_DIR.mkdir(parents=True, exist_ok=True)
 # Voice IDs from services/voices.py — replicated here to avoid circular import.
 # Each entry: (filename, voice_id, script, max_seconds)
 STATION_IDS: List[tuple] = [
-    ("sid_01", "IKne3meq5aSn9XLyUdCD", "[hyped] You're listening to RadioLife!", 2.4),                              # DJ Charlie
-    ("sid_02", "AZnzlk1XvdvUeBnXmlld", "[excited] RadioLife... [hyped] dil se!", 2.4),                              # DJ Riya
-    ("sid_03", "IKne3meq5aSn9XLyUdCD", "[shouts] The number ONE party station — RadioLife!!", 2.6),                 # DJ Charlie
-    ("sid_04", "IKne3meq5aSn9XLyUdCD", "[hyped] Non-stop hits, [excited] RadioLife!", 2.4),                         # DJ Charlie
-    ("sid_05", "1WrEi9ztXQkVmKgG6j9A", "[playful] RadioLife, [chuckles] aap sun rahe ho!", 2.6),                    # Veer
-    ("sid_06", "rCmVtv8cYU60uhlsOo1M", "[warm] RadioLife. [excited] Music chalega NON-stop!", 2.6),                 # Monika
-    ("sid_07", "AZnzlk1XvdvUeBnXmlld", "[hyped] Bollywood, beats — RadioLife!", 2.4),                               # DJ Riya
-    ("sid_08", "IKne3meq5aSn9XLyUdCD", "[shouts] You. Are. ON. RadioLife!!", 2.4),                                   # DJ Charlie
-    ("sid_09", "rCmVtv8cYU60uhlsOo1M", "[whispers] RadioLife... [excited] aur ye gaana sun lo!", 2.8),              # Monika
-    ("sid_10", "IKne3meq5aSn9XLyUdCD", "[hyped] Dance. Party. Repeat. [shouts] RadioLife!", 2.6),                    # DJ Charlie
+    ("sid_01", "IKne3meq5aSn9XLyUdCD", "[hyped] You're listening to FUUSIC!", 2.4),                              # DJ Charlie
+    ("sid_02", "AZnzlk1XvdvUeBnXmlld", "[excited] FUUSIC... [hyped] dil se!", 2.4),                              # DJ Riya
+    ("sid_03", "IKne3meq5aSn9XLyUdCD", "[shouts] The number ONE party station — FUUSIC!!", 2.6),                 # DJ Charlie
+    ("sid_04", "IKne3meq5aSn9XLyUdCD", "[hyped] Non-stop hits, [excited] FUUSIC!", 2.4),                         # DJ Charlie
+    ("sid_05", "1WrEi9ztXQkVmKgG6j9A", "[playful] FUUSIC, [chuckles] aap sun rahe ho!", 2.6),                    # Veer
+    ("sid_06", "rCmVtv8cYU60uhlsOo1M", "[warm] FUUSIC. [excited] Music chalega NON-stop!", 2.6),                 # Monika
+    ("sid_07", "AZnzlk1XvdvUeBnXmlld", "[hyped] Bollywood, beats — FUUSIC!", 2.4),                               # DJ Riya
+    ("sid_08", "IKne3meq5aSn9XLyUdCD", "[shouts] You. Are. ON. FUUSIC!!", 2.4),                                   # DJ Charlie
+    ("sid_09", "rCmVtv8cYU60uhlsOo1M", "[whispers] FUUSIC... [excited] aur ye gaana sun lo!", 2.8),              # Monika
+    ("sid_10", "IKne3meq5aSn9XLyUdCD", "[hyped] Dance. Party. Repeat. [shouts] FUUSIC!", 2.6),                    # DJ Charlie
 ]
 
 # Energetic voice settings — these are radio drops, not radio shows.

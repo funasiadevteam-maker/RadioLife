@@ -258,7 +258,7 @@ async def top_game_for_user(db, *, user_id: str) -> Optional[dict]:
         return {"game_id":   camp.get("campaign_id"),
                   "campaign_id": camp.get("campaign_id"),
                   "template_id": camp.get("template_id"),
-                  "name":         camp.get("title") or "RadioLife games",
+                  "name":         camp.get("title") or "FUUSIC games",
                   "icon_url":    None,
                   "last_played_at": None, "play_count": 0,
                   "cold_start": True}

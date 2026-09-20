@@ -1,5 +1,5 @@
 // Phase H — AD.5 Trivia Sponsorship · Advertiser page.
-// Dual-design (Legacy dark + RadioLife light).  Advertisers fund a
+// Dual-design (Legacy dark + FUUSIC light).  Advertisers fund a
 // prize pool for a trivia room, category, or "any room" fan-out.
 // Winners get BigPoints points or dollar-off vouchers.
 import { useCallback, useEffect, useMemo, useState } from "react";

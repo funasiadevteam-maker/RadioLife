@@ -98,7 +98,7 @@ export default function TriviaPlayScreen() {
   const shareScore = async () => {
     try {
       await Share.share({
-        message: `I scored ${finished.final_score} on RadioLife Trivia! Can you beat me?`,
+        message: `I scored ${finished.final_score} on FUUSIC Trivia! Can you beat me?`,
       });
     } catch {}
   };

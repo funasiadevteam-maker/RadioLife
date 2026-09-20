@@ -185,8 +185,8 @@ async def invite_send(body: InviteIn, request: Request,
     deep_link = (f"{frontend_base}/register?ref={code}"
                             if frontend_base else f"/register?ref={code}")
     inviter_name = (user.get("first_name")
-                                      or user.get("name") or "A RadioLife listener")
-    subject = f"{inviter_name} invited you to RadioLife 🎙️"
+                                      or user.get("name") or "A FUUSIC listener")
+    subject = f"{inviter_name} invited you to FUUSIC 🎙️"
     safe_note = (body.personal_note or "").replace("<", "&lt;").replace(">", "&gt;")
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{subject}</title></head>
@@ -194,7 +194,7 @@ async def invite_send(body: InviteIn, request: Request,
   <div style="max-width:560px;margin:0 auto;padding:32px 24px">
     <div style="font-size:11px;letter-spacing:0.18em;color:#00d1ff;font-weight:700;margin-bottom:6px">BIGFM · INVITE</div>
     <h1 style="font-size:26px;line-height:1.25;margin:0 0 18px;font-weight:800;color:#fff">
-      {inviter_name} invited you to RadioLife 🎙️
+      {inviter_name} invited you to FUUSIC 🎙️
     </h1>
     <p style="font-size:15px;line-height:1.6;color:#b4c4da;margin:0 0 18px">
       Personalized radio. Local news. Predict-&amp;-win games. Real rewards.
@@ -215,7 +215,7 @@ async def invite_send(body: InviteIn, request: Request,
     </p>
   </div>
 </body></html>"""
-    text_body = (f"{inviter_name} invited you to RadioLife 🎙️\n\n"
+    text_body = (f"{inviter_name} invited you to FUUSIC 🎙️\n\n"
                           + (f"{safe_note}\n\n" if safe_note else "")
                           + f"Join with code {code}: {deep_link}\n\n"
                             "Personalized radio, news, games and rewards.\n"

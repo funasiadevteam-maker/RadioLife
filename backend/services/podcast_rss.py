@@ -57,7 +57,7 @@ def build_feed_xml(channel: dict, episodes: list, *,
     completed_transcript_ep_ids = completed_transcript_ep_ids or set()
     fg = FeedGenerator()
     fg.load_extension("podcast")
-    title  = channel.get("title") or "RadioLife Podcast"
+    title  = channel.get("title") or "FUUSIC Podcast"
     desc   = channel.get("description") or ""
     lang  = (channel.get("language") or "en")[:8]
     slug   = channel.get("slug") or channel.get("id")
@@ -70,7 +70,7 @@ def build_feed_xml(channel: dict, episodes: list, *,
     fg.language(lang)
     fg.link(href=link, rel="alternate")
     fg.link(href=feed_link, rel="self")
-    fg.copyright(f"© {datetime.now(timezone.utc).year} RadioLife")
+    fg.copyright(f"© {datetime.now(timezone.utc).year} FUUSIC")
     # Cover image.
     cover = _absolute_url(channel.get("cover_image_url") or
                                           "/static/bigfm-default-cover.png")
@@ -80,8 +80,8 @@ def build_feed_xml(channel: dict, episodes: list, *,
     pod = fg.podcast
     pod.itunes_category(_category_apple(channel.get("category")))
     pod.itunes_explicit("yes" if channel.get("explicit_flag") else "no")
-    pod.itunes_author((creator or {}).get("display_name") or "RadioLife Creator")
-    pod.itunes_owner(name=(creator or {}).get("display_name") or "RadioLife Creator",
+    pod.itunes_author((creator or {}).get("display_name") or "FUUSIC Creator")
+    pod.itunes_owner(name=(creator or {}).get("display_name") or "FUUSIC Creator",
                                 email=(creator or {}).get("contact_email")
                                               or "podcasts@bigfm.dubai")
     pod.itunes_image(cover)
@@ -354,6 +354,6 @@ async def get_or_build_xml(db, *, channel_id: str) -> str:
 
 def _empty_feed_xml() -> str:
     return ('<?xml version="1.0" encoding="UTF-8"?>\n'
-              '<rss version="2.0"><channel><title>RadioLife</title>'
+              '<rss version="2.0"><channel><title>FUUSIC</title>'
               '<description>not found</description><link>'
               + VAST_BASE_URL + '</link></channel></rss>')

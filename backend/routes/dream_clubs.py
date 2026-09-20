@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — DREAM CLUBS.
+"""FUUSIC Social V2 — DREAM CLUBS.
 
 Themed communities (Lucid Dreamers, Nightmare Support, Recurring Dreams …)
 where people gather around the dreams they share. Reuses the `dreams`

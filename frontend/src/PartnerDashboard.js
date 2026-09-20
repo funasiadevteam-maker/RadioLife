@@ -61,15 +61,15 @@ export default function PartnerDashboard() {
     return (
       <div className="biz-shell" data-testid="partner-upgrade-shell">
         <div className="coupons-header">
-          <Link to="/" className="paw-back"><ChevronLeft size={14}/> RadioLife</Link>
-          <h1>Become a RadioLife Partner</h1>
+          <Link to="/" className="paw-back"><ChevronLeft size={14}/> FUUSIC</Link>
+          <h1>Become a FUUSIC Partner</h1>
           <p className="dim small">List your business, post offers, and reach drivers in real time.</p>
         </div>
         <div className="biz-body" style={{ padding: 40 }}>
           <div className="partner-upgrade-card">
             <Briefcase size={28} style={{ color: "#ff2d95" }} />
             <h2>Sign up as a partner</h2>
-            <p className="dim">By upgrading, you accept the RadioLife Partner Terms:
+            <p className="dim">By upgrading, you accept the FUUSIC Partner Terms:
             you're responsible for honouring claimed offers in-store, you'll be
             verified by our team before going live, and POS integrations are
             opt-in.</p>
@@ -88,7 +88,7 @@ export default function PartnerDashboard() {
   return (
     <div className="biz-shell" data-testid="partner-shell">
       <div className="coupons-header">
-        <Link to="/" className="paw-back"><ChevronLeft size={14}/> RadioLife</Link>
+        <Link to="/" className="paw-back"><ChevronLeft size={14}/> FUUSIC</Link>
         <h1>Partner Portal</h1>
         <p className="dim small">Manage your businesses + offers</p>
       </div>

@@ -1,4 +1,4 @@
-"""RadioLife Phase 2 — Channels + Music Clocks + voice-key routing.
+"""FUUSIC Phase 2 — Channels + Music Clocks + voice-key routing.
 
 Each channel is a "show" with its own host roster, language/genre/mood/energy
 filters, and a music-clock rotation that varies what KIND of track plays in
@@ -88,12 +88,12 @@ RJ_VOICES_EXT: Dict[str, dict] = {
 
 
 VOICE_PREVIEW_SCRIPTS_EXT: Dict[str, str] = {
-    "dj_riya_dubai":   "[hyped] DUBAI! [excited] DJ Riya on RadioLife... [shouts] LET'S GO!!",
-    "pandit_anand":    "[warm] [soft] Namaste. [pause] Aap sun rahe ho... RadioLife. Shanti.",
-    "gurpreet_bhaji":  "[excited] Sat sri akal DUBAI! [hyped] Gurpreet bhaji speaking — RadioLife par!",
-    "aarti_morning":   "[excited] Good morning DUBAI! [hyped] Aapki Aarti on RadioLife... [warm] uth jao!",
-    "kishore_retro":   "[warm] [soft] Aap sun rahe ho... RadioLife. [warm] Kishore yahan, retro lounge mein.",
-    "simran_punjabi":  "[chuckles] [warm] Hai sat sri akal! [excited] Simran yahan, RadioLife par!",
+    "dj_riya_dubai":   "[hyped] DUBAI! [excited] DJ Riya on FUUSIC... [shouts] LET'S GO!!",
+    "pandit_anand":    "[warm] [soft] Namaste. [pause] Aap sun rahe ho... FUUSIC. Shanti.",
+    "gurpreet_bhaji":  "[excited] Sat sri akal DUBAI! [hyped] Gurpreet bhaji speaking — FUUSIC par!",
+    "aarti_morning":   "[excited] Good morning DUBAI! [hyped] Aapki Aarti on FUUSIC... [warm] uth jao!",
+    "kishore_retro":   "[warm] [soft] Aap sun rahe ho... FUUSIC. [warm] Kishore yahan, retro lounge mein.",
+    "simran_punjabi":  "[chuckles] [warm] Hai sat sri akal! [excited] Simran yahan, FUUSIC par!",
 }
 
 
@@ -380,7 +380,7 @@ CHANNELS: List[dict] = [
     # `is_music_channel` is False — listeners stream it via /api/news_radio/queue.
     {
         "slug": "news_radio",
-        "name": "RadioLife News Radio",
+        "name": "FUUSIC News Radio",
         "tagline": "AI-curated hourly news",
         "description": "Top headlines summarized by gpt-4o-mini, refreshed hourly.",
         "cover_color": "#00d9ff",

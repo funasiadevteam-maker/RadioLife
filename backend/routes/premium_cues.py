@@ -32,9 +32,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "annual_price": 39.99,
     "currency": "USD",
     "benefits": [
-        {"key": "ad_free_audio", "title": "No RadioLife platform audio ads",
+        {"key": "ad_free_audio", "title": "No FUUSIC platform audio ads",
          "category": "core", "enabled": True},
-        {"key": "ad_free_display", "title": "No RadioLife platform display ads",
+        {"key": "ad_free_display", "title": "No FUUSIC platform display ads",
          "category": "core", "enabled": True},
         {"key": "premium_badge", "title": "Premium profile badge",
          "category": "core", "enabled": True},

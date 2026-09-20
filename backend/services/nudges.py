@@ -125,7 +125,7 @@ def _render_email(*, kind: str, creator: dict) -> dict:
     display = creator.get("display_name") or "there"
     url = f"{PUBLIC_BASE_URL}/creator/studio/new"
     if kind == "24h":
-        subject = "Ready to record your first RadioLife episode?"
+        subject = "Ready to record your first FUUSIC episode?"
         body =  ("<h2>Hey " + display + ",</h2>"
                           "<p>We approved your creator account yesterday. "
                           "The fastest way to start building an audience is to "
@@ -134,9 +134,9 @@ def _render_email(*, kind: str, creator: dict) -> dict:
                           "padding:10px 16px;background:#f59e0b;color:#0a0a0c;"
                           "text-decoration:none;border-radius:8px;font-weight:700'>"
                           "Record your first episode</a></p>"
-                          "<p style='color:#888;font-size:12px'>RadioLife Creator team</p>")
+                          "<p style='color:#888;font-size:12px'>FUUSIC Creator team</p>")
     elif kind == "72h":
-        subject = "Your RadioLife channel is waiting for episode #1"
+        subject = "Your FUUSIC channel is waiting for episode #1"
         body =  ("<h2>Hi " + display + ",</h2>"
                           "<p>It's been three days since we approved your channel. "
                           "Creators who publish in the first week see 4× the "

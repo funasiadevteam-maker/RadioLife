@@ -1,6 +1,6 @@
-"""RadioLife Phase 2 — Share-this-break.
+"""FUUSIC Phase 2 — Share-this-break.
 
-Slices the RJ portion of a segment, appends the RadioLife station-ID stinger, and
+Slices the RJ portion of a segment, appends the FUUSIC station-ID stinger, and
 saves a public, shareable MP3 at /app/backend/storage/shares/<share_id>.mp3.
 The frontend hosts a public landing page at /r/<share_id> with OG meta tags
 for WhatsApp/Instagram/Twitter rich previews.

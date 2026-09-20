@@ -259,7 +259,7 @@ export default function HomeB() {
             <UtensilsCrossed size={19} />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[13.5px] font-bold truncate">RadioLife Dining Club</div>
+            <div className="text-[13.5px] font-bold truncate">FUUSIC Dining Club</div>
             <div className="text-[11px] text-text-secondary truncate">Spin the wheel · $9.99 meals near you</div>
           </div>
           <ChevronRight size={15} className="text-text-secondary shrink-0" />

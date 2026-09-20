@@ -1,4 +1,4 @@
-"""RadioLife Phase 13d — admin region observability endpoints."""
+"""FUUSIC Phase 13d — admin region observability endpoints."""
 from __future__ import annotations
 import logging
 from typing import Optional

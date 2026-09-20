@@ -200,7 +200,7 @@ export default function BusinessRedeem() {
       </Card>
 
       <p className="text-xs text-text-secondary text-center max-w-md mx-auto">
-        Tip — your PIN is hashed on the server, never visible to RadioLife
+        Tip — your PIN is hashed on the server, never visible to FUUSIC
         staff. Rotate it from the dashboard anytime.
       </p>
     </div>

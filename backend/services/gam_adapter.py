@@ -111,8 +111,8 @@ _SAMPLE_VAST = """<?xml version="1.0" encoding="UTF-8"?>
 <VAST version="4.0">
   <Ad id="{CID}">
     <InLine>
-      <AdSystem>RadioLife-GAM-Mock</AdSystem>
-      <AdTitle>RadioLife GAM mock backfill</AdTitle>
+      <AdSystem>FUUSIC-GAM-Mock</AdSystem>
+      <AdTitle>FUUSIC GAM mock backfill</AdTitle>
       <Impression><![CDATA[https://example.com/gam_mock_imp/{CID}]]></Impression>
       <Creatives>
         <Creative>

@@ -60,10 +60,10 @@ PHRASE_SEED: List[tuple] = [
     ("dubai", "evening_drive", "traffic",   "Sheikh Zayed pe traffic build up — music ka volume up.", "hinglish", "evening_drive"),
 
     ("dubai", "nightlife_mode", "opener",   "Friday night Dubai mein. Scene ready hai.", "hinglish", "nightlife"),
-    ("dubai", "nightlife_mode", "hype",     "JBR ki energy, Karama ka heart, sab yahan RadioLife par.", "hinglish", "nightlife"),
+    ("dubai", "nightlife_mode", "hype",     "JBR ki energy, Karama ka heart, sab yahan FUUSIC par.", "hinglish", "nightlife"),
     ("dubai", "nightlife_mode", "music_intro","Bollywood beats, Punjabi flavor, coming up.", "hinglish", "nightlife"),
 
-    ("dubai", "overnight_lounge", "opener", "Dubai ki raat, RadioLife par, dheere se.", "hinglish", "chill_late_night"),
+    ("dubai", "overnight_lounge", "opener", "Dubai ki raat, FUUSIC par, dheere se.", "hinglish", "chill_late_night"),
     ("dubai", "overnight_lounge", "companion","Drive safe, music smooth — late-night company.", "hinglish", "chill_late_night"),
 ]
 

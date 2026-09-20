@@ -66,7 +66,7 @@ export default function ClaimVerify() {
           <h1 className="text-3xl font-bold mb-2">You're verified</h1>
           <p className="text-sm text-white/70 mb-6 max-w-prose">
             <strong className="text-white">{data?.station_name}</strong> is now
-            officially yours on RadioLife. You can edit metadata, see listener
+            officially yours on FUUSIC. You can edit metadata, see listener
             stats, and configure payouts from the owner dashboard.
           </p>
           <div className="rounded-xl border border-white/[0.10]
@@ -101,7 +101,7 @@ export default function ClaimVerify() {
           </div>
           {!user && (
             <div className="mt-6 text-xs text-white/50">
-              Tip: sign in with your RadioLife account to manage your station.
+              Tip: sign in with your FUUSIC account to manage your station.
             </div>
           )}
         </div>

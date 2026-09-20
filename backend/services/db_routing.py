@@ -1,4 +1,4 @@
-"""RadioLife Phase 13d — Mongo read-preference + multi-cluster routing.
+"""FUUSIC Phase 13d — Mongo read-preference + multi-cluster routing.
 
 Single-region preview keeps using ``MONGO_URL``. When operators provide
 ``BIGFM_MONGO_PRIMARY_URI`` and ``BIGFM_MONGO_REPLICA_URIS`` (csv) we

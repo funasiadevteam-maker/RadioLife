@@ -1,7 +1,7 @@
-"""RadioLife Premium Dining Club — core engine (Phase 1 backend).
+"""FUUSIC Premium Dining Club — core engine (Phase 1 backend).
 
 A 30-day, Premium-only restaurant meal membership. The customer picks how many
-meals/week (3-14) and only Veg / Non-Veg; RadioLife randomly assigns the
+meals/week (3-14) and only Veg / Non-Veg; FUUSIC randomly assigns the
 restaurant via an EQUAL-PROBABILITY wheel (server decides the winner, one
 optional reroll). Each redeemed meal is a fixed $9.99.
 
@@ -962,8 +962,8 @@ async def _deliver_dining_webhook(url: str, secret: str, event: dict) -> None:
         async with httpx.AsyncClient(timeout=8) as c:
             await c.post(url, content=body, headers={
                 "Content-Type": "application/json",
-                "X-RadioLife-Dining-Signature": _wh_sign(secret, body),
-                "X-RadioLife-Event": event["type"]})
+                "X-FUUSIC-Dining-Signature": _wh_sign(secret, body),
+                "X-FUUSIC-Event": event["type"]})
     except Exception:
         pass
 

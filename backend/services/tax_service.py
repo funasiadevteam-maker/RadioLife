@@ -1,4 +1,4 @@
-"""Jurisdiction-based sales tax for RadioLife Marketplace orders (origin-based
+"""Jurisdiction-based sales tax for FUUSIC Marketplace orders (origin-based
 on the store's location). A configurable rate table (tax_rules) resolves the
 most-specific active rule for a store's country → state → county → city, and an
 optional AI helper pre-fills rates. Merchants remain responsible for filing and

@@ -1,5 +1,5 @@
 // Phase J — M2 Location-Boost Ads · Advertiser dashboard.
-// Dual-design (Legacy dark + RadioLife light).  Create wizard supports
+// Dual-design (Legacy dark + FUUSIC light).  Create wizard supports
 // RADIUS geofences (via lat/lng + radius slider); POLYGON entry is
 // text-based ("[lat,lng]; [lat,lng]; …") — a Google Maps map drawer
 // is out of scope for M2 v1 (would require GOOGLE_MAPS_API_KEY on the

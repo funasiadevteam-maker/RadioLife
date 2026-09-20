@@ -1,4 +1,4 @@
-// RadioLife Merchant — sell prepaid packages / bundles (mobile).
+// FUUSIC Merchant — sell prepaid packages / bundles (mobile).
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,

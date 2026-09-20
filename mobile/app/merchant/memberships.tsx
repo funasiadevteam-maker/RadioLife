@@ -1,4 +1,4 @@
-// RadioLife Merchant — memberships as an entitlement engine (mobile).
+// FUUSIC Merchant — memberships as an entitlement engine (mobile).
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,

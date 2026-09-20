@@ -1,6 +1,6 @@
 // Listen Together room (web) — poll-based sync on top of the shared social
 // API. Live rooms share the station context; podcast rooms timestamp-sync
-// from the host. The persistent RadioLife player keeps playing.
+// from the host. The persistent FUUSIC player keeps playing.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";

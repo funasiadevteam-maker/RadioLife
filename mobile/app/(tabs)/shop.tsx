@@ -1,4 +1,4 @@
-// Shop Home — RadioLife Super Marketplace consumer entry.
+// Shop Home — FUUSIC Super Marketplace consumer entry.
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
@@ -103,7 +103,7 @@ export default function ShopHome() {
 
         <View style={s.hero}>
           <View style={s.heroTop}>
-            <Text style={s.eyebrow}>RADIOLIFE SHOP</Text>
+            <Text style={s.eyebrow}>FUUSIC SHOP</Text>
             <TouchableOpacity style={s.accountBtn} onPress={() => setMenuOpen(true)} testID="shop-account-button">
               <Ionicons name="person-circle-outline" size={26} color={COLORS.text} />
             </TouchableOpacity>
@@ -159,7 +159,7 @@ export default function ShopHome() {
         ) : (
           <TouchableOpacity style={s.sellCard} onPress={() => router.push('/sell')} testID="shop-sell-cta">
             <View style={{ flex: 1 }}>
-              <Text style={s.sellTitle}>Sell on RadioLife</Text>
+              <Text style={s.sellTitle}>Sell on FUUSIC</Text>
               <Text style={s.sellSub}>List your business & reward local customers with BigPoints.</Text>
             </View>
             <Ionicons name="arrow-forward-circle" size={30} color="#fff" />

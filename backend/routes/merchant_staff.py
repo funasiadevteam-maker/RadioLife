@@ -140,12 +140,12 @@ async def staff_invite(merchant_id: str, body: InviteBody, request: Request,
     try:
         from services.mailgun_client import send_email, is_live
         if is_live():
-            subject = f"You\u2019ve been invited to RadioLife as {body.role} at {biz.get('name','a merchant')}"
+            subject = f"You\u2019ve been invited to FUUSIC as {body.role} at {biz.get('name','a merchant')}"
             html = (
                 f"<div style='font-family:system-ui,sans-serif; max-width:520px;'>"
                 f"<h2 style='color:#a855f7'>You\u2019ve got an invite \u2728</h2>"
-                f"<p><b>{biz.get('name','A merchant on RadioLife')}</b> invited you to join their team on "
-                f"<a href='https://bigfm.dubai'>RadioLife</a> as a <b>{body.role}</b>.</p>"
+                f"<p><b>{biz.get('name','A merchant on FUUSIC')}</b> invited you to join their team on "
+                f"<a href='https://bigfm.dubai'>FUUSIC</a> as a <b>{body.role}</b>.</p>"
                 f"<p style='margin:24px 0'>"
                 f"<a href='{invite_url}' style='background:linear-gradient(135deg,#a855f7,#ec4899);"
                 f"color:#fff;text-decoration:none;padding:10px 24px;border-radius:999px;"

@@ -67,7 +67,7 @@ function NotFound() {
         </div>
         <div style={{marginTop: 16}}>
           <a href="/" className="psp-btn">
-            <ArrowLeft size={12}/> Back to RadioLife
+            <ArrowLeft size={12}/> Back to FUUSIC
           </a>
         </div>
       </div>
@@ -127,7 +127,7 @@ export default function PublicPassport() {
   const share = async () => {
     const u = `${window.location.origin}/passport/${userId}?ref=${data.referral_code || ""}`;
     if (navigator.share) {
-      try { await navigator.share({ url: u, title: `Join ${data.display_name} on RadioLife` }); }
+      try { await navigator.share({ url: u, title: `Join ${data.display_name} on FUUSIC` }); }
       catch (_) {}
     } else {
       navigator.clipboard.writeText(u);

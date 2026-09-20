@@ -1,4 +1,4 @@
-// Advertiser dashboard — Developer / API keys page (RadioLife Ads API v1).
+// Advertiser dashboard — Developer / API keys page (FUUSIC Ads API v1).
 // Self-serve management of partner API keys + OAuth2 clients, usage, webhooks
 // (events, signing-secret rotation, delivery log + retry), per-key IP allowlist,
 // and an interactive API Explorer. Raw secrets are shown exactly once.
@@ -229,7 +229,7 @@ export default function DeveloperApi() {
         <h1 className="text-2xl font-black text-slate-900">API &amp; Keys</h1>
       </div>
       <p className="text-sm text-slate-500 mb-5">
-        Connect your own systems to RadioLife to buy audio ads, banners, sponsorships and more, programmatically.
+        Connect your own systems to FUUSIC to buy audio ads, banners, sponsorships and more, programmatically.
         Base URL <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">{V1_BASE}</code>.
         <a href={`${V1_BASE}/docs`} target="_blank" rel="noreferrer" data-testid="dev-docs-link"
           className="inline-flex items-center gap-1 text-orange-600 font-bold ml-1">API reference<ExternalLink className="w-3.5 h-3.5" /></a>
@@ -341,7 +341,7 @@ export default function DeveloperApi() {
           {/* Webhooks */}
           <section className="rounded-2xl border border-slate-200 p-5 mt-4" data-testid="dev-webhooks-section">
             <h2 className="font-black text-slate-900">Webhooks</h2>
-            <p className="text-xs text-slate-500 mt-0.5">We POST signed events. Verify with <code className="bg-slate-100 px-1 rounded">X-RadioLife-Signature</code>. Rotate the secret or replay a delivery anytime.</p>
+            <p className="text-xs text-slate-500 mt-0.5">We POST signed events. Verify with <code className="bg-slate-100 px-1 rounded">X-FUUSIC-Signature</code>. Rotate the secret or replay a delivery anytime.</p>
             <div className="mt-3 divide-y divide-slate-100">
               {webhooks.length === 0 && <div className="text-sm text-slate-400 py-2">No webhooks yet.</div>}
               {webhooks.map((w) => (

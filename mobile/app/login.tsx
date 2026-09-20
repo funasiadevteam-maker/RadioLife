@@ -74,7 +74,7 @@ export default function Login() {
         <View style={s.brand} testID="login-brand">
           <View style={s.dot} />
           <Text style={s.brandName}>
-            RadioLife<Text style={s.brandDxb}>.app</Text>
+            FUUSIC<Text style={s.brandDxb}>.app</Text>
           </Text>
         </View>
 
@@ -241,7 +241,7 @@ export default function Login() {
 
         <View style={s.switchRow}>
           <Text style={s.switchText}>
-            {mode === 'login' ? 'New to RadioLife? ' : 'Already with us? '}
+            {mode === 'login' ? 'New to FUUSIC? ' : 'Already with us? '}
           </Text>
           <TouchableOpacity
             onPress={() => setMode(mode === 'login' ? 'register' : 'login')}
@@ -263,7 +263,7 @@ export default function Login() {
           </TouchableOpacity>
         )}
 
-        <Text style={s.footer}>RADIOLIFE.APP · MOBILE</Text>
+        <Text style={s.footer}>FUUSIC.APP · MOBILE</Text>
         <FunAsiaFooter />
       </ScrollView>
     </KeyboardAvoidingView>

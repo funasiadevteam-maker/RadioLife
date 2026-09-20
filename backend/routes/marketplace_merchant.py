@@ -1,4 +1,4 @@
-"""Marketplace Merchant API — "Sell on RadioLife" registration, BigPoints
+"""Marketplace Merchant API — "Sell on FUUSIC" registration, BigPoints
 settings + live $ cost preview, and the merchant BigPoints funding account
 (prepaid balance via Stripe, or auto-deduct from payout)."""
 from __future__ import annotations
@@ -28,7 +28,7 @@ def _clean(doc: Dict[str, Any]) -> Dict[str, Any]:
     return doc
 
 
-# ───────────── Onboarding ("Sell on RadioLife") ─────────────
+# ───────────── Onboarding ("Sell on FUUSIC") ─────────────
 class BigPointsConfig(BaseModel):
     mode: str = Field("default", description="default|per_order_value|per_item")
     default_points: int = Field(50, ge=0, le=100000)

@@ -59,7 +59,7 @@ export default function Podcasts() {
             On-demand shows
           </h1>
           <p className="mt-1 text-sm text-white/60">
-            {channels.length} podcasts from RadioLife creators + imported feeds.
+            {channels.length} podcasts from FUUSIC creators + imported feeds.
           </p>
         </header>
 

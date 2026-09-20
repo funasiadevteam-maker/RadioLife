@@ -13,7 +13,7 @@ Endpoints (no auth required):
     POST /api/live-radio/click/{station_id}     # fire-and-forget click ping
 
 Ranking rule (per spec):
-    1. RadioLife AI-curated channels matching the category  (source="bigfm_ai")
+    1. FUUSIC AI-curated channels matching the category  (source="bigfm_ai")
     2. Claimed partner stations                                            (42-C — empty for now)
     3. Healthy imported stations by (votes desc, click_count desc)
     4. Other imported stations
@@ -189,7 +189,7 @@ async def list_categories(request: Request):
                                 "source_provider": "radiobrowser"},
                               projection={"station_id": 1})]
         unique_imp = len(set(imp_ids))
-        # RadioLife AI channel count via genres.
+        # FUUSIC AI channel count via genres.
         ai_tags = _AI_CHANNEL_TAG_MAP.get(slug, set())
         ai_count = 0
         if ai_tags:
@@ -211,7 +211,7 @@ async def list_categories(request: Request):
 # ─────────────────────── /stations  (browse / filter) ─────
 @router.get("/stations",
                           description=(
-                              "Paginated station list.  Ranking: RadioLife AI matches first, "
+                              "Paginated station list.  Ranking: FUUSIC AI matches first, "
                               "then healthy imported by (votes desc, click_count desc), "
                               "then other imported.  All filters are AND-combined."))
 async def list_stations(
@@ -232,7 +232,7 @@ async def list_stations(
     db = request.app.state.db
     cat_slug = (category or "").strip().lower() or None
 
-    # ── RadioLife AI tier ───────────────────────────────────────
+    # ── FUUSIC AI tier ───────────────────────────────────────
     ai_cards: List[Dict[str, Any]] = []
     if cat_slug:
         ai_tags = _AI_CHANNEL_TAG_MAP.get(cat_slug, set())
@@ -285,7 +285,7 @@ async def list_stations(
 @router.get("/stations/{station_id}",
                           description=(
                               "Station detail with similar-AI-channel suggestion when "
-                              "the imported station maps to a category that RadioLife has "
+                              "the imported station maps to a category that FUUSIC has "
                               "an AI channel for."))
 async def get_station(station_id: str, request: Request):
     db = request.app.state.db

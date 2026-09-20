@@ -40,7 +40,7 @@ export default function SlotMachine({ config, onSubmit, submitting, result, bran
     <div className="slot-shell" data-testid="slot-machine"
             style={{ "--brand": brand }}>
       <div className="slot-marquee mono">
-        <Zap size={12} /> RADIOLIFE SLOTS · MATCH 3 TO WIN
+        <Zap size={12} /> FUUSIC SLOTS · MATCH 3 TO WIN
       </div>
       <div className="slot-cabinet">
         {reels.map((reel, ri) => {

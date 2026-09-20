@@ -1,4 +1,4 @@
-"""RadioLife Advertising Product Registry — Phase A of the programmatic API.
+"""FUUSIC Advertising Product Registry — Phase A of the programmatic API.
 
 Single source of truth for what the Partner API (`/api/v1`) can offer,
 reconciled with the ad / game / sponsorship engines that ACTUALLY exist so
@@ -69,7 +69,7 @@ REGISTRY: list[dict] = [
         "approval": _LIVE_APPROVAL,
         "reporting_metrics": ["entries", "unique_players", "completions",
                               "winners", "coupon_saves", "redemptions"],
-        "consumer_placement": "RadioLife Play & Win",
+        "consumer_placement": "FUUSIC Play & Win",
     },
     {
         "key": "trivia_sponsorship", "name": "Trivia Sponsorship",
@@ -80,7 +80,7 @@ REGISTRY: list[dict] = [
         "internal_service": "trivia_sponsorship_service",
         "approval": _LIVE_APPROVAL,
         "reporting_metrics": ["entries", "engagement", "winners"],
-        "consumer_placement": "RadioLife Trivia rooms",
+        "consumer_placement": "FUUSIC Trivia rooms",
         "endpoints": {"inventory": "/api/v1/sponsorships/inventory?type=trivia",
                       "create": "/api/v1/sponsorships",
                       "checkout": "/api/v1/sponsorships/{id}/checkout"},
@@ -94,7 +94,7 @@ REGISTRY: list[dict] = [
         "internal_service": "ad3_sponsorship_service",
         "approval": _LIVE_APPROVAL,
         "reporting_metrics": ["entries", "engagement"],
-        "consumer_placement": "RadioLife Predict & Win",
+        "consumer_placement": "FUUSIC Predict & Win",
         "endpoints": {"create": "/api/v1/sponsorships",
                       "checkout": "/api/v1/sponsorships/{id}/checkout"},
     },

@@ -43,7 +43,7 @@ export default function Subscribe() {
       if (r.data.checkout_url) {
         await WebBrowser.openBrowserAsync(r.data.checkout_url);
         const st = await api.get(`/merchant/marketplace/subscription/status/${r.data.session_id}`);
-        if (st.data.active) { celebrate({ points: 0, title: 'You\'re live on RadioLife! 🎉' }); load(); return; }
+        if (st.data.active) { celebrate({ points: 0, title: 'You\'re live on FUUSIC! 🎉' }); load(); return; }
       }
     } catch { celebrate({ points: 0, title: 'Subscription failed' }); }
     finally { setBusyId(null); }

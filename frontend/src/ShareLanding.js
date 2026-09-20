@@ -55,8 +55,8 @@ export default function ShareLanding() {
         const r = await axios.get(`${API}/share/${share_id}/meta`);
         setMeta(r.data);
         setOG({
-          title: `RadioLife · ${r.data.host_names?.join(" × ") || "Radio break"}`,
-          description: `${r.data.channel_name ? `From ${r.data.channel_name} · ` : ""}Listen to a ${Math.round(r.data.duration_sec)}s break from RadioLife — Hinglish AI radio.`,
+          title: `FUUSIC · ${r.data.host_names?.join(" × ") || "Radio break"}`,
+          description: `${r.data.channel_name ? `From ${r.data.channel_name} · ` : ""}Listen to a ${Math.round(r.data.duration_sec)}s break from FUUSIC — Hinglish AI radio.`,
           audio_url: `${BACKEND_URL}${r.data.audio_url}`,
         });
       } catch (e) {
@@ -88,7 +88,7 @@ export default function ShareLanding() {
       </header>
 
       {err && <div className="share-land-card share-err"><p>{err}</p>
-        <Link to="/" className="share-land-cta">Go to RadioLife →</Link></div>}
+        <Link to="/" className="share-land-cta">Go to FUUSIC →</Link></div>}
 
       {!err && !meta && (
         <div className="share-land-card"><Loader2 className="spin" size={28} /></div>
@@ -103,7 +103,7 @@ export default function ShareLanding() {
             {meta.rj_format === "duo" && <span className="duo-badge mono">DUO</span>}
           </div>
 
-          <h1 className="share-land-h1">A break from <b>{meta.channel_name || "RadioLife"}</b></h1>
+          <h1 className="share-land-h1">A break from <b>{meta.channel_name || "FUUSIC"}</b></h1>
 
           {meta.track_title && (
             <p className="share-land-after mono">
@@ -137,12 +137,12 @@ export default function ShareLanding() {
           />
 
           <p className="share-land-blurb">
-            Heard on <b>RadioLife</b> — the AI-powered Hinglish radio
+            Heard on <b>FUUSIC</b> — the AI-powered Hinglish radio
             station made for the Indian community in the UAE.
           </p>
 
           <Link to="/" className="share-land-cta" data-testid="share-land-cta">
-            <RadioIcon size={16} /> Listen on RadioLife <ExternalLink size={14} />
+            <RadioIcon size={16} /> Listen on FUUSIC <ExternalLink size={14} />
           </Link>
 
           <div className="share-land-foot mono">

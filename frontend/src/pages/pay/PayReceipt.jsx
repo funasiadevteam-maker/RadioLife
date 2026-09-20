@@ -11,7 +11,7 @@
 //
 // Renders: merchant card, "Payment received" checkmark, amount, txn
 // reference, date, optional table number, optional points banner,
-// "Back to RadioLife" + "Explore more offers" CTAs.
+// "Back to FUUSIC" + "Explore more offers" CTAs.
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
@@ -224,7 +224,7 @@ export default function PayReceipt() {
                       : "bg-purple-500/15 text-purple-300"
             }`} data-testid="receipt-points-banner">
               <Sparkles size={14}/>
-              +{receipt.points_earned} RadioLife points added
+              +{receipt.points_earned} FUUSIC points added
             </div>
           )}
         </div>
@@ -315,7 +315,7 @@ export default function PayReceipt() {
                       light ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
                               : "bg-slate-800 text-slate-200 hover:bg-slate-700"
                     }`}>
-            Back to RadioLife
+            Back to FUUSIC
           </Link>
           <Link to="/discover"
                     data-testid="receipt-explore-offers"
@@ -330,7 +330,7 @@ export default function PayReceipt() {
         <div className={`text-center mt-6 text-[10px] font-bold uppercase tracking-widest ${
           light ? "text-slate-500" : "text-slate-500"
         }`}>
-          Powered by RadioLife
+          Powered by FUUSIC
         </div>
       </div>
     </ShellFrame>

@@ -76,7 +76,7 @@ export default function AdminAdPacing() {
           <h1 className="text-xl font-black">Ad Pacing</h1>
         </div>
         <p className="text-sm text-slate-400 mb-6">
-          Tune how often RadioLife inserts audio ads. Value-before-advertising —
+          Tune how often FUUSIC inserts audio ads. Value-before-advertising —
           keep these gentle so listening time (not banner count) drives revenue.
         </p>
         {loading ? (
@@ -90,7 +90,7 @@ export default function AdminAdPacing() {
               saving={savingKey === "hop"}
               onSave={() => save("hop", "/admin/preroll/hop-cooldown", { seconds: Number(hop) })} />
             <Control icon={Repeat} title="Mid-roll cadence"
-              desc="Play one mid-stream audio ad every N songs during RadioLife-controlled audio (Free listeners only)."
+              desc="Play one mid-stream audio ad every N songs during FUUSIC-controlled audio (Free listeners only)."
               value={cadence} setValue={setCadence} min={2} max={8} unit="songs"
               testid="pacing-cadence"
               saving={savingKey === "cadence"}

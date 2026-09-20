@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — LIVE DREAM Q&A.
+"""FUUSIC Social V2 — LIVE DREAM Q&A.
 
 Approved advisors host live audio/video sessions where the community asks
 about dreams in real time. Reuses `services.livekit_client` for room tokens

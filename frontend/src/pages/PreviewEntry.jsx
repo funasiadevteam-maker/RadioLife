@@ -52,7 +52,7 @@ export default function PreviewEntry() {
         <div className="max-w-sm w-full nlv2-glass rounded-2xl p-6 text-center">
           <div className="text-lg font-black">Invalid or expired link</div>
           <p className="mt-2 text-sm" style={{ color: "#a8b0cc" }}>
-            This preview link is no longer valid. Ask your RadioLife contact for a fresh access link.
+            This preview link is no longer valid. Ask your FUUSIC contact for a fresh access link.
           </p>
           <Link to="/" data-testid="preview-entry-home"
             className="mt-4 inline-flex items-center gap-1 px-4 py-2 rounded-full bg-white/10 text-sm font-semibold hover:bg-white/20">

@@ -9,7 +9,7 @@ Flow:
 1. Advertiser POSTs a draft campaign + expected budget
     (cost_per_completion × max_total_completions).
 2. Server creates a Stripe test-mode PaymentIntent for the total
-    budget (advertiser pays RadioLife directly — no external merchant).
+    budget (advertiser pays FUUSIC directly — no external merchant).
 3. Advertiser POSTs `.../confirm-payment` after Stripe confirmation.
 4. If budget ≥ $500, campaign flips to `pending_admin`; else it
     flips directly to `active`.
@@ -151,7 +151,7 @@ async def _charge_prepayment(*, amount_cents: int, currency: str,
                                                           advertiser_business_id: str
                                                           ) -> Dict[str, Any]:
     """Create + confirm a Stripe test-mode PaymentIntent for the total
-    budget.  Advertiser pays RadioLife directly (no `transfer_data`).
+    budget.  Advertiser pays FUUSIC directly (no `transfer_data`).
 
     Note: `currency` refers to the REWARD currency on the campaign
     ("bc" for BigCoin or "usd" for dollar-off vouchers).  The Stripe

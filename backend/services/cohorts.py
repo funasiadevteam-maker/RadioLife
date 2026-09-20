@@ -128,7 +128,7 @@ def _walk_dsl(node: dict) -> tuple[dict, list[dict]]:
         # Map short alias `city` → real user doc field `preference_vector.city`.
         return _leaf_to_mongo("preference_vector.city", leaf_op, value), []
     if ALLOWED_FIELDS[field] == "users_alias_country":
-        # Map short alias `country` → `market` (RadioLife stores ISO-2 there).
+        # Map short alias `country` → `market` (FUUSIC stores ISO-2 there).
         return _leaf_to_mongo("market", leaf_op, value), []
     # Virtual leaf — collect; evaluated after Mongo find.
     return {}, [{"field": field, "op": leaf_op, "value": value}]

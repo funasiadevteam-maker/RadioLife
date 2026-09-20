@@ -1,5 +1,5 @@
 // Phase 15d.3 — singleton holder for the two HTMLAudioElement nodes that
-// drive the RadioLife crossfade player.  The audio elements are mounted ONCE
+// drive the FUUSIC crossfade player.  The audio elements are mounted ONCE
 // at the AppShell root by `<GlobalAudio />` so that route navigation does
 // NOT unmount them.  Anything that needs to read or mutate the audio (e.g.
 // Radio.js, MiniPlayer, keyboard shortcuts) imports the refs from here.

@@ -1,4 +1,4 @@
-"""Auto-tagging pipeline for RadioLife tracks.
+"""Auto-tagging pipeline for FUUSIC tracks.
 
 Stages (graceful degradation — any stage failing is non-fatal):
 1. ID3 / file metadata via mutagen

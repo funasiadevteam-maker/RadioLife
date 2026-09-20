@@ -36,7 +36,7 @@ MARKET_VOICE_DEFAULTS = {
 }
 
 VOICE_SAMPLE_PREFIX = "/api/static/voice_samples"
-SAMPLE_LINE = ("Hi, I'm your RadioLife anchor. Here's what's happening "
+SAMPLE_LINE = ("Hi, I'm your FUUSIC anchor. Here's what's happening "
                "around you right now.")
 
 _SETTINGS_ID = "news_radio"

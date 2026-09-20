@@ -164,7 +164,7 @@ function Sidebar({ collapsed }) {
         <div className="h-16 flex items-center px-4">
           {!collapsed && (
             <Link to="/" className="font-display font-bold text-lg tracking-display-tight">
-              RadioLife<span className="text-accent-electric">.app</span>
+              FUUSIC<span className="text-accent-electric">.app</span>
             </Link>
           )}
         </div>
@@ -282,7 +282,7 @@ function TopBar({ onHamburger }) {
         <Menu size={20} />
       </button>
       <Link to="/" className="font-display font-bold text-lg tracking-display-tight hidden lg:block">
-        RadioLife<span className="text-accent-electric">.app</span>
+        FUUSIC<span className="text-accent-electric">.app</span>
       </Link>
       <form onSubmit={onSubmit} role="search" className="relative flex-1 max-w-[48%] mx-auto" data-testid="topbar-search-form">
         <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
@@ -500,7 +500,7 @@ function MobileShell({ children }) {
               transition={{ duration: 0.2 }} data-testid="mobile-drawer"
               className="fixed top-0 left-0 bottom-0 z-50 w-72 bg-bg-elevated p-3 overflow-y-auto">
               <div className="font-display font-bold text-lg tracking-display-tight px-2 py-2">
-                RadioLife<span className="text-accent-electric">.app</span>
+                FUUSIC<span className="text-accent-electric">.app</span>
               </div>
               {PRIMARY_NAV.map(({ key, ...n }) => (
                 <DrawerItem key={key} {...n} summary={summary} onNav={() => setDrawer(false)} />

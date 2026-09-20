@@ -1,7 +1,7 @@
 """Partner API self-serve portal (web dashboard) + admin management.
 
 Lets a logged-in advertiser create their Partner account and mint/revoke
-API keys + OAuth2 clients for the public RadioLife Ads API (`/api/v1`).
+API keys + OAuth2 clients for the public FUUSIC Ads API (`/api/v1`).
 Raw secrets are shown exactly once, on creation.
 """
 from __future__ import annotations

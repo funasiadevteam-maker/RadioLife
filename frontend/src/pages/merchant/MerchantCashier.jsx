@@ -125,7 +125,7 @@ export default function MerchantCashier() {
             <ScanLine size={22}/>
           </div>
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-300">RadioLife · Cashier</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-300">FUUSIC · Cashier</div>
             <h1 className="text-2xl font-black text-white truncate">{merchant?.name}</h1>
           </div>
           <div className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-cyan-200"

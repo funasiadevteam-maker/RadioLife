@@ -641,7 +641,7 @@ function MediaUploaderModal({ station, variant, onClose, onSaved }) {
                                           : "bg-amber-400/[0.06] text-amber-200 border border-amber-400/20")}>
           <Volume2 size={11} className="inline mr-1" />
           Changes go through admin review unless auto-publish is enabled
-          on this station by RadioLife staff.
+          on this station by FUUSIC staff.
         </div>
 
         <div className="flex justify-end gap-2">

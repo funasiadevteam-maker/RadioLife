@@ -32,7 +32,7 @@ export default function AdvertiserOnboard({ onCreated }) {
     <div className="space-y-6 max-w-2xl" data-testid="advertiser-onboard">
       <div>
         <h2 className="font-display font-bold text-3xl tracking-display-tight">
-          Start advertising on RadioLife
+          Start advertising on FUUSIC
         </h2>
         <p className="text-text-secondary mt-2">
           Reach the diaspora through AI radio.  Top up your ad wallet, build a

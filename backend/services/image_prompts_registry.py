@@ -26,7 +26,7 @@ Slug MUST equal the filename without extension.
 from __future__ import annotations
 from typing import Dict, Tuple, Optional
 
-# Style tokens shared across RadioLife branding — plug into prompts so the
+# Style tokens shared across FUUSIC branding — plug into prompts so the
 # generated art keeps a consistent look.
 _PALETTE = "cyan · magenta · UV purple · deep navy"
 _STYLE   = ("high-contrast movie-poster collage · dramatic light · "
@@ -68,7 +68,7 @@ CHANNEL_THUMBNAILS: Dict[str, ImagePromptSpec] = {
 }
 
 
-# ── landing_images (RadioLife marketing splash) ──────
+# ── landing_images (FUUSIC marketing splash) ──────
 # All 18 currently shipped landing PNGs are already git-tracked, but we
 # register their prompts here so any future prod deploy that ships
 # WITHOUT them can self-heal in one boot cycle.
@@ -222,7 +222,7 @@ _PLACEHOLDER_STYLE = ("minimalist branded placeholder illustration; "
 PLACEHOLDER_IMAGES: Dict[str, ImagePromptSpec] = {
     "bigfm_logo": (
         "placeholders",
-        ("Bold RadioLife wordmark 'bigFM' with a stylized broadcast tower "
+        ("Bold FUUSIC wordmark 'bigFM' with a stylized broadcast tower "
           "icon, glowing magenta-to-cyan gradient wordmark on deep-space "
           "black; iconic and readable at small sizes; " + _PLACEHOLDER_STYLE),
         "png", None,

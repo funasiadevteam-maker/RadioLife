@@ -44,7 +44,7 @@ const VOICES = [
   { id: 'aarti_morning', name: 'Aarti', blurb: 'Bubbly morning-show.', fits: 'MEDIUM · HIGH' },
   { id: 'kishore_retro', name: 'Kishore Da', blurb: 'Classic retro nostalgia.', fits: 'CHILL · MED' },
   { id: 'simran_punjabi', name: 'Simran', blurb: 'Punjabi female co-host.', fits: 'MED · HIGH' },
-  { id: 'auto', name: 'Auto', blurb: 'Let RadioLife pick by vibe.', fits: 'SMART ROUTING' },
+  { id: 'auto', name: 'Auto', blurb: 'Let FUUSIC pick by vibe.', fits: 'SMART ROUTING' },
 ];
 const STEP_TITLES = ['Welcome','Languages','Genres','Eras','Moods','When','Market','Artists','Your RJ','Content filter','Done'];
 const nice = (g: string) => g.replace(/_/g, ' ');
@@ -194,7 +194,7 @@ export default function Onboarding() {
         {/* Header */}
         <View style={s.header}>
           <View style={s.brandRow}>
-            <View style={s.dot} /><Text style={s.brandName}>RadioLife<Text style={{ color: COLORS.secondary }}>.app</Text></Text>
+            <View style={s.dot} /><Text style={s.brandName}>FUUSIC<Text style={{ color: COLORS.secondary }}>.app</Text></Text>
           </View>
           <Text style={s.stepLabel} testID="wizard-step">STEP {step + 1} / 11 · {STEP_TITLES[step].toUpperCase()}</Text>
           {step < 10 && (
@@ -222,7 +222,7 @@ export default function Onboarding() {
           {step === 5 && (<View><Text style={s.title}>When do you tune in?</Text><Text style={s.lede}>Pick at least 1.</Text><ChipGrid options={ACTIVITIES} selected={pv.activities} onToggle={toggle('activities')} testID="step-activities" /></View>)}
           {step === 6 && (
             <View>
-              <Text style={s.title}>Which RadioLife are you on?</Text>
+              <Text style={s.title}>Which FUUSIC are you on?</Text>
               <Text style={s.lede}>Pick your market — Dubai or DFW.</Text>
               <View style={cs.grid} testID="step-market-grid">
                 {MARKETS.map(m => (
@@ -299,7 +299,7 @@ export default function Onboarding() {
           {step === 10 && (
             <View testID="step-done">
               <Text style={s.title}>Sab set, {user?.name || 'yaar'}!</Text>
-              <Text style={s.lede}>Your personalized RadioLife is ready. Tap below to start.</Text>
+              <Text style={s.lede}>Your personalized FUUSIC is ready. Tap below to start.</Text>
               <View style={cs.summaryGrid} testID="summary-grid">
                 {[['LANGUAGES', pv.languages.join(' · ')], ['GENRES', pv.genres.map(nice).join(' · ')], ['ERAS', pv.eras.join(' · ')], ['MOODS', pv.moods.join(' · ')], ['MARKET', pv.market === 'dfw' ? 'DFW' : 'Dubai'], ['AREA', pv.home_area || '—'], ['RJ', pv.host_personality], ['EXPLICIT', pv.explicit_ok ? 'ON' : 'OFF']].map(([label, val]) => (
                   <View key={label} style={cs.summaryRow}>

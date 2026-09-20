@@ -1,4 +1,4 @@
-"""RadioLife Social V2 — Phase 4/5.
+"""FUUSIC Social V2 — Phase 4/5.
 
   • Group Carts      — a shared cart friends fill together, then one Stripe
                        checkout for the whole basket ("Shop Together").

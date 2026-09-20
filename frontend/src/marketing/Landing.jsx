@@ -22,7 +22,7 @@ export default function Landing() {
   return (
     <MarketingShell>
       <SEO title="AI Radio · Live Trivia · Real Rewards"
-              description="RadioLife is a non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigPoints rewards, and a wallet of real coupons." />
+              description="FUUSIC is a non-interactive personalized radio with an AI RJ, live trivia in your neighborhood, BigPoints rewards, and a wallet of real coupons." />
       <Hero />
       {/* Phase FUN.1-v2 — Flagship strip on the landing hero for cross-promo. */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8"
@@ -371,7 +371,7 @@ function AppDownload({ urlFor }) {
           <SectionEyebrow>Mobile</SectionEyebrow>
           <SectionTitle>One tap, one stream, one home.</SectionTitle>
           <p className="mt-4 text-text-secondary max-w-md">
-            The RadioLife app picks up where the web left off. Tap into your
+            The FUUSIC app picks up where the web left off. Tap into your
             station while you walk, drive, or wait in line.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -396,7 +396,7 @@ function AppDownload({ urlFor }) {
             <>
               <img
                 src={mobileHero}
-                alt="RadioLife mobile preview"
+                alt="FUUSIC mobile preview"
                 loading="lazy"
                 onError={(e) => { e.currentTarget.style.display = "none"; }}
                 className="absolute inset-0 w-full h-full object-cover"

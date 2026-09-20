@@ -1,4 +1,4 @@
-// RadioLife Shop — buy & redeem prepaid packages (mobile).
+// FUUSIC Shop — buy & redeem prepaid packages (mobile).
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,

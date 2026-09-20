@@ -126,14 +126,14 @@ def _tts_top_n() -> int:
 
 def _build_anchor_script(article: dict, summary: str) -> str:
     """Turn the bare summary into a tagged news-anchor script ElevenLabs
-    can deliver naturally.  We add a "Now on RadioLife News" intro + source
+    can deliver naturally.  We add a "Now on FUUSIC News" intro + source
     sign-off so the audio always sounds like a packaged segment."""
     source = (article.get("source_name") or article.get("source_id")
                           or "the wire").strip()
     title  = (article.get("title") or "").strip()
     body = summary.strip()
-    intro = f"[warm] Now on RadioLife News. {title}."
-    outro = f"[soft] {source}, RadioLife News."
+    intro = f"[warm] Now on FUUSIC News. {title}."
+    outro = f"[soft] {source}, FUUSIC News."
     return f"{intro} {body} {outro}"
 
 

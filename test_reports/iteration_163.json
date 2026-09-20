@@ -1,0 +1,70 @@
+{
+  "summary": "Regression + brand-consistency sweep of the RadioLife -> FUUSIC rebrand across the shared FastAPI backend, /app/frontend (web) and /app/mobile (Expo). Web app compiles clean (frontend supervisor RUNNING, no build errors in logs), all core routes render: `/` (FUUSIC home shell), `/about` (FUUSIC hero + F·U·U·S·I·C grid, both testids about-hero + about-meaning present), `/login`, `/pricing`, `/shop`, `/listen`, `/social` (Together/Live/Moments/Pulse/Friends tabs). Password login POST /api/auth/login with demo@bigfm.dubai / DemoPass123! succeeds, header lockup reads 'FUUSIC · LISTEN · CONNECT · PLAY · SHOP · EARN'. Metadata verified: <title> = 'FUUSIC — Everything You Love, Together.', og:image = /fuusic-og.png (file present), manifest short_name = 'FUUSIC', favicon/OG assets present under /app/frontend/public. Mobile Expo web preview boots cleanly, demo-login-btn tap authenticates via POST /api/auth/demo and the bottom tab shell renders 5 tabs. Backend health OK (uptime 400s+, no import errors, bigfm-backend). NO regressions detected from the mass find/replace (the previously-fixed App.js legacy import path is holding). HOWEVER — a real brand-consistency regression remains: several visible 'RADIOLIFE' strings still ship in principal consumer flows on both web and mobile (Login footer, Pricing hero-eyebrow + billing footer, Radio.js footer on web; mobile Login footer, Shop eyebrow, Play&Win house tag, Dining Club, Profile help email). These are NOT inside design_radiolife/ and are NOT technical identifiers, so they need to be renamed to FUUSIC. Additionally, some backend consumer-visible strings (dream-cluster share image caption 'RADIOLIFE · DREAM MATCH', soft-launch email base URL 'https://radiolife.app', partner contact fallback partner@radiolife.app) still say RadioLife.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/soft_launch (launch email)", "issue": "soft_launch.py:671,912 falls back to `https://radiolife.app` for the email base URL when BIGFM_PUBLIC_BASE_URL is unset — user-visible link in launch/dunning emails."},
+      {"endpoint": "/api/dreams (share image)", "issue": "dream_clusters.py:180 bakes literal text 'RADIOLIFE  ·  DREAM MATCH' onto the shareable dream-match PNG via PIL — consumer-visible artifact."},
+      {"endpoint": "/api/partner_portal", "issue": "partner_portal.py:298 default partner contact_email is 'partner@radiolife.app'."},
+      {"endpoint": "/api/dream_payouts", "issue": "dream_payouts.py:187 advisor fallback email uses `@advisor.radiolife` domain."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "Login.js", "issue": "Login page footer still renders 'RADIOLIFE · PHASE 1 · BACK TO RADIO' — visible on /login for signed-out users (principal consumer flow). Reference: /app/frontend/src/Login.js:330.", "selector": "n/a (text node)", "priority": "HIGH"},
+        {"component": "Pricing.js", "issue": "Pricing hero eyebrow reads 'RADIOLIFE PREMIUM' (hero-eyebrow mono) and page footer reads 'RADIOLIFE · PHASE 3 · BILLING' — visible when navigating to /pricing while authenticated. Reference: /app/frontend/src/Pricing.js:143,257.", "selector": ".hero-eyebrow.mono", "priority": "HIGH"},
+        {"component": "Radio.js", "issue": "Radio player screen footer reads 'RADIOLIFE · PHASE 3 · PREMIUM + BILLING'. Reference: /app/frontend/src/Radio.js:923.", "selector": "n/a", "priority": "MEDIUM"},
+        {"component": "PlayAndWin.js", "issue": "House pill on Play & Win tiles reads 'RADIOLIFE HOUSE · 1/DAY' (paw-house-tag). Reference: /app/frontend/src/PlayAndWin.js:210.", "selector": ".paw-house-tag", "priority": "MEDIUM"},
+        {"component": "games/SlotMachine.js", "issue": "Slot Machine game eyebrow says 'RADIOLIFE SLOTS · MATCH 3 TO WIN'. Reference: /app/frontend/src/games/SlotMachine.js:43.", "selector": "n/a", "priority": "MEDIUM"},
+        {"component": "AdminBulkUpload.jsx", "issue": "Bulk Upload header brand block still renders 'RADIOLIFE' (admin surface, non-consumer but shown to advertisers/admins). Reference: /app/frontend/src/AdminBulkUpload.jsx:231.", "selector": "n/a", "priority": "LOW"},
+        {"component": "Admin.js", "issue": "Admin header eyebrow renders 'RADIOLIFE · ADMIN · <email>'. Reference: /app/frontend/src/Admin.js:514.", "selector": "n/a", "priority": "LOW"},
+        {"component": "components/BottomBarStationRail.jsx", "issue": "CSS class variable `ringRadiolife` used for light-mode ring — variable name only, non-visible, but worth renaming for consistency. Reference: /app/frontend/src/components/BottomBarStationRail.jsx:79.", "selector": "n/a", "priority": "LOW"}
+      ],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/about", "issues": ["Cookies banner overlays bottom-right on desktop — non-blocking, minor."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "app/login.tsx", "issue": "Mobile login footer shows 'RADIOLIFE.APP · MOBILE' below the sign-in card — visible pre-auth. Reference: /app/mobile/app/login.tsx:266.", "testID": "n/a", "priority": "HIGH"},
+        {"component": "app/(tabs)/shop.tsx", "issue": "Shop tab eyebrow reads 'RADIOLIFE SHOP'. Reference: /app/mobile/app/(tabs)/shop.tsx:106.", "testID": "n/a", "priority": "HIGH"},
+        {"component": "app/play-and-win.tsx", "issue": "Play & Win house tag reads 'RADIOLIFE HOUSE'. Reference: /app/mobile/app/play-and-win.tsx:153.", "testID": "n/a", "priority": "MEDIUM"},
+        {"component": "app/dining/index.tsx", "issue": "Dining hero kicker renders 'RADIOLIFE DINING CLUB'. Reference: /app/mobile/app/dining/index.tsx:63.", "testID": "n/a", "priority": "MEDIUM"},
+        {"component": "app/(tabs)/profile.tsx", "issue": "Help menu alert body says 'Email: support@radiolife.app' — should reference support@fuusic.com (BRAND.supportEmail). Reference: /app/mobile/app/(tabs)/profile.tsx:154.", "testID": "menu-help", "priority": "MEDIUM"},
+        {"component": "app/social/room/[id].tsx & app/social/dreams/*.tsx", "issue": "Origin URLs for Stripe/Share still hardcoded to 'https://radiolife.app' (Share message body + Stripe origin_url on payouts/onboarding and ads/checkout). Reference: /app/mobile/app/social/room/[id].tsx:68, /app/mobile/app/social/dreams/studio.tsx:28,108, /app/mobile/app/social/dreams/advisor/[id].tsx:41.", "testID": "n/a", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Login / sign-in screen footer", "platform": "both", "issue": "Both web and mobile still show a 'RADIOLIFE' footer on the login screen (web: 'RADIOLIFE · PHASE 1 · BACK TO RADIO', mobile: 'RADIOLIFE.APP · MOBILE'). Same regression on both surfaces.", "expected": "Footer should reference FUUSIC (e.g. 'FUUSIC · MOBILE' / 'FUUSIC · BACK TO RADIO').", "actual": "Legacy 'RADIOLIFE' string still shipped."},
+    {"flow": "Shop landing eyebrow", "platform": "mobile", "issue": "Mobile Shop tab prominently displays 'RADIOLIFE SHOP' eyebrow. Web /shop currently renders the legacy design_radiolife variant so RADIOLIFE SHOP is expected there (per prompt), but there is no mobile equivalent of the design-variant gate — mobile shows RADIOLIFE SHOP unconditionally.", "expected": "'FUUSIC SHOP' (or use BRAND.name) on mobile.", "actual": "'RADIOLIFE SHOP' hardcoded."}
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Replace remaining hardcoded 'RADIOLIFE' strings with BRAND.name / BRAND.premiumName / BRAND constants in these mainstream (non-design_radiolife) files: web -> Login.js:330, Pricing.js:143 & 257, Radio.js:923, PlayAndWin.js:210, games/SlotMachine.js:43, Admin.js:514, AdminBulkUpload.jsx:231; mobile -> app/login.tsx:266, app/(tabs)/shop.tsx:106, app/play-and-win.tsx:153, app/dining/index.tsx:63.",
+    "Update the mobile Profile help alert (app/(tabs)/profile.tsx:154) to read support@fuusic.com (import from BRAND.supportEmail).",
+    "Replace the hardcoded 'https://radiolife.app' origin_url values in mobile social/dreams/* and social/room/[id].tsx with a BRAND-derived host (e.g. `https://${BRAND.domain}`). These currently flow into Stripe redirects and Share messages.",
+    "Backend consumer-visible RadioLife strings: rename dream_clusters.py:180 image caption to 'FUUSIC · DREAM MATCH', partner_portal.py:298 default contact_email to partner@fuusic.com, soft_launch.py:671/912 fallback base URL to https://fuusic.com, dream_payouts.py:187 advisor fallback email domain to @advisor.fuusic.",
+    "Consider a follow-up regex sweep with an explicit allow-list of technical identifiers (bigfm_session, `design_radiolife/` path, radiolife design-variant key, station_type=radiolife, radiolife_wallet Stripe metadata, JWT issuer 'radiolife-ads') so ONLY user-visible strings get changed on subsequent passes."
+  ],
+  "critical_code_review_comments": [
+    "The rebrand relies on scoped find/replace but several files still emit hardcoded 'RADIOLIFE' literals rather than reading from `BRAND` (frontend/src/config/brand.js) or `BRAND_NAME` (backend/core/brand.py). Adopting the central brand config in Login.js, Pricing.js, Radio.js, PlayAndWin.js, SlotMachine.js and mobile login/shop/dining/profile would make future rebrands mechanical.",
+    "Mobile `origin_url: 'https://radiolife.app'` is repeated in 3 files for Stripe/Share redirects — this should be a single helper reading BRAND.domain so the OAuth/checkout return URL matches the actual domain post-rebrand (otherwise Stripe will happily redirect users to a domain the tenant may not own anymore).",
+    "PIL image caption in backend routes/dream_clusters.py hardcodes brand text into a share PNG — every dream share downstream will keep saying RADIOLIFE until this is patched *and* cached images are re-generated.",
+    "There is no lint/CI check preventing new hardcoded 'RadioLife' strings. A simple grep guard in a pre-commit hook (with an allow-list for the technical identifiers) would catch drift going forward."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (regression sweep only, no pytest run this iteration)", "frontend": "~85% — app loads, all critical flows render, but 6 web + 6 mobile visible-brand bugs remain"},
+  "test_credentials": "Web: demo@bigfm.dubai / DemoPass123! (verified working). Mobile Expo: demo-login-btn -> POST /api/auth/demo (verified working after fresh page load).",
+  "seed_data_creation": "No new seed data created this iteration. Note: an existing seed product named 'RadioLife Tee' (TEST_iter56_be7440) still appears in Today's Specials on /shop — should probably be renamed or re-seeded as 'FUUSIC Tee'.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Rebrand is ~90% complete visually. The web compile is clean (no repeat of the FUUSICOverlay import bug from iter162). Focus of next pass should be verifying the enumerated Login/Pricing/Radio/PlayAndWin/SlotMachine (web) + login/shop/play-and-win/dining/profile (mobile) files have moved to BRAND constants and that the design_radiolife/ variant is still gated behind localStorage `bigfm.design.variant === 'radiolife'` (currently /shop appears to render the legacy variant by default — confirm whether this is intentional). Backend regression tests were not re-run this iteration since no backend code changed; the shared backend surface passed 100% in iter162.",
+  "rca of the issue": "Root cause: the scoped find/replace targeted the code paths listed in the rebrand PR but missed pockets of literal 'RADIOLIFE' text inside legacy hero-eyebrow / footer components that predate the central BRAND config. Because DISABLE_ESLINT_PLUGIN=true is set in /app/frontend/.env, there is no static check to flag hardcoded brand strings. Mitigation: (a) migrate the enumerated files to import from /app/frontend/src/config/brand.js and /app/mobile/src/config/brand.ts, (b) rename the 4 backend consumer-visible strings, and (c) add a CI grep guard on /RADIO\\s*LIFE/i excluding the design_radiolife/ path and a small allow-list of technical identifiers."
+}

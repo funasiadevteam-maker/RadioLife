@@ -104,19 +104,19 @@ def build_market_clause(market: str | None) -> str:
     if lang == "hinglish":
         sign_offs = (
             "Use natural Hinglish (~60% English, 40% Hindi connectors in Roman script). "
-            "Sign-offs like 'RadioLife, dil se' / 'Music chalega non-stop' are OK."
+            "Sign-offs like 'FUUSIC, dil se' / 'Music chalega non-stop' are OK."
         )
     else:
         sign_offs = (
             "Speak in NATURAL ENGLISH ONLY. DO NOT use Hindi/Urdu words, "
             "DO NOT use Hinglish, DO NOT say 'dil se', 'yaar', 'doston', "
             "'mein', 'chalega', 'kya scene'. Use English sign-offs like "
-            f"'RadioLife {lex['display_name']}, from the heart' / 'Stay tuned' / "
-            f"'You're locked in on RadioLife {lex['display_name']}'."
+            f"'FUUSIC {lex['display_name']}, from the heart' / 'Stay tuned' / "
+            f"'You're locked in on FUUSIC {lex['display_name']}'."
         )
     return (
         f"You are a {lex['display_name']}-based AI radio host on station "
-        f"RadioLife {lex['display_name']}.\n"
+        f"FUUSIC {lex['display_name']}.\n"
         f"ONLY mention local landmarks, local brands, local food, "
         f"local weather, and local cultural references for {lex['display_name']}.\n"
         f"DO NOT mention any other city or brand unless explicitly asked.\n"

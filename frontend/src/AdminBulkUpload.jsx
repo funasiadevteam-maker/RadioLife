@@ -228,7 +228,7 @@ export default function AdminBulkUpload() {
         <header className="bigfm-header" data-testid="bulk-upload-header">
           <div className="bigfm-logo">
             <span className="dot" />
-            <strong style={{letterSpacing: 0.5}}>RADIOLIFE</strong>
+            <strong style={{letterSpacing: 0.5}}>FUUSIC</strong>
             <span className="badge mono">ADMIN · BULK UPLOAD</span>
           </div>
           <div className="bigfm-tag">

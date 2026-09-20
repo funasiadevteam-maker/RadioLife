@@ -20,7 +20,7 @@ load_dotenv()
 router = APIRouter(prefix="/api/shop/concierge", tags=["marketplace-concierge"])
 
 SYSTEM = (
-    "You are RadioLife's ordering concierge. The user has memberships at one or more "
+    "You are FUUSIC's ordering concierge. The user has memberships at one or more "
     "venues. You are given, as JSON, the user's request plus each venue's menu (items "
     "with ids, prices, and option groups whose options have ids) and the user's usable "
     "membership entitlements at that venue.\n"

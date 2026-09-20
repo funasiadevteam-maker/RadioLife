@@ -167,7 +167,7 @@ async def apple_apns_probe(request: Request,
 @admin_integrations_router.post("/apple_apns/test")
 async def apple_apns_test(request: Request,
                                         admin: dict = Depends(require_admin)):
-    """Send a 'RadioLife connection test' push to the admin's own registered
+    """Send a 'FUUSIC connection test' push to the admin's own registered
     APNs-native tokens (sandbox env). Returns per-token results."""
     db = request.app.state.db
     from services import apns
@@ -182,7 +182,7 @@ async def apple_apns_test(request: Request,
     async for t in cur:
         r = await apns.send_push(
             device_token=t["expo_push_token"],
-            title="RadioLife connection test",
+            title="FUUSIC connection test",
             body="If you see this, APNs direct is live in sandbox.",
             deep_link="/")
         results.append({"token_tail": t["expo_push_token"][-6:],

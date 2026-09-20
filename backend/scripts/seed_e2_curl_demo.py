@@ -86,7 +86,7 @@ async def main() -> None:
             "title": CANONICAL_TITLE,
             "description": "Synthetic E2 demo for the entries-closed path.",
             "event_type": "club_event",
-            "event_label": "RadioLife QA Demo",
+            "event_label": "FUUSIC QA Demo",
             "category": "demo",
             "city": "Dubai",
             "region": "AE",

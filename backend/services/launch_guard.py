@@ -176,7 +176,7 @@ class LaunchGuardMiddleware(BaseHTTPMiddleware):
             status_code=423,
             content={"detail": {
                 "code": "business_setup_mode",
-                "message": ("RadioLife is in Business Setup Mode — the "
+                "message": ("FUUSIC is in Business Setup Mode — the "
                             "listener experience is launching soon."),
             }},
         )

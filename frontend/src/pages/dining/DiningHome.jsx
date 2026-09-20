@@ -69,7 +69,7 @@ export default function DiningHome() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
         className="rounded-3xl p-8 mb-8 relative overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${DINE.pink}22, ${DINE.cyan}18)`, border: `1px solid ${DINE.border}` }}>
-        <div className="flex items-center gap-2 mb-3"><UtensilsCrossed color={DINE.pink} /><Label>RadioLife Dining Club</Label></div>
+        <div className="flex items-center gap-2 mb-3"><UtensilsCrossed color={DINE.pink} /><Label>FUUSIC Dining Club</Label></div>
         <h1 className="text-4xl sm:text-5xl font-black leading-none mb-3" style={{ color: DINE.text }}>
           Stop deciding<br />where to eat.
         </h1>
@@ -105,7 +105,7 @@ export default function DiningHome() {
               style={{ background: `${DINE.gold}14`, border: `1px solid ${DINE.gold}44` }} data-testid="dining-premium-bundle">
               <Crown color={DINE.gold} className="shrink-0 mt-0.5" size={18} />
               <p className="text-sm" style={{ color: DINE.text }}>
-                Dining Club is a <b>Premium</b> benefit. Joining bundles <b>RadioLife Annual Premium</b>
+                Dining Club is a <b>Premium</b> benefit. Joining bundles <b>FUUSIC Annual Premium</b>
                 {data?.premium_price?.amount_cents ? <> ({money(data.premium_price.amount_cents)}/yr)</> : null} with your Dining Club membership.
               </p>
             </div>

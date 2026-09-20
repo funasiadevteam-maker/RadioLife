@@ -268,7 +268,7 @@ export default function BusinessProfile() {
         )}
 
         {/* ── TRACK 3 STUBS ─────────────────────────────────── */}
-        <Section title="More on RadioLife" icon={Sparkles} light={light}
+        <Section title="More on FUUSIC" icon={Sparkles} light={light}
                         testid="business-profile-section-track3">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <Track3Stub label="Play & Win" Icon={Trophy}

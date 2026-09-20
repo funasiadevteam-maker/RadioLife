@@ -1,6 +1,6 @@
 """Phase F-1 — Unified Points Engine.
 
-Single source of truth for every earn / spend / reversal across RadioLife.
+Single source of truth for every earn / spend / reversal across FUUSIC.
 The legacy BigCoin system in `services/bigcoin.py` continues to write
 its own balance + transactions for backwards-compat — Phase F-1 *only*
 mirror-writes a parallel `points_ledger` so a unified ledger exists.

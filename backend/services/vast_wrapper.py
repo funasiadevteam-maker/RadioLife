@@ -32,7 +32,7 @@ def _hms(seconds: float) -> str:
 def build_vast_xml(creative: dict, *,
                               base_url: str = "",
                               serve_id: str = "",
-                              advertiser_name: str = "RadioLife Advertiser") -> str:
+                              advertiser_name: str = "FUUSIC Advertiser") -> str:
     """Render VAST 4.0 for a creative doc.  Audio + a transparent `VideoClicks`
     block (IAB still requires VideoClicks for audio ads when ClickThrough is
     available).
@@ -41,7 +41,7 @@ def build_vast_xml(creative: dict, *,
     Optional: title, click_url, transcript.
     """
     cid       = creative.get("id") or creative.get("creative_id") or "unknown"
-    title    = creative.get("title") or "RadioLife ad"
+    title    = creative.get("title") or "FUUSIC ad"
     audio   = creative.get("audio_url") or ""
     click   = creative.get("click_url") or ""
     dur      = float(creative.get("duration_sec") or 15)
@@ -61,7 +61,7 @@ def build_vast_xml(creative: dict, *,
         f'<VAST version="{VAST_VERSION}">\n'
         f'  <Ad id="{_xesc(cid)}">\n'
         f'    <InLine>\n'
-        f'      <AdSystem version="1.0">RadioLife</AdSystem>\n'
+        f'      <AdSystem version="1.0">FUUSIC</AdSystem>\n'
         f'      <AdTitle><![CDATA[{title}]]></AdTitle>\n'
         f'      <Description><![CDATA[{transc}]]></Description>\n'
         f'      <Advertiser><![CDATA[{advertiser_name}]]></Advertiser>\n'

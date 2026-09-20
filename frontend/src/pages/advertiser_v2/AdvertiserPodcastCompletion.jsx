@@ -1,5 +1,5 @@
 // Phase G — AD.9 Podcast Completion Points · Advertiser page.
-// Dual-design (Legacy dark + RadioLife light).  Advertisers create
+// Dual-design (Legacy dark + FUUSIC light).  Advertisers create
 // campaigns that reward listeners with points or dollar-off vouchers.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";

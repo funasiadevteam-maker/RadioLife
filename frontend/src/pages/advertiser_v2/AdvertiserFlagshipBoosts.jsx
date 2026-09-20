@@ -1,5 +1,5 @@
 // Phase F — Monetization M4: Boosted Flagship Slots · Advertiser page.
-// Dual-design (Legacy dark + RadioLife light).  Three tabs:
+// Dual-design (Legacy dark + FUUSIC light).  Three tabs:
 //    Available Slots — open auctions the advertiser can bid on
 //    My Bids            — status list + withdraw pending bids
 //    My Activations — scheduled + live + completed activations with impressions

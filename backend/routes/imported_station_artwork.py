@@ -396,7 +396,7 @@ def _intro_script(station: dict, custom: Optional[str] = None) -> str:
     genre = ""
     if hay:
         genre = f" — your home for {hay.split(',')[0].strip()[:40]}"
-    return (f"You're tuned in to {name}{genre}, now playing on RadioLife. "
+    return (f"You're tuned in to {name}{genre}, now playing on FUUSIC. "
             f"Stay locked in.")
 
 

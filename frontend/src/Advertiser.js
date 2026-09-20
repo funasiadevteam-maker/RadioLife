@@ -67,7 +67,7 @@ export default function Advertiser() {
       <header className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between sticky top-0 bg-bg-base/90 backdrop-blur z-20">
         <div className="flex items-center gap-3">
           <Building2 size={20} className="text-accent-electric" />
-          <h1 className="font-display font-bold text-xl tracking-display-tight">RadioLife Advertiser</h1>
+          <h1 className="font-display font-bold text-xl tracking-display-tight">FUUSIC Advertiser</h1>
         </div>
         {items.length > 0 && (
           <div className="flex items-center gap-2">

@@ -56,7 +56,7 @@ function LyricsPanel() {
 function StationInfo({ user, channel }) {
   // Pulls the active channel object when we have one, else falls back to
   // generic copy. We don't refetch — the parent passes whatever it has.
-  const name = channel?.name || channel?.slug || "RadioLife";
+  const name = channel?.name || channel?.slug || "FUUSIC";
   const tagline = channel?.tagline || "Personalized AI radio";
   const market = (user?.market || "dubai").toUpperCase();
   const hour = new Date().getHours();

@@ -239,7 +239,7 @@ export default function ChannelCategoryFooter() {
             Browse all radio channels
           </h3>
           <p className="text-text-secondary text-xs mt-1">
-            Hand-curated by RadioLife &amp; community-built stations, grouped
+            Hand-curated by FUUSIC &amp; community-built stations, grouped
             by genre.
           </p>
         </div>

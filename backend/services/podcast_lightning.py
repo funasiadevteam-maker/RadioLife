@@ -335,7 +335,7 @@ async def seed_channel_default_if_missing(db, *, channel_id: str,
     if platform_split > 0:
         plat_addr = PLATFORM_LIGHTNING_ADDRESS or ("00" * 33)
         recipients.append({
-            "name":          "RadioLife platform",
+            "name":          "FUUSIC platform",
             "type":            "lnaddress" if _RE_LNADDRESS.match(plat_addr) else "node",
             "address":     plat_addr,
             "split_pct": platform_split,

@@ -363,7 +363,7 @@ async def action_buy_now(request: Request, payload: dict, u: dict = Depends(_req
                         "currency": currency,
                         "unit_amount": amount_cents,
                         "product_data": {
-                            "name": product.get("title") or "RadioLife Action Card Purchase",
+                            "name": product.get("title") or "FUUSIC Action Card Purchase",
                             "description": (product.get("description") or "")[:300],
                         },
                     },

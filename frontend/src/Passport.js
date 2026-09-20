@@ -280,7 +280,7 @@ function ReferralsTab({ data, onUpdate }) {
   };
   const share = async () => {
     if (navigator.share) {
-      try { await navigator.share({ url: shareUrl, title: "Join me on RadioLife" }); }
+      try { await navigator.share({ url: shareUrl, title: "Join me on FUUSIC" }); }
       catch (_) {}
     } else copy();
   };
@@ -312,8 +312,8 @@ function ReferralsTab({ data, onUpdate }) {
           <ShareButton
             featureType="passport"
             contentId={ref_code}
-            title="Join me on RadioLife"
-            text="Listen to AI-curated radio, earn rewards, and collect city stamps with me on RadioLife:"
+            title="Join me on FUUSIC"
+            text="Listen to AI-curated radio, earn rewards, and collect city stamps with me on FUUSIC:"
             url={shareUrl} />
         </div>
       </section>
@@ -539,8 +539,8 @@ export default function Passport() {
     <div className="psp-page" data-testid="psp-page">
       {/* Phase 42-E2.4 — OG meta for the Social Passport. */}
       <OGMeta entityType="passport" entityId="me"
-                          title="My RadioLife Passport"
-                          description="Collect cities. Earn stamps. Climb the RadioLife leaderboard." />
+                          title="My FUUSIC Passport"
+                          description="Collect cities. Earn stamps. Climb the FUUSIC leaderboard." />
       {celebrations.length > 0 && (
         <div className="psp-celebration-overlay"
               data-testid="psp-celebration-modal">

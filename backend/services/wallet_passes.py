@@ -67,9 +67,9 @@ def _build_pass_json(*, coupon: dict, business: dict, offer: dict) -> dict:
         "teamIdentifier": os.environ["APPLE_TEAM_ID"],
         "serialNumber": coupon.get("coupon_id") or uuid.uuid4().hex,
         "organizationName": (business or {}).get(
-            "display_name", "RadioLife"),
+            "display_name", "FUUSIC"),
         "description": (offer or {}).get(
-            "title", "RadioLife Coupon"),
+            "title", "FUUSIC Coupon"),
         "coupon": {
             "primaryFields": [{
                 "key": "offer",

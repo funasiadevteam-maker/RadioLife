@@ -1,5 +1,5 @@
 // AdminImaging.js — Phase 3.8 Sonic Branding & Stations dashboard.
-// Admin-only. Lists RadioLife + FunAsia DFW stations with branding + asset
+// Admin-only. Lists FUUSIC + FunAsia DFW stations with branding + asset
 // generation status + a "Regenerate" CTA per station.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";

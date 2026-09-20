@@ -195,7 +195,7 @@ export default function ScratchCardGame({
                 fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
                 textTransform: "uppercase",
               }}>
-        {config?.sponsor_name || "RadioLife Reward"}
+        {config?.sponsor_name || "FUUSIC Reward"}
       </div>
 
       <div style={{ position: "relative", width: "100%",

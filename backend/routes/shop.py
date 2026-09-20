@@ -196,7 +196,7 @@ async def business_detail(business_id: str, request: Request,
     card["ways_to_earn"] = [
         {"label": "Order / Buy", "points": bp.get("default_points", 0), "icon": "bag-check"},
         {"label": "Check In", "points": 50, "icon": "location"},
-        {"label": "Pay with RadioLife", "points": 50, "icon": "wallet"},
+        {"label": "Pay with FUUSIC", "points": 50, "icon": "wallet"},
     ]
     return {"business": card}
 

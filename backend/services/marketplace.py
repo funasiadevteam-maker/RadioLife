@@ -1,4 +1,4 @@
-"""RadioLife Super Marketplace — Phase A foundation.
+"""FUUSIC Super Marketplace — Phase A foundation.
 
 Economics engine (BigPoints issuance cost + category commission), business
 categories, and resolver helpers shared by admin, merchant and consumer

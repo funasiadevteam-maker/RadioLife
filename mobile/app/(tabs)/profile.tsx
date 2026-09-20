@@ -125,7 +125,7 @@ export default function ProfileScreen() {
             testID="menu-notifications" />
 
           <Text style={[st.menuLabel, { marginTop: SPACING.lg }]}>GENERAL</Text>
-          <MenuItem icon="megaphone-outline" label="Advertise on RadioLife" sub="Create ads, manage campaigns"
+          <MenuItem icon="megaphone-outline" label="Advertise on FUUSIC" sub="Create ads, manage campaigns"
             onPress={() => router.push('/advertiser')}
             testID="menu-advertiser" />
           <MenuItem icon="radio-outline" label="Sponsor a station" sub="Promote a station · CPM/CPC bids"
@@ -152,8 +152,8 @@ export default function ProfileScreen() {
             onPress={redoOnboarding} loading={resetting} testID="redo-onboarding-btn" />
           <MenuItem icon="help-circle-outline" label="Help & Support" sub="FAQ, contact support"
             onPress={() => Alert.alert('Help', 'Email: support@radiolife.app')} testID="menu-help" />
-          <MenuItem icon="information-circle-outline" label="About RadioLife" sub="Version 1.0.0 · Phase 11.5"
-            onPress={() => Alert.alert('RadioLife.app', 'AI-powered Hinglish internet radio for the Indian diaspora in Dubai/UAE.\n\nVersion 1.0.0')} testID="menu-about" />
+          <MenuItem icon="information-circle-outline" label="About FUUSIC" sub="Version 1.0.0 · Phase 11.5"
+            onPress={() => Alert.alert('FUUSIC.app', 'AI-powered Hinglish internet radio for the Indian diaspora in Dubai/UAE.\n\nVersion 1.0.0')} testID="menu-about" />
 
           <Text style={[st.menuLabel, { marginTop: SPACING.lg }]}>DANGER ZONE</Text>
           <MenuItem icon="log-out" label="Sign Out" color={COLORS.orange}

@@ -48,7 +48,7 @@ TRIM_SECONDS = 45  # keep clips short for fast tests
 
 def _download(url: str, dest: Path, timeout: int = 25) -> bool:
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "RadioLife/0.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": "FUUSIC/0.1"})
         with urllib.request.urlopen(req, timeout=timeout) as r, open(dest, "wb") as f:
             f.write(r.read())
         return dest.stat().st_size > 1024
@@ -196,7 +196,7 @@ async def ensure_demo_tracks(db, storage_dir: Path) -> int:
         if not fileinfo:
             continue
         doc = {
-            "title": meta["title"], "artist": "RadioLife Demo",
+            "title": meta["title"], "artist": "FUUSIC Demo",
             "file_path": fileinfo["file_path"],
             "duration_sec": fileinfo["duration_sec"],
             "energy_level": meta["energy_level"], "mood": meta["mood"],
@@ -239,7 +239,7 @@ SEED_USERS = [
     },
     {
         "email": "admin@bigfm.dubai",
-        "name": "RadioLife Admin",
+        "name": "FUUSIC Admin",
         "password": os.environ.get("SEED_ADMIN_PW", "AdminPass123!"),
         "role": "admin",
         "onboarding_complete": True,

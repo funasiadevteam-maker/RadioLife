@@ -60,7 +60,7 @@ export default function DiningHome() {
 
       <ScrollView contentContainerStyle={{ padding: SPACING.md, paddingBottom: 60 }}>
         <LinearGradient colors={['#F26B2A', '#F59E0B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-          <Text style={s.heroKicker}>RADIOLIFE DINING CLUB</Text>
+          <Text style={s.heroKicker}>FUUSIC DINING CLUB</Text>
           <Text style={s.heroTitle}>Stop deciding{'\n'}where to eat.</Text>
           <Text style={s.heroSub}>Choose Veg or Non-Veg — we spin you a surprise restaurant. Every meal a flat {money(home?.meal_price_cents)}.</Text>
         </LinearGradient>
@@ -82,7 +82,7 @@ export default function DiningHome() {
             {notPremium && (
               <View style={s.bundle}>
                 <Ionicons name="star" size={16} color={COLORS.gold} />
-                <Text style={s.bundleText}>Premium-only benefit. Joining bundles RadioLife Annual Premium{premiumPrice ? ` (${money(premiumPrice)}/yr)` : ''} + Dining Club.</Text>
+                <Text style={s.bundleText}>Premium-only benefit. Joining bundles FUUSIC Annual Premium{premiumPrice ? ` (${money(premiumPrice)}/yr)` : ''} + Dining Club.</Text>
               </View>
             )}
             <Text style={s.label}>MEALS PER WEEK</Text>

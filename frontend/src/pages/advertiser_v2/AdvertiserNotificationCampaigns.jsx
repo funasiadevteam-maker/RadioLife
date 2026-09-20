@@ -84,7 +84,7 @@ export default function AdvertiserNotificationCampaigns() {
             Notification campaigns
           </h1>
           <p className={`text-sm mt-1 ${muted}`}>
-            Reach RadioLife users right in their in-app inbox.  Billed per delivery.
+            Reach FUUSIC users right in their in-app inbox.  Billed per delivery.
             Push channel is on the roadmap — in-app only for now.
           </p>
         </div>

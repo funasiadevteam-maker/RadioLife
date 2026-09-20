@@ -1,0 +1,43 @@
+{
+  "summary": "Iter163 follow-up retest of the RadioLife → FUUSIC rebrand across web + mobile + shared backend. VERIFIED FIXED (all iter163 HIGH/MED items): web /login footer now 'FUUSIC · PHASE 1 · BACK TO RADIO'; /pricing eyebrow+footer, Radio.js footer, PlayAndWin house tag, SlotMachine eyebrow, Admin, AdminBulkUpload all render 0 'RADIOLIFE' occurrences; mobile /login footer 'FUUSIC.APP · MOBILE', Shop eyebrow 'FUUSIC SHOP', Dining kicker 'FUUSIC DINING CLUB'. Full grep across the enumerated web + mobile files returns 0 remaining 'radiolife' matches (except Login.js:22 `design === 'radiolife'` design-variant key, which is technical-identifier per TECHDEBT). Match Card PNG regenerated live via POST /api/social/compatibility/share → GET /api/social/compatibility/card/{id}/image.png; the eyebrow bakes 'FUUSIC · DREAM MATCH' (visually confirmed on the 1200x630 PNG at /app/test_reports/match_card_sample.png). Mobile origin_url grep in social/room/[id].tsx, social/dreams/studio.tsx, social/dreams/advisor/[id].tsx returns 0 hits of 'radiolife.app' — the hardcoded Stripe/share URL is now derived from EXPO_PUBLIC_BACKEND_URL as claimed. REGRESSION: web frontend compiles clean (frontend supervisor RUNNING, no build errors, /login renders correctly on desktop viewport). Mobile Expo web preview boots, demo-login-btn works via POST /api/auth/demo, /home, /shop, /dining, /social, /social/dreams, /social/dreams/studio, /social/room/[id] all render (no blank screens; the only blank was /social/dreams/advisor/adv_demo, which is just an unknown advisor id, not a rebrand regression). **NEW ISSUE FOUND (not in iter163 scope but caused by same class of bug)**: mobile /play-and-win (backend GET /api/games_v2/play_and_win) still returns the STALE seeded titles 'RadioLife Word Puzzle', 'RadioLife Memory Match', 'RadioLife Mystery Box', 'RadioLife Scratch & Win', 'RadioLife Lyric Hunt' and sponsor_name='RadioLife' on every EXTRA_HOUSE_GAMES tile — 14 visible 'RadioLife' strings on that screen. Root cause: `backend/services/games_v2.py:510-551` was updated to 'FUUSIC ...' titles, but `seed_extra_house_games` (line 554) is idempotent-with-skip on existing campaign_id, so pre-existing DB rows in `game_campaigns` collection never receive the new title/sponsor_name.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/games_v2/play_and_win", "issue": "Returns stale campaign titles: 'RadioLife Word Puzzle' / 'RadioLife Memory Match' / 'RadioLife Mystery Box' / 'RadioLife Scratch & Win' / 'RadioLife Lyric Hunt' with sponsor_name='RadioLife'. The EXTRA_HOUSE_GAMES seed in backend/services/games_v2.py:510-551 already says FUUSIC, but `seed_extra_house_games` skips existing rows (line 559-565). DB migration or seed-update-on-boot needed. Reproduces on `curl -b cookie /api/games_v2/play_and_win | grep RadioLife` → 10+ hits."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "app/play-and-win.tsx (data source)", "issue": "Play & Win screen shows 5 tiles titled 'RadioLife Word Puzzle', 'RadioLife Memory Match', 'RadioLife Mystery Box', 'RadioLife Scratch & Win', 'RadioLife Lyric Hunt' and each carries a small 'RadioLife' sponsor pill. Not a frontend fix — driven by /api/games_v2/play_and_win response (stale DB seed). See backend_issues.minor above. Reference: /app/backend/services/games_v2.py:510-565.", "testID": "n/a", "priority": "MEDIUM"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": ["/app/test_reports/match_card_sample.png", "/app/test_reports/web_login.png", "/app/test_reports/mobile_login.png", "/app/test_reports/mobile_shop.png", "/app/test_reports/mobile_play_and_win.png", "/app/test_reports/mobile_dining.png"],
+  "action_items": [
+    "Migrate stale 'RadioLife *' titles in the game_campaigns collection for house campaign_ids (cmp_house_scratch, cmp_house_mystery, cmp_house_memory, cmp_house_word, plus any earlier cmp_house_slots/cmp_house_lyric with 'RadioLife' titles). Cleanest fix: in `seed_extra_house_games` (backend/services/games_v2.py:554), always $set title/description/sponsor_name/sponsor_logo_url on existing docs, not just when end_at is set. Also cover cmp_house_lyric / cmp_house_trivia / cmp_house_spin if their titles still read RadioLife (curl the endpoint to enumerate)."
+  ],
+  "critical_code_review_comments": [
+    "Same failure mode as the earlier hardcoded-string bugs: seed data was updated in code, but production-shape MongoDB rows aren't touched by an idempotent-with-skip seeder. A generic pattern fix is 'always $set the display fields on every boot, only insert prizes / config on create'.",
+    "Nice work moving the mobile Stripe/Share origin_url off `https://radiolife.app` — verified 0 grep hits in mobile/app/social/**. Recommend adding a lint rule (or the pre-commit /RADIO\\s*LIFE/i guard suggested in iter163) so this stays green.",
+    "The FUUSIC · DREAM MATCH PIL eyebrow is now baked correctly, but any Match Card PNGs generated before this fix (cached in Tigris via services/match_card_service) will still show RADIOLIFE. If share thumbnails are cached, a one-time cache purge of cached compatibility image blobs is needed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no pytest run; live curl verification only)", "frontend": "~98% — all 12 iter163-flagged brand strings verified fixed on both web and mobile; 1 new regression on the Play & Win house tiles is a DB-seed drift, not a code regression"},
+  "test_credentials": "Web: demo@bigfm.dubai / DemoPass123! (POST /api/auth/login → 200). Mobile: demo-login-btn tap → POST /api/auth/demo → landed on /home.",
+  "seed_data_creation": "None. 1 test compatibility match card created via POST /api/social/compatibility/share (card_id mc_c82bdd04d0a94f between demo@bigfm.dubai and freeuser@bigfm.dubai) — 1 BigPoint issued to the caller (test-only, safe).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The iter163 rebrand fixes are complete. Only remaining brand drift is the play-and-win game_campaigns DB seed. Once the main agent lands the `always $set title/sponsor_name on existing house-game rows` change and restarts backend, verify with `curl -b cookie {BACKEND}/api/games_v2/play_and_win | grep -c RadioLife` == 0. TECHDEBT-deferred items (radiolife.app email domain, `radiolife` design-variant key, `RadioLife Tee` seed product on /shop, station/channel ids, Stripe metadata radiolife_wallet, JWT issuer radiolife-ads) were correctly NOT flagged as bugs.",
+  "rca of the issue": "Same class of bug as iter163's PIL image caption: brand string was updated in source code but the persisted artifact (DB row / cached image) wasn't refreshed. Mitigation: promote the seed helper to a `sync_display_fields` pattern that overwrites cosmetic fields on every boot, keeping prizes/config immutable. Combine with the pre-commit /RADIO\\s*LIFE/i guard proposed in iter163 to prevent code-level drift."
+}

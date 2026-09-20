@@ -1,4 +1,4 @@
-"""RadioLife Phase 13e — APNs direct push delivery.
+"""FUUSIC Phase 13e — APNs direct push delivery.
 
 Apple Push Notification service over HTTP/2 using a token-auth JWT signed
 with the same .p8 ES256 key as Sign in with Apple.

@@ -1,4 +1,4 @@
-// RadioLife Social V2 — Phase 2 web surfaces: Moments, Local Pulse,
+// FUUSIC Social V2 — Phase 2 web surfaces: Moments, Local Pulse,
 // Go Together (plans) and Play Together (game sessions).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";

@@ -97,7 +97,7 @@ export default function MerchantDashboardStub() {
       <div className="max-w-2xl mx-auto px-5 py-10">
         <div className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${
           light ? "text-purple-600" : "text-cyan-400"
-        }`}>RadioLife Merchant Portal</div>
+        }`}>FUUSIC Merchant Portal</div>
         <h1 className={`text-3xl sm:text-4xl font-black tracking-tight mb-2 ${
           light ? "text-slate-900" : "text-white"
         }`} data-testid="merchant-dashboard-welcome">
@@ -250,7 +250,7 @@ export default function MerchantDashboardStub() {
                   No merchant application yet
                 </div>
                 <p className={`mt-1 text-sm ${light ? "text-slate-600" : "text-slate-400"}`}>
-                  Start your RadioLife merchant application to bring your business
+                  Start your FUUSIC merchant application to bring your business
                   onto the platform.
                 </p>
                 <button type="button"

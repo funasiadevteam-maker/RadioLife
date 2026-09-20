@@ -213,7 +213,7 @@ export function Highlights() {
         Highlights
       </h1>
       <p style={{color: "#9aa3af", marginTop: 0, marginBottom: 20}}>
-        Best moments across RadioLife channels.
+        Best moments across FUUSIC channels.
       </p>
       {items.length === 0 && !loading && (
         <div data-testid="highlights-empty"

@@ -327,7 +327,7 @@ async def cold_fill_task(db) -> Dict[str, int]:
                             pool=CONNECT_TIMEOUT_S)
     async with httpx.AsyncClient(
             timeout=timeout, follow_redirects=True, max_redirects=3,
-            headers={"User-Agent": "RadioLife-Probe/1.0"}) as client:
+            headers={"User-Agent": "FUUSIC-Probe/1.0"}) as client:
 
         async def _one(row: Dict[str, Any]):
             async with _global_gate:
@@ -374,7 +374,7 @@ async def scheduled_loop(db) -> None:
             async with httpx.AsyncClient(
                     timeout=timeout, follow_redirects=True,
                     max_redirects=3,
-                    headers={"User-Agent": "RadioLife-Probe/1.0"}
+                    headers={"User-Agent": "FUUSIC-Probe/1.0"}
                     ) as client:
 
                 async def _one(row: Dict[str, Any]):

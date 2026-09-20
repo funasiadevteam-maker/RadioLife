@@ -301,7 +301,7 @@ async def submit_for_approval(request: Request, campaign_id: str,
                 metadata={"purpose": "predict_win_campaign",
                                   "entity_id": campaign_id,
                                   "user_id": user["user_id"]},
-                description=f"RadioLife Predict & Win · {campaign_id}")
+                description=f"FUUSIC Predict & Win · {campaign_id}")
             now = datetime.now(timezone.utc)
             await db.predict_win_campaigns.update_one(
                 {"_id": campaign_id},

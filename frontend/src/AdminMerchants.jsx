@@ -5,7 +5,7 @@
 //                                        Approve / Reject modals + Mailgun send status.
 //
 // Both variants ride the legacy admin shell (admin routes are outside the
-// RadioLifeOverlay's screen map by design).
+// FUUSICOverlay's screen map by design).
 import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";

@@ -991,7 +991,7 @@ async def get_send_log(request: Request,
 # ════════════════════════════════════════════════════════════════════════
 _PROMPT_TEMPLATES = {
     "dormant": {
-        "headline": "We miss you on RadioLife 👋",
+        "headline": "We miss you on FUUSIC 👋",
         "body": ("It's been a while.  Tap to grab a 50%-off premium "
                   "trial — back to your favourite channels in seconds."),
         "cta_label": "Resume listening",

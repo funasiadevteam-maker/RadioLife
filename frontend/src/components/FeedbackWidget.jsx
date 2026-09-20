@@ -69,7 +69,7 @@ export default function FeedbackWidget() {
     <>
       <button onClick={() => setOpen(true)}
                       data-testid="feedback-widget-fab"
-                      title="Send RadioLife feedback"
+                      title="Send FUUSIC feedback"
                       className="fixed bottom-4 right-4 z-[60]
                                         bg-accent-gold text-bg-base
                                         rounded-full p-3 shadow-lg
@@ -145,7 +145,7 @@ export default function FeedbackWidget() {
                 : <>Send feedback <Send size={14} /></>}
             </Button>
             <p className="text-[10px] text-text-secondary text-center">
-              Visible only to RadioLife admins.  Includes your URL + browser.
+              Visible only to FUUSIC admins.  Includes your URL + browser.
             </p>
           </Card>
         </div>

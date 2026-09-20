@@ -50,18 +50,18 @@ export default class ErrorBoundary extends React.Component {
           </h1>
           <p style={{ color: "#9aa3af", marginBottom: 24, lineHeight: 1.55 }}>
             We&apos;ve been notified and the team will take a look. In the
-            meantime, you can reload the page or head back to the RadioLife home.
+            meantime, you can reload the page or head back to the FUUSIC home.
           </p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
             <button onClick={() => window.location.reload()}
                             data-testid="error-boundary-reload"
                             style={btnPrimary}>Reload</button>
             <a href="/" data-testid="error-boundary-home"
-                  style={{ ...btnSecondary, textDecoration: "none" }}>RadioLife home</a>
+                  style={{ ...btnSecondary, textDecoration: "none" }}>FUUSIC home</a>
           </div>
           {this.state.reported && (
             <div style={{ marginTop: 14, fontSize: 11, color: "#6b7280" }}>
-              Report ID logged to RadioLife telemetry.
+              Report ID logged to FUUSIC telemetry.
             </div>
           )}
         </div>

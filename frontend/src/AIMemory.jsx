@@ -32,7 +32,7 @@ export default function AIMemory() {
       </div>
       <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 700, margin: "0 0 14px",
                    display: "flex", alignItems: "center", gap: 8 }}>
-        <Brain size={20} color="#8b5cf6" /> What RadioLife has learned about you
+        <Brain size={20} color="#8b5cf6" /> What FUUSIC has learned about you
       </h1>
       {loading ? (
         <div style={{ color: "#9aa3af", padding: 24 }}>Loading…</div>

@@ -74,7 +74,7 @@ export default function AdvertiserTakeoverHours() {
         </button>
       </div>
       <p className={`text-sm ${muted} mb-6`}>
-        Own a 60-minute block on RadioLife.  Your name shows in every
+        Own a 60-minute block on FUUSIC.  Your name shows in every
         player, 4 AI-RJ reads air at 0/15/30/45 min, your best deals
         surface in the marketplace panel, and listeners who stay
         20 min win a bonus.  Platform fee: 40%.
@@ -279,7 +279,7 @@ function CreateWizard({ onClose, business_id, light }) {
   const [stationId, setStationId] = useState("");
   const [regionCode, setRegionCode] = useState("ae");
   const [startAt, setStartAt] = useState("");
-  const [advertiserName, setAdvertiserName] = useState("RadioLife Sponsor");
+  const [advertiserName, setAdvertiserName] = useState("FUUSIC Sponsor");
   const [tagline, setTagline] = useState("");
   const [theme, setTheme] = useState("");
   const [personaId, setPersonaId] = useState("");
