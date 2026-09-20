@@ -3,6 +3,15 @@
 > NOTE (2026-09 fork): This file grew changelog-style. Newest work is now also logged in **CHANGELOG.md** and the backlog lives in **ROADMAP.md**. The dated sections below remain the historical record.
 
 
+## 🌙 DREAMS & GUIDANCE — FOLLOW-UP WAVE (2026-09 fork, backend + web + mobile, testing agent PASS iter158 — 15/15 backend + web/mobile smoke)
+- **Origin Hardening** (`core/origins.py::resolve_origin`): fixes the `origin_url_required` Stripe-redirect error class everywhere. Resolves the public origin from body → `Origin`/`Referer` header → `BIGFM_PUBLIC_BASE_URL` → request base URL. Swept across 18 route files; `dining_club` now delegates to the shared helper. Root cause of the reported bug: web `dining subscribe` didn't send `origin_url` and the live-mode backend hard-required it.
+- **Points Toast on mobile**: `MiniToast` (`mobile/src/components/MiniToast.tsx`) shows "+1 point" on mobile dream/club shares, matching the web toast; share endpoints return `points_awarded`.
+- **Ad Analytics** (`dream_ads.py`): advisor profile views deduped + attributed to the active promo (`promo_views`, `$inc` promo.views); bookings tagged with `promo_id` at creation; `GET /api/social/ads/analytics` returns per-promo + totals {views, bookings, revenue_cents}. Shown in web `GetFeatured` + mobile `studio.tsx`.
+- **Cluster Alerts** (`dream_clusters.py`): follow/unfollow a theme (`cluster_follows`); `extract_and_store_themes` fans out `dream_alerts` to followers (not the author) when a public dream lands in a followed theme; `GET /api/social/alerts` (+ unread_count, read). Web: header `AlertsBell` + badge + cluster-follow toggle. Mobile: hub `AlertsBell` + `clusters.tsx` follow toggle.
+- **Compatibility Sharing** (`dream_clusters.py`): `POST /api/social/compatibility/share` persists a public `compat_cards` doc (+1 point) → `GET /api/social/compatibility/card/{id}` is PUBLIC (no auth). Web public route `/dreams/match/:cardId` (`DreamMatchCard.jsx`) + share buttons; mobile native Share.
+- **Reminder Timezones** (`dreams_ai_readings.py`): reminder prefs store `tz` + `utc_offset_minutes`; `GET /reminders/due?offset=` computes the nudge at the user's LOCAL hour; `POST /reminders/ack` sets `last_nudge_date` (idempotent per local day). Clients auto-send device offset+tz.
+
+
 ## 🪙 SOCIAL SHARE → +1 BIGPOINT (2026-09 fork, backend + web, self-tested via ledger)
 Every social share awards **+1 BigPoint** via the canonical `PointsService` (source `social_share`, explicit `delta=1`, idempotent per content, gated by the rule's 25/day cap so it can't be farmed). Helper `award_social_share()` in `routes/dreams_guidance.py`, wired into: share a dream (`POST /api/social/dreams`), post a dream to a club (`POST /api/social/clubs/{slug}/dreams`), and share an AI reading public (`POST /api/social/readings/{id}/share`). Responses now include `points_awarded`; web shows a "+1 point" toast on dream/club shares. Verified: freeuser balance 0→2 across two shares, idempotent re-award blocked. (Applies to both surfaces since the backend is shared.)
 

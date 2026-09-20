@@ -343,27 +343,69 @@ async def daily_detail(request: Request, user: dict = Depends(current_user)):
 class ReminderBody(BaseModel):
     enabled: bool = True
     hour: int = Field(9, ge=0, le=23)
+    tz: Optional[str] = None
+    utc_offset_minutes: Optional[int] = Field(None, ge=-840, le=840)
 
 
 @router.get("/reminders")
 async def get_reminders(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
-    p = await db.reading_reminder_prefs.find_one({"_id": user["user_id"]})
-    return {"enabled": bool(p and p.get("enabled")),
-            "hour": (p or {}).get("hour", 9),
-            "note": "In-app daily nudge. Push notifications arrive after the app "
-                    "is published to a device."}
+    p = await db.reading_reminder_prefs.find_one({"_id": user["user_id"]}) or {}
+    return {"enabled": bool(p.get("enabled")),
+            "hour": p.get("hour", 9),
+            "tz": p.get("tz"),
+            "utc_offset_minutes": p.get("utc_offset_minutes"),
+            "note": "Fires at your local hour. In-app nudge now; push after publish."}
 
 
 @router.put("/reminders")
 async def set_reminders(body: ReminderBody, request: Request,
                         user: dict = Depends(current_user)):
     db = request.app.state.db
+    upd = {"enabled": body.enabled, "hour": body.hour, "updated_at": _now()}
+    if body.tz is not None:
+        upd["tz"] = body.tz
+    if body.utc_offset_minutes is not None:
+        upd["utc_offset_minutes"] = body.utc_offset_minutes
     await db.reading_reminder_prefs.update_one(
-        {"_id": user["user_id"]},
-        {"$set": {"enabled": body.enabled, "hour": body.hour, "updated_at": _now()}},
-        upsert=True)
-    return {"ok": True, "enabled": body.enabled, "hour": body.hour}
+        {"_id": user["user_id"]}, {"$set": upd}, upsert=True)
+    return {"ok": True, **{k: v for k, v in upd.items() if k != "updated_at"}}
+
+
+@router.get("/reminders/due")
+async def reminder_due(request: Request, offset: Optional[int] = None,
+                       user: dict = Depends(current_user)):
+    """Whether today's nudge is due at the user's LOCAL hour (tz-aware).
+
+    `offset` = client UTC offset in minutes (e.g. GST +240); falls back to the
+    stored pref offset, else UTC. Idempotent per local day via last_nudge_date.
+    """
+    from datetime import timedelta
+    db = request.app.state.db
+    p = await db.reading_reminder_prefs.find_one({"_id": user["user_id"]}) or {}
+    if not p.get("enabled"):
+        return {"due": False, "enabled": False}
+    off = offset if offset is not None else p.get("utc_offset_minutes")
+    off = int(off or 0)
+    local = datetime.now(timezone.utc) + timedelta(minutes=off)
+    local_date = local.strftime("%Y-%m-%d")
+    due = local.hour >= int(p.get("hour", 9)) and p.get("last_nudge_date") != local_date
+    return {"due": bool(due), "enabled": True, "hour": p.get("hour", 9),
+            "local_time": local.strftime("%H:%M"), "local_date": local_date}
+
+
+class NudgeAckBody(BaseModel):
+    local_date: str
+
+
+@router.post("/reminders/ack")
+async def reminder_ack(body: NudgeAckBody, request: Request,
+                       user: dict = Depends(current_user)):
+    """Client calls this after showing today's nudge so it won't repeat."""
+    db = request.app.state.db
+    await db.reading_reminder_prefs.update_one(
+        {"_id": user["user_id"]}, {"$set": {"last_nudge_date": body.local_date}})
+    return {"ok": True}
 
 
 # ───────────────────────────── History ─────────────────────────────

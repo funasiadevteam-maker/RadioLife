@@ -12,6 +12,7 @@ the same flow works on web (redirect) and Expo (WebBrowser) — no Stripe.js /
 native modules required.
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 
@@ -49,7 +50,7 @@ async def create_setup_session(body: SetupSessionBody, request: Request,
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
     cust = await ensure_stripe_customer(db, user)
-    origin = (body.origin_url or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     try:

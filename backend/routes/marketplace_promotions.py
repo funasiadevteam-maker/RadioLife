@@ -4,6 +4,7 @@ Stripe hosted Checkout, ADMIN-approved before it goes live. Admins can also comp
 (grant) a promotion for free. The active promotion writes `promoted_until` +
 `promotion_weight` onto the marketplace_profile; shop reads boost + badge it."""
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import asyncio
 import os
@@ -117,7 +118,7 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         raise HTTPException(400, {"code": "bad_tier"})
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     pid = f"promo_{uuid.uuid4().hex[:10]}"

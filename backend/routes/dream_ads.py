@@ -6,6 +6,7 @@ top of the Advisors marketplace and/or the Live tab. Admin can edit tier
 prices and stop any promotion.
 """
 import os
+from core.origins import resolve_origin
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -78,8 +79,43 @@ def _promo_public(p: dict) -> dict:
             "days": p.get("days"), "surface": p.get("surface"),
             "surface_label": SURFACE_LABELS.get(p.get("surface")),
             "price_cents": p.get("price_cents"), "status": p.get("status"),
+            "views": int(p.get("views", 0)),
             "starts_at": _iso(p.get("starts_at")), "ends_at": _iso(p.get("ends_at")),
             "created_at": _iso(p.get("created_at"))}
+
+
+async def record_advisor_view(db, advisor_id: str, viewer_id: str) -> None:
+    """Count one unique viewer against the advisor's active promotion (deduped)."""
+    if not viewer_id:
+        return
+    p = await _active_promo_for(db, advisor_id)
+    if not p:
+        return
+    try:
+        await db.promo_views.insert_one(
+            {"_id": f"{p['promo_id']}:{viewer_id}", "promo_id": p["promo_id"],
+             "viewer": viewer_id, "created_at": _now()})
+        await db.advisor_promotions.update_one(
+            {"promo_id": p["promo_id"]}, {"$inc": {"views": 1}})
+    except Exception:
+        pass  # duplicate → already counted
+
+
+async def active_promo_id_for(db, advisor_id: str, surface: str = "advisors") -> Optional[str]:
+    p = await db.advisor_promotions.find_one(
+        {"advisor_id": advisor_id, "status": "active", "ends_at": {"$gt": _now()},
+         "surface": {"$in": [surface, "both"]}})
+    return p["promo_id"] if p else None
+
+
+async def _promo_stats(db, promo_id: str) -> dict:
+    bookings = 0
+    revenue = 0
+    async for b in db.reading_bookings.find({"promo_id": promo_id}):
+        bookings += 1
+        if b.get("payment_status") == "paid" or b.get("status") in ("paid", "delivered"):
+            revenue += int(b.get("price_cents", 0))
+    return {"bookings": bookings, "revenue_cents": revenue}
 
 
 async def ensure_ads_indexes(db) -> None:
@@ -134,7 +170,7 @@ async def ad_checkout(body: AdCheckoutBody, request: Request,
     stripe = _stripe()
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     session = stripe.checkout.Session.create(
@@ -179,9 +215,31 @@ async def ad_status(promo_id: str, request: Request,
 @router.get("/mine")
 async def my_ads(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
-    items = [_promo_public(p) async for p in db.advisor_promotions.find(
-        {"advisor_user_id": user["user_id"]}).sort("created_at", -1).limit(40)]
+    items = []
+    async for p in db.advisor_promotions.find(
+            {"advisor_user_id": user["user_id"]}).sort("created_at", -1).limit(40):
+        pub = _promo_public(p)
+        pub.update(await _promo_stats(db, p["promo_id"]))
+        items.append(pub)
     return {"items": items}
+
+
+@router.get("/analytics")
+async def my_ad_analytics(request: Request, user: dict = Depends(current_user)):
+    """Per-promotion impact (views · bookings · revenue) for the advisor."""
+    db = request.app.state.db
+    promos = []
+    totals = {"views": 0, "bookings": 0, "revenue_cents": 0}
+    async for p in db.advisor_promotions.find(
+            {"advisor_user_id": user["user_id"]}).sort("created_at", -1).limit(40):
+        pub = _promo_public(p)
+        pub.update(await _promo_stats(db, p["promo_id"]))
+        totals["views"] += pub["views"]
+        totals["bookings"] += pub["bookings"]
+        totals["revenue_cents"] += pub["revenue_cents"]
+        promos.append(pub)
+    return {"promotions": promos, "totals": totals,
+            "note": "Bookings are attributed while a promotion is active."}
 
 
 # ═══════════════════════════ ADMIN ═════════════════════════════════
@@ -231,4 +289,5 @@ async def admin_stop_promo(promo_id: str, request: Request,
 
 
 __all__ = ["router", "admin_router", "ensure_ads_indexes",
-           "active_featured_advisor_ids"]
+           "active_featured_advisor_ids", "record_advisor_view",
+           "active_promo_id_for"]

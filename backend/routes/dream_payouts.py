@@ -12,6 +12,7 @@ payouts require live keys at deploy time.
 Routes: /api/social/payouts/*  ·  admin /api/admin/dreams/payouts/*
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import logging
 import os
@@ -190,7 +191,7 @@ async def onboarding_start(body: OnboardBody, request: Request,
             {"advisor_id": a["advisor_id"]},
             {"$set": {"stripe_account_id": acct,
                       "stripe_onboarding_status": "onboarding_in_progress"}})
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     url = await scs.create_onboarding_link(

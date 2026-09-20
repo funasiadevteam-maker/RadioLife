@@ -2,6 +2,7 @@
 settings + live $ cost preview, and the merchant BigPoints funding account
 (prepaid balance via Stripe, or auto-deduct from payout)."""
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 from typing import Any, Dict, List, Optional
@@ -339,7 +340,7 @@ async def bp_fund(body: FundBody, request: Request, user: dict = Depends(current
                                           category=p.get("category"),
                                           merchant_id=p["business_id"])
     amount_cents = round(body.points * cost)
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     session = stripe.checkout.Session.create(

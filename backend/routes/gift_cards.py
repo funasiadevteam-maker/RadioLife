@@ -2,6 +2,7 @@
 points or a card (Stripe Checkout).  Self-contained; reuses PointsService
 for the points path and the standard stripe.checkout.Session pattern."""
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 import secrets
@@ -159,7 +160,7 @@ async def purchase(body: PurchaseBody, request: Request,
             raise HTTPException(503, {"code": "stripe_unconfigured"})
         if not product.get("allow_card", True):
             raise HTTPException(400, {"code": "card_not_allowed"})
-        origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+        origin = resolve_origin(request, body.origin_url)
         if not origin:
             raise HTTPException(400, {"code": "origin_required"})
         session = stripe.checkout.Session.create(

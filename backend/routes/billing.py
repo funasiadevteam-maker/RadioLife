@@ -4,6 +4,7 @@ Mounted at `/api/billing/*` and `/api/webhook/stripe` (the webhook path is
 the canonical one per the Stripe integration playbook).
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import logging
 from typing import Optional
@@ -178,7 +179,7 @@ async def create_checkout(
     price = get_price_for_currency(body.plan_id, cur)
 
     # Build URLs from the frontend's origin (the user's window.location.origin)
-    origin = (body.origin_url or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin.startswith("http"):
         raise HTTPException(400, "origin_url must be http(s)")
     success_url = f"{origin}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"

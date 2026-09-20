@@ -2,6 +2,7 @@
 category's search results; higher bid ranks higher. Budget is prepaid via
 Stripe hosted Checkout and billed per impression by the shop read path."""
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 import uuid
@@ -142,7 +143,7 @@ async def topup_checkout(body: TopupBody, request: Request, user: dict = Depends
         raise HTTPException(400, {"code": "set_bid_first"})
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = (body.origin_url or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     session = stripe.checkout.Session.create(

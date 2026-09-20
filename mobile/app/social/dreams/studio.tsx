@@ -96,7 +96,11 @@ function Stat({ label, value }: any) {
 function GetFeatured() {
   const [cfg, setCfg] = useState<any>(null);
   const [surface, setSurface] = useState('both');
-  const load = useCallback(async () => { try { const { data } = await api.get('/social/ads/config'); setCfg(data); } catch (_) {} }, []);
+  const [an, setAn] = useState<any>(null);
+  const load = useCallback(async () => {
+    try { const { data } = await api.get('/social/ads/config'); setCfg(data); } catch (_) {}
+    try { const { data } = await api.get('/social/ads/analytics'); setAn(data); } catch (_) {}
+  }, []);
   useEffect(() => { load(); }, [load]);
   if (!cfg || !cfg.is_advisor) return null;
   const active = cfg.active_promotion;
@@ -109,10 +113,17 @@ function GetFeatured() {
         <Ionicons name="rocket" size={18} color="#fbbf24" /><Text style={s.cardTitle}>Get featured</Text>
         <Pressable onPress={load} style={{ marginLeft: 'auto' }}><Text style={s.link}>Refresh</Text></Pressable>
       </View>
+      {an && an.totals && (an.totals.views > 0 || an.totals.bookings > 0 || (an.promotions || []).length > 0) && (
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }} testID="ad-analytics">
+          <Stat label="Views" value={an.totals.views} />
+          <Stat label="Bookings" value={an.totals.bookings} />
+          <Stat label="Revenue" value={money(an.totals.revenue_cents)} />
+        </View>
+      )}
       {active
         ? <View style={s.featActive} testID="featured-active"><Text style={s.featActiveTxt}>★ Featured on {active.surface_label} until {new Date(active.ends_at).toLocaleDateString()}</Text></View>
         : (<>
-          <Text style={[s.note, { marginTop: 6 }]}>Pin yourself to the top with a Featured badge. Doesn’t affect reviews or fairness.</Text>
+          <Text style={[s.note, { marginTop: 10 }]}>Pin yourself to the top with a Featured badge. Doesn’t affect reviews or fairness.</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
             {cfg.surfaces.map((su: any) => (
               <Pressable key={su.key} testID={`feature-surface-${su.key}`} onPress={() => setSurface(su.key)} style={[s.surf, surface === su.key && s.surfA]}><Text style={[s.surfTxt, surface === su.key && { color: '#fff' }]}>{su.label}</Text></Pressable>

@@ -6,6 +6,7 @@ RESERVATION FEE (credited toward the service). BigPoints are awarded on
 booking completion. Reservation fee via Stripe (or free if fee is 0).
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 from datetime import datetime, timedelta, timezone
@@ -360,7 +361,7 @@ async def service_checkout(body: ServiceCheckoutBody, request: Request,
                 "checkout_url": None, "reservation_fee_cents": 0}
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     session = stripe.checkout.Session.create(

@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import {
   Loader2, Sparkles, Wand2, Moon, Users2, Video, Radio, X, Send,
   Star, Trash2, ChevronLeft, DollarSign, ExternalLink, Plus, Dot,
-  Lock, Heart, Users, Bell, Rocket, Layers, ChevronRight,
+  Lock, Heart, Users, Bell, Rocket, Layers, ChevronRight, Share2, Check,
+  BarChart3,
 } from "lucide-react";
 
 const B = process.env.REACT_APP_BACKEND_URL || "";
@@ -317,9 +318,13 @@ function DailyCard() {
     readingsApi.get("/reminders").then(({ data }) => setRem(data)).catch(() => {});
   }, []);
   const toggle = async () => {
-    const next = { enabled: !rem.enabled, hour: rem.hour };
+    const next = {
+      enabled: !rem.enabled, hour: rem.hour,
+      utc_offset_minutes: -new Date().getTimezoneOffset(),
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
     setRem(next);
-    try { await readingsApi.put("/reminders", next); toast.success(next.enabled ? "Daily nudge on" : "Reminders off"); } catch (_) {}
+    try { await readingsApi.put("/reminders", next); toast.success(next.enabled ? "Daily nudge on — at your local hour" : "Reminders off"); } catch (_) {}
   };
   const openDetail = async () => {
     setOpen(true);
@@ -381,11 +386,24 @@ function CompatibilityPanel() {
   const [cands, setCands] = useState([]);
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState(null);
+  const [lastUid, setLastUid] = useState(null);
+  const [sharing, setSharing] = useState(false);
   useEffect(() => { socialApi.get("/compatibility/candidates").then(({ data }) => setCands(data.items || [])).catch(() => {}); }, []);
   const run = async (uid) => {
-    setBusy(true); setRes(null);
+    setBusy(true); setRes(null); setLastUid(uid);
     try { const { data } = await socialApi.post("/compatibility", { target_user_id: uid }); setRes(data); }
     catch (_) { toast.error("Couldn't compute a match."); } finally { setBusy(false); }
+  };
+  const share = async () => {
+    if (!lastUid) return;
+    setSharing(true);
+    try {
+      const { data } = await socialApi.post("/compatibility/share", { target_user_id: lastUid });
+      const url = `${window.location.origin}${data.path}`;
+      if (navigator.share) { try { await navigator.share({ title: "Our dream match", url }); } catch (_) {} }
+      else { await navigator.clipboard.writeText(url); }
+      toast.success(data?.points_awarded ? "Link copied 💫  +1 point" : "Share link copied 💫");
+    } catch (_) { toast.error("Couldn't create a share link."); } finally { setSharing(false); }
   };
   return (
     <div data-testid="compat-panel">
@@ -420,6 +438,10 @@ function CompatibilityPanel() {
             </div>
           )}
           <p className="text-[11px] text-rose-100/70 mt-3">{res.shared_note}</p>
+          <button type="button" onClick={share} disabled={sharing} data-testid="compat-share"
+                  className="mt-4 w-full h-11 rounded-full font-bold text-white inline-flex items-center justify-center gap-2 bg-white/[0.14]">
+            {sharing ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />} Share this match
+          </button>
           <p className="text-[10px] text-rose-100/60 mt-2">{res.disclaimer}</p>
         </div>
       )}
@@ -452,10 +474,24 @@ export function ClustersStrip() {
 
 function ClusterModal({ cluster, onClose }) {
   const [items, setItems] = useState(null);
+  const [following, setFollowing] = useState(!!cluster.following);
   useEffect(() => { socialApi.get(`/clusters/${cluster.theme}`).then(({ data }) => setItems(data.items || [])).catch(() => setItems([])); }, [cluster.theme]);
+  const toggleFollow = async () => {
+    const next = !following; setFollowing(next);
+    try {
+      if (next) await socialApi.post(`/clusters/${cluster.theme}/follow`);
+      else await socialApi.delete(`/clusters/${cluster.theme}/follow`);
+      toast.success(next ? "Following — we'll alert you on new dreams" : "Unfollowed");
+    } catch (_) { setFollowing(!next); }
+  };
   return (
     <Modal onClose={onClose} title={`${cluster.label} · ${cluster.count} dreams`}>
-      <div className="max-h-[60vh] overflow-y-auto space-y-2" data-testid="cluster-modal">
+      <button type="button" onClick={toggleFollow} data-testid="cluster-follow"
+              className={`w-full h-10 rounded-full text-sm font-bold inline-flex items-center justify-center gap-2 mb-3 ${following ? "bg-emerald-500/20 text-emerald-200" : "text-white"}`}
+              style={following ? undefined : { background: "linear-gradient(135deg,#7c3aed,#c026d3)" }}>
+        {following ? <><Check size={16} /> Following</> : <><Bell size={16} /> Follow this cluster</>}
+      </button>
+      <div className="max-h-[55vh] overflow-y-auto space-y-2" data-testid="cluster-modal">
         {items === null ? <Spin /> : items.length === 0 ? <Empty icon={Moon} title="No dreams yet" /> : items.map((d) => (
           <div key={d.dream_id} className="rounded-2xl bg-white/[0.03] border border-white/[0.06] px-4 py-3" data-testid={`cluster-dream-${d.dream_id}`}>
             <div className="text-sm font-bold">{d.title || "Untitled dream"}</div>
@@ -667,8 +703,10 @@ export function PayoutsCard() {
 function GetFeatured() {
   const [cfg, setCfg] = useState(null);
   const [surface, setSurface] = useState("both");
+  const [an, setAn] = useState(null);
   const load = useCallback(async () => {
     try { const { data } = await adsApi.get("/config"); setCfg(data); } catch (_) {}
+    try { const { data } = await adsApi.get("/analytics"); setAn(data); } catch (_) {}
   }, []);
   useEffect(() => { load(); }, [load]);
   if (!cfg || !cfg.is_advisor) return null;
@@ -684,6 +722,16 @@ function GetFeatured() {
     <div className="mt-4 pt-4 border-t border-white/[0.06]" data-testid="get-featured">
       <div className="flex items-center gap-2 mb-1"><Rocket size={16} className="text-amber-300" /><span className="font-black">Get featured</span>
         <button type="button" onClick={load} className="ml-auto text-xs text-slate-400 underline">Refresh</button></div>
+      {an && an.totals && (an.totals.views > 0 || an.totals.bookings > 0 || (an.promotions || []).length > 0) && (
+        <div className="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-3 mb-3" data-testid="ad-analytics">
+          <div className="flex items-center gap-1.5 mb-2"><BarChart3 size={13} className="text-violet-300" /><span className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">Promotion impact</span></div>
+          <div className="grid grid-cols-3 gap-2">
+            <Stat label="Profile views" value={an.totals.views} />
+            <Stat label="Bookings" value={an.totals.bookings} />
+            <Stat label="Revenue" value={money(an.totals.revenue_cents)} />
+          </div>
+        </div>
+      )}
       {active ? (
         <div className="rounded-2xl bg-amber-400/10 border border-amber-400/25 px-4 py-3 text-sm text-amber-100" data-testid="featured-active">
           ★ Featured on {active.surface_label} until {new Date(active.ends_at).toLocaleDateString()}.
@@ -731,5 +779,46 @@ function Modal({ title, children, onClose }) {
         {children}
       </div>
     </div>
+  );
+}
+
+
+// ─────────────────────────── Alerts bell ───────────────────────────
+export function AlertsBell() {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState({ items: [], unread: 0 });
+  const load = useCallback(async () => {
+    try { const { data } = await socialApi.get("/alerts"); setData(data); } catch (_) {}
+  }, []);
+  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
+  const openList = async () => {
+    setOpen(true);
+    try { await socialApi.post("/alerts/read", {}); setData((d) => ({ ...d, unread: 0 })); } catch (_) {}
+  };
+  return (
+    <>
+      <button type="button" onClick={openList} data-testid="alerts-bell"
+              className="relative w-10 h-10 rounded-full grid place-items-center bg-white/[0.06] hover:bg-white/[0.1]">
+        <Bell size={18} />
+        {data.unread > 0 && (
+          <span data-testid="alerts-badge" className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-[10px] font-black grid place-items-center">{data.unread}</span>
+        )}
+      </button>
+      {open && (
+        <Modal onClose={() => setOpen(false)} title="Cluster alerts">
+          <div className="max-h-[60vh] overflow-y-auto space-y-2" data-testid="alerts-list">
+            {data.items.length === 0 ? (
+              <Empty icon={Bell} title="No alerts yet" sub="Follow a dream cluster to get pinged when a new dream lands in it." />
+            ) : data.items.map((a) => (
+              <div key={a.id} data-testid={`alert-${a.id}`}
+                   className={`rounded-2xl px-4 py-3 border ${a.read ? "bg-white/[0.02] border-white/[0.05]" : "bg-violet-500/10 border-violet-400/25"}`}>
+                <div className="text-sm font-bold">{a.title}</div>
+                <div className="text-[11px] text-violet-300 mt-0.5">New in {a.theme_label}</div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }

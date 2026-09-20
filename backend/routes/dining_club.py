@@ -53,23 +53,7 @@ def _premium_price() -> dict:
         return {"amount_cents": 0, "currency": "USD"}
 
 
-def _resolve_origin(request: Request, body_origin: Optional[str]) -> Optional[str]:
-    """Best-effort public site origin for Stripe redirect URLs.
-
-    Prefers an explicit body value, then the browser's Origin/Referer header
-    (so it works even when the client forgets to send origin_url), then the
-    configured public base URL, then the request base URL.
-    """
-    candidates = [body_origin, request.headers.get("origin"),
-                  request.headers.get("referer"),
-                  os.environ.get("BIGFM_PUBLIC_BASE_URL"),
-                  str(request.base_url)]
-    for c in candidates:
-        if c and str(c).startswith("http"):
-            p = urlparse(str(c))
-            if p.scheme and p.netloc:
-                return f"{p.scheme}://{p.netloc}"
-    return None
+from core.origins import resolve_origin as _resolve_origin
 
 
 

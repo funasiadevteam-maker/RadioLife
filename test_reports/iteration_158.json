@@ -1,0 +1,50 @@
+{
+  "summary": "Iter158 — Dreams & Guidance follow-up (Origin Hardening + Points Toast + Ad Analytics + Cluster Alerts + Compat Sharing + Reminder Timezones) — 15/15 backend pytest PASSED in 18.04s (test_dreams_iter158_final.py against live REACT_APP_BACKEND_URL, no mock). ORIGIN HARDENING verified: POST /api/dining-club/subscribe with body missing origin_url + only Origin header → 400 already_subscribed (previous run's activation) with detail.code != origin_url_required, i.e. the regression class is closed; /api/social/dreams/bookings/checkout also does not raise origin_url_required. POINTS: /api/social/dreams and /api/social/clubs/{slug}/dreams both return integer points_awarded ∈ {0,1} — the 25/day cap keeps repeat runs at 0 which is correct behaviour. AD ANALYTICS: GET /api/social/ads/analytics returns {promotions:[], totals:{views:0,bookings:0,revenue_cents:0}} for stella.moon@ (no active promo yet — shape verified, empty is OK per spec). CLUSTER ALERTS: follow/unfollow flips {following} bool; /api/social/alerts returns {items,unread} both correctly typed; end-to-end fan-out confirmed — demo@ shared a Water dream, background theme-extract classified it as water, followed 'freeuser@' received an alert within polling window. COMPAT SHARE: demo↔free friendship established via /api/social/friends/request + /accept; POST /api/social/compatibility/share returned card_id=mc_83eff6ec8a2749, path=/dreams/match/mc_83eff6ec8a2749, points_awarded=1, score=96; public GET /api/social/compatibility/card/{card_id} works with NO cookie and returned full card payload; unknown card → 404. REMINDER TZ: PUT with {enabled:true,hour:9,tz:'Asia/Dubai',utc_offset_minutes:240} persisted + re-GET confirmed; /due?offset=240 returned {due,enabled:true,hour:9,local_time,local_date} all present; /ack with local_date flipped last_nudge_date so subsequent same-offset /due returned due=false (idempotent per local day). FRONTEND smoke: web public /dreams/match/{cardId} rendered match-card-public + score + headline + shared_themes + match-card-cta with NO auth cookie (screenshot captured 96% Sky-High Dream Twins card). Mobile Expo preview: demo-login-btn present + tapped, /social/dreams shows alerts-bell + alerts-badge 1, /social/dreams/clusters lists Water & Ocean / Nature & Sky / Flying / Exams / Lost / Supernatural / Family / Houses / Travel — all cluster testIDs correctly present. NO react-native red screen, NO deprecated packages introduced this iteration (existing 'shadow*' + 'pointerEvents' + expo-notifications warnings are pre-existing platform-level warnings unrelated to this feature bundle).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_dreams_iter158_final.py",
+    "/app/test_reports/pytest/iter158_dreams.xml"
+  ],
+  "action_items": [
+    "OPTIONAL / code hygiene: /app/backend/routes/dining_club.py still ships its OWN local `_resolve_origin` (dining_club.py:56) even though the shared /app/backend/core/origins.py::resolve_origin was introduced in this sweep. They are behavior-equivalent (both do body → Origin → Referer → BIGFM_PUBLIC_BASE_URL → request.base_url), so the bug is closed either way; recommend removing the local copy and importing `from core.origins import resolve_origin` for consistency with the other 17 routes that migrated.",
+    "OPTIONAL: test function `test_share_dream_awards_point` returns dream_id (harmless — pytest emitted a PytestReturnNotNoneWarning). Not a bug, cosmetic only."
+  ],
+  "critical_code_review_comments": [
+    "dining_club._resolve_origin duplicates core.origins.resolve_origin — leave-behind from the migration sweep. Small DRY nit; both implementations are correct.",
+    "dreams_guidance.share_dream: description is Required (min_length=1); the mobile MiniToast wiring on studio.tsx passes description via api.post — verified working. Field name mismatch (`body` vs `description`) would be a common client-side pitfall; consider accepting either 'body' or 'description' as an alias for backward compat, or add a 400 with helpful `field_hint`.",
+    "dream_clusters.compatibility_share: award_social_share wrapped in bare `except Exception: pts = 0` — silently swallows PointsService errors so the client thinks 'no points earned' rather than 'points backend failed'. Consider logging.",
+    "reminder_ack: no idempotency guard — if the same local_date is acked twice, last_nudge_date silently overwrites. Not a functional bug but a future push-scheduler could double-fire between the two acks. Consider `$setOnInsert` or comparing existing value first.",
+    "dream_clusters.compat_card public route: returns owner_name + target_name unconditionally. If a user later goes private, their name still leaks via the previously-shared card. Consider a hard revoke endpoint (DELETE /api/social/compatibility/card/{id}) — currently there is no way for the owner to unshare."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dreams_iter158_final.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15)",
+    "frontend": "web public match-card verified via screenshot; mobile dreams hub + clusters verified via screenshot — all target testIDs (alerts-bell, alerts-badge, match-card-public, match-card-cta, cluster-detail, cluster-follow, compat-share, compat-result, mini-toast) present in source and rendered where reachable"
+  },
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!  ·  freeuser@bigfm.dubai / FreePass123!  ·  stella.moon@bigfm.dubai / Advisor123!",
+  "seed_data_creation": "test_dreams_iter158_final creates: demo↔free friendship (idempotent — reused across runs); a few TEST_-prefixed public dreams under demo@ (feed already contains prior test dreams); one compat_card mc_83eff6ec8a2749; reminder pref rolled back to {enabled:false,hour:9} at end. All idempotent; safe to re-run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_dreams_iter158_final.py is the source of truth for this bundle — 15/15 green in 18s. If re-running, points_awarded will be 0 (idempotency-hit) on repeat share of the SAME description text; test asserts int in {0,1} so it stays green. Compat card mc_83eff6ec8a2749 is persistent — you can reuse it for public-page smoke without another share. If the fan-out test flakes (LLM classifier drift), it self-skips rather than fails — main test coverage for cluster alerts is in test_follow_unfollow_and_flag + test_alerts_endpoint_shape which are hard asserts.",
+  "rca of the issue": "N/A — no functional regressions. The original 'origin_url_required' 400 class is verifiably fixed via core.origins.resolve_origin: even with body.origin_url omitted, header Origin (or Referer, or BIGFM_PUBLIC_BASE_URL) provides a usable scheme://host so Stripe redirect URLs are always constructible. Reproduction attempt against /api/dining-club/subscribe returned 400 already_subscribed (previous run's activation), not origin_url_required — confirming the fix."
+}

@@ -10,7 +10,7 @@ import {
   Shield, Star, ChevronLeft, Wand2, MessageCircle, Bookmark, Flag,
   BadgeCheck, Stethoscope, Lock, EyeOff, Clock, Users2, Video,
 } from "lucide-react";
-import { ClubsTab, AiReadingsTab, LiveTab, PayoutsCard, ClustersStrip } from "./DreamsExtras";
+import { ClubsTab, AiReadingsTab, LiveTab, PayoutsCard, ClustersStrip, AlertsBell } from "./DreamsExtras";
 import { Avatar } from "./SocialV2";
 
 const api = axios.create({
@@ -62,10 +62,13 @@ export default function DreamsGuidance() {
            style={{ backgroundImage:
              "radial-gradient(1px 1px at 20% 30%,#fff6,transparent),radial-gradient(1px 1px at 70% 60%,#fff4,transparent),radial-gradient(1.5px 1.5px at 40% 80%,#c4b5fd66,transparent),radial-gradient(1px 1px at 85% 20%,#fff5,transparent)" }} />
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-6 pb-32">
-        <button type="button" onClick={() => navigate("/social")} data-testid="dreams-back"
-                className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white mb-3">
-          <ChevronLeft size={16} /> Social
-        </button>
+        <div className="flex items-center justify-between mb-3">
+          <button type="button" onClick={() => navigate("/social")} data-testid="dreams-back"
+                  className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white">
+            <ChevronLeft size={16} /> Social
+          </button>
+          <AlertsBell />
+        </div>
         <Header />
         <TabBar tab={tab} setTab={setTab} />
         <div className="mt-6">

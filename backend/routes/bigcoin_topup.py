@@ -2,6 +2,7 @@
 (Stripe Checkout).  On paid, credits the unified points ledger via
 PointsService (idempotent on the Stripe session id).  100 BigCoin == $1."""
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 from datetime import datetime, timezone
@@ -68,7 +69,7 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
         raise HTTPException(404, {"code": "package_not_found"})
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     total = int(pkg["bigcoin"]) + int(pkg["bonus"])

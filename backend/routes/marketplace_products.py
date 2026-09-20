@@ -5,6 +5,7 @@ BigPoints (with loyalty tier bonus) awarded to the buyer on delivery.
 Also exposes the consumer loyalty-status endpoint.
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 from typing import Any, Dict, List, Optional
@@ -449,7 +450,7 @@ async def product_checkout(body: ProductCheckoutBody, request: Request,
 
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     session = stripe.checkout.Session.create(
@@ -757,7 +758,7 @@ async def cart_checkout(body: CartCheckoutBody, request: Request,
     if paying and not one_tap_paid:
         if not stripe.api_key:
             raise HTTPException(503, {"code": "stripe_unconfigured"})
-        origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+        origin = resolve_origin(request, body.origin_url)
         if not origin:
             raise HTTPException(400, {"code": "origin_required"})
         line_items = [{"price_data": {"currency": "usd",

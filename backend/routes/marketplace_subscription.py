@@ -4,6 +4,7 @@ Only merchants with an active paid subscription (Starter $29 / Pro $99) may
 list & sell. Subscription is billed via Stripe Checkout (subscription mode).
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 from typing import Any, Dict, Optional
@@ -102,7 +103,7 @@ async def subscription_checkout(body: SubCheckoutBody, request: Request,
         return {"ok": True, "activated": True, "checkout_url": None}
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     existing = await db.merchant_subscriptions.find_one({"business_id": p["business_id"]})

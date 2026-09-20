@@ -16,6 +16,7 @@ financial advice, and no result is guaranteed.
 All consumer routes are /api/social/dreams/*  ·  admin routes /api/admin/dreams/*.
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import json
 import os
@@ -704,6 +705,11 @@ async def advisor_detail(advisor_id: str, request: Request,
     out = _advisor_public(a, services=svcs)
     out["reviews"] = reviews
     out["disclaimer"] = DISCLAIMER_BOOKING if not out["licensed"] else None
+    try:  # ad analytics: count a unique profile view against any active promo
+        from routes.dream_ads import record_advisor_view
+        await record_advisor_view(db, advisor_id, user["user_id"])
+    except Exception:
+        pass
     return out
 
 
@@ -759,13 +765,19 @@ async def book_reading(body: BookingBody, request: Request,
         raise HTTPException(404, {"code": "service_not_found"})
     fee = int(svc.get("price_cents", 0))
     bid = f"rb_{uuid.uuid4().hex[:16]}"
+    promo_id = None
+    try:  # attribute this booking to the advisor's active Featured promotion
+        from routes.dream_ads import active_promo_id_for
+        promo_id = await active_promo_id_for(db, body.advisor_id, "advisors")
+    except Exception:
+        promo_id = None
     booking = {
         "_id": bid, "booking_id": bid, "advisor_id": body.advisor_id,
         "advisor_name": a.get("display_name"), "advisor_category": a.get("category"),
         "user_id": user["user_id"], "user_name": _user_public(user)["name"],
         "service_id": body.service_id, "service_title": svc.get("title"),
         "delivery": svc.get("delivery"), "price_cents": fee,
-        "dream_id": body.dream_id,
+        "dream_id": body.dream_id, "promo_id": promo_id,
         "question": (body.question or "").strip() or None,
         "status": "pending_payment", "payment_status": "pending",
         "session_id": None, "response": None,
@@ -779,7 +791,7 @@ async def book_reading(body: BookingBody, request: Request,
     stripe = _stripe()
     if not stripe.api_key:
         raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     session = stripe.checkout.Session.create(

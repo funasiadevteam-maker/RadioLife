@@ -10,6 +10,7 @@ Test mode until the platform goes live (Publish). Onboarding status is read by
 polling Stripe (retrieve account) — no Connect webhook secret required.
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 import time
@@ -97,7 +98,7 @@ async def onboarding_link(body: OnboardBody, request: Request, user: dict = Depe
     db = request.app.state.db
     p = await _my_business(db, user)
     acct = await _ensure_account(db, p)
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     api_base = str(request.base_url).rstrip("/")
     if not origin:
         origin = api_base

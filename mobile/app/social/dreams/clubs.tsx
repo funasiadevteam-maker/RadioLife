@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TSPACE, TFONT } from '../../../src/constants/tube';
 import api from '../../../src/api/client';
+import MiniToast from '../../../src/components/MiniToast';
 
 const D = {
   bg: '#0A0818', elevated: 'rgba(255,255,255,0.05)', line: 'rgba(168,85,247,0.18)',
@@ -59,11 +60,13 @@ export default function ClubsScreen() {
 function ClubDetail({ slug, onChanged }: any) {
   const [data, setData] = useState<any>(null);
   const [showPost, setShowPost] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const load = useCallback(async () => { try { const { data } = await api.get(`/social/clubs/${slug}`); setData(data); } catch (_) {} }, [slug]);
   useEffect(() => { load(); }, [load]);
   if (!data) return <View style={s.center}><ActivityIndicator color={D.violet} /></View>;
   const toggle = async () => { try { await api.post(`/social/clubs/${slug}/${data.is_member ? 'leave' : 'join'}`); load(); onChanged?.(); } catch (_) {} };
   return (
+    <>
     <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 130, gap: 12 }} showsVerticalScrollIndicator={false} testID="club-detail">
       <View style={[s.detailCard, { borderColor: `${data.color}44` }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -84,8 +87,10 @@ function ClubDetail({ slug, onChanged }: any) {
             <Text style={s.dreamMeta}>{d.author?.name} · {d.mood || 'Dream'}</Text>
           </View>
         ))}
-      {showPost && <PostModal slug={slug} onClose={() => setShowPost(false)} onDone={() => { setShowPost(false); load(); onChanged?.(); }} />}
+      {showPost && <PostModal slug={slug} onClose={() => setShowPost(false)} onDone={(pts?: number) => { setShowPost(false); load(); onChanged?.(); setToast(pts ? 'Shared to club · +1 point' : 'Shared to club'); }} />}
     </ScrollView>
+    <MiniToast message={toast} onDone={() => setToast(null)} />
+    </>
   );
 }
 
@@ -94,7 +99,7 @@ function PostModal({ slug, onClose, onDone }: any) {
   const [desc, setDesc] = useState('');
   const [anon, setAnon] = useState(false);
   const [busy, setBusy] = useState(false);
-  const submit = async () => { if (!desc.trim()) return; setBusy(true); try { await api.post(`/social/clubs/${slug}/dreams`, { title, description: desc, anonymous: anon }); onDone(); } catch (_) {} finally { setBusy(false); } };
+  const submit = async () => { if (!desc.trim()) return; setBusy(true); try { const { data } = await api.post(`/social/clubs/${slug}/dreams`, { title, description: desc, anonymous: anon }); onDone(data?.points_awarded); } catch (_) {} finally { setBusy(false); } };
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={s.modalWrap} onPress={onClose}>

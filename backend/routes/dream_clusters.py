@@ -16,7 +16,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from auth import current_user
+from auth import current_user, current_user_optional
 from routes.social_v2 import _friend_ids, _user_public
 from routes.dreams_guidance import _dream_public
 
@@ -118,11 +118,42 @@ async def extract_and_store_themes(db, dream_id: str) -> list:
         themes = _keyword_themes(text)
     themes = themes[:4]
     await db.dreams.update_one({"_id": dream_id}, {"$set": {"themes": themes}})
+    try:  # cluster alerts: ping followers of these themes (skip the author)
+        if d.get("visibility") == "public" and themes:
+            await _fanout_cluster_alerts(db, d, themes)
+    except Exception:
+        pass
     return themes
+
+
+async def _fanout_cluster_alerts(db, dream: dict, themes: list) -> None:
+    author = dream.get("user_id")
+    notified: set = set()
+    for t in themes:
+        async for f in db.cluster_follows.find({"theme": t}).limit(500):
+            uid = f.get("user_id")
+            if not uid or uid == author or uid in notified:
+                continue
+            notified.add(uid)
+            aid = f"al_{uuid.uuid4().hex[:14]}"
+            await db.dream_alerts.insert_one({
+                "_id": aid, "user_id": uid, "type": "cluster", "theme": t,
+                "theme_label": THEME_LABELS.get(t, t), "dream_id": dream["_id"],
+                "title": dream.get("title") or "A new dream", "read": False,
+                "created_at": _now()})
+
+
+async def _my_theme_follows(db, uid: str) -> set:
+    return {f["theme"] async for f in db.cluster_follows.find({"user_id": uid})}
 
 
 async def ensure_clusters_ai_indexes(db) -> None:
     await db.dreams.create_index([("themes", 1)], name="dreams_themes")
+    await db.cluster_follows.create_index([("theme", 1)], name="cf_theme")
+    await db.cluster_follows.create_index([("user_id", 1)], name="cf_user")
+    await db.dream_alerts.create_index([("user_id", 1), ("read", 1),
+                                        ("created_at", -1)], name="alerts_user")
+    await db.compat_cards.create_index("card_id", unique=True, name="compat_card")
     # Backfill themes for a handful of public dreams that don't have any yet.
     cursor = db.dreams.find(
         {"status": "active", "visibility": "public",
@@ -147,6 +178,7 @@ async def clusters(request: Request, user: dict = Depends(current_user)):
         {"$sort": {"count": -1}},
     ]
     counts = {row["_id"]: row["count"] async for row in db.dreams.aggregate(pipeline)}
+    follows = await _my_theme_follows(db, user["user_id"])
     out = []
     for key in sorted(counts, key=lambda k: counts[k], reverse=True):
         if key not in THEME_LABELS:
@@ -161,7 +193,8 @@ async def clusters(request: Request, user: dict = Depends(current_user)):
                 author = _user_public(au) if au else None
             samples.append(_dream_public(d, user["user_id"], author))
         out.append({"theme": key, "label": THEME_LABELS[key],
-                    "count": counts[key], "samples": samples})
+                    "count": counts[key], "following": key in follows,
+                    "samples": samples})
     return {"clusters": out}
 
 
@@ -188,7 +221,67 @@ async def cluster_dreams(theme: str, request: Request,
         async for u in db.users.find({"user_id": {"$in": list(author_ids)}}):
             authors[u["user_id"]] = _user_public(u)
     return {"theme": theme, "label": THEME_LABELS[theme],
+            "following": theme in await _my_theme_follows(db, uid),
             "items": [_dream_public(d, uid, authors.get(d["user_id"])) for d in rows]}
+
+
+# ─────────────────────── Cluster follows + alerts ──────────────────
+@router.post("/clusters/{theme}/follow")
+async def follow_cluster(theme: str, request: Request,
+                         user: dict = Depends(current_user)):
+    if theme not in THEME_LABELS:
+        raise HTTPException(404, {"code": "unknown_theme"})
+    db = request.app.state.db
+    await db.cluster_follows.update_one(
+        {"_id": f"{theme}:{user['user_id']}"},
+        {"$set": {"theme": theme, "user_id": user["user_id"], "created_at": _now()}},
+        upsert=True)
+    return {"ok": True, "following": True}
+
+
+@router.delete("/clusters/{theme}/follow")
+async def unfollow_cluster(theme: str, request: Request,
+                           user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await db.cluster_follows.delete_one({"_id": f"{theme}:{user['user_id']}"})
+    return {"ok": True, "following": False}
+
+
+@router.get("/alerts")
+async def my_alerts(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    items = []
+    async for a in db.dream_alerts.find(
+            {"user_id": user["user_id"]}).sort("created_at", -1).limit(50):
+        items.append({"id": a["_id"], "type": a.get("type"), "theme": a.get("theme"),
+                      "theme_label": a.get("theme_label"), "dream_id": a.get("dream_id"),
+                      "title": a.get("title"), "read": bool(a.get("read")),
+                      "created_at": _iso(a.get("created_at"))})
+    unread = await db.dream_alerts.count_documents(
+        {"user_id": user["user_id"], "read": False})
+    return {"items": items, "unread": unread}
+
+
+@router.get("/alerts/unread_count")
+async def alerts_unread(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    return {"unread": await db.dream_alerts.count_documents(
+        {"user_id": user["user_id"], "read": False})}
+
+
+class AlertReadBody(BaseModel):
+    alert_id: Optional[str] = None
+
+
+@router.post("/alerts/read")
+async def alerts_read(body: AlertReadBody, request: Request,
+                      user: dict = Depends(current_user)):
+    db = request.app.state.db
+    q: dict = {"user_id": user["user_id"]}
+    if body.alert_id:
+        q["_id"] = body.alert_id
+    await db.dream_alerts.update_many(q, {"$set": {"read": True}})
+    return {"ok": True}
 
 
 # ─────────────────────────── Compatibility ─────────────────────────
@@ -229,23 +322,25 @@ class CompatBody(BaseModel):
 @router.post("/compatibility")
 async def compatibility(body: CompatBody, request: Request,
                         user: dict = Depends(current_user)):
-    db = request.app.state.db
-    uid = user["user_id"]
-    if body.target_user_id == uid:
+    return await _compute_compat(request.app.state.db, user["user_id"],
+                                 body.target_user_id)
+
+
+async def _compute_compat(db, uid: str, target_id: str) -> dict:
+    if target_id == uid:
         raise HTTPException(400, {"code": "cannot_match_self"})
-    target = await db.users.find_one({"user_id": body.target_user_id})
+    target = await db.users.find_one({"user_id": target_id})
     if not target:
         raise HTTPException(404, {"code": "user_not_found"})
     my_themes = await _user_themes(db, uid)
-    their_themes = await _user_themes(db, body.target_user_id)
+    their_themes = await _user_themes(db, target_id)
     shared = [t for t in my_themes if t in their_themes]
     my_sign = await _user_sign(db, uid)
-    their_sign = await _user_sign(db, body.target_user_id)
-    # Deterministic, playful score (stable per pair).
+    their_sign = await _user_sign(db, target_id)
     import hashlib
-    seed = int(hashlib.md5("|".join(sorted([uid, body.target_user_id]))
+    seed = int(hashlib.md5("|".join(sorted([uid, target_id]))
                            .encode()).hexdigest(), 16)
-    base = 55 + (seed % 26)              # 55..80 baseline
+    base = 55 + (seed % 26)
     score = min(99, base + 4 * len(shared))
     me = _user_public(await db.users.find_one({"user_id": uid}))
     them = _user_public(target)
@@ -256,7 +351,7 @@ async def compatibility(body: CompatBody, request: Request,
         f"{[THEME_LABELS.get(t, t) for t in their_themes[:5]] or 'none yet'}. "
         f"Shared themes: {[THEME_LABELS.get(t, t) for t in shared] or 'none'}. "
         f"Their playful dream-match score is {score}/100. Write a fun, kind blurb.")
-    res = await _llm(_COMPAT_SYSTEM, prompt, f"compat_{uid}_{body.target_user_id}")
+    res = await _llm(_COMPAT_SYSTEM, prompt, f"compat_{uid}_{target_id}")
     if not isinstance(res, dict):
         res = {"headline": f"{score}% dream sync ✨",
                "blurb": ("Your dream worlds share a gentle, curious energy — a fun "
@@ -272,6 +367,49 @@ async def compatibility(body: CompatBody, request: Request,
             "target": {"user_id": target["user_id"],
                        "name": them.get("name"), "avatar_url": them.get("avatar_url")},
             "label": "PLAYFUL · entertainment only", "disclaimer": DISCLAIMER}
+
+
+@router.post("/compatibility/share")
+async def compatibility_share(body: CompatBody, request: Request,
+                              user: dict = Depends(current_user)):
+    """Persist a match as a shareable public card (+1 BigPoint for sharing)."""
+    db = request.app.state.db
+    res = await _compute_compat(db, user["user_id"], body.target_user_id)
+    me = _user_public(await db.users.find_one({"user_id": user["user_id"]}))
+    card_id = f"mc_{uuid.uuid4().hex[:14]}"
+    await db.compat_cards.insert_one({
+        "_id": card_id, "card_id": card_id, "owner_id": user["user_id"],
+        "owner_name": me.get("name"), "target_name": res["target"]["name"],
+        "score": res["score"], "headline": res["headline"], "blurb": res["blurb"],
+        "shared_note": res["shared_note"], "shared_themes": res["shared_themes"],
+        "my_sign": res["my_sign"], "their_sign": res["their_sign"],
+        "public": True, "created_at": _now()})
+    pts = 0
+    try:
+        from routes.dreams_guidance import award_social_share
+        pts = await award_social_share(db, user["user_id"], f"compat:{card_id}")
+    except Exception:
+        pts = 0
+    return {"card_id": card_id, "path": f"/dreams/match/{card_id}",
+            "points_awarded": pts, **res}
+
+
+@router.get("/compatibility/card/{card_id}")
+async def compat_card(card_id: str, request: Request,
+                      user: Optional[dict] = Depends(current_user_optional)):
+    """Public, no-login view of a shared match card."""
+    db = request.app.state.db
+    c = await db.compat_cards.find_one({"card_id": card_id, "public": True})
+    if not c:
+        raise HTTPException(404, {"code": "card_not_found"})
+    return {"card_id": card_id, "owner_name": c.get("owner_name"),
+            "target_name": c.get("target_name"), "score": c.get("score"),
+            "headline": c.get("headline"), "blurb": c.get("blurb"),
+            "shared_note": c.get("shared_note"),
+            "shared_themes": c.get("shared_themes") or [],
+            "my_sign": c.get("my_sign"), "their_sign": c.get("their_sign"),
+            "label": "PLAYFUL · entertainment only", "disclaimer": DISCLAIMER,
+            "created_at": _iso(c.get("created_at"))}
 
 
 __all__ = ["router", "ensure_clusters_ai_indexes", "extract_and_store_themes",

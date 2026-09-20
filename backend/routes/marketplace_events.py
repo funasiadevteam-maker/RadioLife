@@ -4,6 +4,7 @@ Capacity is enforced with an atomic guarded increment so an event cannot
 oversell.
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import os
 import uuid
@@ -211,7 +212,7 @@ async def purchase_ticket(body: PurchaseBody, request: Request, user: dict = Dep
             raise HTTPException(503, {"code": "stripe_unconfigured"})
         if not event.get("allow_card", True):
             raise HTTPException(400, {"code": "card_not_allowed"})
-        origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+        origin = resolve_origin(request, body.origin_url)
         if not origin:
             raise HTTPException(400, {"code": "origin_required"})
         if not await _reserve(db, body.event_id, body.qty):

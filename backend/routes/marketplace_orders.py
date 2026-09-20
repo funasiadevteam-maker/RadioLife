@@ -5,6 +5,7 @@ payment, and the order lifecycle (accepted → preparing → ready → picked_up
 BigPoints are awarded to the buyer when the order is marked picked_up.
 """
 from __future__ import annotations
+from core.origins import resolve_origin
 
 import logging
 import os
@@ -512,7 +513,7 @@ async def checkout(body: CheckoutBody, request: Request, user: dict = Depends(cu
             except stripe.error.CardError:
                 pass  # SCA required / declined — fall back to hosted checkout
 
-    origin = (body.origin_url or os.environ.get("BIGFM_PUBLIC_BASE_URL") or "").rstrip("/")
+    origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
     session = stripe.checkout.Session.create(

@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { TSPACE, TRADIUS, TFONT } from '../../../src/constants/tube';
 import api from '../../../src/api/client';
 import { AvatarM } from '../../(tabs)/social';
+import MiniToast from '../../../src/components/MiniToast';
 
 const D = {
   bg: '#0A0818', elevated: 'rgba(255,255,255,0.05)', line: 'rgba(168,85,247,0.18)',
@@ -34,6 +35,7 @@ export default function DreamsHub() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showShare, setShowShare] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const loadConfig = useCallback(async () => {
     try { const { data } = await api.get('/social/dreams/config'); setConfig(data); }
@@ -54,6 +56,8 @@ export default function DreamsHub() {
           </Pressable>
           <Ionicons name="moon" size={20} color={D.violet} />
           <Text style={s.title}>Dreams & Guidance</Text>
+          <View style={{ flex: 1 }} />
+          <AlertsBell />
         </View>
         <Text style={s.sub}>REFLECTION · GUIDANCE · EXPLORATION</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -102,12 +106,43 @@ export default function DreamsHub() {
 
       {showShare && (
         <ShareModal config={config} onClose={() => setShowShare(false)}
-          onDone={() => { setShowShare(false); setTab('journal'); }} />
+          onDone={(pts?: number) => { setShowShare(false); setTab('journal'); setToast(pts ? 'Dream shared · +1 point' : 'Dream shared 🌙'); }} />
       )}
       {config?.consent_needed && (
         <ConsentGate config={config} onAccept={acceptConsent} onDecline={() => router.back()} />
       )}
+      <MiniToast message={toast} onDone={() => setToast(null)} />
     </View>
+  );
+}
+
+/* ── Alerts bell ── */
+function AlertsBell() {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<any>({ items: [], unread: 0 });
+  const load = useCallback(async () => { try { const { data } = await api.get('/social/alerts'); setData(data); } catch (_) {} }, []);
+  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
+  const openList = async () => { setOpen(true); try { await api.post('/social/alerts/read', {}); setData((d: any) => ({ ...d, unread: 0 })); } catch (_) {} };
+  return (
+    <>
+      <Pressable testID="alerts-bell" onPress={openList} hitSlop={8} style={s.bell}>
+        <Ionicons name="notifications" size={20} color={D.text} />
+        {data.unread > 0 && <View style={s.bellDot} testID="alerts-badge"><Text style={s.bellDotTxt}>{data.unread}</Text></View>}
+      </Pressable>
+      {open && (
+        <SheetM onClose={() => setOpen(false)} testID="alerts-sheet">
+          <Text style={s.modalTitle}>Cluster alerts</Text>
+          {(data.items || []).length === 0
+            ? <Text style={{ color: D.dim, fontSize: TFONT.sm, paddingVertical: 12, textAlign: 'center' }}>No alerts yet. Follow a dream cluster to get pinged on new dreams.</Text>
+            : (data.items || []).map((a: any) => (
+              <View key={a.id} testID={`alert-${a.id}`} style={[s.alertRow, !a.read && s.alertUnread]}>
+                <Text style={s.alertTitle}>{a.title}</Text>
+                <Text style={s.alertMeta}>New in {a.theme_label}</Text>
+              </View>
+            ))}
+        </SheetM>
+      )}
+    </>
   );
 }
 
@@ -316,7 +351,7 @@ function ShareModal({ config, onClose, onDone }: any) {
   const submit = async () => {
     if (f.description.trim().length < 1) return;
     setBusy(true);
-    try { await api.post('/social/dreams', { ...f, title: f.title.trim() || undefined, mood: f.mood || undefined }); onDone(); }
+    try { const { data } = await api.post('/social/dreams', { ...f, title: f.title.trim() || undefined, mood: f.mood || undefined }); onDone(data?.points_awarded); }
     catch (_) {} finally { setBusy(false); }
   };
   return (
@@ -440,6 +475,13 @@ const s = StyleSheet.create({
   chipTxt: { color: D.dim, fontSize: TFONT.sm, fontWeight: '800' },
   shortcut: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 38, borderRadius: 19, backgroundColor: 'rgba(168,85,247,0.12)', borderWidth: 1, borderColor: D.line },
   shortcutTxt: { color: D.text, fontSize: TFONT.sm, fontWeight: '800' },
+  bell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  bellDot: { position: 'absolute', top: 2, right: 2, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: '#f43f5e', alignItems: 'center', justifyContent: 'center' },
+  bellDotTxt: { color: '#fff', fontSize: 10, fontWeight: '900' },
+  alertRow: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', backgroundColor: 'rgba(255,255,255,0.02)', marginBottom: 8 },
+  alertUnread: { backgroundColor: 'rgba(168,85,247,0.1)', borderColor: 'rgba(168,85,247,0.25)' },
+  alertTitle: { color: D.text, fontSize: TFONT.sm, fontWeight: '800' },
+  alertMeta: { color: D.violet, fontSize: 11, marginTop: 2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   hero: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: TRADIUS.lg },
   heroIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },

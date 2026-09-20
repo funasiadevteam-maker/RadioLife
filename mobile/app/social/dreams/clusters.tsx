@@ -17,16 +17,26 @@ export default function ClustersScreen() {
   const [clusters, setClusters] = useState<any[] | null>(null);
   const [open, setOpen] = useState<any>(null);      // {theme,label,count}
   const [items, setItems] = useState<any[] | null>(null);
+  const [following, setFollowing] = useState(false);
 
   useEffect(() => {
     api.get('/social/clusters').then(({ data }) => setClusters(data.clusters || [])).catch(() => setClusters([]));
   }, []);
 
   const openTheme = useCallback(async (c: any) => {
-    setOpen(c); setItems(null);
+    setOpen(c); setItems(null); setFollowing(!!c.following);
     try { const { data } = await api.get(`/social/clusters/${c.theme}`); setItems(data.items || []); }
     catch (_) { setItems([]); }
   }, []);
+
+  const toggleFollow = useCallback(async () => {
+    if (!open) return;
+    const next = !following; setFollowing(next);
+    try {
+      if (next) await api.post(`/social/clusters/${open.theme}/follow`);
+      else await api.delete(`/social/clusters/${open.theme}/follow`);
+    } catch (_) { setFollowing(!next); }
+  }, [open, following]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -59,6 +69,10 @@ export default function ClustersScreen() {
         items === null ? <View style={s.center}><ActivityIndicator color={D.violet} /></View>
           : (
             <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 130, gap: 10 }} showsVerticalScrollIndicator={false} testID="cluster-detail">
+              <Pressable testID="cluster-follow" onPress={toggleFollow} style={[s.follow, following && s.followOn]}>
+                <Ionicons name={following ? 'checkmark' : 'notifications'} size={16} color={following ? '#a7f3d0' : '#fff'} />
+                <Text style={[s.followTxt, following && { color: '#a7f3d0' }]}>{following ? 'Following' : 'Follow this cluster'}</Text>
+              </Pressable>
               {items.length === 0 ? <Text style={s.emptyS}>No dreams in this cluster yet.</Text> : items.map((d) => (
                 <View key={d.dream_id} style={s.card} testID={`cluster-dream-${d.dream_id}`}>
                   <View style={{ flex: 1 }}>
@@ -89,4 +103,7 @@ const s = StyleSheet.create({
   cardCount: { color: D.violet, fontSize: TFONT.xs, marginTop: 2 },
   dreamBody: { color: D.dim, fontSize: TFONT.xs, marginTop: 4, lineHeight: 17 },
   dreamMeta: { color: D.violet, fontSize: 11, marginTop: 6 },
+  follow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 22, backgroundColor: D.accent2 || '#7c3aed' },
+  followOn: { backgroundColor: 'rgba(16,185,129,0.2)' },
+  followTxt: { color: '#fff', fontWeight: '900', fontSize: TFONT.sm },
 });

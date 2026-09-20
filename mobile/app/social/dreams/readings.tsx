@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
-  ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -155,7 +155,9 @@ function DailyCard() {
     api.get('/social/readings/reminders').then(({ data }) => setRem(data)).catch(() => {});
   }, []);
   const toggle = async () => {
-    const n = { enabled: !rem.enabled, hour: rem.hour }; setRem(n);
+    const n: any = { enabled: !rem.enabled, hour: rem.hour, utc_offset_minutes: -new Date().getTimezoneOffset() };
+    try { n.tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (_) {}
+    setRem(n);
     try { await api.put('/social/readings/reminders', n); } catch (_) {}
   };
   const openDetail = async () => {
@@ -207,10 +209,22 @@ function CompatPanel() {
   const [cands, setCands] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<any>(null);
+  const [lastUid, setLastUid] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
   useEffect(() => { api.get('/social/compatibility/candidates').then(({ data }) => setCands(data.items || [])).catch(() => {}); }, []);
   const run = async (uid: string) => {
-    setBusy(true); setRes(null);
+    setBusy(true); setRes(null); setLastUid(uid);
     try { const { data } = await api.post('/social/compatibility', { target_user_id: uid }); setRes(data); } catch (_) {} finally { setBusy(false); }
+  };
+  const share = async () => {
+    if (!lastUid) return;
+    setSharing(true);
+    try {
+      const { data } = await api.post('/social/compatibility/share', { target_user_id: lastUid });
+      const base = (process.env.EXPO_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
+      const url = `${base}${data.path}`;
+      await Share.share({ message: `Our dream match: ${res?.score}% ✨ ${url}`, url });
+    } catch (_) {} finally { setSharing(false); }
   };
   return (
     <View testID="compat-panel">
@@ -236,6 +250,9 @@ function CompatPanel() {
           <Text style={st.compatBlurb}>{res.blurb}</Text>
           {res.shared_themes?.length > 0 && <View style={[st.themeWrap, { justifyContent: 'center' }]}>{res.shared_themes.map((t: string, i: number) => <View key={i} style={st.compatTheme}><Text style={st.compatThemeTxt}>{t}</Text></View>)}</View>}
           <Text style={st.compatShared}>{res.shared_note}</Text>
+          <Pressable testID="compat-share" onPress={share} disabled={sharing} style={st.shareBtn}>
+            <Ionicons name="share-social" size={16} color="#fff" /><Text style={st.shareTxt}>{sharing ? 'Sharing…' : 'Share this match'}</Text>
+          </Pressable>
           <Text style={[st.disc, { textAlign: 'center' }]}>{res.disclaimer}</Text>
         </LinearGradient>
       )}
@@ -314,4 +331,6 @@ const st = StyleSheet.create({
   compatTheme: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   compatThemeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
   compatShared: { color: '#fbcfe8', fontSize: 11, textAlign: 'center', marginTop: 10 },
+  shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.16)', marginTop: 14, alignSelf: 'stretch' },
+  shareTxt: { color: '#fff', fontWeight: '900', fontSize: TFONT.sm },
 });
