@@ -1,0 +1,45 @@
+{
+  "summary": "Social V2 Phase 2 (Moments / Go Together / Play Together / Local Pulse) fully verified on shared backend, web (/social) and mobile (Expo /social). 20/20 backend pytest cases passed (media upload+serve incl. Range 206, moments CRUD+like+comments+points, outings create/list/rsvp, play games/sessions/join/leave, pulse aggregation). Web e2e: composer posts caption+image moment, +1 point toast fires, feed refreshes, like/comment work, Go Together modal creates outing + RSVP, Play Together modal creates session. Mobile e2e (after fresh demo-login-btn): Moments/Pulse/Together tabs render, caption-only moment posts (POST 200, +1 point, feed refreshes), Go & Play sheets open. moment-attach button present on mobile (native gallery picker not automated, as spec'd). Web+mobile parity confirmed on the same shared /api/social/* endpoints.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/social header rail", "issues": ["Cookies banner (Essential only/Accept all) overlaps the bottom-right of the composer 'Share' button on 1440x900 — cosmetic only; button remains clickable via force click."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_social_together_iter160.py",
+    "/app/test_reports/pytest/iter160_social_together.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/social_together.py list_outings builds `q` with a conditional dict inside `$or` — the branch `{'visibility': 'public', 'city': city} if city else {'visibility': 'public'}` works but the second entry means users without a city see ALL public outings globally, not just their city. Consider consistent behaviour or an explicit note.",
+    "routes/social_together.py list_play_sessions defines `q` with visibility filter but never uses it — the actual query is `{status: 'active'}`, exposing all active sessions to every viewer. This matches the current spec ('open sessions, join'), but the unused `q` variable is dead code.",
+    "routes/social_together.py media_upload catches all storage exceptions as 502 storage_failed without logging — hard to diagnose real Tigris/LocalDisk failures in production.",
+    "MomentBody.visibility silently falls back to 'friends' for any invalid value instead of 422 — acceptable but inconsistent with OutingBody/RsvpBody stricter validation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_social_together_iter160.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "web cookie: demo@bigfm.dubai / DemoPass123! and freeuser@bigfm.dubai / FreePass123!. Mobile: demo-login-btn (POST /api/auth/demo). NOTE: mobile bearer tokens can go stale across preview sessions — always click demo-login-btn on a fresh Expo load before testing authed endpoints.",
+  "seed_data_creation": "Test-created data: several TEST_iter160* moments, one TEST_iter160 outing, one TEST_iter160 trivia play session, plus one TEST_iter160b/c moment. The Phase 2 delete-moment path (owner) was exercised in pytest so the DB is left with only the additional cases from the web/mobile e2e runs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Auth on mobile is bearer via demo-login-btn — old localStorage tokens go stale and cause silent 401s (feed empty + post fails without on-screen error). Always clear localStorage & re-click demo-login-btn on a fresh Expo preview load. Web uses cookie auth via POST /api/auth/login (200). Backend test file /app/backend/tests/test_social_together_iter160.py reads REACT_APP_BACKEND_URL from /app/frontend/.env when the env var isn't set (helper _load_url) — reuse this pattern.",
+  "rca of the issue": "During initial mobile e2e run, POST /api/social/moments returned 401 and feed was empty. RCA: stale bearer token in localStorage from a prior test session — the Expo web preview auto-attempts silent auth on load and the mobile-first UI does NOT show demo-login-btn once a (stale) token exists, so no login CTA is visible. Fix in test flow: localStorage.clear() + reload → demo-login-btn appears → click it → POST /api/auth/demo issues a fresh bearer → all /api/social/* calls succeed. Not a product bug; a testing-environment carry-over."
+}

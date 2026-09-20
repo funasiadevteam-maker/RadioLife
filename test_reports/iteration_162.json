@@ -1,0 +1,51 @@
+{
+  "summary": "Social V2 Phase 4 + Phase 5 tested end-to-end on shared backend, web /social, and mobile Expo /social. Backend: 25/25 pytest passing (100%): co-host guards (host-only add/remove, non-host 403, co-host can pin but cannot end), AI clip generation (real Claude title+caption + product snapshot), shoppable clip Stripe checkout (real cs_test_ URL), group carts (create/list/get/add/remove/checkout, empty_cart 400, not_a_member 403), discover (headline+people+shows+moments+clips), translation (Hindi + cache hit on 2nd call + invalid lang → en fallback). Web (after fixing a duplicate `function ModalShell` declaration that was breaking the whole /social route with a Babel SyntaxError): /social loads, Friends → discover-section renders, Together → shop-together-modal + cart-create + cart-item-add + cart-checkout redirected to a real Stripe Sandbox hosted checkout ($9.99). All required web testIDs (cart-name, cart-invite-<uid>, cart-create, cart-open-<id>, cart-item-title/price/add, cart-checkout, discover-section, discover-person/follow-<uid>, moment-tr-lang-<id>, moment-translate-<id>, live-clip, live-cohost-open, cohost-modal, cohost-add/remove-<uid>, live-clips, clip-buy-<pid>) verified present in the JSX. Mobile Expo web preview (after fresh demo-login-btn): social-do-shop → shop-together-sheet works, cart created ($4.50 with MobItem), cart-checkout button visible, discover-section renders on Friends tab, and all mobile testIDs (cohost-sheet, live-clip, live-clips, clip-buy-<pid>, moment-tr-<lang>-<id>, moment-translate-<id>) verified in the code. Web+mobile testID parity confirmed.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "SocialTogether.jsx", "issue": "Duplicate `function ModalShell({...}) {` declaration on lines 606-607 caused a Babel SyntaxError (Unexpected token 622:0) that broke the ENTIRE compiled bundle — /social + every downstream tab were unreachable in the browser. Fixed in-place by removing the duplicate line so the app compiles and the Phase 4/5 features can be exercised. Root cause looks like a bad merge / copy-paste when the ModalShell helper was added.", "selector": "n/a (build-time)", "priority": "CRITICAL"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Expo web preview auth bootstrap", "issue": "First cold load fires several /api/* requests before the user taps demo-login-btn, returning 401s in the console. Non-blocking (once demo-login-btn is tapped, a fresh bearer is stored and every Phase 4/5 flow works), but the app should probably suppress those pre-login requests or route them through a guarded fetch to keep the console clean and avoid confusing testers.", "affected_testIDs": ["demo-login-btn"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_social_phase45.py",
+    "/app/test_reports/pytest/iter162_p45.xml"
+  ],
+  "action_items": [
+    "REVIEW the SocialTogether.jsx duplicate-declaration fix already applied (removed the doubled `function ModalShell({...}) {` line so the /social route can compile). Merge/history should be checked to prevent a repeat.",
+    "(Optional) Gate mobile Expo /api/* pre-fetches behind a token-ready check so users don't see a burst of 401s before demo-login."
+  ],
+  "critical_code_review_comments": [
+    "SocialTogether.jsx had a duplicate `function ModalShell(...)` declaration that turned into a fatal build error — a single-line typo took down every social screen. Consider enabling `no-redeclare` in the frontend ESLint config (currently DISABLE_ESLINT_PLUGIN=true) or at minimum running `yarn build` in CI before shipping.",
+    "social_phase45.discover: friends-of-friends aggregation runs a nested `db.social_friendships.find` per friend (up to 40 friends) — fine at demo scale but should be a single $graphLookup or aggregation once real user counts exist.",
+    "social_phase45.translate: cache key is sha1(lang|text) but does NOT include a version/model tag — if the LLM model or system prompt changes we will keep returning the OLD translation from the cache. Add a small `v1_` prefix or include the model name in the key.",
+    "live_commerce._llm_json / social_phase45._llm_text: both silently swallow every exception into `except Exception: return None`, so a real Claude/Emergent outage returns a fallback string with no server-side signal. At least `logger.exception(...)` inside the except so ops can see it."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_social_phase45.py",
+    "/app/frontend/src/pages/social/SocialTogether.jsx"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Web cookie: demo@bigfm.dubai / DemoPass123! (host + cart owner), freeuser@bigfm.dubai / FreePass123! (co-host, cart member, clip buyer). Mobile Expo: tap demo-login-btn (POST /api/auth/demo bearer). Same accounts as iter161.",
+  "seed_data_creation": "Created several TEST_P45* live shows, TEST_P45* pinned products, TEST_P45* AI clips (with real Claude titles), TEST_P45* group carts (Party Cart, Empty, Web_Cart, Mob_Cart2) and TEST_P45* cart items. Live shows are auto-ended by the fixture teardown. Group carts + clips remain in DB, all TEST_P45-prefixed for easy cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 4/5 shared backend is fully covered by /app/backend/tests/test_social_phase45.py (25 tests, 100% pass, ~13s). The web fix in SocialTogether.jsx (removed duplicate `function ModalShell({...}) {`) is small and safe but the main agent should double-check the surrounding merge history — the same file has a lot of tightly-packed helper components. Mobile bearer tokens go stale across preview sessions (same pattern as iter160/161): clear localStorage + tap demo-login-btn on a fresh Expo load before hitting /api/social/* endpoints. Real LiveKit video still not rendered client-side (intentional). Stripe returns real cs_test_ URLs for both clip and group-cart checkouts.",
+  "rca of the issue": "Web /social went completely blank in the browser. Root cause: /app/frontend/src/pages/social/SocialTogether.jsx had two consecutive `function ModalShell({ title, onClose, children, testid }) {` lines (606 and 607) — the second is a syntactically invalid statement inside the first function body, so Babel bailed with `SyntaxError: Unexpected token (622:0)` and the entire bundle failed to build. Fix: deleted the duplicated declaration line; webpack recompiled cleanly and every Phase 4/5 screen became reachable again. Confirmed by re-running the browser flow — /social loads, discover renders, shop-together-modal opens, cart-checkout redirects to Stripe Sandbox."
+}

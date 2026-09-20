@@ -1322,6 +1322,18 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_social_v2(db)
     except Exception as e: logger.warning(f"social_v2 bootstrap: {e}")
     try:
+        from routes.social_together import ensure_social_together
+        await ensure_social_together(db)
+    except Exception as e: logger.warning(f"social_together bootstrap: {e}")
+    try:
+        from routes.live_commerce import ensure_live_commerce_indexes
+        await ensure_live_commerce_indexes(db)
+    except Exception as e: logger.warning(f"live_commerce bootstrap: {e}")
+    try:
+        from routes.social_phase45 import ensure_phase45_indexes
+        await ensure_phase45_indexes(db)
+    except Exception as e: logger.warning(f"phase45 bootstrap: {e}")
+    try:
         from routes.dreams_guidance import ensure_dreams_indexes, seed_dreams_demo
         await ensure_dreams_indexes(db)
         await seed_dreams_demo(db, hash_password)
@@ -6460,6 +6472,18 @@ from routes.dream_clusters import router as _dream_clusters_router
 app.include_router(_dream_ads_router)
 app.include_router(_dream_ads_admin_router)
 app.include_router(_dream_clusters_router)
+
+# Social V2 — Phase 2: Moments, Go Together, Play Together, Local Pulse.
+from routes.social_together import router as _social_together_router
+app.include_router(_social_together_router)
+
+# Social V2 — Phase 3: RadioLife Live (video livestream commerce).
+from routes.live_commerce import router as _live_commerce_router
+app.include_router(_live_commerce_router)
+
+# Social V2 — Phase 4/5: Group carts, AI discovery, translation.
+from routes.social_phase45 import router as _social_phase45_router
+app.include_router(_social_phase45_router)
 
 
 @app.on_event("startup")

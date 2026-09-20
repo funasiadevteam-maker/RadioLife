@@ -10,12 +10,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { TUBE, TSPACE, TRADIUS, TFONT } from '../../src/constants/tube';
 import api from '../../src/api/client';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
+import { MomentsTab, PulseTab, GoTogetherSheet, PlayTogetherSheet, ShopTogetherSheet, DiscoverSection } from '../../src/social/together';
+import { LiveTab } from '../../src/social/live';
 
 const TABS = [
   { key: 'together', label: 'Together', icon: 'sparkles' },
   { key: 'live', label: 'Live', icon: 'videocam' },
   { key: 'moments', label: 'Moments', icon: 'camera' },
-  { key: 'clubs', label: 'Clubs', icon: 'people-circle' },
+  { key: 'pulse', label: 'Pulse', icon: 'location' },
   { key: 'friends', label: 'Friends', icon: 'people' },
 ];
 
@@ -69,6 +71,12 @@ export default function SocialScreen() {
           onRefresh={() => { setRefreshing(true); loadHome(); }} />
       ) : tab === 'friends' ? (
         <FriendsTab />
+      ) : tab === 'moments' ? (
+        <MomentsTab />
+      ) : tab === 'pulse' ? (
+        <PulseTab />
+      ) : tab === 'live' ? (
+        <LiveTab />
       ) : (
         <ComingSoon tab={tab} />
       )}
@@ -96,6 +104,9 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
   const activeChannelThumb = usePlayerStore((st) => st.activeChannelThumb);
   const activeChannel = usePlayerStore((st) => st.activeChannel);
   const [starting, setStarting] = useState(false);
+  const [goOpen, setGoOpen] = useState(false);
+  const [playOpen, setPlayOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
 
   const startRoom = async () => {
     setStarting(true);
@@ -114,14 +125,15 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
 
   const doItems = [
     { key: 'listen', label: 'Listen Together', icon: 'headset', on: startRoom },
-    { key: 'play', label: 'Play Together', icon: 'game-controller', on: () => router.push('/(tabs)/trivia' as any) },
-    { key: 'go', label: 'Go Together', icon: 'location', on: () => {} },
-    { key: 'shop', label: 'Shop Together', icon: 'bag-handle', on: () => {} },
+    { key: 'play', label: 'Play Together', icon: 'game-controller', on: () => setPlayOpen(true) },
+    { key: 'go', label: 'Go Together', icon: 'location', on: () => setGoOpen(true) },
+    { key: 'shop', label: 'Shop Together', icon: 'bag-handle', on: () => setShopOpen(true) },
   ];
   const rooms = home?.suggested_rooms || [];
   const friendsNow = home?.friends_now || [];
 
   return (
+    <>
     <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 120, gap: 20 }}
       showsVerticalScrollIndicator={false} testID="social-together"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TUBE.magenta} />}>
@@ -205,6 +217,10 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
         ))}
       </View>
     </ScrollView>
+    <GoTogetherSheet visible={goOpen} onClose={() => setGoOpen(false)} />
+    <PlayTogetherSheet visible={playOpen} onClose={() => setPlayOpen(false)} />
+    <ShopTogetherSheet visible={shopOpen} onClose={() => setShopOpen(false)} />
+    </>
   );
 }
 
@@ -233,6 +249,7 @@ function FriendsTab() {
   return (
     <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 120, gap: 18 }}
       showsVerticalScrollIndicator={false} testID="social-friends" keyboardShouldPersistTaps="handled">
+      <DiscoverSection />
       <View style={s.searchWrap}>
         <Ionicons name="search" size={16} color={TUBE.textMuted} />
         <TextInput value={q} onChangeText={search} placeholder="Find people by name or email"

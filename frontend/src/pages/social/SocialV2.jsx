@@ -11,6 +11,8 @@ import {
   Play, Dot, ChevronRight, Clock, Moon,
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
+import { MomentsTab, PulseTab, GoTogetherModal, PlayTogetherModal, ShopTogetherModal, DiscoverSection } from "./SocialTogether";
+import { LiveTab } from "./SocialLive";
 
 const api = axios.create({
   baseURL: `${process.env.REACT_APP_BACKEND_URL || ""}/api/social`,
@@ -21,7 +23,7 @@ const TABS = [
   { key: "together", label: "Together", icon: Sparkles },
   { key: "live", label: "Live", icon: Video },
   { key: "moments", label: "Moments", icon: Camera },
-  { key: "clubs", label: "Clubs", icon: Users2 },
+  { key: "pulse", label: "Pulse", icon: MapPin },
   { key: "friends", label: "Friends", icon: Users },
 ];
 
@@ -56,18 +58,9 @@ export default function SocialV2() {
             <TogetherTab home={home} reload={loadHome} />
           )}
           {!loading && tab === "friends" && <FriendsTab />}
-          {!loading && tab === "live" && (
-            <ComingSoon icon={Video} title="RadioLife Live"
-              blurb="Live video commerce from your favourite local businesses — going live soon." />
-          )}
-          {!loading && tab === "moments" && (
-            <ComingSoon icon={Camera} title="Moments"
-              blurb="Share what you're listening to, eating and playing — with context, not just another feed." />
-          )}
-          {!loading && tab === "clubs" && (
-            <ComingSoon icon={Users2} title="Clubs"
-              blurb="Communities around what you love — Bollywood nights, food explorers, cricket fans." />
-          )}
+          {!loading && tab === "live" && <LiveTab />}
+          {!loading && tab === "moments" && <MomentsTab />}
+          {!loading && tab === "pulse" && <PulseTab />}
         </div>
       </div>
     </div>
@@ -141,6 +134,9 @@ function TogetherTab({ home, reload }) {
   const importedStation = usePlayerStore((s) => s.importedStation);
   const podcastEpisode = usePlayerStore((s) => s.podcastEpisode);
   const [starting, setStarting] = useState(false);
+  const [goOpen, setGoOpen] = useState(false);
+  const [playOpen, setPlayOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
 
   const nowPlaying = importedStation
     ? { type: "live", name: importedStation.name, art: importedStation.favicon }
@@ -173,9 +169,9 @@ function TogetherTab({ home, reload }) {
 
   const doTogether = [
     { key: "listen", label: "Listen Together", icon: Headphones, on: startRoom },
-    { key: "play", label: "Play Together", icon: Gamepad2, on: () => navigate("/play") },
-    { key: "go", label: "Go Together", icon: MapPin, on: () => toast.info("Plans are coming soon.") },
-    { key: "shop", label: "Shop Together", icon: ShoppingBag, on: () => toast.info("Group shopping is coming soon.") },
+    { key: "play", label: "Play Together", icon: Gamepad2, on: () => setPlayOpen(true) },
+    { key: "go", label: "Go Together", icon: MapPin, on: () => setGoOpen(true) },
+    { key: "shop", label: "Shop Together", icon: ShoppingBag, on: () => setShopOpen(true) },
   ];
 
   const rooms = home?.suggested_rooms || [];
@@ -266,6 +262,9 @@ function TogetherTab({ home, reload }) {
           </div>
         )}
       </div>
+      {goOpen && <GoTogetherModal onClose={() => setGoOpen(false)} />}
+      {playOpen && <PlayTogetherModal onClose={() => setPlayOpen(false)} />}
+      {shopOpen && <ShopTogetherModal onClose={() => setShopOpen(false)} />}
     </div>
   );
 }
@@ -331,6 +330,7 @@ function FriendsTab() {
 
   return (
     <div className="space-y-7" data-testid="social-friends">
+      <DiscoverSection />
       <div className="relative">
         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
         <input value={q} onChange={(e) => runSearch(e.target.value)}

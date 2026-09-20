@@ -1,0 +1,48 @@
+{
+  "summary": "Phase 3 RadioLife LIVE (livestream commerce) tested end-to-end on both surfaces. Backend: 15/16 pytest passing (93.75%). Web: Go Live → pin product → chat → end + viewer buy (real Stripe cs_test_ URL) all pass. Mobile: same flow works on Expo web preview (host controls, pin, chat, end). Parity confirmed. One minor backend bug found: chat GET ?after=<created_at> does not always exclude the boundary message (BSON ms vs isoformat µs truncation) — causes duplicated messages in the polled chat client. LiveKit is in 'live' mode server-side but no client SDK is bundled — stage placeholder is intentional per PRD.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/social/liveshows/{id}/messages?after=<iso>", "issue": "Filter uses $gt with fromisoformat(after) but Mongo stores datetimes at millisecond precision while API returns microsecond precision → the boundary message ('last seen') is NOT excluded, so the polling client re-appends duplicates every 3s. Fix: either store created_at truncated to ms, or use $gte and pass created_at + 1ms, or dedupe by id client-side. Reference /app/backend/routes/live_commerce.py:229-247."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "GoLiveSheet / PinProductSheet", "issue": "On 390x844 the sheet content is not scrolled into view — golive-start / pin-submit render below the visible area of the modal after keyboard/multiline fields; real users must scroll but Playwright normal click errors 'outside viewport'. Consider adding a small maxHeight/height cap + ensure the CTA is always visible above the keyboard. Not blocking (users can scroll).", "testID": "golive-start / pin-submit", "priority": "LOW"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_live_commerce_phase3.py",
+    "/app/test_reports/pytest/iter161_live_commerce.xml"
+  ],
+  "action_items": [
+    "Fix chat ?after filter to avoid returning the boundary message (Mongo BSON ms vs iso µs) — either truncate stored created_at, use $gte with epoch+1ms, or dedupe by message id client-side.",
+    "(Optional) Make mobile GoLiveSheet / PinProductSheet CTAs always visible — small maxHeight or a sticky bottom CTA so users don't have to scroll to reach 'Start streaming' / 'Pin to show' on smaller phones."
+  ],
+  "critical_code_review_comments": [
+    "GET /messages ?after filter compares datetime with microsecond precision to BSON ms-truncated stored value → duplicates leak through to the polling client.",
+    "live_commerce.py checkout: origin_url is trusted from body — resolve_origin should be verified to reject arbitrary origins in production (this is handled by core.origins but worth noting)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_live_commerce_phase3.py"
+  ],
+  "success_rate": {"backend": "93.75%", "frontend": "100%"},
+  "test_credentials": "Web host: demo@bigfm.dubai / DemoPass123!  |  Web viewer/buyer: freeuser@bigfm.dubai / FreePass123!  |  Mobile: demo-login-btn (Expo)",
+  "seed_data_creation": "Test data created and cleaned up: ended live shows titled 'TEST_Phase3 Live', 'TEST Web Phase3 Show', 'TEST Buy Show', 'TEST Mob Phase3'. Pinned products and chat messages left in DB (all TEST_-prefixed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 3 RadioLife LIVE is functional on both surfaces. Backend covered by /app/backend/tests/test_live_commerce_phase3.py (16 tests). Only one minor duplicate-message-on-poll issue in chat. LiveKit is in 'live' mode server-side but no client SDK bundled — stage placeholder is expected (do not fail for missing <video>). Stripe checkout returns real cs_test_ URLs when logged in as non-host.",
+  "rca of the issue": "Chat ?after: routes/live_commerce.py line 236 does `datetime.fromisoformat(after.replace('Z','+00:00'))` on an ISO string that includes microseconds (from Python's datetime.now().isoformat()). Mongo BSON persists datetime at millisecond precision, so the DB-side value < the user-supplied filter, and the query `created_at $gt <after>` returns the boundary message too. Verified by pytest test_post_and_get_messages: assertion `assert 'TEST_host hello' not in texts_after` failed."
+}

@@ -1315,3 +1315,38 @@ Per user directive, `new_look_v2` (premium dark cinematic streaming shell) is th
 - `services/points_service.py`: `touch_daily_streak(db, user_id)` + `get_streak(...)`, backed by a NEW `dream_streaks` collection (keyed `_id=user_id`; distinct from the legacy daily-login `user_streaks`). Increments on consecutive UTC days, resets after a miss. Awards +2/day (`daily_streak` rule) and milestones +10 @ day 7, +25 @ day 30 (`streak_milestone`), all idempotent per day.
 - Triggers: `_save` in `dreams_ai_readings.py` (opening a reading) and `award_social_share` in `dreams_guidance.py` (any social share). Endpoint `GET /api/social/dreams/streak`.
 - UI: 🔥 streak-badge in the web Dreams header (`StreakBadge` in DreamsExtras) and the mobile AI Readings header; refreshes after readings/shares.
+
+---
+
+## 2026-06 — Social V2 Phases 2–5 SHIPPED (both web + mobile, tested iter160/161/162)
+
+All four remaining Social V2 phases built on the shared /api/social contract; LiveKit + Stripe (test) + Object Storage + Emergent LLM key reused (no new keys). Real LiveKit video is not rendered (no client SDK bundled) — the live stage is an intentional placeholder; commerce/chat/presence are fully functional.
+
+### Phase 2 — Do things together (`routes/social_together.py`)
+- Moments: photo/video/voice posts + context tag, friends+public feed, likes, comments. Media via `POST /media/upload` (object storage) served at `/media/file/{key}` (Range-capable). Posting awards +1 pt and bumps the daily streak.
+- Go Together: outings (title/activity/place/when/invitees) + RSVP going/maybe/no.
+- Play Together: game sessions (pick game, start, list, join/leave).
+- Local Pulse: `GET /pulse?city=` aggregates public moments + outings + active play sessions.
+- Web: SocialV2 Moments + Pulse tabs, Go/Play modals. Mobile: same, `src/social/together.tsx`.
+
+### Phase 3 — RadioLife Live (`routes/live_commerce.py`, prefix `/api/social/liveshows`)
+- Host goes live (LiveKit token minted), pins products/offers, viewers buy via Stripe test checkout, live chat (poll) + viewer presence/heartbeat, end show.
+- Web: SocialLive.jsx LiveTab + LiveViewer. Mobile: `src/social/live.tsx`.
+
+### Phase 4 — Co-hosting, AI clips, shoppable clips, group carts
+- Co-hosting: host adds/removes co-hosts (`/liveshows/{id}/cohosts`); co-hosts get manage rights (pin/clip), only primary host ends. `can_manage` in show detail.
+- AI highlight clips: `POST /liveshows/{id}/clips` → Claude-generated title+caption + product snapshot; `GET /{id}/clips`, `GET /liveshows/clips/feed`.
+- Shoppable clips: `POST /liveshows/clips/{clip_id}/checkout` → Stripe test checkout for a snapshot product.
+- Group carts (`routes/social_phase45.py`): `Shop Together` — create shared cart, invite friends, add/remove items, `POST /carts/{id}/checkout` one Stripe session for the whole basket.
+
+### Phase 5 — AI discovery & translation (`routes/social_phase45.py`)
+- `GET /discover`: AI headline + people-you-may-know (friends-of-friends/mutuals) + suggested shows + trending moments/clips. Rendered at top of the Friends tab.
+- `POST /translate` {text, target_lang in hi/ar/es/fr/en}: on-demand Claude translation, cached in `translation_cache`. Translate toggle + language chips on moment captions. `GET /translate/langs`.
+
+### New collections
+social_moments, social_moment_comments, social_outings, play_sessions, live_shows, live_show_messages, live_show_viewers, live_orders, live_clips, group_carts, translation_cache. Server startup wires ensure_social_together / ensure_live_commerce_indexes / ensure_phase45_indexes.
+
+### Known / notes
+- Real livestream video needs a LiveKit client SDK + native build (Publish) — not testable on Expo Go/web preview.
+- Discover 'people' is often empty with only the 2 seed friends (expected).
+- ESLint is disabled on web (DISABLE_ESLINT_PLUGIN=true) — a duplicate ModalShell decl slipped in during build and was removed; watch for redeclarations.
