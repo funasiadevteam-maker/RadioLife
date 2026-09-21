@@ -21,6 +21,9 @@ from pydantic import BaseModel, Field
 
 from auth import current_user, current_user_optional
 from core.origins import resolve_origin
+from core.content_language import (
+    user_content_languages, user_show_all, user_filter_scopes, content_allowed,
+)
 from routes.social_v2 import _user_public, _users_map
 from services import livekit_client
 from services.object_storage import get_storage
@@ -114,7 +117,7 @@ class ShowBody(BaseModel):
 
 
 @router.get("")
-async def list_shows(request: Request, status: str = "live",
+async def list_shows(request: Request, status: str = "live", show_all: bool = False,
                      user: dict = Depends(current_user)):
     db = request.app.state.db
     q = {"status": status} if status in ("live", "ended", "scheduled") else {}
@@ -124,8 +127,17 @@ async def list_shows(request: Request, status: str = "live",
         rows.append(s)
         hids.add(s["host_id"])
     hosts = await _users_map(db, list(hids))
+    # Content-language HARD filter — hide live shows clearly in a non-preferred
+    # language (neutral shown). Gated by the "music" scope + show-all escape.
+    apply_lang = (not show_all and not user_show_all(user)
+                  and user_filter_scopes(user).get("music"))
+    prefs = user_content_languages(user) if apply_lang else None
     out = []
     for s in rows:
+        if apply_lang:
+            txt = f"{s.get('title', '')} {s.get('description', '')} {s.get('business_name', '')}"
+            if not content_allowed(txt, prefs, explicit=s.get("language")):
+                continue
         vc = await _viewer_count(db, s["_id"])
         out.append(_show_public(s, hosts.get(s["host_id"]), vc, user["user_id"]))
     return {"items": out, "mode": livekit_client.status()["mode"]}

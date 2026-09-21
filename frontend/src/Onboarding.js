@@ -174,6 +174,7 @@ export default function Onboarding() {
     market: "dubai",
   });
   const [artistDraft, setArtistDraft] = useState("");
+  const [recommendedGenres, setRecommendedGenres] = useState([]);
   const audioRef = useRef(null);
   const [previewing, setPreviewing] = useState(null);
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -203,6 +204,14 @@ export default function Onboarding() {
       setPv((p) => (p.languages && p.languages.length ? p : { ...p, languages: [supported] }));
     } catch (_e) { /* */ }
   }, [user]);
+
+  // Recommend starter genres from the real catalog (not a fixed list).
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/shell/recommended-genres`)
+      .then((r) => r.json())
+      .then((d) => setRecommendedGenres(Array.isArray(d.genres) ? d.genres : []))
+      .catch(() => setRecommendedGenres([]));
+  }, [BACKEND_URL]);
 
   // Audio cleanup
   useEffect(() => () => {
@@ -353,6 +362,20 @@ export default function Onboarding() {
           <section className="step-section">
             <h1 className="step-title">Which genres hit the spot?</h1>
             <p className="step-lede">Pick at least 2.</p>
+            {recommendedGenres.length > 0 && (
+              <div data-testid="step-genres-recommended" style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1,
+                              textTransform: "uppercase", color: "#c084fc", marginBottom: 8 }}>
+                  ★ Popular on FUUSIC
+                </div>
+                <ChipGrid options={recommendedGenres} selected={pv.genres} onToggle={toggle("genres")}
+                          data-testid="step-genres-recommended-chips" />
+              </div>
+            )}
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1,
+                          textTransform: "uppercase", color: "#8b93b0", marginBottom: 8 }}>
+              All genres
+            </div>
             <ChipGrid options={GENRES} selected={pv.genres} onToggle={toggle("genres")}
                       data-testid="step-genres" />
           </section>

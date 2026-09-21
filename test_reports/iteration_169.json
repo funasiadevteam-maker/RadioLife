@@ -1,0 +1,49 @@
+{
+  "summary": "Iter 169 — three follow-ups verified end-to-end. Backend 8/8 pytest pass (test_iter169_persist_genres_livelang.py). (1) PERSIST RADIO TRACKS — POST /api/radio/start OK for both retro_lounge AND morning_masala; GET /api/radio/segment/{id} serves audio/mpeg with real bytes (>100b first chunk); Mongo confirms 16 tracks with storage_provider=tigris, storage_key=demo_tracks/demo_track_N.mp3, playable_status=ok. No 409 build_failed / empty_playable_pool. (2) ONBOARDING GENRE PICKS — /api/shell/recommended-genres public returns {genres:['bollywood','pop','indie','retro','electronic','punjabi_pop','ghazal','devotional'], source:'catalog', total:19} (8 items, catalog-ranked). WEB /onboarding step 3/11 GENRES renders 'POPULAR ON FUUSIC' recommended chips (data-testid step-genres-recommended + step-genres-recommended-chips) ABOVE 'ALL GENRES' grid (data-testid step-genres) — verified: recommended.y=556.68 < all_grid.y=670.43. 8 chips render exactly matching the API. Tapping 'bollywood' chip toggles both recommended chip (aria-pressed false->true, is-on class added) AND the matching item in ALL GENRES (aria-pressed=true, is-on=True) — proving they share pv.genres state. (3) LANGUAGE LIVE RAIL — GET /api/social/liveshows?status=live returns 200 no crash; show_all=true bypass returns count >= filtered; user preference show_all_languages=true also returns count >= filtered count (override works). GET /api/shell/home returns >=4 for_you cards + mixed_for_you present (safety net respected). (4) REGRESSION — /users/me + /auth/me expose preference_vector; /api/radio/browse?source=imported with music scope OFF (unfiltered) >= music scope ON (filtered). Demo user restored to defaults ({languages:['english'],show_all_languages:false,content_lang_scopes:{music,games,quiz:true}}) at teardown.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {
+      "flow": "Onboarding genre picks (recommended-genres)",
+      "platform": "mobile",
+      "issue": "Mobile onboarding does NOT show the 'Popular on FUUSIC' recommended section — /app/mobile/app/onboarding.tsx:219 renders only the fixed GENRES ChipGrid (testID step-genres) and never calls /api/shell/recommended-genres. Web parity is fully implemented in /app/frontend/src/Onboarding.js.",
+      "expected": "Mobile onboarding Genres step should show 'Popular on FUUSIC' recommended chips (from /api/shell/recommended-genres) above the ALL GENRES grid, matching web.",
+      "actual": "Mobile shows only the hardcoded 12-genre grid; no recommended section, no fetch to /api/shell/recommended-genres. Note: the review request scope only explicitly listed WEB for this UI, so this is flagged as parity gap not a hard failure."
+    }
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter169_persist_genres_livelang.py",
+    "/app/test_reports/pytest/iter169.xml"
+  ],
+  "action_items": [
+    "(Optional/parity) Extend mobile /app/mobile/app/onboarding.tsx step 2 to fetch /api/shell/recommended-genres and render a 'Popular on FUUSIC' block above the full GENRES grid, mirroring web (Onboarding.js:210).",
+    "(Optional) Consider surfacing a 'mode' or 'language_filtered' flag on /api/social/liveshows response to make client-side rail UI aware of the hard filter state."
+  ],
+  "critical_code_review_comments": [
+    "Radio audio pipeline: /api/radio/start returns 200 for both AI channels using Tigris-persisted demo tracks (playable_status=ok). Persistence confirmed via Mongo (16/16 rows storage_provider=tigris, storage_key=demo_tracks/demo_track_N.mp3). Signed URLs resolve to real audio bytes — no synthetic silence. Good.",
+    "recommended-genres endpoint aggregates from tracks.genre + channels.allowed_genres/music_genre (with double weight for channels). Robust to missing data via try/except. Returns top 8 catalog-ranked genres. Note: label case: recommended chips use raw keys ('punjabi_pop' rendered as 'punjabi pop' after replaceAll _ with space); the all-grid uses hardcoded GENRES ordering — labels are consistent.",
+    "Live commerce list_shows filter (routes/live_commerce.py:130-139) applies content-language filter only when NOT show_all + NOT user_show_all(user) + music scope enabled — correct gating. Neutral shows are always kept (as documented).",
+    "Parity gap: web Onboarding.js has the 'Popular on FUUSIC' recommended section but mobile onboarding.tsx does not. If parity is required, mobile needs same fetch + chip block."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter169_persist_genres_livelang.py",
+    "/app/test_reports/iteration_169.json",
+    "/app/test_reports/pytest/iter169.xml"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "freeuser@bigfm.dubai / FreePass123! (used for web onboarding — not yet onboarded, so /onboarding is reachable). demo@bigfm.dubai / DemoPass123! (for backend suite; restored to defaults at teardown).",
+  "seed_data_creation": "None new. Relied on existing 16 Tigris-persisted demo tracks (demo_track_1..16 storage_provider=tigris, playable_status=ok) from scripts/persist_demo_tracks.py.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Radio persistence proven via Tigris (Mongo shows 16 tigris tracks, both channels start OK, segments return real audio/mpeg bytes). /api/shell/recommended-genres returns 8 catalog-ranked genres (bollywood,pop,indie,retro,electronic,punjabi_pop,ghazal,devotional; total=19). Web onboarding step 3/11 Genres renders Popular on FUUSIC section ABOVE All Genres grid, chip taps toggle pv.genres correctly. Live shows list + Home don't crash and honor language filter for english demo user. Mobile onboarding lacks the recommended-genres section — reported as parity gap. Demo user restored to default prefs at teardown.",
+  "rca of the issue": ""
+}

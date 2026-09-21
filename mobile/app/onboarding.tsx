@@ -79,9 +79,16 @@ export default function Onboarding() {
     explicit_ok: false, market: 'dubai',
   });
   const [artistDraft, setArtistDraft] = useState('');
+  const [recommendedGenres, setRecommendedGenres] = useState<string[]>([]);
   const playerRef = useRef<any>(null);
   const previewPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get('/shell/recommended-genres')
+      .then((r: any) => setRecommendedGenres(Array.isArray(r.data?.genres) ? r.data.genres : []))
+      .catch(() => setRecommendedGenres([]));
+  }, []);
 
   useEffect(() => {
     if (user?.preference_vector) {
@@ -208,15 +215,28 @@ export default function Onboarding() {
         <ScrollView contentContainerStyle={s.main} keyboardShouldPersistTaps="handled">
           {step === 0 && (
             <View testID="step-welcome">
-              <Text style={s.title}>Namaste, Dubai.</Text>
-              <Text style={s.lede}>Kuch sawal hain — phir non-stop music chalega. 30 seconds, max.</Text>
+              <Text style={s.title}>Welcome, Dubai.</Text>
+              <Text style={s.lede}>A few quick questions — then non-stop music. 30 seconds, max.</Text>
               <View style={s.bulletRow}><Text style={s.bulletNum}>01</Text><Text style={s.bulletText}>Pick languages, genres & moods</Text></View>
               <View style={s.bulletRow}><Text style={s.bulletNum}>02</Text><Text style={s.bulletText}>Pick your RJ (or let us choose)</Text></View>
-              <View style={s.bulletRow}><Text style={s.bulletNum}>03</Text><Text style={s.bulletText}>Press ON AIR. Music chalu.</Text></View>
+              <View style={s.bulletRow}><Text style={s.bulletNum}>03</Text><Text style={s.bulletText}>Press ON AIR. Music on.</Text></View>
             </View>
           )}
-          {step === 1 && (<View><Text style={s.title}>Aap kya sunte ho?</Text><Text style={s.lede}>Pick one or more languages (min 1).</Text><ChipGrid options={LANGUAGES} selected={pv.languages} onToggle={toggle('languages')} testID="step-languages" /></View>)}
-          {step === 2 && (<View><Text style={s.title}>Which genres hit the spot?</Text><Text style={s.lede}>Pick at least 2.</Text><ChipGrid options={GENRES} selected={pv.genres} onToggle={toggle('genres')} testID="step-genres" /></View>)}
+          {step === 1 && (<View><Text style={s.title}>What do you listen to?</Text><Text style={s.lede}>Pick your languages (min 1). English by default — change anytime in Profile.</Text><ChipGrid options={LANGUAGES} selected={pv.languages} onToggle={toggle('languages')} testID="step-languages" /></View>)}
+          {step === 2 && (
+            <View>
+              <Text style={s.title}>Which genres hit the spot?</Text>
+              <Text style={s.lede}>Pick at least 2.</Text>
+              {recommendedGenres.length > 0 && (
+                <View testID="step-genres-recommended" style={{ marginBottom: SPACING.md }}>
+                  <Text style={s.recoHead}>★ Popular on FUUSIC</Text>
+                  <ChipGrid options={recommendedGenres} selected={pv.genres} onToggle={toggle('genres')} testID="step-genres-recommended-chips" />
+                  <Text style={s.recoAll}>All genres</Text>
+                </View>
+              )}
+              <ChipGrid options={GENRES} selected={pv.genres} onToggle={toggle('genres')} testID="step-genres" />
+            </View>
+          )}
           {step === 3 && (<View><Text style={s.title}>Which era is your jam?</Text><Text style={s.lede}>Pick at least 1.</Text><ChipGrid options={ERAS} selected={pv.eras} onToggle={toggle('eras')} testID="step-eras" /></View>)}
           {step === 4 && (<View><Text style={s.title}>What mood do you want?</Text><Text style={s.lede}>Pick at least 2.</Text><ChipGrid options={MOODS} selected={pv.moods} onToggle={toggle('moods')} testID="step-moods" /></View>)}
           {step === 5 && (<View><Text style={s.title}>When do you tune in?</Text><Text style={s.lede}>Pick at least 1.</Text><ChipGrid options={ACTIVITIES} selected={pv.activities} onToggle={toggle('activities')} testID="step-activities" /></View>)}
@@ -346,6 +366,8 @@ const s = StyleSheet.create({
   main: { padding: SPACING.lg, paddingBottom: 100 },
   title: { color: COLORS.text, fontSize: FONT.xxl, fontWeight: '900', marginBottom: 8 },
   lede: { color: COLORS.textDim, fontSize: FONT.md, lineHeight: 22, marginBottom: SPACING.lg },
+  recoHead: { color: '#c084fc', fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginBottom: SPACING.sm },
+  recoAll: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginTop: SPACING.md, marginBottom: SPACING.sm },
   bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   bulletNum: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800', letterSpacing: 1 },
   bulletText: { color: COLORS.textDim, fontSize: FONT.md },

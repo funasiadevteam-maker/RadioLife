@@ -11,7 +11,7 @@ from services.station_art import resolve_art as _resolve_art
 from core.home_config import get_home_config, build_fuusic_world, TOGETHER_ACTIONS
 from core.content_language import (
     user_content_languages, user_show_all, user_filter_scopes,
-    station_language_or_query,
+    station_language_or_query, content_allowed,
 )
 from datetime import datetime, timezone, timedelta
 import re
@@ -44,6 +44,42 @@ _CAT_CHIPS = [
     ("fitness", "Fitness"),
     ("retail", "Shops"),
 ]
+
+
+@router.get("/recommended-genres")
+async def recommended_genres(request: Request):
+    """Starter genres ranked by what's actually in the catalog (tracks +
+    channels) — powers the onboarding "Popular on FUUSIC" picks instead of a
+    hardcoded list."""
+    db = request.app.state.db
+    counts: dict[str, int] = {}
+
+    def _bump(g, n=1):
+        if g:
+            k = str(g).strip().lower()
+            if k:
+                counts[k] = counts.get(k, 0) + n
+
+    try:
+        async for r in db.tracks.aggregate([
+            {"$match": {"genre": {"$nin": [None, ""]}}},
+            {"$group": {"_id": "$genre", "n": {"$sum": 1}}},
+        ]):
+            _bump(r["_id"], int(r["n"]))
+    except Exception:
+        pass
+    try:
+        async for ch in db.channels.find(
+                {"active": True}, {"allowed_genres": 1, "music_genre": 1}):
+            for g in (ch.get("allowed_genres") or []):
+                _bump(g, 2)
+            _bump(ch.get("music_genre"), 2)
+    except Exception:
+        pass
+
+    ranked = [g for g, _ in sorted(counts.items(), key=lambda kv: -kv[1])]
+    return {"genres": ranked[:8], "source": "catalog", "total": len(counts)}
+
 
 
 @router.get("/summary")
@@ -454,9 +490,17 @@ async def _mixed_for_you(db, user, city, station_cards, native_offer):
     except Exception:
         pass
     try:
+        _apply_live = not user_show_all(user) and user_filter_scopes(user).get("music")
+        _live_prefs = user_content_languages(user) if _apply_live else None
+
+        def _live_ok(txt, explicit=None):
+            return (not _apply_live) or content_allowed(txt, _live_prefs, explicit=explicit)
+
         ls = await db.live_shows.find_one(
             {"status": "live"}, sort=[("started_at", -1)])
-        if ls:
+        if ls and _live_ok(
+                f"{ls.get('title', '')} {ls.get('description', '')} {ls.get('business_name', '')}",
+                ls.get("language")):
             extras.append({
                 "id": ls["_id"], "type": "live", "badge": "Live", "live": True,
                 "title": ls.get("title") or ls.get("business_name") or "Live now",
@@ -466,8 +510,8 @@ async def _mixed_for_you(db, user, city, station_cards, native_offer):
         else:
             rm = await db.listen_rooms.find_one(
                 {"active": True}, sort=[("last_active_at", -1)])
-            if rm:
-                content = rm.get("content") or {}
+            content = (rm or {}).get("content") or {}
+            if rm and _live_ok(f"{content.get('name', '')} {rm.get('title', '')}"):
                 extras.append({
                     "id": rm["_id"], "type": "live", "badge": "Live", "live": True,
                     "title": content.get("name") or rm.get("title") or "Listening room",

@@ -2,6 +2,13 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — PERSIST TRACKS (Tigris) + CATALOG GENRE PICKS + LIVE-RAIL LANG FILTER — testing agent PASS iter169 (8/8 backend + web), mobile parity screenshot-verified
+- **Persist Radio Tracks**: the 16 demo music tracks are now uploaded to object storage (Tigris) and their rows set to `storage_provider=tigris`, `storage_key=demo_tracks/demo_track_N.mp3`, `playable_status=ok` (`scripts/persist_demo_tracks.py`, loads `.env` into `os.environ` so `get_storage()` resolves Tigris). AI radio resolves audio from Tigris signed URLs, so playback survives a fresh fork/redeploy (Tigris bucket is persistent). Verified `/api/radio/start` (retro_lounge, morning_masala) → segment; `/api/radio/segment/{id}` → audio/mpeg. (ffmpeg still needs to exist on the pod — installed 5.1.9.)
+- **Onboarding Genre Picks**: new `GET /api/shell/recommended-genres` ranks genres from the real catalog (tracks genre counts + channels allowed_genres/music_genre). Both web `Onboarding.js` and mobile `app/onboarding.tsx` step 2 render a "★ Popular on FUUSIC" recommended row (`step-genres-recommended` / `-chips`) above the full "All genres" grid, sharing the same `pv.genres` selection. Mobile onboarding step 0/1 copy also neutralised (no "Namaste"/"Aap kya sunte ho").
+- **Language Live Rail**: `GET /api/social/liveshows` now applies the content-language HARD filter (music scope) with `?show_all` + user overrides — hides live shows clearly in a non-preferred language (neutral shown). Home `live_now` already respects language via the filtered flagship cards; `mixed_for_you`'s live-show/room pick now also skips non-preferred-language items (music scope) with a safe fallback.
+- Files: `backend/scripts/persist_demo_tracks.py` (NEW), `backend/routes/shell.py`, `backend/routes/live_commerce.py`, `frontend/src/Onboarding.js`, `mobile/app/onboarding.tsx`. Test: `/app/test_reports/iteration_169.json`.
+
+
 ## 2026-06 (fork) — RADIO AUDIO FIX + AUTO-DETECT + PER-SECTION SCOPES + HOME-RAIL LANG FILTER — testing agent PASS iter168 (10/10) + curl-verified refinements
 Four follow-ups to the content-language feature:
 - **Fix Radio Audio**: root cause — `ffmpeg` was missing on the pod, so the AI-radio segment builder always failed. Installed ffmpeg (5.1.9) and seeded 16 playable demo tracks (`scripts/seed_demo_tracks.py`) using public royalty-free MP3 URLs that ffmpeg fetches over HTTPS (cached locally on first build). `POST /api/radio/start` now returns a segment and `/api/radio/segment/{id}` serves real `audio/mpeg`. NOTE: ffmpeg install is NOT persistent across a refork; seeded track rows persist in Mongo.
