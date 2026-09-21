@@ -14,6 +14,7 @@ import { TUBE, TSPACE, TRADIUS, TFONT } from '../constants/tube';
 import api, { BACKEND } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import MiniToast from '../components/MiniToast';
+import { useRouter } from 'expo-router';
 
 const REFERRAL_POINTS = 500;
 
@@ -375,19 +376,23 @@ function OutingRow({ o }: any) {
 
 export function PlayTogetherSheet({ visible, onClose }: any) {
   const { user } = useAuth();
+  const router = useRouter();
   const [games, setGames] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
+  const [board, setBoard] = useState<any>(null);
   const [game, setGame] = useState('trivia');
   const [title, setTitle] = useState('');
   const [invitees, setInvitees] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [winPts, setWinPts] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const load = useCallback(async () => {
     try { const { data } = await api.get('/social/play/games'); setGames(data.games || []); } catch (_) {}
     try { const { data } = await api.get('/social/play/sessions'); setSessions(data.items || []); } catch (_) {}
     try { const { data } = await api.get('/social/friends'); setFriends(data.friends || []); } catch (_) {}
+    try { const { data } = await api.get('/social/play/referral-leaderboard'); setBoard(data); } catch (_) {}
   }, []);
   useEffect(() => { if (visible) load(); }, [visible, load]);
   const create = async () => {
@@ -403,13 +408,52 @@ export function PlayTogetherSheet({ visible, onClose }: any) {
     try {
       const { data } = await api.post(`/social/play/sessions/${sid}/join`, {});
       const earned = data?.reward?.joiner_points || 0;
+      if (earned > 0) setWinPts(earned);
       setToast(earned > 0 ? `Joined! +${earned} points 🎉` : 'Joined!');
       load();
     } catch (_) { setToast('Couldn’t join that session.'); }
   };
+  const startRound = async (sid: string) => {
+    try {
+      const { data } = await api.post(`/social/play/sessions/${sid}/start-round`, {});
+      onClose?.();
+      router.push(`/trivia/rooms/${data.room_code}` as any);
+    } catch (_) { setToast('Couldn’t start the live round.'); }
+  };
+  const joinRoom = (code: string) => { onClose?.(); router.push(`/trivia/rooms/${code}` as any); };
+  const shareWin = async (pts: number) => {
+    try {
+      const { data } = await api.post('/social/share-card', {
+        kind: 'referral', title: 'I just won on FUUSIC!',
+        prize: `${pts} points`, subtitle: 'Worth $5–$10 in rewards' });
+      await Share.share({ message: `I just won ${pts} points on FUUSIC! Play with me: ${data.share_url}`, url: data.share_url });
+    } catch (_) { setToast('Couldn’t create your win card.'); }
+  };
   const gameLabel = games.find((g) => g.key === game)?.label;
+  const invitedSessions = sessions.filter((p) => p.invited && !p.joined);
   return (
     <Sheet visible={visible} onClose={onClose} title="Play Together" testID="play-together-sheet">
+      <PlayLeaderboard board={board} />
+      {winPts != null ? (
+        <View style={st.winBox} testID="play-win-banner">
+          <Ionicons name="trophy" size={20} color="#fbbf24" />
+          <Text style={st.winTxt}>You earned {winPts} points 🎉</Text>
+          <Pressable onPress={() => shareWin(winPts)} testID="play-share-win" style={st.winBtn}>
+            <Ionicons name="share-social" size={13} color="#000" /><Text style={st.winBtnTxt}>Share win</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {invitedSessions.length > 0 ? (
+        <View style={st.invitedBanner} testID="play-invited-banner">
+          <Text style={st.invitedBannerHead}>You’re invited — join now 🎮</Text>
+          {invitedSessions.map((p) => (
+            <View key={p.session_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
+              <Text style={{ flex: 1, color: TUBE.text, fontSize: TFONT.xs, fontWeight: '700' }} numberOfLines={1}>{p.title} · {p.game_label}</Text>
+              <Pressable onPress={() => join(p.session_id)} testID={`play-invited-join-${p.session_id}`}><LinearGradient colors={['#a855f7', '#ec4899']} style={st.joinBtn}><Text style={st.joinTxt}>Join</Text></LinearGradient></Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {games.map((g) => (
           <Pressable key={g.key} onPress={() => setGame(g.key)} testID={`play-game-${g.key}`} style={[st.gameCard, game === g.key && st.gameCardA]}>
@@ -441,6 +485,7 @@ export function PlayTogetherSheet({ visible, onClose }: any) {
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={st.pulseTitle} numberOfLines={1}>{p.title}</Text>
+                {p.room_live ? <View style={st.liveBadge}><Text style={st.liveBadgeTxt}>● LIVE</Text></View> : null}
                 {p.invited && !p.joined ? <View style={st.invitedBadge} testID={`play-invited-badge-${p.session_id}`}><Text style={st.invitedTxt}>INVITED</Text></View> : null}
               </View>
               <Text style={st.pulseMeta}>{p.game_label} · {p.player_count} playing{p.is_host ? ' · you host' : ''}</Text>
@@ -448,11 +493,77 @@ export function PlayTogetherSheet({ visible, onClose }: any) {
             {p.joined ? <Text style={{ color: '#86efac', fontSize: TFONT.xs, fontWeight: '800' }}>Joined</Text>
               : <Pressable onPress={() => join(p.session_id)} testID={`play-join-${p.session_id}`}><LinearGradient colors={['#a855f7', '#ec4899']} style={st.joinBtn}><Text style={st.joinTxt}>Join</Text></LinearGradient></Pressable>}
           </View>
+          {p.room_live ? (
+            <Pressable onPress={() => joinRoom(p.room_code)} testID={`play-join-room-${p.session_id}`} style={[st.liveBtn, { backgroundColor: '#e11d48' }]}>
+              <Ionicons name="flash" size={15} color="#fff" /><Text style={st.liveBtnTxt}>Live round in progress — Join</Text>
+            </Pressable>
+          ) : p.is_host ? (
+            <Pressable onPress={() => startRound(p.session_id)} testID={`play-start-round-${p.session_id}`} style={[st.liveBtn, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
+              <Ionicons name="flash" size={15} color="#fff" /><Text style={st.liveBtnTxt}>Start live round</Text>
+            </Pressable>
+          ) : null}
+          {p.is_host ? <PlayPending sid={p.session_id} setToast={setToast} /> : null}
           {(p.is_host || p.joined) ? <PlayInviteRow sid={p.session_id} gameLabel={p.game_label} userId={user?.user_id} setToast={setToast} /> : null}
         </View>
       ))}
       <MiniToast message={toast} onDone={() => setToast(null)} />
     </Sheet>
+  );
+}
+
+// "Top inviters this week" leaderboard.
+function PlayLeaderboard({ board }: any) {
+  if (!board) return null;
+  const top = board.items || [];
+  return (
+    <View style={st.inviteBox} testID="referral-leaderboard">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Ionicons name="trophy" size={13} color="#fbbf24" />
+        <Text style={st.inviteHead}>Top inviters this week</Text>
+      </View>
+      {top.length === 0 ? (
+        <Text style={{ color: TUBE.textMuted, fontSize: TFONT.xs, marginTop: 6 }}>No invites yet — bring friends and top the board! 🔥</Text>
+      ) : top.slice(0, 5).map((it: any) => (
+        <View key={it.user_id} style={st.lbRow} testID={`referral-rank-${it.rank}`}>
+          <Text style={st.lbRank}>{it.rank}</Text>
+          <Avatar name={it.user?.name} url={it.user?.avatar_url} size={22} />
+          <Text style={[st.lbName, it.is_me && { color: '#fff' }]} numberOfLines={1}>{it.user?.name || 'Listener'}{it.is_me ? ' (you)' : ''}</Text>
+          <Text style={st.lbCount}>{it.referrals} 🔥</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// Host-only: invited/opened friends who haven't joined + a nudge.
+function PlayPending({ sid, setToast }: any) {
+  const [items, setItems] = useState<any[] | null>(null);
+  const load = useCallback(() => {
+    api.get(`/social/play/sessions/${sid}/pending`).then(({ data }) => setItems(data.items || [])).catch(() => setItems([]));
+  }, [sid]);
+  useEffect(() => { load(); }, [load]);
+  const remind = async (ids: string[]) => {
+    try {
+      const { data } = await api.post(`/social/play/sessions/${sid}/remind`, { user_ids: ids });
+      setToast?.(data.reminded ? `Nudged ${data.reminded} friend${data.reminded === 1 ? '' : 's'} 🔔` : 'Already nudged recently');
+      load();
+    } catch (_) { setToast?.('Couldn’t send reminders.'); }
+  };
+  if (!items || items.length === 0) return null;
+  return (
+    <View style={[st.inviteBox, { marginTop: 8 }]} testID={`play-pending-${sid}`}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={st.inviteHead}>Haven’t joined yet ({items.length})</Text>
+        <Pressable onPress={() => remind(items.map((i) => i.user_id))} testID={`play-remind-all-${sid}`}><Text style={{ color: '#c4b5fd', fontSize: TFONT.xs, fontWeight: '900' }}>Remind all</Text></Pressable>
+      </View>
+      {items.map((i) => (
+        <View key={i.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
+          <Avatar name={i.user?.name} url={i.user?.avatar_url} size={20} />
+          <Text style={{ flex: 1, color: TUBE.textMuted, fontSize: TFONT.xs }} numberOfLines={1}>{i.user?.name || 'Friend'} · {i.status}</Text>
+          <Pressable onPress={() => remind([i.user_id])} testID={`play-remind-${i.user_id}`}><Text style={{ color: '#c4b5fd', fontSize: TFONT.xs, fontWeight: '800' }}>Remind</Text></Pressable>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -713,4 +824,18 @@ const st = StyleSheet.create({
   inviteHead: { color: '#e9d5ff', fontSize: TFONT.xs, fontWeight: '900', flexShrink: 1 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 18 },
   inviteBtnTxt: { color: '#fff', fontSize: TFONT.xs, fontWeight: '900' },
+  lbRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3, marginTop: 2 },
+  lbRank: { width: 18, textAlign: 'center', color: TUBE.text, fontSize: TFONT.xs, fontWeight: '900' },
+  lbName: { flex: 1, color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '700' },
+  lbCount: { color: '#c4b5fd', fontSize: TFONT.xs, fontWeight: '900' },
+  winBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)', borderRadius: 14, padding: 12, marginBottom: 10 },
+  winTxt: { flex: 1, color: '#fde68a', fontSize: TFONT.sm, fontWeight: '800' },
+  winBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#fbbf24', height: 34, paddingHorizontal: 12, borderRadius: 17 },
+  winBtnTxt: { color: '#000', fontSize: TFONT.xs, fontWeight: '900' },
+  invitedBanner: { backgroundColor: 'rgba(34,211,238,0.1)', borderWidth: 1, borderColor: 'rgba(34,211,238,0.3)', borderRadius: 14, padding: 12, marginBottom: 10 },
+  invitedBannerHead: { color: '#a5f3fc', fontSize: TFONT.xs, fontWeight: '900', marginBottom: 4 },
+  liveBadge: { paddingHorizontal: 7, height: 18, borderRadius: 9, backgroundColor: 'rgba(244,63,94,0.25)', alignItems: 'center', justifyContent: 'center' },
+  liveBadgeTxt: { color: '#fda4af', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  liveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 42, borderRadius: 21, marginTop: 10 },
+  liveBtnTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
 });

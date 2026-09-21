@@ -102,6 +102,12 @@ async def ensure_social_together(db) -> None:
     # One referral reward per (session, joiner) — prevents re-join farming.
     await db.play_referrals.create_index(
         [("session_id", 1), ("joiner_id", 1)], unique=True, name="pref_uniq")
+    await db.play_referrals.create_index([("referrer_id", 1), ("created_at", -1)],
+                                         name="pref_referrer_time")
+    await db.play_invite_opens.create_index(
+        [("session_id", 1), ("user_id", 1)], unique=True, name="pio_uniq")
+    await db.share_cards.create_index([("user_id", 1), ("created_at", -1)],
+                                      name="sc_user_time")
 
 
 # ═══════════════════════════ Media upload ══════════════════════════
@@ -444,6 +450,8 @@ def _play_public(p: dict, viewer: str, host: Optional[dict],
             "status": p.get("status"), "players": players,
             "player_count": len(parts), "joined": viewer in parts,
             "invited": viewer in (p.get("invitees") or []),
+            "room_code": p.get("room_code"),
+            "room_live": bool(p.get("room_code") and p.get("room_status") == "live"),
             "created_at": _iso(p.get("created_at"))}
 
 
@@ -556,6 +564,10 @@ async def join_play_session(sid: str, request: Request,
         reward = await _award_play_referral(
             db, sid, joiner=uid, ref=(body.ref if body else None),
             host_id=p.get("host_id"), invitees=p.get("invitees") or [])
+        # Mark any invite-open row for this session as converted.
+        await db.play_invite_opens.update_one(
+            {"session_id": sid, "user_id": uid},
+            {"$set": {"joined": True, "joined_at": _now()}})
     p = await db.play_sessions.find_one({"_id": sid})
     return {"joined": True, "player_count": len(p.get("participants") or []),
             "reward": reward}
@@ -575,6 +587,259 @@ async def leave_play_session(sid: str, request: Request,
     if p.get("host_id") == uid and not remaining:
         await db.play_sessions.update_one({"_id": sid}, {"$set": {"status": "ended"}})
     return {"left": True, "player_count": len(remaining)}
+
+
+# ═══════════ Play Together — referral leaderboard (this week) ═══════
+def _week_start() -> datetime:
+    now = _now()
+    return (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+
+
+@router.get("/play/referral-leaderboard")
+async def referral_leaderboard(request: Request,
+                               user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user["user_id"]
+    ws = _week_start()
+    pipe = [
+        {"$match": {"created_at": {"$gte": ws}}},
+        {"$group": {"_id": "$referrer_id", "referrals": {"$sum": 1}}},
+        {"$sort": {"referrals": -1}},
+        {"$limit": 20},
+    ]
+    rows = [r async for r in db.play_referrals.aggregate(pipe)]
+    umap = await _users_map(db, [r["_id"] for r in rows])
+    items = []
+    for rank, r in enumerate(rows, 1):
+        items.append({"rank": rank, "user_id": r["_id"],
+                      "user": umap.get(r["_id"]),
+                      "referrals": int(r["referrals"]),
+                      "points": int(r["referrals"]) * REFERRAL_POINTS,
+                      "is_me": r["_id"] == uid})
+    me = next((i for i in items if i["is_me"]), None)
+    if not me:
+        cnt = await db.play_referrals.count_documents(
+            {"referrer_id": uid, "created_at": {"$gte": ws}})
+        me = {"rank": None, "user_id": uid,
+              "user": _user_public(await db.users.find_one({"user_id": uid})),
+              "referrals": cnt, "points": cnt * REFERRAL_POINTS, "is_me": True}
+    return {"week_start": _iso(ws), "items": items, "me": me}
+
+
+# ═══════════ Play Together — invite opens + reminders ═══════════════
+class OpenBody(BaseModel):
+    ref: Optional[str] = None
+
+
+@router.post("/play/sessions/{sid}/opened")
+async def mark_invite_opened(sid: str, request: Request,
+                             body: Optional[OpenBody] = Body(default=None),
+                             user: dict = Depends(current_user)):
+    """Log that this user opened an invite link (even if they don't join),
+    so the host can nudge no-shows."""
+    db = request.app.state.db
+    p = await db.play_sessions.find_one({"_id": sid})
+    if not p:
+        raise HTTPException(404, {"code": "session_not_found"})
+    uid = user["user_id"]
+    joined = uid in (p.get("participants") or [])
+    await db.play_invite_opens.update_one(
+        {"session_id": sid, "user_id": uid},
+        {"$set": {"session_id": sid, "user_id": uid,
+                  "ref": (body.ref if body else None),
+                  "joined": joined, "opened_at": _now()}},
+        upsert=True)
+    return {"ok": True, "joined": joined}
+
+
+@router.get("/play/sessions/{sid}/pending")
+async def play_pending_invites(sid: str, request: Request,
+                               user: dict = Depends(current_user)):
+    """Host view: everyone invited or who opened the link but hasn't joined."""
+    db = request.app.state.db
+    p = await db.play_sessions.find_one({"_id": sid})
+    if not p:
+        raise HTTPException(404, {"code": "session_not_found"})
+    if p.get("host_id") != user["user_id"]:
+        raise HTTPException(403, {"code": "not_host"})
+    parts = set(p.get("participants") or [])
+    invited = set(p.get("invitees") or [])
+    opens: dict[str, dict] = {}
+    async for o in db.play_invite_opens.find({"session_id": sid}):
+        opens[o["user_id"]] = o
+    candidate_ids = (invited | set(opens.keys())) - parts
+    umap = await _users_map(db, list(candidate_ids))
+    items = []
+    for u in candidate_ids:
+        o = opens.get(u)
+        items.append({"user_id": u, "user": umap.get(u),
+                      "status": "opened" if o else "invited",
+                      "reminded_at": _iso((o or {}).get("reminded_at"))})
+    return {"items": items, "count": len(items)}
+
+
+class RemindBody(BaseModel):
+    user_ids: list[str] = Field(default_factory=list)
+
+
+@router.post("/play/sessions/{sid}/remind")
+async def play_remind(sid: str, body: RemindBody, request: Request,
+                      user: dict = Depends(current_user)):
+    """Host nudges not-yet-joined invitees. 1 nudge/hour per invitee."""
+    db = request.app.state.db
+    p = await db.play_sessions.find_one({"_id": sid})
+    if not p:
+        raise HTTPException(404, {"code": "session_not_found"})
+    if p.get("host_id") != user["user_id"]:
+        raise HTTPException(403, {"code": "not_host"})
+    parts = set(p.get("participants") or [])
+    invited = set(p.get("invitees") or [])
+    opened = set()
+    async for o in db.play_invite_opens.find({"session_id": sid}, {"user_id": 1}):
+        opened.add(o["user_id"])
+    eligible = (invited | opened) - parts
+    targets = [u for u in (body.user_ids or list(eligible)) if u in eligible]
+    now = _now()
+    cutoff = now - timedelta(hours=1)
+    reminded = 0
+    for u in targets[:50]:
+        recent = await db.social_notifications.find_one(
+            {"user_id": u, "type": "play_reminder", "session_id": sid,
+             "created_at": {"$gte": cutoff}})
+        if recent:
+            continue
+        await db.social_notifications.insert_one({
+            "_id": f"sn_{uuid.uuid4().hex[:14]}", "user_id": u,
+            "type": "play_reminder", "session_id": sid, "from": user["user_id"],
+            "title": p.get("title") or GAME_LABELS.get(p.get("game_key"), "a game"),
+            "read": False, "created_at": now})
+        await db.play_invite_opens.update_one(
+            {"session_id": sid, "user_id": u},
+            {"$set": {"reminded_at": now}}, upsert=True)
+        reminded += 1
+    return {"reminded": reminded, "eligible": len(eligible)}
+
+
+# ═══════ Play Together — Group Game Room (live round via Trivia) ════
+@router.post("/play/sessions/{sid}/start-round")
+async def start_live_round(sid: str, request: Request,
+                           user: dict = Depends(current_user)):
+    """Host launches a real-time round: spins up a multiplayer Trivia room
+    (reusing the existing room engine) and links it to the session so every
+    participant can jump into the SAME live round."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    p = await db.play_sessions.find_one({"_id": sid})
+    if not p or p.get("status") != "active":
+        raise HTTPException(404, {"code": "session_not_found"})
+    if p.get("host_id") != uid:
+        raise HTTPException(403, {"code": "not_host"})
+    hub = getattr(request.app.state, "trivia_room_hub", None)
+    if hub is None:
+        raise HTTPException(503, {"code": "rooms_unavailable"})
+    # Reuse a still-live room for this session.
+    if p.get("room_code") and hub.get(p["room_code"]):
+        return {"room_code": p["room_code"], "reused": True}
+    cat = (await db.trivia_categories.find_one({"active": True})
+           or await db.trivia_categories.find_one({}))
+    if not cat:
+        raise HTTPException(503, {"code": "no_trivia_categories"})
+    from services.market_context import get_user_market
+    market = await get_user_market(request, user, db)
+    room = await hub.create(
+        host_user={"user_id": uid, "name": user.get("name") or "Host",
+                   "avatar": user.get("avatar_url")},
+        category_id=cat["id"], category_slug=cat["slug"], market=market,
+        is_private=True, max_players=50)
+    await db.play_sessions.update_one(
+        {"_id": sid}, {"$set": {"room_code": room.code, "room_status": "live",
+                                "room_started_at": _now()}})
+    for pid in (p.get("participants") or []):
+        if pid == uid:
+            continue
+        await db.social_notifications.insert_one({
+            "_id": f"sn_{uuid.uuid4().hex[:14]}", "user_id": pid,
+            "type": "play_live_round", "session_id": sid, "from": uid,
+            "room_code": room.code,
+            "title": p.get("title") or "Live round starting",
+            "read": False, "created_at": _now()})
+    return {"room_code": room.code, "reused": False}
+
+
+# ═══════════════════ Win-to-Share card (Pillow → storage) ══════════
+class ShareCardBody(BaseModel):
+    kind: str = Field("generic", max_length=24)   # referral | game_win | generic
+    title: str = Field("I just won on FUUSIC!", max_length=80)
+    prize: str = Field("", max_length=40)
+    subtitle: str = Field("", max_length=100)
+
+
+@router.post("/share-card")
+async def create_win_card(body: ShareCardBody, request: Request,
+                          user: dict = Depends(current_user)):
+    db = request.app.state.db
+    from services.share_cards import create_share_card
+    doc = await create_share_card(
+        db, user_id=user["user_id"], kind=body.kind,
+        title=body.title.strip(), prize=body.prize.strip(),
+        subtitle=body.subtitle.strip())
+    base = _base_url(request)
+    return {"card_id": doc["_id"],
+            "image_url": f"{base}/api/social/share-card/img/{doc['_id']}",
+            "share_url": f"{base}/api/social/share-card/{doc['_id']}"}
+
+
+@router.get("/share-card/img/{card_id}")
+async def share_card_image(card_id: str, request: Request):
+    db = request.app.state.db
+    doc = await db.share_cards.find_one({"_id": card_id})
+    if not doc:
+        raise HTTPException(404, {"code": "card_not_found"})
+    st = get_storage()
+    head = st.head(key=doc["storage_key"])
+    if not head:
+        raise HTTPException(404, {"code": "card_missing"})
+    size = int(head.get("size") or 0)
+    data = st.open_range(key=doc["storage_key"], start=0, end=max(0, size - 1))
+    return Response(content=data, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@router.get("/share-card/{card_id}")
+async def share_card_page(card_id: str, request: Request):
+    """Public OG link-preview page — this is the URL shared to Facebook so
+    the generated card renders as the preview image; then it bounces the
+    visitor into the app."""
+    db = request.app.state.db
+    doc = await db.share_cards.find_one({"_id": card_id})
+    if not doc:
+        raise HTTPException(404, {"code": "card_not_found"})
+    base = _base_url(request)
+    img = f"{base}/api/social/share-card/img/{card_id}"
+    title = doc.get("title") or "I won on FUUSIC!"
+    desc = " ".join(x for x in [doc.get("prize"), doc.get("subtitle")] if x) \
+        or "Play together, win together on FUUSIC."
+    app_link = f"{base}/social?action=play"
+    html = (
+        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        f"<title>{title} — FUUSIC</title>"
+        "<meta property=\"og:type\" content=\"website\">"
+        f"<meta property=\"og:title\" content=\"{title}\">"
+        f"<meta property=\"og:description\" content=\"{desc}\">"
+        f"<meta property=\"og:image\" content=\"{img}\">"
+        "<meta property=\"og:image:width\" content=\"1200\">"
+        "<meta property=\"og:image:height\" content=\"630\">"
+        "<meta name=\"twitter:card\" content=\"summary_large_image\">"
+        f"<meta name=\"twitter:image\" content=\"{img}\">"
+        f"<meta http-equiv=\"refresh\" content=\"0; url={app_link}\">"
+        "</head><body style=\"margin:0;background:#0b0c16;color:#fff;"
+        "font-family:sans-serif;text-align:center\">"
+        f"<img src=\"{img}\" style=\"max-width:100%;height:auto\"/>"
+        f"<p><a href=\"{app_link}\" style=\"color:#ec4899\">Open FUUSIC</a></p>"
+        "</body></html>")
+    return Response(content=html, media_type="text/html")
+
 
 
 # ═══════════════════════════ Local Pulse ═══════════════════════════

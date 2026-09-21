@@ -8,7 +8,7 @@ import {
   Loader2, Camera, Image as ImageIcon, Mic, Video, Send, Heart,
   MessageCircle, X, MapPin, Gamepad2, Users, Globe, Radio, Play,
   Music, Utensils, Sparkles, Trash2, ChevronRight, Check,
-  Share2, Copy, Facebook, Instagram, Smartphone, Trophy,
+  Share2, Copy, Facebook, Instagram, Smartphone, Trophy, Bell, Zap,
 } from "lucide-react";
 import { Avatar } from "./SocialV2";
 import { useAuth } from "@/AuthContext";
@@ -503,8 +503,89 @@ function InviteRow({ sid, gameLabel }) {
   );
 }
 
+// Generates a branded win card (server-side PNG) then shares it — the
+// shared link carries OG tags so Facebook/Instagram show the card image.
+async function shareWinCard(kind, title, prize, subtitle) {
+  try {
+    const { data } = await api.post("/share-card", { kind, title, prize, subtitle });
+    const text = `${title}${prize ? ` — ${prize}` : ""} Play with me on FUUSIC!`;
+    if (navigator.share) {
+      try { await navigator.share({ title: "FUUSIC", text, url: data.share_url }); return; } catch (_) {}
+    }
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(data.share_url)}`,
+      "_blank", "noopener,width=640,height=640");
+    try { await navigator.clipboard.writeText(data.share_url); toast.success("Win card link copied — share it anywhere!"); } catch (_) {}
+  } catch (_) { toast.error("Couldn’t create your win card."); }
+}
+
+// "Top inviters this week" — the viral leaderboard.
+function ReferralLeaderboard() {
+  const [data, setData] = useState(null);
+  useEffect(() => { api.get("/play/referral-leaderboard").then(({ data }) => setData(data)).catch(() => {}); }, []);
+  if (!data) return null;
+  const top = data.items || [];
+  return (
+    <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3 mb-3" data-testid="referral-leaderboard">
+      <div className="flex items-center gap-2 text-xs font-black text-amber-300 mb-2"><Trophy size={14} /> Top inviters this week</div>
+      {top.length === 0 ? (
+        <div className="text-[11px] text-slate-400">No invites yet this week — bring friends and top the board! 🔥</div>
+      ) : top.map((it) => (
+        <div key={it.user_id} className={`flex items-center gap-2 py-1 ${it.is_me ? "text-white" : "text-slate-300"}`} data-testid={`referral-rank-${it.rank}`}>
+          <span className="w-5 text-center text-xs font-black">{it.rank}</span>
+          <Avatar name={it.user?.name} url={it.user?.avatar_url} size={24} />
+          <span className="flex-1 text-xs font-bold truncate">{it.user?.name || "Listener"}{it.is_me ? " (you)" : ""}</span>
+          <span className="text-xs font-black text-purple-200">{it.referrals} 🔥</span>
+          <span className="text-[10px] text-slate-400 w-14 text-right">{it.points} pts</span>
+        </div>
+      ))}
+      {data.me && data.me.rank == null && (
+        <div className="mt-1 pt-1.5 border-t border-white/10 flex items-center gap-2 text-white" data-testid="referral-me">
+          <span className="w-5 text-center text-xs">–</span>
+          <Avatar name={data.me.user?.name} url={data.me.user?.avatar_url} size={24} />
+          <span className="flex-1 text-xs font-bold truncate">You</span>
+          <span className="text-xs font-black text-purple-200">{data.me.referrals} 🔥</span>
+          <span className="text-[10px] text-slate-400 w-14 text-right">{data.me.points} pts</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Host-only: invited / opened friends who haven't joined + a nudge button.
+function PendingInvites({ sid }) {
+  const [items, setItems] = useState(null);
+  const load = useCallback(() => {
+    api.get(`/play/sessions/${sid}/pending`).then(({ data }) => setItems(data.items || [])).catch(() => setItems([]));
+  }, [sid]);
+  useEffect(() => { load(); }, [load]);
+  const remind = async (ids) => {
+    try {
+      const { data } = await api.post(`/play/sessions/${sid}/remind`, { user_ids: ids });
+      toast.success(data.reminded ? `Nudged ${data.reminded} ${data.reminded === 1 ? "friend" : "friends"} 🔔` : "Already nudged recently");
+      load();
+    } catch (_) { toast.error("Couldn’t send reminders."); }
+  };
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="mt-2 rounded-xl bg-white/[0.02] border border-white/10 p-2.5" data-testid={`play-pending-${sid}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] font-bold text-slate-300 inline-flex items-center gap-1"><Bell size={12} /> Haven’t joined yet ({items.length})</span>
+        <button onClick={() => remind(items.map((i) => i.user_id))} data-testid={`play-remind-all-${sid}`} className="text-[11px] font-black text-purple-300">Remind all</button>
+      </div>
+      {items.map((i) => (
+        <div key={i.user_id} className="flex items-center gap-2 py-0.5">
+          <Avatar name={i.user?.name} url={i.user?.avatar_url} size={22} />
+          <span className="flex-1 text-xs truncate text-slate-300">{i.user?.name || "Friend"}<span className="text-slate-500"> · {i.status}</span></span>
+          <button onClick={() => remind([i.user_id])} data-testid={`play-remind-${i.user_id}`} className="text-[11px] font-bold text-purple-300 inline-flex items-center gap-1"><Bell size={11} /> Remind</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PlayTogetherModal({ onClose, sessionId, refId }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [games, setGames] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [friends, setFriends] = useState([]);
@@ -513,6 +594,7 @@ export function PlayTogetherModal({ onClose, sessionId, refId }) {
   const [invitees, setInvitees] = useState([]);
   const [saving, setSaving] = useState(false);
   const [createdId, setCreatedId] = useState(null);
+  const [winBanner, setWinBanner] = useState(null);
   const autoJoined = useRef(false);
 
   const load = useCallback(async () => {
@@ -526,17 +608,18 @@ export function PlayTogetherModal({ onClose, sessionId, refId }) {
     try {
       const { data } = await api.post(`/play/sessions/${sid}/join`, ref ? { ref } : {});
       const earned = data?.reward?.joiner_points || 0;
-      if (earned > 0) toast.success(`Joined! +${earned} points 🎉`, { description: "Worth $5–$10 in rewards." });
+      if (earned > 0) { setWinBanner({ points: earned }); toast.success(`Joined! +${earned} points 🎉`, { description: "Worth $5–$10 in rewards." }); }
       else toast.success("Joined!");
       window.dispatchEvent(new Event("dreams-streak-refresh"));
       load();
     } catch (_) { toast.error("Couldn’t join that session."); }
   }, [load]);
 
-  // Deep-link auto-join from a shared invite link.
+  // Deep-link from a shared invite: log the open (for no-show reminders) then auto-join.
   useEffect(() => {
     if (autoJoined.current || !sessionId) return;
     autoJoined.current = true;
+    api.post(`/play/sessions/${sessionId}/opened`, refId ? { ref: refId } : {}).catch(() => {});
     join(sessionId, refId);
   }, [sessionId, refId, join]);
 
@@ -550,10 +633,41 @@ export function PlayTogetherModal({ onClose, sessionId, refId }) {
     } catch (_) { toast.error("Couldn’t start the session."); } finally { setSaving(false); }
   };
 
+  const startRound = async (sid) => {
+    try {
+      const { data } = await api.post(`/play/sessions/${sid}/start-round`, {});
+      toast.success("Live round started — pulling everyone in! 🔴");
+      navigate(`/trivia/rooms/${data.room_code}`);
+    } catch (_) { toast.error("Couldn’t start the live round."); }
+  };
+
   const gameLabel = games.find((g) => g.key === game)?.label;
+  const invitedSessions = sessions.filter((p) => p.invited && !p.joined);
 
   return (
     <ModalShell title="Play Together" onClose={onClose} testid="play-together-modal">
+      <ReferralLeaderboard />
+      {winBanner && (
+        <div className="rounded-2xl p-3 mb-3 border border-amber-400/30 bg-amber-400/10 flex items-center gap-3" data-testid="play-win-banner">
+          <Trophy className="text-amber-300 shrink-0" size={20} />
+          <div className="flex-1 text-sm font-bold text-amber-100">You earned {winBanner.points} points 🎉</div>
+          <button onClick={() => shareWinCard("referral", "I just won on FUUSIC!", `${winBanner.points} points`, "Worth $5–$10 in rewards")}
+                  data-testid="play-share-win" className="shrink-0 px-3 h-9 rounded-full text-black font-black text-xs inline-flex items-center gap-1.5" style={{ background: "linear-gradient(135deg,#fbbf24,#f59e0b)" }}>
+            <Share2 size={13} /> Share your win
+          </button>
+        </div>
+      )}
+      {invitedSessions.length > 0 && (
+        <div className="rounded-2xl p-3 mb-3 border border-cyan-400/30 bg-cyan-400/10" data-testid="play-invited-banner">
+          <div className="text-xs font-black text-cyan-200 mb-1.5">You’re invited — join now 🎮</div>
+          {invitedSessions.map((p) => (
+            <div key={p.session_id} className="flex items-center gap-2 py-0.5">
+              <span className="flex-1 text-xs font-bold truncate">{p.title} <span className="text-slate-400">· {p.game_label}</span></span>
+              <button onClick={() => join(p.session_id)} data-testid={`play-invited-join-${p.session_id}`} className="px-3 h-8 rounded-full text-white text-xs font-black" style={grad}>Join</button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
           {games.map((g) => (
@@ -595,6 +709,9 @@ export function PlayTogetherModal({ onClose, sessionId, refId }) {
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-black truncate flex items-center gap-2">
                     {p.title}
+                    {p.room_live && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rose-500/25 text-rose-300">● Live</span>
+                    )}
                     {p.invited && !p.joined && (
                       <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300" data-testid={`play-invited-badge-${p.session_id}`}>Invited</span>
                     )}
@@ -605,6 +722,18 @@ export function PlayTogetherModal({ onClose, sessionId, refId }) {
                   ? <span className="text-[11px] text-green-300 font-bold">Joined</span>
                   : <button onClick={() => join(p.session_id)} data-testid={`play-join-${p.session_id}`} className="px-4 h-9 rounded-full text-white text-xs font-black" style={grad}>Join</button>}
               </div>
+              {p.room_live ? (
+                <button onClick={() => navigate(`/trivia/rooms/${p.room_code}`)} data-testid={`play-join-room-${p.session_id}`}
+                        className="mt-2 w-full h-10 rounded-full text-white font-black inline-flex items-center justify-center gap-2 bg-rose-600 hover:brightness-110 transition">
+                  <Zap size={15} /> Live round in progress — Join
+                </button>
+              ) : p.is_host ? (
+                <button onClick={() => startRound(p.session_id)} data-testid={`play-start-round-${p.session_id}`}
+                        className="mt-2 w-full h-10 rounded-full font-black inline-flex items-center justify-center gap-2 border border-white/15 text-white bg-white/[0.06] hover:bg-white/[0.1] transition">
+                  <Zap size={15} /> Start live round
+                </button>
+              ) : null}
+              {p.is_host && <PendingInvites sid={p.session_id} />}
               {(p.is_host || p.joined) && <InviteRow sid={p.session_id} gameLabel={p.game_label} />}
             </div>
           ))}
