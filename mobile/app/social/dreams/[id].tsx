@@ -78,10 +78,17 @@ export default function DreamDetail() {
           {/* AI reflection */}
           <View style={s.aiBlock} testID="dream-ai-block">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <Ionicons name="sparkles" size={16} color={D.magenta} /><Text style={s.aiTitle}>Explore with AI</Text></View>
+              <Ionicons name="sparkles" size={16} color={D.magenta} />
+              <Text style={s.aiTitle}>FUUSIC Dream AI</Text>
+              <View style={s.aiChip}><Text style={s.aiChipTxt}>AI</Text></View>
+              <View style={{ flex: 1 }} />
+              <Pressable onPress={() => router.push('/social/dreams?tab=advisors' as any)} testID="dream-ask-expert" style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="checkmark-circle" size={13} color={D.violet} /><Text style={s.expertLink}>Ask a human expert</Text>
+              </Pressable>
+            </View>
             {!ref ? (
               <Pressable onPress={reflect} disabled={reflecting} testID="dream-reflect-btn" style={s.aiBtn}>
-                {reflecting ? <ActivityIndicator color="#fff" /> : <><Ionicons name="color-wand" size={16} color="#fff" /><Text style={s.aiBtnTxt}>Reflect on this dream</Text></>}</Pressable>
+                {reflecting ? <ActivityIndicator color="#fff" /> : <><Ionicons name="color-wand" size={16} color="#fff" /><Text style={s.aiBtnTxt}>Get AI reflection</Text></>}</Pressable>
             ) : (
               <View style={{ gap: 6 }} testID="dream-ai-reflection">
                 <Text style={s.aiHeader}>{ref.header}</Text>
@@ -90,6 +97,9 @@ export default function DreamDetail() {
                 {(ref.questions_to_consider || []).map((q: string, i: number) => <Text key={i} style={s.aiLine}>— {q}</Text>)}
                 {ref.gentle_note ? <Text style={s.aiNote}>{ref.gentle_note}</Text> : null}
                 {ref.safety_note ? <Text style={s.aiSafety}>⚠ {ref.safety_note}</Text> : null}
+                <Pressable onPress={() => router.push('/social/dreams?tab=advisors' as any)} testID="dream-expert-cta" style={s.expertCta}>
+                  <Ionicons name="checkmark-circle" size={14} color="#ddd6fe" /><Text style={s.expertCtaTxt}>Prefer a human? Ask a verified expert</Text>
+                </Pressable>
               </View>
             )}
           </View>
@@ -143,6 +153,11 @@ const s = StyleSheet.create({
   actBtnTxt: { color: D.dim, fontSize: TFONT.xs, fontWeight: '800' },
   aiBlock: { backgroundColor: 'rgba(192,38,211,0.07)', borderWidth: 1, borderColor: 'rgba(192,38,211,0.25)', borderRadius: TRADIUS.lg, padding: 14 },
   aiTitle: { color: D.text, fontSize: TFONT.md, fontWeight: '900' },
+  aiChip: { paddingHorizontal: 6, height: 15, borderRadius: 8, backgroundColor: 'rgba(192,38,211,0.3)', alignItems: 'center', justifyContent: 'center' },
+  aiChipTxt: { color: '#f5d0fe', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+  expertLink: { color: '#ddd6fe', fontSize: TFONT.xs, fontWeight: '800' },
+  expertCta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, alignSelf: 'flex-start', height: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(167,139,250,0.4)' },
+  expertCtaTxt: { color: '#ede9fe', fontSize: TFONT.xs, fontWeight: '800' },
   aiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 22, backgroundColor: D.magenta },
   aiBtnTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
   aiHeader: { color: 'rgba(240,171,252,0.9)', fontSize: TFONT.xs, fontStyle: 'italic' },

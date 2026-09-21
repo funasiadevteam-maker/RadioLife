@@ -1,0 +1,49 @@
+{
+  "summary": "Iter 172 — Wheel of Fortune (instant single-player) + Play Together start-round member fix on shared backend, web and mobile (Expo web preview). BACKEND 8/8 pytest pass (test_iter172_wheel_and_start_round.py): (a) GET /api/games/wheel/list returns both wheels (wheel_house + wheel_demo_sponsor). (b) GET /api/games/wheel/config?game_id=wheel_house -> {sponsor_name:'FUUSIC', bgm_url set, spins_left 0..3, segments:[8] each {label,color,kind} — weights hidden}. (c) Sponsor config -> sponsor_name='Karak House' and a 'FREE KARAK' coupon segment present. (d) POST /api/games/wheel/spin cycles spins_left down, returns {segment_index, prize:{kind,label,points?}, spins_left, balance}, and the 4th spin/day returns HTTP 429 no_spins_left. (e) GET /api/games/bgm/wheel is PUBLIC (no cookie), returns Content-Type audio/mpeg + ~129KB payload (>50KB asserted). (f) Admin endpoints /api/games/admin/branded-games require admin (freeuser 401/403, admin 200 with 2+ items carrying weights). (g) Start-round bug fix confirmed: POST /api/social/play/sessions/{sid}/start-round returns 200 {room_code:'BFM-…'} for a JOINED non-host member (freeuser), and 403 not_a_member for admin who never joined. WEB (Chrome 1280x900, demo@bigfm.dubai): /games/wheel (house) renders wheel-game + wheel-spin + 8 wheel-seg-0..7 + gold pointer + wheel-mute + wheel-spins-left/wheel-no-spins; /games/wheel?game_id=wheel_demo_sponsor renders wheel-sponsor with 'Sponsored by Karak House' and a red 'FREE KARAK' segment. In Social -> Play Together the play-game-wheel tile shows '⚡ Instant' badge; selecting it reveals play-instant-card + play-instant-start which SPA-navigates to /games/wheel. On the same modal 11 play-start-round-<sid> + 8 play-join-room-<sid> buttons + referral-leaderboard render fine. MOBILE (Expo web preview, 390x844, demo login): tab-social -> social-do-play opens play-together-sheet; the wheel tile shows '⚡ INSTANT'; tapping it opens play-instant-card + play-instant-start; router.push -> /games/wheel screen renders wheel-game, SVG 8-seg wheel + gold pointer + SPIN hub (wheel-spin), sponsor header, wheel-mute, wheel-spins-left/wheel-no-spins. No red screen / crash on either surface. Regression: freeuser used up 3 spins during pytest and correctly saw 'Out of spins' with SPIN disabled on both web + mobile (the wheel-no-spins path). Only console noise was a benign React warning ('transform-origin' vs 'transformOrigin') from the web confetti component — cosmetic, doesn't break anything. Landing math (segment center under pointer): visually verified on mobile — SPIN hub sits centered, pointer aligned at top.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "web-confetti transform-origin", "issue": "COSMETIC (web preview only, not native): console warning 'Invalid DOM property transform-origin. Did you mean transformOrigin?' emitted while the wheel prize confetti animates in the Expo web preview. Non-blocking; native builds are unaffected. Reference: /app/mobile/app/games/wheel.tsx confetti animation (react-native-reanimated interpolate)."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter172_wheel_and_start_round.py",
+    "/app/test_reports/pytest/iter172.xml"
+  ],
+  "action_items": [
+    "OPTIONAL / non-blocking: silence the 'transform-origin' React DOM warning surfaced by the confetti component only in the Expo web preview (does not affect native builds).",
+    "NOTE for the wheel BGM: the current /api/games/bgm/wheel loop is a placeholder synthesized ~129KB MP3 (as flagged in the mocked_api list). It streams fine and mute toggle works — swap in a royalty-free track before launch."
+  ],
+  "critical_code_review_comments": [
+    "instant_games.py: _public_segments (line 77) strips the 'weight' field before returning the config — good — so odds stay server-side; the pytest assertion 'weight not in seg' verifies this per the spec.",
+    "instant_games.py wheel_spin (line 172): idempotency_key=f'wheel:{spin_id}' with uuid4 means the PointsService award is safely retry-safe per-spin; the 429 gate is enforced by counting today's wheel_spins docs BEFORE the award — clean.",
+    "instant_games.py _award_segment coupon path (line 152): if claim_offer raises, a 200-pt fallback is awarded so a coupon-config bug never produces a dud win for the player — nice defensive design.",
+    "routes/instant_games.py /bgm/wheel is declared PUBLIC (no Depends(current_user)) — verified by curl without a cookie returning audio/mpeg 200. Important since <audio> tags on mobile web can't attach cookies cross-origin.",
+    "wheel_house sponsor_name defaults to 'FUUSIC' — that means the mobile wheel-sponsor testID renders even for the house wheel (visible in screenshot 'Sponsored by FUUSIC'). Not a bug per the code (logo_url or sponsor_name gate) but worth noting for QA who may expect no-sponsor for the house wheel.",
+    "mobile/app/games/wheel.tsx spin landing math (line 131): the CENTER of the winning segment is placed under the top pointer by `((360 - ci) % 360)` where ci = i*seg + seg/2 — visually the SVG SPIN hub stays centered and the wheel rotates 6+ full turns before settling, which is a nice tactile feel."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter172_wheel_and_start_round.py",
+    "/app/test_reports/pytest/iter172.xml",
+    "/app/test_reports/iteration_172.json"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Web cookie login demo@bigfm.dubai / DemoPass123! (host) + freeuser@bigfm.dubai / FreePass123! (joiner) + admin@bigfm.dubai / AdminPass123!. Mobile: demo-login-btn (bearer).",
+  "seed_data_creation": "Play session created for start-round member test (host=demo, invited=freeuser). freeuser consumed today's 3 wheel_house spins during pytest which correctly transitioned the UI to wheel-no-spins on both web + mobile. Sponsor wheel_demo_sponsor still had spins for demo test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 172 fully verified Wheel of Fortune (instant solo) end-to-end + Play Together start-round now works for any member (host OR joined). All required testIDs present on web (WheelGame.jsx, SocialTogether.jsx) and mobile (mobile/app/games/wheel.tsx, mobile/src/social/together.tsx): wheel-game, wheel-spin, wheel-seg-0..7, wheel-spins-left, wheel-no-spins, wheel-mute, wheel-sponsor, wheel-prize-modal, wheel-prize-close, play-game-wheel, play-instant-card, play-instant-start, play-start-round-<sid>, play-join-room-<sid>, referral-leaderboard. Backend pytest at /app/backend/tests/test_iter172_wheel_and_start_round.py (8/8 pass, JUnit at pytest/iter172.xml). Wheel BGM at /api/games/bgm/wheel is a synthesized placeholder loop per the request's mocked_api list — do not judge musical quality; confirm it streams & mute works (both verified). Only cosmetic finding: benign React 'transform-origin' warning on web preview confetti.",
+  "rca of the issue": "N/A — no bugs found. The reported user bug (JOINED play session had no start-play affordance) is fixed and pytest asserts both the 200 on member start-round and the 403 not_a_member on non-member. Both the wheel tile ⚡Instant path and the joined-session Start&Play/Live-round-Join paths render on web + mobile."
+}

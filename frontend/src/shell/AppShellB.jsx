@@ -10,9 +10,11 @@ import {
   Search, Menu, MoreHorizontal, ChevronRight, Headphones, Crown,
   Mic, Megaphone, ShieldCheck, LogOut, Settings,
   Newspaper, Users as UsersIcon, Trophy, ShoppingBag, ShoppingCart,
+  Move, PanelTop, PanelBottom, PanelLeft, PanelRight, PictureInPicture2,
 } from "lucide-react";
 
 import { useViewport } from "./useViewport";
+import { usePlayerDock, DOCK_OPTIONS } from "./usePlayerDock";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { useShopCart } from "@/design_radiolife/useShopCart";
 import { useProductCart } from "@/design_radiolife/useProductCart";
@@ -126,6 +128,11 @@ const SIDEBAR_COLLAPSED_KEY = "bigfm.sidebar.collapsed";
 function DesktopShell({ children }) {
   const { pathname } = useLocation();
   const isAdminRoute = pathname.startsWith("/admin");
+  const { dock } = usePlayerDock();
+  const mainPad = {
+    bottom: "pb-32", top: "pt-28 pb-8",
+    left: "pb-12", right: "pb-12", float: "pb-12",
+  }[dock] || "pb-32";
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return typeof window !== "undefined"
@@ -153,13 +160,13 @@ function DesktopShell({ children }) {
               Home (/). Kept on every other page. */}
           {!isAdminRoute && pathname !== "/" && <AdLeaderboard />}
           {!isAdminRoute && <FilterChips />}
-          <main className={`flex-1 overflow-y-auto py-6 animate-fade-up pb-32 ${isAdminRoute ? "px-4" : "px-6 xl:px-10 2xl:px-16"}`}>
+          <main className={`flex-1 overflow-y-auto py-6 animate-fade-up ${mainPad} ${isAdminRoute ? "px-4" : "px-6 xl:px-10 2xl:px-16"}`}>
             {children}
             <ChannelCategoryFooter />
           </main>
         </div>
       </div>
-      <PersistentPlayer />
+      <PersistentPlayer dock={dock} />
     </div>
   );
 }
@@ -442,13 +449,60 @@ function ShopCartButton() {
   );
 }
 
-function PersistentPlayer() {
+const DOCK_META = {
+  bottom: { icon: PanelBottom, label: "Bottom" },
+  top: { icon: PanelTop, label: "Top" },
+  left: { icon: PanelLeft, label: "Left" },
+  right: { icon: PanelRight, label: "Right" },
+  float: { icon: PictureInPicture2, label: "Float" },
+};
+
+function DockMenu() {
+  const { dock, setDock } = usePlayerDock();
+  const [open, setOpen] = useState(false);
   return (
-    <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+    <div className="absolute -top-3 right-3 z-10">
+      <button type="button" onClick={() => setOpen((v) => !v)} data-testid="player-dock-toggle"
+        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-bold bg-bg-elevated/95 border border-line text-text-secondary hover:text-text-primary shadow-lg backdrop-blur">
+        <Move size={12} /> Move
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-0" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-9 right-0 z-10 w-40 rounded-xl bg-bg-elevated border border-line shadow-2xl p-1" data-testid="player-dock-menu">
+            {DOCK_OPTIONS.map((opt) => {
+              const M = DOCK_META[opt]; const Icon = M.icon; const active = dock === opt;
+              return (
+                <button key={opt} type="button" data-testid={`player-dock-${opt}`}
+                  onClick={() => { setDock(opt); setOpen(false); }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold ${active ? "bg-accent-gold/15 text-accent-gold" : "text-text-secondary hover:bg-white/5"}`}>
+                  <Icon size={14} /> {M.label}{active && <span className="ml-auto text-[9px]">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PersistentPlayer({ dock = "bottom" }) {
+  const posCls = {
+    bottom: "bottom-0 inset-x-0 px-6 pb-4",
+    top: "top-16 inset-x-0 px-6 pt-2",
+    left: "bottom-4 left-4 w-[min(460px,calc(100vw-2rem))]",
+    right: "bottom-4 right-4 w-[min(460px,calc(100vw-2rem))]",
+    float: "bottom-6 right-6 w-[min(420px,calc(100vw-3rem))]",
+  }[dock] || "bottom-0 inset-x-0 px-6 pb-4";
+  const anim = dock === "top" ? { y: -80 } : { y: 80 };
+  return (
+    <motion.div initial={{ ...anim, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      data-testid="persistent-player"
-      className="fixed bottom-0 inset-x-0 z-30 px-6 pb-4 pointer-events-none">
-      <div className="pointer-events-auto">
+      data-testid="persistent-player" data-dock={dock}
+      className={`fixed z-30 pointer-events-none ${posCls}`}>
+      <div className="pointer-events-auto relative">
+        <DockMenu />
         <OnAirOfferCard />
         <MiniPlayer />
       </div>

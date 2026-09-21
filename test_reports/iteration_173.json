@@ -1,0 +1,46 @@
+{
+  "summary": "iter173 — Backend /api/me/ui-prefs (9/9 pytest PASS). Web Feature A (FUUSIC Dream AI + Ask expert + Get AI reflection + expert CTA + advisors switch) fully verified. Mobile Feature A + regression (dreams default tab) verified. CRITICAL: Web Feature B (Move-player toggle) is only implemented in AppShellB (classic_b variant). The default+enforced variant is new_look_v2 (AppShellV2), whose player dock is 'nlv2-player-dock' and has NO player-dock-toggle/menu. App.js:441-445 forces every non-admin to new_look_v2 on cold load (before user resolves, so even admins get flipped back to new_look_v2). Result: player-dock-toggle is unreachable for real users, and Feature B UI is effectively dead code.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "PersistentPlayer / DockMenu", "issue": "The player-dock-toggle + player-dock-menu (5 options: bottom/top/left/right/float) exist only in /app/frontend/src/shell/AppShellB.jsx (classic_b variant). The active shell for all real users is AppShellV2 (new_look_v2) which renders only a fixed 'nlv2-player-dock' bar with no Move control. persistent-player testid is not present in AppShellV2 either.", "selector": "[data-testid='player-dock-toggle']", "priority": "HIGH"}
+      ],
+      "integration_issues": [
+        {"flow": "Design-variant gating", "issue": "App.js (AppRouter useEffect at lines 441-445) forces designVariant=new_look_v2 whenever user is null OR non-admin. Because user is null on initial render, even admins are flipped to new_look_v2 before their /auth/me resolves; subsequent effect run finds variant already at new_look_v2 and does not restore classic_b. Net effect: /?design=classic_b is unreachable in practice, and Feature B (only wired in AppShellB) cannot be exercised by any user.", "affected_selectors": ["[data-testid='persistent-player']", "[data-testid='player-dock-toggle']", "[data-testid='player-dock-menu']"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Move-player control", "platform": "web", "issue": "Feature B is desktop-web-only per spec; mobile keeps its native bottom player. That is expected. Web side is broken because the movable player is wired to a non-default shell (AppShellB) that is unreachable.", "expected": "Web desktop persistent-player exposes player-dock-toggle with 5 options and persists via /api/me/ui-prefs", "actual": "Default shell (AppShellV2) has no such control; classic_b is force-reset to new_look_v2 on cold load"}
+  ],
+  "test_report_links": ["/app/backend/tests/test_iter173_ui_prefs.py", "/app/test_reports/pytest/iter173.xml"],
+  "action_items": [
+    "Move the DockMenu + PersistentPlayer dock props into AppShellV2.jsx (or lift the dock component and consume it from BOTH shells) so player-dock-toggle exists on the default variant.",
+    "Ensure the default player container in AppShellV2 renders with data-testid='persistent-player' and data-dock={dock}; adapt its position styles (bottom/top/left/right/float) same as AppShellB.",
+    "Adjust main content padding in AppShellV2 based on dock (so the player doesn't cover content in bottom/top modes).",
+    "Alternative if intentional: fix the App.js variant guard so classic_b remains selectable for admins (only enforce when user.role check is complete — currently the guard fires with user===null and permanently flips the store).",
+    "Manual retest after the fix: on demo@bigfm.dubai (non-admin) at 1920x800, click player-dock-toggle, verify all 5 options change persistent-player[data-dock], reload -> stays on chosen dock (persisted via /api/me/ui-prefs)."
+  ],
+  "critical_code_review_comments": [
+    "Backend /api/me/ui-prefs is clean, idempotent and correctly returns HTTPException {code:invalid_player_dock} with 400 for unknown values.",
+    "usePlayerDock.js correctly sync-writes localStorage + PUTs the account; safe fallback on failed GET.",
+    "Feature-parity flaw: dock UI is only in AppShellB while the app's default shell is AppShellV2 — this is the root cause of Feature B being invisible."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter173_ui_prefs.py", "/app/test_reports/iteration_173.json"],
+  "success_rate": {"backend": "100%", "frontend": "66% (web A pass, web B unreachable, mobile A + regression pass)"},
+  "test_credentials": "web: demo@bigfm.dubai / DemoPass123!; mobile: demo-login-btn",
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Once Feature B is wired into AppShellV2 (or the variant guard is loosened), rerun the desktop 1920x800 dock flow: for each of {top,left,right,float,bottom} assert persistent-player[data-dock] changes and its bounding box matches the expected region; reload after 'float' to confirm the account persists it. Backend regression is in /app/backend/tests/test_iter173_ui_prefs.py.",
+  "rca of the issue": "Root cause: DockMenu / PersistentPlayer(dock) was only added to the classic_b shell (/app/frontend/src/shell/AppShellB.jsx). The production/default shell is /app/frontend/src/design_v2/AppShellV2.jsx (rendered when designVariant='new_look_v2', which App.js hard-locks all non-admin users to via useEffect at lines 441-445; the guard also fires with user===null on cold load, causing even admins to be flipped to new_look_v2 before /auth/me resolves). Since AppShellV2 renders only a fixed 'nlv2-player-dock' with no dock toggle nor a persistent-player testid, the entire Move-player feature is dead code in the live app. Mitigation: hoist the dock UI into AppShellV2 (or a shared wrapper) and render persistent-player[data-testid][data-dock] there; keep usePlayerDock() as the single source of truth. Verified backend and Feature A + mobile regression are unaffected."
+}

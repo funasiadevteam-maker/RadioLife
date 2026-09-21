@@ -48,6 +48,8 @@ GAMES = [
     {"key": "predict", "label": "Predict & Win", "icon": "trending-up"},
     {"key": "beatguess", "label": "Guess the Beat", "icon": "musical-notes"},
     {"key": "quiz", "label": "Bollywood Quiz", "icon": "film"},
+    {"key": "wheel", "label": "Wheel of Fortune", "icon": "sync",
+     "instant": True, "route": "/games/wheel"},
 ]
 GAME_LABELS = {g["key"]: g["label"] for g in GAMES}
 
@@ -733,8 +735,8 @@ async def start_live_round(sid: str, request: Request,
     p = await db.play_sessions.find_one({"_id": sid})
     if not p or p.get("status") != "active":
         raise HTTPException(404, {"code": "session_not_found"})
-    if p.get("host_id") != uid:
-        raise HTTPException(403, {"code": "not_host"})
+    if uid != p.get("host_id") and uid not in (p.get("participants") or []):
+        raise HTTPException(403, {"code": "not_a_member"})
     hub = getattr(request.app.state, "trivia_room_hub", None)
     if hub is None:
         raise HTTPException(503, {"code": "rooms_unavailable"})

@@ -7,9 +7,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Home, Headphones, ShoppingBag, Gamepad2, Users, Coins, ChevronDown,
-  CreditCard,
+  CreditCard, Move, PanelTop, PanelBottom, PanelLeft, PanelRight,
+  PictureInPicture2,
 } from "lucide-react";
 import { API, useAuth } from "@/AuthContext";
+import { usePlayerDock, DOCK_OPTIONS } from "@/shell/usePlayerDock";
 import { useThemeStore } from "@/theme/useTheme";
 import { useGeoStore } from "@/store/useGeoStore";
 import { useShellSummary } from "@/shell/useShellData";
@@ -66,6 +68,7 @@ const MOBILE_NAV = [
 export default function AppShellV2({ children }) {
   const { pathname } = useLocation();
   const { user } = useAuth();
+  const { dock } = usePlayerDock();
   const launchBlocked = useLaunchBlocked();
   const bare = BARE_ROUTES.some((r) => r.test(pathname))
     || isMarketingPath(pathname)
@@ -81,16 +84,23 @@ export default function AppShellV2({ children }) {
 
   if (bare) return <>{children}</>;
 
+  // Desktop-only bottom clearance adapts to the player dock position so the
+  // player never covers content. Mobile keeps its native full-width dock.
+  const dockMainLg = {
+    bottom: "lg:pb-40", top: "lg:pt-32 lg:pb-10",
+    left: "lg:pb-20", right: "lg:pb-20", float: "lg:pb-20",
+  }[dock] || "lg:pb-40";
+
   return (
     <div data-testid="shell-v2" className="nlv2 flex flex-col">
       <ShellV2Header />
-      <main className="flex-1 pt-6 pb-52 lg:pb-40">
+      <main className={`flex-1 pt-6 pb-52 ${dockMainLg}`}>
         <div className={`${CONTAINER} flex gap-6 xl:gap-8 items-start`}>
           <div className="flex-1 min-w-0">{children}</div>
           <RightRailV2 />
         </div>
       </main>
-      <PlayerDockV2 />
+      <PlayerDockV2 dock={dock} />
       <BottomNavV2 />
     </div>
   );
@@ -258,10 +268,61 @@ function BottomNavV2() {
   );
 }
 
-function PlayerDockV2() {
+const DOCK_META_V2 = {
+  bottom: { icon: PanelBottom, label: "Bottom" },
+  top: { icon: PanelTop, label: "Top" },
+  left: { icon: PanelLeft, label: "Left" },
+  right: { icon: PanelRight, label: "Right" },
+  float: { icon: PictureInPicture2, label: "Float" },
+};
+
+// Desktop-only control (hidden < lg) to move / float the player.
+function PlayerDockMenu() {
+  const { dock, setDock } = usePlayerDock();
+  const [open, setOpen] = useState(false);
   return (
-    <div data-testid="nlv2-player-dock" className="fixed bottom-16 lg:bottom-0 inset-x-0 z-30 px-3 sm:px-6 pb-2 lg:pb-4 pointer-events-none">
-      <div className="pointer-events-auto max-w-[1440px] mx-auto">
+    <div className="hidden lg:block absolute -top-3 right-4 z-10">
+      <button type="button" onClick={() => setOpen((v) => !v)} data-testid="player-dock-toggle"
+        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-bold bg-black/70 border border-white/15 text-white/80 hover:text-white shadow-lg backdrop-blur">
+        <Move size={12} /> Move
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-0" onClick={() => setOpen(false)} />
+          <div className={`absolute ${dock === "top" ? "top-9" : "bottom-9"} right-0 z-10 w-40 rounded-xl bg-[#12101f] border border-white/12 shadow-2xl p-1`} data-testid="player-dock-menu">
+            {DOCK_OPTIONS.map((opt) => {
+              const M = DOCK_META_V2[opt]; const Icon = M.icon; const active = dock === opt;
+              return (
+                <button key={opt} type="button" data-testid={`player-dock-${opt}`}
+                  onClick={() => { setDock(opt); setOpen(false); }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold ${active ? "bg-amber-400/15 text-amber-300" : "text-white/70 hover:bg-white/5"}`}>
+                  <Icon size={14} /> {M.label}{active && <span className="ml-auto text-[9px]">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PlayerDockV2({ dock = "bottom" }) {
+  // <lg: always the full-width dock above the bottom nav (mobile native).
+  // lg+: honor the user's chosen dock position.
+  const deskPos = {
+    bottom: "lg:top-auto lg:bottom-0 lg:left-0 lg:right-0 lg:px-6 lg:pb-4",
+    top: "lg:top-16 lg:bottom-auto lg:left-0 lg:right-0 lg:px-6 lg:pt-2",
+    left: "lg:top-auto lg:bottom-4 lg:left-4 lg:right-auto lg:w-[460px] lg:px-0",
+    right: "lg:top-auto lg:bottom-4 lg:right-4 lg:left-auto lg:w-[460px] lg:px-0",
+    float: "lg:top-auto lg:bottom-6 lg:right-6 lg:left-auto lg:w-[420px] lg:px-0",
+  }[dock] || "lg:top-auto lg:bottom-0 lg:left-0 lg:right-0 lg:px-6 lg:pb-4";
+  const wide = dock === "bottom" || dock === "top";
+  return (
+    <div data-testid="nlv2-player-dock" data-dock={dock}
+      className={`fixed bottom-16 inset-x-0 z-30 px-3 sm:px-6 pb-2 pointer-events-none ${deskPos}`}>
+      <div className={`pointer-events-auto relative mx-auto ${wide ? "max-w-[1440px]" : "max-w-[1440px] lg:max-w-none"}`}>
+        <PlayerDockMenu />
         <OnAirOfferCard />
         <PlayerBarV2 />
       </div>

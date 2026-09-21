@@ -3,7 +3,7 @@ import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
   ActivityIndicator, RefreshControl, Modal, Switch,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,7 +31,8 @@ const TABS = [
 export default function DreamsHub() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [tab, setTab] = useState('dreams');
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState(tabParam || 'dreams');
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showShare, setShowShare] = useState(false);

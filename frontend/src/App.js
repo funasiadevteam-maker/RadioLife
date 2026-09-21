@@ -330,6 +330,7 @@ import { useLaunchStore, useLaunchBlocked } from "@/hooks/useLaunchStatus";  // 
 import Trivia from "@/Trivia";
 import TriviaPlay from "@/TriviaPlay";
 import { TriviaRoomCreate, TriviaJoin, TriviaRoom } from "@/TriviaRoom";
+import WheelGame from "@/pages/games/WheelGame";
 import TVDisplay from "@/TV";
 import {
   VenueDashboard, VenueTVs, VenueTrivia, VenueAnnounce,
@@ -622,6 +623,9 @@ function AppRouter() {
       } />
       <Route path="/trivia/rooms/:code" element={
         <ProtectedRoute><TriviaRoom /></ProtectedRoute>
+      } />
+      <Route path="/games/wheel" element={
+        <ProtectedRoute><WheelGame /></ProtectedRoute>
       } />
       {/* Phase 16c — TV display (token-paired, no user auth needed) */}
       <Route path="/tv" element={<TVDisplay />} />

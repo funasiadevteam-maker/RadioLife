@@ -100,6 +100,7 @@ export default function DreamsGuidance() {
       )}
       {openDream && (
         <DreamModal dreamId={openDream} config={config} onClose={() => setOpenDream(null)}
+                    onBrowseAdvisors={() => { setOpenDream(null); setTab("advisors"); }}
                     onOpenAdvisor={(a) => { setOpenDream(null); setOpenAdvisor(a); }} />
       )}
       {openAdvisor && (
@@ -493,7 +494,7 @@ function ReadingRow({ b, reload }) {
 }
 
 // ───────────────────────── Dream detail modal ──────────────────────
-function DreamModal({ dreamId, config, onClose }) {
+function DreamModal({ dreamId, config, onClose, onBrowseAdvisors }) {
   const [d, setD] = useState(null);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
@@ -540,11 +541,20 @@ function DreamModal({ dreamId, config, onClose }) {
 
           {/* AI reflection */}
           <div className="rounded-2xl border border-fuchsia-500/25 bg-fuchsia-500/[0.06] p-4" data-testid="dream-ai-block">
-            <div className="flex items-center gap-2 mb-2"><Sparkles size={16} className="text-fuchsia-300" /><span className="text-sm font-black">Explore with AI</span></div>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles size={16} className="text-fuchsia-300" />
+              <span className="text-sm font-black">FUUSIC Dream AI</span>
+              <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-fuchsia-500/25 text-fuchsia-200">AI</span>
+              <span className="flex-1" />
+              <button type="button" onClick={() => onBrowseAdvisors?.()} data-testid="dream-ask-expert"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-200 hover:text-white">
+                <BadgeCheck size={12} /> Ask a human expert
+              </button>
+            </div>
             {!ref ? (
               <button type="button" onClick={reflect} disabled={reflecting} data-testid="dream-reflect-btn"
                       className="inline-flex items-center gap-2 h-10 px-4 rounded-full text-sm font-bold text-white" style={{ background: "linear-gradient(135deg,#c026d3,#7c3aed)" }}>
-                {reflecting ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />} Reflect on this dream
+                {reflecting ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />} Get AI reflection
               </button>
             ) : (
               <div className="space-y-2" data-testid="dream-ai-reflection">
@@ -555,6 +565,10 @@ function DreamModal({ dreamId, config, onClose }) {
                     {ref.questions_to_consider.map((q, i) => <p key={i} className="text-sm text-slate-300">— {q}</p>)}</div>)}
                 {ref.gentle_note && <p className="text-xs text-slate-400 pt-1">{ref.gentle_note}</p>}
                 {ref.safety_note && <p className="text-xs text-amber-300 pt-1 flex items-start gap-1"><Shield size={13} className="mt-0.5 shrink-0" /> {ref.safety_note}</p>}
+                <button type="button" onClick={() => onBrowseAdvisors?.()} data-testid="dream-expert-cta"
+                        className="mt-1 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-bold border border-violet-400/40 text-violet-100 hover:bg-violet-500/15 transition">
+                  <BadgeCheck size={14} /> Prefer a human? Ask a verified expert
+                </button>
               </div>
             )}
           </div>

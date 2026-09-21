@@ -430,6 +430,7 @@ export function PlayTogetherSheet({ visible, onClose }: any) {
     } catch (_) { setToast('Couldn’t create your win card.'); }
   };
   const gameLabel = games.find((g) => g.key === game)?.label;
+  const selectedGame = games.find((g) => g.key === game);
   const invitedSessions = sessions.filter((p) => p.invited && !p.joined);
   return (
     <Sheet visible={visible} onClose={onClose} title="Play Together" testID="play-together-sheet">
@@ -457,27 +458,40 @@ export function PlayTogetherSheet({ visible, onClose }: any) {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {games.map((g) => (
           <Pressable key={g.key} onPress={() => setGame(g.key)} testID={`play-game-${g.key}`} style={[st.gameCard, game === g.key && st.gameCardA]}>
+            {g.instant ? <View style={st.instantBadge}><Text style={st.instantTxt}>⚡ INSTANT</Text></View> : null}
             <Ionicons name={g.icon as any} size={18} color={TUBE.magenta} /><Text style={st.gameLbl}>{g.label}</Text>
           </Pressable>
         ))}
       </View>
-      <TextInput value={title} onChangeText={setTitle} placeholder="Session title (optional)" placeholderTextColor={TUBE.textMuted} style={[st.sheetInput, { marginTop: 10 }]} testID="play-title" />
-      {friends.length > 0 && (
-        <View style={{ marginTop: 8 }}>
-          <Text style={st.sheetLbl}>Invite friends</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {friends.map((f) => { const on = invitees.includes(f.user_id);
-              return <Pressable key={f.user_id} testID={`play-invite-${f.user_id}`} onPress={() => setInvitees((s) => on ? s.filter((x) => x !== f.user_id) : [...s, f.user_id])}>
-                {on ? <LinearGradient colors={['#a855f7', '#ec4899']} style={st.ctxChipA}><Text style={st.ctxTxtA}>{f.name}</Text></LinearGradient> : <View style={st.ctxChip}><Text style={st.ctxTxt}>{f.name}</Text></View>}
-              </Pressable>;
-            })}
-          </View>
+      {selectedGame?.instant ? (
+        <View style={[st.card, { marginTop: 10, alignItems: 'center' }]} testID="play-instant-card">
+          <Text style={{ color: TUBE.text, fontWeight: '800', fontSize: TFONT.sm, marginBottom: 2 }}>{selectedGame.label}</Text>
+          <Text style={{ color: TUBE.textMuted, fontSize: TFONT.xs, textAlign: 'center', marginBottom: 10 }}>Instant solo game — spin the wheel to win points or sponsor coupons. Up to 3 spins a day. 🎡</Text>
+          <Pressable onPress={() => { onClose?.(); router.push((selectedGame.route || '/games/wheel') as any); }} testID="play-instant-start" style={{ width: '100%' }}>
+            <LinearGradient colors={['#a855f7', '#ec4899']} style={st.sheetBtn}><Ionicons name="play" size={16} color="#fff" /><Text style={st.sheetBtnTxt}>Play now</Text></LinearGradient>
+          </Pressable>
         </View>
+      ) : (
+        <>
+          <TextInput value={title} onChangeText={setTitle} placeholder="Session title (optional)" placeholderTextColor={TUBE.textMuted} style={[st.sheetInput, { marginTop: 10 }]} testID="play-title" />
+          {friends.length > 0 && (
+            <View style={{ marginTop: 8 }}>
+              <Text style={st.sheetLbl}>Invite friends</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {friends.map((f) => { const on = invitees.includes(f.user_id);
+                  return <Pressable key={f.user_id} testID={`play-invite-${f.user_id}`} onPress={() => setInvitees((s) => on ? s.filter((x) => x !== f.user_id) : [...s, f.user_id])}>
+                    {on ? <LinearGradient colors={['#a855f7', '#ec4899']} style={st.ctxChipA}><Text style={st.ctxTxtA}>{f.name}</Text></LinearGradient> : <View style={st.ctxChip}><Text style={st.ctxTxt}>{f.name}</Text></View>}
+                  </Pressable>;
+                })}
+              </View>
+            </View>
+          )}
+          <Pressable onPress={create} disabled={saving} testID="play-create" style={{ marginTop: 10 }}>
+            <LinearGradient colors={['#a855f7', '#ec4899']} style={st.sheetBtn}>{saving ? <ActivityIndicator color="#fff" /> : <><Ionicons name="game-controller" size={16} color="#fff" /><Text style={st.sheetBtnTxt}>Start session</Text></>}</LinearGradient>
+          </Pressable>
+          {createdId ? <PlayInviteRow sid={createdId} gameLabel={gameLabel} userId={user?.user_id} setToast={setToast} /> : null}
+        </>
       )}
-      <Pressable onPress={create} disabled={saving} testID="play-create" style={{ marginTop: 10 }}>
-        <LinearGradient colors={['#a855f7', '#ec4899']} style={st.sheetBtn}>{saving ? <ActivityIndicator color="#fff" /> : <><Ionicons name="game-controller" size={16} color="#fff" /><Text style={st.sheetBtnTxt}>Start session</Text></>}</LinearGradient>
-      </Pressable>
-      {createdId ? <PlayInviteRow sid={createdId} gameLabel={gameLabel} userId={user?.user_id} setToast={setToast} /> : null}
       {sessions.map((p) => (
         <View key={p.session_id} style={[st.card, { marginTop: 10 }]} testID={`play-session-${p.session_id}`}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -497,9 +511,11 @@ export function PlayTogetherSheet({ visible, onClose }: any) {
             <Pressable onPress={() => joinRoom(p.room_code)} testID={`play-join-room-${p.session_id}`} style={[st.liveBtn, { backgroundColor: '#e11d48' }]}>
               <Ionicons name="flash" size={15} color="#fff" /><Text style={st.liveBtnTxt}>Live round in progress — Join</Text>
             </Pressable>
-          ) : p.is_host ? (
-            <Pressable onPress={() => startRound(p.session_id)} testID={`play-start-round-${p.session_id}`} style={[st.liveBtn, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
-              <Ionicons name="flash" size={15} color="#fff" /><Text style={st.liveBtnTxt}>Start live round</Text>
+          ) : (p.is_host || p.joined) ? (
+            <Pressable onPress={() => startRound(p.session_id)} testID={`play-start-round-${p.session_id}`}>
+              <LinearGradient colors={['#a855f7', '#ec4899']} style={st.liveBtn}>
+                <Ionicons name="play" size={15} color="#fff" /><Text style={st.liveBtnTxt}>Start & play</Text>
+              </LinearGradient>
             </Pressable>
           ) : null}
           {p.is_host ? <PlayPending sid={p.session_id} setToast={setToast} /> : null}
@@ -838,4 +854,6 @@ const st = StyleSheet.create({
   liveBadgeTxt: { color: '#fda4af', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
   liveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 42, borderRadius: 21, marginTop: 10 },
   liveBtnTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
+  instantBadge: { position: 'absolute', top: 8, right: 8, paddingHorizontal: 6, height: 16, borderRadius: 8, backgroundColor: 'rgba(251,191,36,0.2)', alignItems: 'center', justifyContent: 'center' },
+  instantTxt: { color: '#fbbf24', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
 });

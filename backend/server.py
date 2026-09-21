@@ -6491,6 +6491,30 @@ app.include_router(_dream_clusters_router)
 from routes.social_together import router as _social_together_router
 app.include_router(_social_together_router)
 
+# Instant games — Wheel of Fortune (spin-to-win) + sponsor branding.
+try:
+    from routes.instant_games import (router as _instant_games_router,
+                                       seed_instant_games as _seed_instant_games)
+    app.include_router(_instant_games_router)
+
+    async def _instant_games_bootstrap():
+        try:
+            await _seed_instant_games(db)
+        except Exception as _e_ig:
+            logger.warning(f"instant_games bootstrap: {_e_ig}")
+    app.add_event_handler("startup", _instant_games_bootstrap)
+    logger.info("Instant games routes registered")
+except Exception as _e_games:
+    logger.warning(f"Instant games routes failed ({_e_games})")
+
+# Per-user UI preferences (player dock position, etc.).
+try:
+    from routes.ui_prefs import router as _ui_prefs_router
+    app.include_router(_ui_prefs_router)
+    logger.info("UI prefs routes registered")
+except Exception as _e_uiprefs:
+    logger.warning(f"UI prefs routes failed ({_e_uiprefs})")
+
 # Social V2 — Phase 3: FUUSIC Live (video livestream commerce).
 from routes.live_commerce import router as _live_commerce_router
 app.include_router(_live_commerce_router)

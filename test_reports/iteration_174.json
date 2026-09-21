@@ -1,0 +1,32 @@
+{
+  "summary": "RETEST of Feature B (WEB) — movable/floating music player in the LIVE AppShellV2 shell at desktop viewport (1920x800), logged in as demo@bigfm.dubai. All 5 dock modes work correctly, positioning matches spec, PlayerBarV2 controls render in each mode, and preference persists across reload via /api/me/ui-prefs. Feature B is now PASSING in the live shell (previous iter173 issue — wrong shell — has been fixed by moving PlayerDockV2/PlayerDockMenu into AppShellV2.jsx).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "PlayerDockMenu when dock=='top'", "issues": ["Menu opens above the toggle button (menu has 'absolute bottom-9 right-0'). When the dock is pinned at the top (toggle at y~=52), the menu appears near y~=16 and can be partially clipped by the sticky header. Not a blocker (user can still switch back via other options if they scroll or the menu is still reachable), but a minor UX polish: consider flipping the menu to open below the toggle when dock==='top'. Reference: /app/frontend/src/design_v2/AppShellV2.jsx:292."]}
+      ]
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL polish: In PlayerDockMenu (AppShellV2.jsx line ~292), when dock==='top', open the menu BELOW the toggle (e.g., swap 'bottom-9' → 'top-9') so it doesn't clip against the sticky header. Non-blocking; feature is otherwise complete."
+  ],
+  "critical_code_review_comments": [
+    "PlayerDockMenu is anchored 'absolute -top-3 right-4' with the menu at 'absolute bottom-9 right-0'. This is correct for bottom/left/right/float modes but causes the menu to render above the sticky header for dock==='top'. Consider making the menu-open-direction dock-aware.",
+    "usePlayerDock GET on mount could race with UI interactions if the user opens/moves the dock during initial load. Currently harmless because the GET only fires once and dispatches a CustomEvent — later user actions will still override via setDock (which also PUTs). Acceptable."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (5/5 dock modes + persistence)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (cookie login via POST /api/auth/login)",
+  "seed_data_creation": "None. Reset player_dock preference to 'bottom' at end of test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature B (movable player) has been verified end-to-end in the LIVE AppShellV2 shell at desktop (1920x800): (1) data-testid='nlv2-player-dock' present with correct data-dock attribute for all 5 options. (2) Measured bounding boxes: bottom={x:0,y:706,w:1920} full-width bottom; top={x:0,y:64,w:1920} full-width pinned under 68px header; left={x:16,y:698,w:460} compact bottom-left; right={x:1444,y:698,w:460} compact bottom-right; float={x:1476,y:690,w:420} compact bottom-right. (3) PlayerBarV2 controls (buttons) render inside the dock in every mode. (4) Persistence: setting 'float' via UI persists to GET /api/me/ui-prefs → returns {ui_prefs:{player_dock:'float'}}; after page reload the dock is still float (data-dock='float' and same bbox). (5) Dock reset to 'bottom' at cleanup. Minor polish item logged: menu opens off-screen when dock==='top'.",
+  "rca of the issue": "Iter173 root cause was that PlayerDockV2/PlayerDockMenu was implemented inside AppShellB (classic shell) while the live app renders AppShellV2 (new_look_v2). Main agent moved the dock control + dock-aware positioning into /app/frontend/src/design_v2/AppShellV2.jsx (PlayerDockV2 wraps PlayerBarV2 with dock-aware absolute positioning classes; PlayerDockMenu renders the toggle + 5-option dropdown; usePlayerDock in /app/frontend/src/shell/usePlayerDock.js reads/writes /api/me/ui-prefs). Verified live: the retest passes 5/5 dock modes + persistence + PlayerBarV2 rendering."
+}

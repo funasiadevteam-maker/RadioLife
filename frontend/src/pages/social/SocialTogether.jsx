@@ -642,6 +642,7 @@ export function PlayTogetherModal({ onClose, sessionId, refId }) {
   };
 
   const gameLabel = games.find((g) => g.key === game)?.label;
+  const selectedGame = games.find((g) => g.key === game);
   const invitedSessions = sessions.filter((p) => p.invited && !p.joined);
 
   return (
@@ -672,32 +673,46 @@ export function PlayTogetherModal({ onClose, sessionId, refId }) {
         <div className="grid grid-cols-2 gap-2">
           {games.map((g) => (
             <button key={g.key} onClick={() => setGame(g.key)} data-testid={`play-game-${g.key}`}
-                    className={`rounded-2xl p-3 border text-left ${game === g.key ? "border-purple-400 bg-purple-500/15" : "border-white/10 bg-white/[0.04]"}`}>
+                    className={`relative rounded-2xl p-3 border text-left ${game === g.key ? "border-purple-400 bg-purple-500/15" : "border-white/10 bg-white/[0.04]"}`}>
+              {g.instant && <span className="absolute top-2 right-2 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300">⚡ Instant</span>}
               <Gamepad2 size={18} className="text-purple-300 mb-1" />
               <div className="text-sm font-bold">{g.label}</div>
             </button>
           ))}
         </div>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Session title (optional)" data-testid="play-title"
-               className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm outline-none" />
-        {friends.length > 0 && (
-          <div>
-            <div className="text-[11px] text-slate-400 mb-1.5">Invite friends</div>
-            <div className="flex gap-2 flex-wrap">
-              {friends.map((f) => {
-                const on = invitees.includes(f.user_id);
-                return <button key={f.user_id} onClick={() => setInvitees((s) => on ? s.filter((x) => x !== f.user_id) : [...s, f.user_id])}
-                               data-testid={`play-invite-${f.user_id}`}
-                               className={`px-3 h-8 rounded-full text-xs font-bold ${on ? "text-white" : "bg-white/[0.05] text-slate-400"}`} style={on ? grad : undefined}>{f.name}</button>;
-              })}
-            </div>
+        {selectedGame?.instant ? (
+          <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 text-center" data-testid="play-instant-card">
+            <div className="text-sm font-bold mb-1">{selectedGame.label}</div>
+            <div className="text-[11px] text-slate-400 mb-3">Instant solo game — spin the wheel to win points or sponsor coupons. Up to 3 spins a day. 🎡</div>
+            <button onClick={() => { onClose?.(); navigate(selectedGame.route || "/games/wheel"); }} data-testid="play-instant-start"
+                    className="w-full h-11 rounded-full text-white font-black inline-flex items-center justify-center gap-2" style={grad}>
+              <Play size={16} /> Play now
+            </button>
           </div>
+        ) : (
+          <>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Session title (optional)" data-testid="play-title"
+                   className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm outline-none" />
+            {friends.length > 0 && (
+              <div>
+                <div className="text-[11px] text-slate-400 mb-1.5">Invite friends</div>
+                <div className="flex gap-2 flex-wrap">
+                  {friends.map((f) => {
+                    const on = invitees.includes(f.user_id);
+                    return <button key={f.user_id} onClick={() => setInvitees((s) => on ? s.filter((x) => x !== f.user_id) : [...s, f.user_id])}
+                                   data-testid={`play-invite-${f.user_id}`}
+                                   className={`px-3 h-8 rounded-full text-xs font-bold ${on ? "text-white" : "bg-white/[0.05] text-slate-400"}`} style={on ? grad : undefined}>{f.name}</button>;
+                  })}
+                </div>
+              </div>
+            )}
+            <button onClick={create} disabled={saving} data-testid="play-create"
+                    className="w-full h-11 rounded-full text-white font-black inline-flex items-center justify-center gap-2" style={grad}>
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Gamepad2 size={16} />} Start session
+            </button>
+            {createdId && <InviteRow sid={createdId} gameLabel={gameLabel} />}
+          </>
         )}
-        <button onClick={create} disabled={saving} data-testid="play-create"
-                className="w-full h-11 rounded-full text-white font-black inline-flex items-center justify-center gap-2" style={grad}>
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Gamepad2 size={16} />} Start session
-        </button>
-        {createdId && <InviteRow sid={createdId} gameLabel={gameLabel} />}
       </div>
       {sessions.length > 0 && (
         <div className="mt-5 space-y-2">
@@ -727,10 +742,10 @@ export function PlayTogetherModal({ onClose, sessionId, refId }) {
                         className="mt-2 w-full h-10 rounded-full text-white font-black inline-flex items-center justify-center gap-2 bg-rose-600 hover:brightness-110 transition">
                   <Zap size={15} /> Live round in progress — Join
                 </button>
-              ) : p.is_host ? (
+              ) : (p.is_host || p.joined) ? (
                 <button onClick={() => startRound(p.session_id)} data-testid={`play-start-round-${p.session_id}`}
-                        className="mt-2 w-full h-10 rounded-full font-black inline-flex items-center justify-center gap-2 border border-white/15 text-white bg-white/[0.06] hover:bg-white/[0.1] transition">
-                  <Zap size={15} /> Start live round
+                        className="mt-2 w-full h-10 rounded-full text-white font-black inline-flex items-center justify-center gap-2 hover:brightness-110 transition" style={grad}>
+                  <Play size={15} /> Start &amp; play
                 </button>
               ) : null}
               {p.is_host && <PendingInvites sid={p.session_id} />}
