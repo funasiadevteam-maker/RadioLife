@@ -77,6 +77,9 @@ class PreferenceVector(BaseModel):
     market: str = "dubai"           # "dubai" | "dfw"
     # Content-language filter — English-only default; "show all" escapes it.
     show_all_languages: bool = False
+    # Per-section filter toggles (music/games/quiz) — keep music multilingual
+    # while still filtering games/quiz, etc. Empty = filter every section.
+    content_lang_scopes: dict = {}
 
 
 class UserOut(BaseModel):
@@ -1172,6 +1175,12 @@ async def users_set_content_languages(
         pv["languages"] = [str(x) for x in body["languages"] if str(x).strip()]
     if "show_all_languages" in body:
         pv["show_all_languages"] = bool(body["show_all_languages"])
+    if isinstance(body.get("content_lang_scopes"), dict):
+        cur = dict(pv.get("content_lang_scopes") or {})
+        for k in ("music", "games", "quiz"):
+            if k in body["content_lang_scopes"]:
+                cur[k] = bool(body["content_lang_scopes"][k])
+        pv["content_lang_scopes"] = cur
     await db.users.update_one(
         {"user_id": user["user_id"]},
         {"$set": {"preference_vector": pv}})

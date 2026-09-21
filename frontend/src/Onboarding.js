@@ -190,6 +190,20 @@ export default function Onboarding() {
     }
   }, [user]);
 
+  // Auto-detect content language from the browser on first launch (English
+  // fallback) so we don't push other-language content at people who didn't ask.
+  useEffect(() => {
+    if (user?.preference_vector?.languages?.length) return;
+    try {
+      const code = (navigator.language || "en").slice(0, 2).toLowerCase();
+      const MAP = { en: "english", hi: "hindi", pa: "punjabi", ta: "tamil",
+                    ar: "arabic", ml: "malayalam", te: "telugu", ur: "urdu", es: "spanish" };
+      const detected = MAP[code] || "english";
+      const supported = LANGUAGES.some((l) => l.id === detected) ? detected : "english";
+      setPv((p) => (p.languages && p.languages.length ? p : { ...p, languages: [supported] }));
+    } catch (_e) { /* */ }
+  }, [user]);
+
   // Audio cleanup
   useEffect(() => () => {
     if (audioRef.current) {

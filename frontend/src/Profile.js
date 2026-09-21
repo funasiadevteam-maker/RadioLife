@@ -174,6 +174,19 @@ export default function Profile() {
                  onChange={(e) => setPv((p) => ({ ...p, show_all_languages: e.target.checked }))} />
           Show content in all languages (don’t filter to my languages)
         </label>
+        <div data-testid="pref-lang-scopes" style={{ marginTop: 14, opacity: pv.show_all_languages ? 0.45 : 1 }}>
+          <div style={{ fontSize: 12, color: "#8b93b0", marginBottom: 6 }}>Apply my language filter to:</div>
+          {[["music", "Music & stations"], ["games", "Games"], ["quiz", "Quiz & trivia"]].map(([k, label]) => (
+            <label key={k} data-testid={`pref-scope-${k}`}
+                   style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6,
+                            fontSize: 13, color: "#c3cbe4", cursor: pv.show_all_languages ? "default" : "pointer" }}>
+              <input type="checkbox" disabled={!!pv.show_all_languages}
+                     checked={(pv.content_lang_scopes || {})[k] !== false}
+                     onChange={(e) => setPv((p) => ({ ...p, content_lang_scopes: { ...(p.content_lang_scopes || {}), [k]: e.target.checked } }))} />
+              {label}
+            </label>
+          ))}
+        </div>
       </section>
 
       {/* Phase 3 — Subscription tile (anchor #billing for menu links) */}

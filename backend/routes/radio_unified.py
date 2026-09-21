@@ -29,6 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from auth import current_user_optional
 from core.content_language import (
     station_language_or_query, user_content_languages, user_show_all,
+    user_filter_scopes,
 )
 from routes.live_radio import (
     _AI_CHANNEL_TAG_MAP, _ai_channel_to_card, _imported_to_card,
@@ -446,7 +447,8 @@ async def browse(
     # into more languages. Skipped when an explicit language / lang_group is
     # chosen, show_all is passed, or the user turned on "show all languages".
     content_prefs = None
-    if not language and not lang_group and not show_all and not user_show_all(user):
+    if not language and not lang_group and not show_all and not user_show_all(user) \
+            and user_filter_scopes(user).get("music"):
         content_prefs = user_content_languages(user)
 
     # Phase MKT.2 — fast DB-level pagination for the imported-only directory

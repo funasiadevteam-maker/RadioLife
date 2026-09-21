@@ -1784,13 +1784,13 @@ async def public_play_and_win(db, user: dict) -> dict:
     try:
         from core.content_language import (
             user_content_languages as _ucl, user_show_all as _usa,
-            content_allowed as _ca,
+            content_allowed as _ca, user_filter_scopes as _ufs,
         )
-        if not _usa(user):
+        if not _usa(user) and _ufs(user).get("games"):
             _prefs = _ucl(user)
 
             def _lang_ok(v: dict) -> bool:
-                return _ca(f"{v.get('title', '')} {v.get('description', '')}",
+                return _ca(f"{v.get('title', '')} {v.get('description', '')} {v.get('sponsor_name', '')}",
                            _prefs, explicit=v.get("content_language"))
             unlocked_for_you = [v for v in unlocked_for_you if _lang_ok(v)]
             expiring_soon = [v for v in expiring_soon if _lang_ok(v)]
@@ -1888,6 +1888,7 @@ async def _campaign_public_view(db, c: dict) -> dict:
         "template_id": c["template_id"],
         "title": c["title"],
         "description": c.get("description"),
+        "content_language": c.get("content_language"),
         "sponsor_name": c.get("sponsor_name") or "FUUSIC",
         "sponsor_logo_url": c.get("sponsor_logo_url"),
         "brand_colors_json": c.get("brand_colors_json") or {},

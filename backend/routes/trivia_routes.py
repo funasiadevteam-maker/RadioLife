@@ -95,9 +95,9 @@ def build_router(db, get_current_user) -> APIRouter:
         try:
             from core.content_language import (
                 user_content_languages as _ucl, user_show_all as _usa,
-                content_allowed as _ca,
+                content_allowed as _ca, user_filter_scopes as _ufs,
             )
-            if not _usa(user):
+            if not _usa(user) and _ufs(user).get("quiz"):
                 _prefs = _ucl(user)
                 out = [c for c in out if _ca(
                     f"{c.get('name', '')} {c.get('slug', '')} {c.get('description', '')}",

@@ -139,6 +139,17 @@ def station_language_or_query(prefs: Iterable[str]) -> dict:
     ]}
 
 
+DEFAULT_SCOPES = {"music": True, "games": True, "quiz": True}
+
+
+def user_filter_scopes(user: dict) -> dict:
+    """Per-section filter toggles — lets a user keep music multilingual while
+    still filtering games/quiz to their languages. Defaults to filtering all."""
+    pv = (user or {}).get("preference_vector") or {}
+    raw = pv.get("content_lang_scopes") or {}
+    return {k: bool(raw.get(k, DEFAULT_SCOPES[k])) for k in DEFAULT_SCOPES}
+
+
 def rank_by_genres(items: list, user_genres: Iterable[str],
                    get_genres: Callable[[object], Iterable[str]]) -> list:
     """Stable soft-rank: items sharing a genre with the user surface first."""

@@ -187,6 +187,20 @@ export default function ProfileScreen() {
               color={pv.show_all_languages ? COLORS.secondary : COLORS.textDim} />
             <Text style={st.showAllText}>Show content in all languages (don’t filter to mine)</Text>
           </TouchableOpacity>
+          <Text style={[st.scopeHint, pv.show_all_languages && { opacity: 0.4 }]}>Apply my language filter to:</Text>
+          {([['music', 'Music & stations'], ['games', 'Games'], ['quiz', 'Quiz & trivia']] as [string, string][]).map(([k, label]) => {
+            const on = (pv.content_lang_scopes || {})[k] !== false;
+            return (
+              <TouchableOpacity key={k} testID={`pref-scope-${k}`} activeOpacity={0.7}
+                disabled={!!pv.show_all_languages}
+                onPress={() => setPv((p: any) => ({ ...p, content_lang_scopes: { ...(p.content_lang_scopes || {}), [k]: !on } }))}
+                style={[st.showAllRow, !!pv.show_all_languages && { opacity: 0.4 }]}>
+                <Ionicons name={on ? 'checkbox' : 'square-outline'} size={18}
+                  color={on ? COLORS.secondary : COLORS.textDim} />
+                <Text style={st.showAllText}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
         <View style={st.prefBlock}><Text style={st.prefTitle}>Genres</Text><ChipGrid options={GENRES} selected={pv.genres || []} onToggle={toggle('genres')} testID="pref-genres" /></View>
         <View style={st.prefBlock}><Text style={st.prefTitle}>Eras</Text><ChipGrid options={ERAS} selected={pv.eras || []} onToggle={toggle('eras')} testID="pref-eras" /></View>
@@ -276,6 +290,7 @@ const st = StyleSheet.create({
   prefTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
   showAllRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: SPACING.sm },
   showAllText: { flex: 1, fontSize: 12, color: COLORS.textDim, fontWeight: '600' },
+  scopeHint: { fontSize: 11, color: COLORS.textDim, fontWeight: '700', marginTop: SPACING.md, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
   areaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   areaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.surfaceBorder, backgroundColor: COLORS.surface },
   areaChipOn: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },

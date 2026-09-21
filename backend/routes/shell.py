@@ -9,6 +9,10 @@ from fastapi import APIRouter, Request, Body, HTTPException
 from auth import current_user, current_user_optional
 from services.station_art import resolve_art as _resolve_art
 from core.home_config import get_home_config, build_fuusic_world, TOGETHER_ACTIONS
+from core.content_language import (
+    user_content_languages, user_show_all, user_filter_scopes,
+    station_language_or_query,
+)
 from datetime import datetime, timezone, timedelta
 import re
 
@@ -306,14 +310,17 @@ def _station_card(s: dict) -> dict:
         "art_source": art_source,
         "live": bool(s.get("is_live")),
         "listeners": int(s.get("listeners") or 0),
+        "language": s.get("language"),
         "sponsored": False,
     }
 
 
-async def _flagship_stations(db, limit: int = 12) -> list:
+async def _flagship_stations(db, limit: int = 12, lang_or: dict = None) -> list:
+    query = {"flagship_slug": {"$ne": None}}
+    if lang_or:
+        query = {"$and": [query, lang_or]}
     out = []
-    async for s in db.imported_radio_stations.find(
-            {"flagship_slug": {"$ne": None}}).limit(limit):
+    async for s in db.imported_radio_stations.find(query).limit(limit):
         out.append(_station_card(s))
     return out
 
@@ -428,6 +435,7 @@ async def _mixed_for_you(db, user, city, station_cards, native_offer):
             "id": sid, "type": "station", "badge": "Station",
             "title": c.get("name"), "subtitle": c.get("city") or "Radio",
             "image": c.get("art"), "live": bool(c.get("live")),
+            "language": c.get("language"),
             "to": (f"/radio/station/{sid}?autoplay=1" if sid else "/radio"),
         })
     extras = []
@@ -518,7 +526,14 @@ async def shell_home(request: Request, city: str = ""):
     is_premium = bool(user and is_premium_or_trial(user)
                       and (user.get("ad_settings") or {}).get("ad_free_enabled", True))
 
-    cards = await _flagship_stations(db, 12)
+    # Content-language HARD filter on Home station rails (music scope) so even
+    # curated flagship picks respect the user's languages. Neutral stays.
+    _lang_or = None
+    if not user_show_all(user) and user_filter_scopes(user).get("music"):
+        _lang_or = station_language_or_query(user_content_languages(user))
+    cards = await _flagship_stations(db, 12, lang_or=_lang_or)
+    if len(cards) < 4 and _lang_or:  # safety: don't leave Home empty
+        cards = await _flagship_stations(db, 12)
     for_you = (await _personalize(db, user, [dict(c) for c in cards]))[:6]
 
     # Live Right Now — live-first; reserve ONE labelled sponsored slot.

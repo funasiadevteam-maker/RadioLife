@@ -28,7 +28,8 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from core.content_language import (
-    user_content_languages, user_show_all, station_language_or_query,
+    user_content_languages, user_show_all, user_filter_scopes,
+    station_language_or_query,
 )
 
 from services.radio_browser_import import (
@@ -271,7 +272,7 @@ async def list_stations(
     lang_prefs = None
     if not language and not show_all:
         _u = await current_user_optional(request)
-        if not user_show_all(_u):
+        if not user_show_all(_u) and user_filter_scopes(_u).get("music"):
             lang_prefs = user_content_languages(_u)
             imp_query = {"$and": [imp_query, station_language_or_query(lang_prefs)]}
 
