@@ -5,7 +5,7 @@ import axios from "axios";
 import { Toaster, toast } from "sonner";
 import {
   Sparkles, Lock, Trophy, Clock, ChevronLeft, Loader2,
-  Gamepad2, Car, ShieldCheck, Coins, Gift,
+  Gamepad2, Car, ShieldCheck, Coins, Gift, Aperture, Ticket, ArrowRight,
 } from "lucide-react";
 import { useAuth, API } from "@/AuthContext";
 import { themeFor } from "@/components/games";
@@ -94,6 +94,7 @@ export default function PlayAndWin() {
         <div className="paw-loading"><Loader2 size={28} className="spin" /></div>
       ) : (
         <>
+          <SponsoredInstantGames />
           <Section title="Unlocked for you" icon={<Sparkles size={14} />}
                     testId="section-unlocked"
                     items={state.unlocked_for_you}
@@ -234,5 +235,64 @@ function CampaignCard({ campaign, drivingMode }) {
           text={`Play "${campaign.title}" on FUUSIC and win ${campaign.top_prize_title || "rewards"} →`} />
       </div>
     </div>
+  );
+}
+
+// Merchant-sponsored instant games (2.5D Wheel / Scratch) — discovery rail so
+// players find them without a direct link. Self-fetches; renders nothing when
+// there are no sponsor games.
+function SponsoredInstantGames() {
+  const navigate = useNavigate();
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    axios.get(`${API}/games/sponsor/discover`, { withCredentials: true })
+      .then((r) => setItems(r.data?.items || []))
+      .catch(() => {});
+  }, []);
+  if (items.length === 0) return null;
+  return (
+    <section className="paw-section" data-testid="section-sponsored-instant">
+      <h2 className="mono">
+        <Gift size={14} /> Sponsored by local stores <span className="badge">{items.length}</span>
+      </h2>
+      <div className="paw-grid">
+        {items.map((g) => {
+          const isWheel = g.game_type === "wheel";
+          const accent = isWheel ? "#a855f7" : "#6366F1";
+          const out = g.spins_left <= 0;
+          const go = () => navigate(`/games/${isWheel ? "wheel" : "scratch"}?game_id=${g.game_id}`);
+          return (
+            <div key={g.game_id} className="paw-card themed-card"
+              data-testid={`sponsor-discover-card-${g.game_id}`}
+              style={{ borderTop: `3px solid ${accent}`, position: "relative" }}>
+              <div className="paw-card-icon"
+                style={{ background: accent, overflow: "hidden" }}>
+                {g.logo_url
+                  ? <img src={g.logo_url} alt={g.sponsor_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : (isWheel ? <Aperture size={22} color="#fff" /> : <Ticket size={22} color="#fff" />)}
+              </div>
+              <div className="paw-card-body">
+                <div className="paw-card-sponsor mono">
+                  <Gift size={9} /> {g.sponsor_name}
+                </div>
+                <h3 className="paw-card-title">{isWheel ? "Wheel of Fortune" : "Scratch & Win"}</h3>
+                {g.top_prize && (
+                  <div className="paw-card-prize"><Coins size={11} /> Top prize: {g.top_prize}</div>
+                )}
+                <span className="paw-house-tag mono"
+                  style={{ background: `${accent}22`, color: accent }}>
+                  {out ? "COME BACK TOMORROW" : `${g.spins_left} PLAY${g.spins_left === 1 ? "" : "S"} LEFT TODAY`}
+                </span>
+              </div>
+              <button className="paw-play-btn" onClick={go} disabled={out}
+                style={{ background: out ? "#6b7280" : accent }}
+                data-testid={`sponsor-discover-play-${g.game_id}`}>
+                {out ? <>Out of plays <Clock size={12} /></> : <>Play now <ArrowRight size={12} /></>}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

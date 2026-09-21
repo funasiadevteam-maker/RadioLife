@@ -513,4 +513,76 @@ async def sponsor_upload_logo(merchant_id: str, request: Request,
     return {"ok": True, "logo_url": f"{_base_url(request)}/api/static/{rel}"}
 
 
+def _top_prize_label(game: dict) -> Optional[str]:
+    """Best headline prize for a card: a coupon if any, else the biggest points."""
+    best = None
+    for s in (game.get("segments") or []):
+        if s.get("kind") == "coupon":
+            return s.get("label")
+        if s.get("kind") == "points":
+            v = int(s.get("value") or 0)
+            if best is None or v > best[0]:
+                best = (v, s.get("label"))
+    return best[1] if best else None
+
+
+@router.get("/sponsor/discover")
+async def sponsor_discover(request: Request, user: dict = Depends(current_user)):
+    """Active merchant-sponsored Wheel & Scratch games for the consumer hub —
+    so players can find them without a direct link."""
+    db = request.app.state.db
+    await _ensure_seeded(db)
+    out: list[dict] = []
+    async for g in db.branded_games.find(
+            {"active": True,
+             "sponsor_business_id": {"$exists": True, "$ne": None}}).sort("created_at", -1):
+        left = await _spins_left(db, user["user_id"], g)
+        out.append({"game_id": g["_id"], "game_type": g.get("game_type", "wheel"),
+                    "sponsor_name": g.get("sponsor_name"),
+                    "logo_url": _abs_url(request, g.get("logo_url")),
+                    "top_prize": _top_prize_label(g),
+                    "spins_left": left,
+                    "daily_spins": int(g.get("daily_spins") or DEFAULT_DAILY_SPINS)})
+    return {"items": out}
+
+
+@router.get("/sponsor/{merchant_id}/branded-games/{game_id}/analytics")
+async def sponsor_game_analytics(merchant_id: str, game_id: str, request: Request,
+                                 user: dict = Depends(current_user)):
+    db = request.app.state.db
+    biz, _role = await resolve_merchant_with_role(
+        db, merchant_id=merchant_id, user=user, permission="can_create_links")
+    bid = _biz_id(biz)
+    g = await db.branded_games.find_one({"_id": game_id})
+    if not g or g.get("sponsor_business_id") != bid:
+        raise HTTPException(404, {"code": "not_found"})
+    plays = wins = points_awarded = 0
+    players: set = set()
+    dist: dict[str, int] = {}
+    async for s in db.wheel_spins.find({"game_id": game_id}):
+        plays += 1
+        players.add(s.get("user_id"))
+        p = s.get("prize") or {}
+        label = p.get("label") or "—"
+        dist[label] = dist.get(label, 0) + 1
+        if p.get("kind") in ("points", "coupon"):
+            wins += 1
+        if p.get("kind") == "points":
+            points_awarded += int(p.get("points") or 0)
+    coupons_won = await db.coupons.count_documents(
+        {"claim_context_json.game_id": game_id})
+    coupons_redeemed = await db.coupons.count_documents(
+        {"claim_context_json.game_id": game_id, "status": "redeemed"})
+    distribution = sorted(
+        [{"label": k, "count": v} for k, v in dist.items()],
+        key=lambda x: -x["count"])
+    return {"game_id": game_id, "game_type": g.get("game_type"),
+            "sponsor_name": g.get("sponsor_name"), "active": g.get("active"),
+            "plays": plays, "wins": wins,
+            "win_rate": round(wins / plays, 3) if plays else 0.0,
+            "unique_players": len(players), "points_awarded": points_awarded,
+            "coupons_won": coupons_won, "coupons_redeemed": coupons_redeemed,
+            "prize_distribution": distribution}
+
+
 __all__ = ["router", "seed_instant_games"]

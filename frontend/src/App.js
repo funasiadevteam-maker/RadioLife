@@ -319,6 +319,8 @@ import AppShellV2 from "@/design_v2/AppShellV2";
 import HomeNewLookV2 from "@/design_v2/HomeNewLookV2";
 import PublicHomeNewLookV2 from "@/design_v2/PublicHomeNewLookV2";
 import AdminSkipRules from "@/pages/admin/AdminSkipRules";
+import AdminPlatformFees from "@/pages/admin/AdminPlatformFees";
+import PayoutsOnboarding from "@/pages/payouts/PayoutsOnboarding";
 import AdminRadioLanguage from "@/pages/admin/AdminRadioLanguage";
 import AdminAdPacing from "@/pages/admin/AdminAdPacing";  // Phase COMPANION.1 — audio-ad pacing panel
 import AdminAdRevenueReport from "@/pages/admin/AdminAdRevenueReport";  // Phase COMPANION.1 — Home ad revenue report
@@ -549,6 +551,12 @@ function AppRouter() {
       } />
       <Route path="/admin/points" element={
         <ProtectedRoute requireAdmin><AdminPoints /></ProtectedRoute>
+      } />
+      <Route path="/admin/platform-fees" element={
+        <ProtectedRoute requireAdmin><AdminPlatformFees /></ProtectedRoute>
+      } />
+      <Route path="/payouts" element={
+        <ProtectedRoute><PayoutsOnboarding /></ProtectedRoute>
       } />
       <Route path="/admin/merchant-ops" element={
         <ProtectedRoute requireAdmin><MerchantOps /></ProtectedRoute>

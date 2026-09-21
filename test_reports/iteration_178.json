@@ -1,0 +1,48 @@
+{
+  "summary": "Iter 178 verified the Stripe Connect vendor payments + admin platform-fees marketplace layer AND the two iter177 regression fixes (web /games/wheel routing + mobile sponsor wheel config). Backend 13/13 PASS (/app/backend/tests/test_iter178_vendor_payments.py): /api/vendor-payments/status returns {eligible:['merchant'], accounts:[{fee_pct:5, currency:aed, ...}], terms_version:'1.0', agreement_template} for test@bigfm.dubai (Karak Cafe owner); /onboard without agreement_accepted on a NEW account returns 400 agreement_required; with agreement → real connect.stripe.com onboarding URL + vendor_account_id + fee_pct 5 + currency aed, and status afterwards shows agreement.{accepted:true, version:1.0, fee_bps_at_accept:500, accepted_at}; /onboarding-link returns a fresh connect.stripe.com URL. Admin /api/admin/platform-fees GET/PUT works, precedence verified (set default 12% + tarot 20%, read back, then RESET to 15% + merchant 5% require_payout_onboarding false); PUT bps>5000 → 422; /api/admin/vendor-accounts admin-only (200 for admin, 403 for consumer). Advisor booking backwards-compat: /api/social/dreams/bookings/checkout with a service on an un-onboarded advisor still returns a Stripe checkout_url (200) — no gating when require_payout_onboarding=false. WEB UI 100% PASS: /payouts renders payouts-page + payout-card-merchant showing 'Karak Cafe — Karama Branch', fee 5%, currency AED, agreement checkbox gates the connect button (disabled true→false after check); merchant portal sidebar exposes 'Payments & Payouts' link. /admin/platform-fees renders admin-platform-fees + fee-default-input(=15) + merchant 5% row + fee-require-onboarding + fee-save-btn; changed default 15→14, reloaded, persisted to 14, then RESET to 15. REGRESSION FIXED (web): /play-and-win sponsor-discover-play-wheel_spn_02564c15d4 now navigates to /games/wheel?game_id=wheel_spn_02564c15d4 (was /games/spin) and the wheel renders 'Sponsored by Karak Cafe' with 500pts top prize. REGRESSION FIXED (mobile): sponsor-discover-card-wheel_spn_02564c15d4 in games tab navigates to /games/wheel?game_id=... and correctly renders Karak Cafe sponsor + 500pts + 50pts + Try again slices (NOT the old house wheel). Sponsor Game Builder: analytics button (sponsor-game-analytics-<id>) opens sponsor-analytics-modal with sponsor-analytics-stats + sponsor-analytics-distribution; edit form has sponsor-preview-toggle → sponsor-preview-panel + sponsor-preview-wheel (with a Spinning… animation triggered via sponsor-preview-spin). sponsor-preview-scratch only appears when game_type=scratch (correct). Cleanup done: platform fees reset to default 15%+merchant 5% require_payout_onboarding OFF at test-module teardown AND after UI edit.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "transform-origin", "issue": "React warning: 'Invalid DOM property transform-origin. Did you mean transformOrigin?' still fires on the mobile /games/wheel screen (pre-existing since iter177). Non-blocking but should be renamed to transformOrigin in the wheel SVG. Reference: /app/mobile/app/games/wheel.tsx (or equivalent)."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter178_vendor_payments.py",
+    "/app/test_reports/pytest/iter178.xml"
+  ],
+  "action_items": [
+    "OPTIONAL (mobile, cosmetic): fix `transform-origin` → `transformOrigin` React warning on /games/wheel screen.",
+    "PRD: consider gating /admin/vendor-accounts list with pagination + filters (currently returns 200 items). Not blocking."
+  ],
+  "critical_code_review_comments": [
+    "routes/vendor_payments.py: agreement is only stored on FIRST /onboard call (when the vendor_account doc is inserted); subsequent /onboard calls do NOT re-persist agreement, IP, or fee_bps_at_accept even if the caller re-checks the checkbox. That's actually correct (agreement is a one-time consent) — but note that if the global default fee changes AFTER the vendor onboards, the stored fee_bps_at_accept stays at the historical value. The account's live fee_bps is also frozen at creation. If admin later lowers the fee, existing vendors won't benefit unless there's a migration job.",
+    "routes/vendor_payments.py:_eligible_vendor filter for merchant uses `{owner_user_id: uid} OR {owner_user_ids: uid}` — good OR fallback for legacy multi-owner docs.",
+    "routes/vendor_payments.py: `require_payout_onboarding` config flag exists but is only surfaced via get_fee_config; make sure any checkout that DOES consult vendor_ready() actually falls back gracefully to a platform charge when the flag is off (booking regression test confirms current behaviour is correct).",
+    "PayoutsOnboarding.jsx: agreement checkbox gates the connect button correctly and the 5%/AED derived from /status are rendered accurately.",
+    "AdminPlatformFees.jsx: percent input accepts decimals but sends bps; verified round-trip 15→14→15 persists. Consider client-side validation for 0..50 (matches server 0..5000 bps)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter178_vendor_payments.py",
+    "/app/test_reports/iteration_178.json",
+    "/app/test_reports/pytest/iter178.xml"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% (web /payouts + /admin/platform-fees + /play-and-win regression + sponsor games analytics/preview all PASS; mobile sponsor-rail → sponsor wheel PASS)"},
+  "test_credentials": "test@bigfm.dubai / TestUser123! (Karak Cafe merchant), admin@bigfm.dubai / AdminPass123!, demo@bigfm.dubai / DemoPass123! — web cookie login via POST /api/auth/login. Mobile: demo-login-btn.",
+  "seed_data_creation": "None. Cleanup: platform fees reset to default (default_bps 1500, category_bps.merchant 500, require_payout_onboarding false) at both backend-test teardown AND end of UI test. A vendor_account for test@bigfm.dubai merchant (Karak Cafe) now exists in db.vendor_accounts (via /onboard) with agreement stored — this is intentional seed for future retests and matches the request note that Stripe Connect account creation was already curl-verified.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All requested Wave features PASS. Test file /app/backend/tests/test_iter178_vendor_payments.py has a reset_platform_fees teardown fixture so re-running it is safe. Note: full Stripe Connect KYC + real split-charge cannot be tested headlessly (per request); we confirmed account+link creation, agreement recording, fee-config precedence, and that un-onboarded advisor bookings still return a checkout_url (backwards compat). The lone remaining nit is the pre-existing `transform-origin` DOM property warning on the mobile wheel screen — non-blocking. Both iter177 discovery bugs are now FIXED (web routes to /games/wheel; mobile /games/wheel loads sponsor config).",
+  "rca of the issue": "N/A — no unresolved bugs this iteration."
+}

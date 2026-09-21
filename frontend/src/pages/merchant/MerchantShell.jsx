@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   { path: "/merchant/prepaid-meals",  label: "Meal Packs",          Icon: UtensilsCrossed, perm: "can_create_links" },
   { path: "/merchant/games",              label: "Games",                    Icon: Trophy,                  perm: "can_create_links" },
   { path: "/merchant/sponsor-games",  label: "Sponsor Games",  Icon: Sparkles,              perm: "can_create_links" },
+  { path: "/payouts",                          label: "Payments & Payouts", Icon: Wallet,          perm: null },
   { path: "/merchant/transactions",    label: "Transactions",      Icon: ArrowLeftRight,  perm: "can_view_transactions" },
   { path: "/merchant/insights",          label: "Insights",              Icon: MapPin,                  perm: null },
   { path: "/merchant/payouts",              label: "Payouts",                Icon: Wallet,                  perm: "can_view_payouts" },

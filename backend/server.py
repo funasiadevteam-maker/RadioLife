@@ -6507,6 +6507,25 @@ try:
 except Exception as _e_games:
     logger.warning(f"Instant games routes failed ({_e_games})")
 
+# Vendor payments — Stripe Connect marketplace (platform commission + payouts).
+try:
+    from routes.vendor_payments import (router as _vendor_pay_router,
+                                         admin_router as _vendor_pay_admin_router,
+                                         ensure_vendor_payment_indexes as _ensure_vp_idx)
+    app.include_router(_vendor_pay_router)
+    app.include_router(_vendor_pay_admin_router)
+
+    async def _vendor_payments_bootstrap():
+        try:
+            await _ensure_vp_idx(db)
+        except Exception as _e_vp:
+            logger.warning(f"vendor_payments bootstrap: {_e_vp}")
+    app.add_event_handler("startup", _vendor_payments_bootstrap)
+    logger.info("Vendor payments (Stripe Connect) routes registered")
+except Exception as _e_vp_reg:
+    logger.warning(f"Vendor payments routes failed ({_e_vp_reg})")
+
+
 # Per-user UI preferences (player dock position, etc.).
 try:
     from routes.ui_prefs import router as _ui_prefs_router

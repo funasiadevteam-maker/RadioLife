@@ -41,6 +41,15 @@ def _make_router(db, get_current_user_optional, get_current_user_required):
     async def geo_me(request: Request,
                               user: Optional[dict] = Depends(get_current_user_optional)):
         resolved = await geo_svc.resolve_for_user(request, user, db)
+        # Surface the RAW IP-detected market/city alongside the applied market
+        # so clients can offer a gentle "you're in {city} now — switch?" prompt.
+        try:
+            ip_base = await geo_svc.resolve_geo_from_ip(request, db)
+            resolved = {**resolved,
+                        "detected_market": ip_base.get("market"),
+                        "detected_city": ip_base.get("city")}
+        except Exception:
+            pass
         # Phase 15d.1 — persist `last_resolved_market` on the user doc so the
         # RJ pipeline (which reads users.find_one in a different code path)
         # can honour the resolved market even when the user hasn't pinned a

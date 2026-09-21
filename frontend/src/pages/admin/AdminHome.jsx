@@ -372,6 +372,7 @@ function QuickLinks() {
     { to: "/admin/news",                      label: "News Radio",            tid: "admin-home-ql-news" },
     { to: "/admin/flagship-boosts",  label: "Flagship Boosts",      tid: "admin-home-ql-flagship" },
     { to: "/admin/coupon-charges",    label: "Coupon Charges",      tid: "admin-home-ql-coupons" },
+    { to: "/admin/platform-fees",     label: "💳 Platform Fees",    tid: "admin-home-ql-platformfees" },
     { to: "/admin/ad-pacing",            label: "Ad Pacing",              tid: "admin-home-ql-adpacing" },
     { to: "/admin/ad-revenue",          label: "Home Ad Revenue",      tid: "admin-home-ql-adrevenue" },
     { to: "/admin/rail-ads",             label: "Rail Ads · Approve",   tid: "admin-home-ql-railads" },

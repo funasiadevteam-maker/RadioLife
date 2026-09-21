@@ -1382,3 +1382,15 @@ Consumer master brand is now **FUUSIC** — "Everything You Love, Together." / "
 - Push Notifications (FCM / Firebase `google-services.json`; needs a native build via Publish).
 - Refactor `backend/server.py` (~7.9k lines) into domain routers/services.
 - Surface merchant-sponsored instant games in the consumer Games hub (discovery) — currently playable via direct `game_id` link + wheel list only.
+
+---
+
+## 2026-06 (fork) — STRIPE CONNECT VENDOR PAYMENTS (iter178 PASS)
+Marketplace commission + payouts layer. Platform charges customers, keeps a % fee, transfers the rest to the vendor's Stripe **Express** connected account via a **direct charge** (vendor = merchant of record → vendor bears chargebacks). Vendors (social professionals/advisors + business merchants) self-onboard from **/payouts** and accept terms (fee + chargeback liability, recorded with version/timestamp/IP). Fee = category override (if set) → admin global default (15%); merchant = 5%. Currency USD (US) / AED (UAE). Admin config at /admin/platform-fees. Wired into advisor bookings (`/api/social/dreams/bookings/checkout`) with backwards-compatible fallback for un-onboarded advisors.
+
+### Phase 2 backlog (payments)
+- Wire the platform-fee split into remaining paid vendor flows (merchant payment-links, marketplace service-bookings, gift cards) — currently only advisor bookings use the split.
+- Vendor earnings/payout dashboard + dispute visibility; Express dashboard login link.
+- Mobile payout onboarding entry point (Phase 1 onboarding UI is web-only; the split applies server-side to bookings made from any client).
+- Advisor entry-point link to /payouts from the web Dreams advisor area (advisors currently reach /payouts directly).
+- Full Stripe KYC + real split-charge settlement validation (needs interactive onboarding; can't be done headlessly).

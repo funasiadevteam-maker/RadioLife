@@ -852,15 +852,37 @@ async def book_reading(body: BookingBody, request: Request,
     origin = resolve_origin(request, body.origin_url)
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
-    session = stripe.checkout.Session.create(
+
+    # Stripe Connect split: if the advisor completed payout onboarding, run a
+    # DIRECT charge on their connected account with our platform application fee
+    # (advisor is merchant of record → they own any chargeback). Otherwise fall
+    # back to a plain platform charge, unless the admin requires onboarding.
+    from routes.vendor_payments import (connect_checkout_options,
+                                         require_payout_onboarding)
+    split = await connect_checkout_options(db, "advisor", body.advisor_id, fee)
+    if split is None and await require_payout_onboarding(db):
+        raise HTTPException(409, {"code": "advisor_payout_not_ready"})
+    currency = (split or {}).get("currency", "usd")
+
+    session_kwargs = dict(
         mode="payment",
-        line_items=[{"price_data": {"currency": "usd",
+        line_items=[{"price_data": {"currency": currency,
                      "product_data": {"name": f"{a.get('display_name')} — {svc.get('title')}"},
                      "unit_amount": fee}, "quantity": 1}],
         success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{origin}/payment/cancel",
         metadata={"kind": "dream_reading", "booking_id": bid,
                   "advisor_id": body.advisor_id})
+    request_opts = {}
+    if split is not None:
+        session_kwargs["payment_intent_data"] = {
+            "application_fee_amount": split["application_fee_amount"]}
+        request_opts["stripe_account"] = split["stripe_account"]
+        booking["connected_account_id"] = split["connected_account_id"]
+        booking["application_fee_cents"] = split["application_fee_amount"]
+        booking["platform_fee_bps"] = split["fee_bps"]
+        booking["currency"] = currency
+    session = stripe.checkout.Session.create(**session_kwargs, **request_opts)
     booking["session_id"] = session.id
     await db.reading_bookings.insert_one(dict(booking))
     return {"ok": True, "booking_id": bid, "status": "pending_payment",
@@ -903,7 +925,10 @@ async def booking_status(booking_id: str, request: Request,
         stripe = _stripe()
         if stripe.api_key:
             try:
-                sess = stripe.checkout.Session.retrieve(b["session_id"])
+                opts = {}
+                if b.get("connected_account_id"):
+                    opts["stripe_account"] = b["connected_account_id"]
+                sess = stripe.checkout.Session.retrieve(b["session_id"], **opts)
                 if sess.get("payment_status") == "paid" or sess.get("status") == "complete":
                     await db.reading_bookings.update_one(
                         {"booking_id": booking_id, "payment_status": {"$ne": "paid"}},

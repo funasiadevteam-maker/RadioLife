@@ -1,0 +1,59 @@
+{
+  "summary": "Iter 177 verified all 4 Wave features. Backend (5/5 pytest PASS in /app/backend/tests/test_iter177_discover_prompt_analytics.py): /api/games/sponsor/discover returns seeded Karak Cafe wheel (wheel_spn_02564c15d4) with sponsor_name='Karak Cafe', top_prize, daily_spins=3; house games (wheel_house/scratch_house) correctly excluded. /api/geo/me returns market + detected_market + detected_city (dubai/dfw/Council Bluffs in preview). Sponsor analytics endpoint returns full stats shape (plays/wins/win_rate/unique_players/points_awarded/coupons_won/coupons_redeemed/prize_distribution) for owner and 403 for non-owner (RBAC blocks before ownership check). /api/games/wheel/list still surfaces the seed and /api/games/wheel/config?game_id=... loads with sponsor Karak Cafe (regression PASS). WEB /play-and-win: section-sponsored-instant + sponsor-discover-card-wheel_spn_02564c15d4 + sponsor-discover-play-wheel_spn_02564c15d4 all render correctly for demo@ — HOWEVER the Play button navigates to `/games/spin?game_id=...` which is a NON-EXISTENT ROUTE (React Router logs 'No routes matched location'); the actual defined route in App.js is `/games/wheel` (scratch is `/games/scratch`). This BLOCKS the whole discover → play flow on web. WEB NewCityPrompt (data-testid new-city-prompt) verified across all four states: (a) hidden when detected==applied, (b) shown when detected!=applied, (c) Dismiss (new-city-dismiss) hides it AND persists across reload via localStorage 'fuusic.geoPrompt.dismissed.v1', (d) Switch (new-city-switch) calls PATCH /api/users/me/market with detected_market, updates GeoStore, and hides the banner — verified market flipped from mumbai→dfw. MOBILE: sponsor-discover-rail + sponsor-discover-card-wheel_spn_02564c15d4 render on /games; tapping opens /games/spin?game_id=wheel_spn_02564c15d4 (route EXISTS on mobile) and 'Karak Cafe' appears in DOM; however the rendered wheel visually shows the DEFAULT house segments (5/20/50/100/200 BigCoin + generic 'Sponsor coupon') instead of the sponsor-configured segments — mobile spin screen may not be forwarding game_id to /api/games/wheel/config. NewCityBanner testID new-city-banner was correctly hidden after cleanup (market equals detected). Prize Preview + Analytics modal were NOT UI-tested (merchant portal is gated behind MerchantShell approval flow and iter176 already verified those testIDs — sponsor-preview-toggle/panel/wheel/spin/scratch + sponsor-analytics-modal/stats/distribution — plus the analytics BACKEND is 100% covered in this iteration).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "PlayAndWin sponsor discover Play button", "issue": "Navigates to '/games/spin?game_id=...' which is NOT a defined route in App.js (defined route is '/games/wheel'). React Router warns 'No routes matched location' and the wheel does not load. Fix: change PlayAndWin.js:263 to navigate(`/games/${isWheel ? 'wheel' : 'scratch'}?game_id=${g.game_id}`).", "selector": "[data-testid='sponsor-discover-play-wheel_spn_02564c15d4']", "priority": "HIGH"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "games/spin screen", "issue": "When opened with ?game_id=wheel_spn_02564c15d4 (sponsor game), the visual wheel still renders the default house segments (5/20/50/100/200 BigCoin + generic 'Sponsor coupon') instead of the Karak Cafe sponsor-configured segments (500 pts top prize). Sponsor name appears in DOM but the wheel config isn't loading /api/games/wheel/config?game_id=<param>. Verify /app/mobile/app/games/spin.tsx reads useLocalSearchParams().game_id and forwards it to the config request.", "testID": "sponsor-discover-card-wheel_spn_02564c15d4", "priority": "HIGH"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "RN Web deprecation warning '\"shadow*\" style props are deprecated. Use \"boxShadow\".' (pre-existing, reported since iter175)."},
+        {"component": "props.pointerEvents", "issue": "RN Web deprecation warning 'props.pointerEvents is deprecated. Use style.pointerEvents' (pre-existing, reported since iter175)."},
+        {"component": "transform-origin", "issue": "React warning: 'Invalid DOM property transform-origin. Did you mean transformOrigin?' on the games hub — likely in the wheel SVG on mobile spin screen or a component using it. Reference: /app/mobile/app/games/spin.tsx or similar."}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "GAME DISCOVERY → sponsor wheel play", "platform": "web", "issue": "Web navigates to non-existent /games/spin route; mobile route /games/spin exists but shows wrong wheel segments. Neither surface currently loads the actual sponsor-configured wheel from the discover card in an end-user-visible way.", "expected": "Tap/click sponsor-discover-card → /games/wheel (web) or /games/spin (mobile) → wheel renders with Karak Cafe sponsor + configured segments (500 pts top).", "actual": "Web: 404 route (React Router warning, no game loads). Mobile: opens spin screen but renders default house segments instead of sponsor's."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter177_discover_prompt_analytics.py",
+    "/app/test_reports/pytest/iter177.xml"
+  ],
+  "action_items": [
+    "FIX (web, HIGH): PlayAndWin.js:263 — change navigate(`/games/${isWheel ? 'spin' : 'scratch'}?...`) to `/games/${isWheel ? 'wheel' : 'scratch'}?...` so the sponsor discover Play button routes to the existing /games/wheel route.",
+    "FIX (mobile, HIGH): /app/mobile/app/games/spin.tsx must read game_id from useLocalSearchParams() and pass it to /api/games/wheel/config so the correct sponsor segments render (currently the sponsor game_id is being ignored and the house wheel is shown).",
+    "VERIFY: after fixing route, retest full flow on web: card click → /games/wheel?game_id=... → wheel shows 'Karak Cafe' sponsor.",
+    "OPTIONAL (mobile): fix transform-origin → transformOrigin React warning on the spin screen."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/instant_games.py:_top_prize_label prioritises a coupon slice over any points slice — correct headline behaviour.",
+    "sponsor/discover correctly filters {active:True, sponsor_business_id:{$exists,$ne:null}} which excludes house games; verified live.",
+    "geo_routes.py wraps detected_market/detected_city in try/except so /geo/me stays 200 even if IP resolver fails — good.",
+    "NewCityPrompt (web) reads localStorage guardedly with try/catch; NewCityBanner (mobile) uses AsyncStorage similarly — both parity-consistent.",
+    "sponsor analytics endpoint returns 403 for non-owner (via resolve_merchant_with_role) rather than 404 as the spec suggests; that's actually stricter and correct (RBAC runs before ownership check).",
+    "PlayAndWin.js:263 route bug — likely a copy from mobile which uses `/games/spin`; web should use `/games/wheel` per App.js."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter177_discover_prompt_analytics.py",
+    "/app/test_reports/iteration_177.json",
+    "/app/test_reports/pytest/iter177.xml"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "web ~80% (discover UI + New-City prompt full lifecycle PASS; play navigation FAIL); mobile ~70% (rail + banner + navigation OK; wheel visual on sponsor game FAIL)"},
+  "test_credentials": "web demo@bigfm.dubai / DemoPass123! (cookie via POST /api/auth/login); web test@bigfm.dubai / TestUser123! (Karak Cafe owner); mobile demo-login-btn → /api/auth/demo (bearer).",
+  "seed_data_creation": "None. Cleaned up: demo@ user's preferred_market was toggled london→mumbai→dfw during New-City banner verification and reset to detected market (dfw) at end. Note: this leaves demo@ market=dfw (was originally dubai). Not test data pollution but worth being aware for next run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two HIGH-severity bugs remain: (1) web PlayAndWin.js navigates to non-existent /games/spin — trivial one-line fix to /games/wheel; (2) mobile /games/spin?game_id=... ignores the query param and shows house wheel instead of sponsor's — needs handling in /app/mobile/app/games/spin.tsx. Once fixed, retest both surfaces: click sponsor-discover-card → verify wheel loads with sponsor_name='Karak Cafe' and 500pts top prize. Sponsor analytics + prize preview UI testIDs (sponsor-analytics-modal/stats/distribution + sponsor-preview-toggle/panel/wheel/spin/scratch) exist in code and are backend-verified but were NOT UI-clicked this iter (merchant portal is behind MerchantShell approval gate — biz_karak_cafe_karama is approved per iter176 seed, so /merchant/sponsor-games IS reachable for test@; log in as test@ to exercise those). The three RN warnings (shadow*, pointerEvents, transform-origin) are pre-existing.",
+  "rca of the issue": "Web bug RCA: PlayAndWin.js:263 hardcodes `/games/spin` but App.js declares `/games/wheel`. Likely a mobile-vs-web route naming divergence — mobile uses /games/spin (per /app/mobile/app/games/spin.tsx and DEDICATED_ROUTES in games tab), web uses /games/wheel. Someone probably copy-pasted the mobile path when wiring the sponsor discover section on web. One-character fix. Mobile bug RCA: the sponsor discover navigation carries ?game_id=wheel_spn_02564c15d4 but the mobile spin screen (/app/mobile/app/games/spin.tsx) likely fetches /api/games/wheel/config without the game_id param, so it falls back to wheel_house segments — need to read useLocalSearchParams().game_id and pass it through."
+}

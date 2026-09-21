@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import AdBanner from '../../src/components/AdBanner';
+import NewCityBanner from '../../src/components/NewCityBanner';
 import SafeImage from '../../src/components/SafeImage';
 import { gameArtFor } from '../../src/constants/gameArt';
 import { fetchPlayAndWin, HOUSE_CAMPAIGNS } from '../../src/api/gamesApi';
@@ -122,6 +123,7 @@ export default function GamesHub() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [sponsorGames, setSponsorGames] = useState<any[]>([]);
 
   const balance = useBigCoinStore((s) => s.balance);
   const balanceLoaded = useBigCoinStore((s) => s.loaded);
@@ -139,6 +141,7 @@ export default function GamesHub() {
       setLoading(false);
       setRefreshing(false);
     }
+    api.get('/games/sponsor/discover').then(({ data }) => setSponsorGames(data?.items || [])).catch(() => {});
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -221,6 +224,8 @@ export default function GamesHub() {
           Spin the wheel, test your music trivia, or make predictions to win prizes.
         </Text>
 
+        <NewCityBanner />
+
         {/* Featured: Spin & Win Card */}
         <TouchableOpacity
           style={s.featuredCard}
@@ -282,6 +287,39 @@ export default function GamesHub() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Merchant-sponsored instant games (Wheel / Scratch) */}
+        {sponsorGames.length > 0 && (
+          <>
+            <Text style={s.sectionTitle}>SPONSORED BY LOCAL STORES</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 12, paddingRight: 16 }} testID="sponsor-discover-rail">
+              {sponsorGames.map((g) => {
+                const isWheel = g.game_type === 'wheel';
+                const out = g.spins_left <= 0;
+                return (
+                  <TouchableOpacity key={g.game_id} style={s.sponsorCard} activeOpacity={0.85}
+                    testID={`sponsor-discover-card-${g.game_id}`}
+                    onPress={() => router.push((isWheel ? `/games/wheel?game_id=${g.game_id}` : `/games/scratch?game_id=${g.game_id}`) as any)}>
+                    <View style={[s.sponsorIcon, { backgroundColor: isWheel ? '#a855f7' : '#6366F1' }]}>
+                      {g.logo_url
+                        ? <SafeImage uri={g.logo_url} fallbackText={g.sponsor_name} size={44} borderRadius={12} />
+                        : <Ionicons name={isWheel ? 'aperture' : 'gift'} size={22} color="#fff" />}
+                    </View>
+                    <Text style={s.sponsorName} numberOfLines={1}>{g.sponsor_name}</Text>
+                    <Text style={s.sponsorType} numberOfLines={1}>{isWheel ? 'Wheel of Fortune' : 'Scratch & Win'}</Text>
+                    {g.top_prize ? <Text style={s.sponsorPrize} numberOfLines={1}>🏆 {g.top_prize}</Text> : null}
+                    <View style={[s.sponsorBadge, out && { backgroundColor: 'rgba(107,114,128,0.2)' }]}>
+                      <Text style={[s.sponsorBadgeTxt, out && { color: COLORS.textMuted }]}>
+                        {out ? 'Back tomorrow' : `${g.spins_left} play${g.spins_left === 1 ? '' : 's'} left`}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
 
         {/* Trivia Section — links to the full trivia hub (solo topics + live rooms) */}
         <Text style={s.sectionTitle}>TRIVIA</Text>
@@ -503,6 +541,13 @@ const s = StyleSheet.create({
   },
   quickLabel: { fontSize: FONT.md, fontWeight: '800', color: COLORS.text },
   quickDesc: { fontSize: FONT.xs, fontWeight: '500', color: COLORS.textMuted, marginTop: 3, lineHeight: 15 },
+  sponsorCard: { width: 150, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md, marginBottom: SPACING.lg },
+  sponsorIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 8 },
+  sponsorName: { color: COLORS.text, fontSize: 13, fontWeight: '900' },
+  sponsorType: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600', marginTop: 1 },
+  sponsorPrize: { color: COLORS.gold, fontSize: 11, fontWeight: '700', marginTop: 4 },
+  sponsorBadge: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full, backgroundColor: 'rgba(168,85,247,0.18)' },
+  sponsorBadgeTxt: { color: '#c7bce8', fontSize: 10, fontWeight: '800' },
 
   // Predict card
   predictCard: {

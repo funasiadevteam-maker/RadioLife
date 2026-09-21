@@ -6,7 +6,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import {
   Aperture, Ticket, Plus, Trash2, Loader2, X, Upload, Play, Pause,
-  Sparkles, Gift, Coins, Ban, ExternalLink,
+  Sparkles, Gift, Coins, Ban, ExternalLink, BarChart3, Users, Trophy, Eye,
 } from "lucide-react";
 import { useMerchant } from "./MerchantShell";
 
@@ -33,6 +33,7 @@ export default function MerchantSponsorGames() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // game object or {} for new
+  const [analytics, setAnalytics] = useState(null); // game being analyzed
 
   const load = useCallback(async () => {
     if (!mid) return;
@@ -104,7 +105,7 @@ export default function MerchantSponsorGames() {
         ) : (
           <div className="grid sm:grid-cols-2 gap-3" data-testid="sponsor-games-list">
             {games.map((g) => (
-              <GameCard key={g.game_id} g={g} light={light} onEdit={() => setEditing(g)} onToggle={() => toggle(g)} />
+              <GameCard key={g.game_id} g={g} light={light} onEdit={() => setEditing(g)} onToggle={() => toggle(g)} onAnalytics={() => setAnalytics(g)} />
             ))}
           </div>
         )}
@@ -115,11 +116,14 @@ export default function MerchantSponsorGames() {
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load(); }} />
       )}
+      {analytics && (
+        <AnalyticsModal light={light} mid={mid} game={analytics} onClose={() => setAnalytics(null)} />
+      )}
     </div>
   );
 }
 
-function GameCard({ g, light, onEdit, onToggle }) {
+function GameCard({ g, light, onEdit, onToggle, onAnalytics }) {
   const isWheel = g.game_type === "wheel";
   const prizeCount = (g.segments || []).filter((s) => s.kind !== "none").length;
   const playUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/games/${isWheel ? "spin" : "scratch"}?game_id=${g.game_id}`;
@@ -150,6 +154,10 @@ function GameCard({ g, light, onEdit, onToggle }) {
           className={`text-xs font-bold h-9 px-4 rounded-full ${light ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}>
           Edit
         </button>
+        <button type="button" onClick={onAnalytics} data-testid={`sponsor-game-analytics-${g.game_id}`}
+          className={`inline-flex items-center gap-1.5 text-xs font-bold h-9 px-4 rounded-full ${light ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}>
+          <BarChart3 size={13} /> Analytics
+        </button>
         <button type="button" onClick={onToggle} data-testid={`sponsor-game-toggle-${g.game_id}`}
           className={`inline-flex items-center gap-1.5 text-xs font-bold h-9 px-4 rounded-full ${light ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}>
           {g.active ? <><Pause size={13} /> Pause</> : <><Play size={13} /> Resume</>}
@@ -174,6 +182,7 @@ function BuilderModal({ light, mid, data, initial, onClose, onSaved }) {
       .map((s) => ({ label: s.label, kind: s.kind || "points", value: s.value || 0, weight: s.weight || 1, color: s.color || "#a855f7", coupon_offer_id: s.coupon_offer_id || "" })));
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState(false);
   const fileRef = useRef(null);
   const offers = data?.offers || [];
 
@@ -364,11 +373,176 @@ function BuilderModal({ light, mid, data, initial, onClose, onSaved }) {
             data-testid="sponsor-daily-spins" className={input} />
         </div>
 
+        {/* Prize preview */}
+        <button type="button" onClick={() => setPreview((v) => !v)} data-testid="sponsor-preview-toggle"
+          className={`mt-4 w-full h-11 rounded-full inline-flex items-center justify-center gap-2 text-sm font-black ${light ? "bg-slate-100 text-slate-800 hover:bg-slate-200" : "bg-slate-800 text-slate-100 hover:bg-slate-700"}`}>
+          <Eye size={16} /> {preview ? "Hide preview" : "Preview with my prizes"}
+        </button>
+        {preview && (
+          <div className="mt-3" data-testid="sponsor-preview-panel">
+            <GamePreview gameType={gameType} segments={segments} sponsorName={sponsorName} logoUrl={logoUrl} light={light} />
+          </div>
+        )}
+
         <button type="button" onClick={save} disabled={busy} data-testid="sponsor-save-btn"
           className="mt-5 w-full h-12 rounded-full font-black text-white disabled:opacity-50"
           style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
           {busy ? <Loader2 className="animate-spin mx-auto" /> : (isEdit ? "Save changes" : "Publish game")}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Prize Preview (client-only, uses the current draft segments) ───
+function polar(cx, cy, r, degFromTop) {
+  const t = ((degFromTop - 90) * Math.PI) / 180;
+  return [cx + r * Math.cos(t), cy + r * Math.sin(t)];
+}
+function slicePath(cx, cy, R, i, seg) {
+  const a0 = i * seg, a1 = (i + 1) * seg;
+  const [x0, y0] = polar(cx, cy, R, a0);
+  const [x1, y1] = polar(cx, cy, R, a1);
+  const large = seg > 180 ? 1 : 0;
+  return `M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${R} ${R} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+}
+
+function GamePreview({ gameType, segments, sponsorName, logoUrl, light }) {
+  const [rotation, setRotation] = useState(0);
+  const [spinning, setSpinning] = useState(false);
+  const segs = (segments || []).filter((s) => (Number(s.weight) || 0) > 0);
+  const spin = () => {
+    if (spinning || segs.length === 0) return;
+    setSpinning(true);
+    const turns = 4 + Math.random() * 2;
+    const target = rotation + turns * 360 + Math.random() * 360;
+    setRotation(target);
+    setTimeout(() => setSpinning(false), 3600);
+  };
+  const wrap = light ? "bg-slate-50 border border-slate-200" : "bg-slate-950 border border-slate-800";
+
+  if (gameType === "scratch") {
+    const tiles = segs.slice(0, 3);
+    while (tiles.length < 3) tiles.push({ label: "?", color: "#334155" });
+    return (
+      <div className={`rounded-2xl p-4 ${wrap}`} data-testid="sponsor-preview-scratch">
+        <PreviewHeader sponsorName={sponsorName} logoUrl={logoUrl} light={light} type="Scratch card" />
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          {tiles.map((t, i) => (
+            <div key={i} className="aspect-square rounded-2xl grid place-items-center text-center px-1"
+              style={{ background: t.color || "#1c1830" }}>
+              <span className="text-xs font-black text-white leading-tight">{t.label}</span>
+            </div>
+          ))}
+        </div>
+        <div className={`mt-2 text-center text-[11px] ${light ? "text-slate-500" : "text-slate-500"}`}>Match 3 to win</div>
+      </div>
+    );
+  }
+
+  const N = segs.length || 1;
+  const seg = 360 / N;
+  const cx = 130, cy = 130, R = 122;
+  return (
+    <div className={`rounded-2xl p-4 ${wrap}`} data-testid="sponsor-preview-wheel">
+      <PreviewHeader sponsorName={sponsorName} logoUrl={logoUrl} light={light} type="Wheel of Fortune" />
+      <div className="relative mx-auto mt-3" style={{ width: 260, height: 260 }}>
+        <div style={{ position: "absolute", top: -2, left: "50%", transform: "translateX(-50%)", zIndex: 2,
+          width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent",
+          borderTop: `18px solid ${light ? "#0f172a" : "#fff"}` }} />
+        <svg viewBox="0 0 260 260" width={260} height={260}
+          style={{ transform: `rotate(${rotation}deg)`, transition: spinning ? "transform 3.5s cubic-bezier(0.17,0.67,0.12,0.99)" : "none" }}>
+          {segs.map((s, i) => {
+            const [lx, ly] = polar(cx, cy, R * 0.66, i * seg + seg / 2);
+            return (
+              <g key={i}>
+                <path d={slicePath(cx, cy, R, i, seg)} fill={s.color || "#334155"} stroke="rgba(0,0,0,0.25)" strokeWidth="1" />
+                <text x={lx} y={ly} fill="#fff" fontSize="9" fontWeight="800" textAnchor="middle"
+                  transform={`rotate(${i * seg + seg / 2} ${lx} ${ly})`}>{(s.label || "").slice(0, 12)}</text>
+              </g>
+            );
+          })}
+          <circle cx={cx} cy={cy} r="16" fill={light ? "#0f172a" : "#fff"} />
+        </svg>
+      </div>
+      <button type="button" onClick={spin} disabled={spinning} data-testid="sponsor-preview-spin"
+        className="mt-3 w-full h-11 rounded-full font-black text-white disabled:opacity-60"
+        style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+        {spinning ? "Spinning…" : "Test spin"}
+      </button>
+      <div className={`mt-1 text-center text-[11px] ${light ? "text-slate-500" : "text-slate-500"}`}>Preview only — no prizes are awarded</div>
+    </div>
+  );
+}
+
+function PreviewHeader({ sponsorName, logoUrl, light, type }) {
+  return (
+    <div className="flex items-center gap-2 justify-center">
+      {logoUrl
+        ? <img src={logoUrl} alt={sponsorName} className="w-7 h-7 rounded-full object-cover" />
+        : <Gift size={16} className={light ? "text-slate-500" : "text-slate-400"} />}
+      <div className={`text-xs font-black ${light ? "text-slate-700" : "text-slate-300"}`}>
+        {sponsorName || "Sponsor"} · {type}
+      </div>
+    </div>
+  );
+}
+
+// ─── Analytics modal ───
+function AnalyticsModal({ light, mid, game, onClose }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    axios.get(`${API}/games/sponsor/${mid}/branded-games/${game.game_id}/analytics`, { withCredentials: true })
+      .then((r) => setD(r.data)).catch(() => setErr(true));
+  }, [mid, game.game_id]);
+  const stat = (label, value, Icon) => (
+    <div className={`rounded-xl p-3 ${light ? "bg-slate-50 border border-slate-100" : "bg-slate-950 border border-slate-800"}`}>
+      <div className={`text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1 ${light ? "text-slate-500" : "text-slate-500"}`}>
+        {Icon ? <Icon size={11} /> : null} {label}
+      </div>
+      <div className={`text-2xl font-black tabular-nums mt-0.5 ${light ? "text-slate-900" : "text-white"}`}>{value ?? 0}</div>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} data-testid="sponsor-analytics-modal"
+        className={`w-full max-w-lg rounded-3xl p-6 max-h-[92vh] overflow-y-auto ${light ? "bg-white" : "bg-slate-900 border border-slate-800"}`}>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className={`text-xl font-black ${light ? "text-slate-900" : "text-white"}`}>Analytics</h2>
+          <button type="button" onClick={onClose} className={light ? "text-slate-500" : "text-slate-500"}><X size={20} /></button>
+        </div>
+        <div className={`text-sm mb-4 ${light ? "text-slate-600" : "text-slate-400"}`}>
+          {game.sponsor_name} · {game.game_type === "wheel" ? "Wheel of Fortune" : "Scratch Card"}
+        </div>
+        {err ? (
+          <div className="text-sm text-rose-400">Couldn't load analytics.</div>
+        ) : !d ? (
+          <div className="py-10 text-center"><Loader2 className="animate-spin mx-auto" /></div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3" data-testid="sponsor-analytics-stats">
+              {stat("Plays", d.plays, Play)}
+              {stat("Wins", d.wins, Trophy)}
+              {stat("Unique players", d.unique_players, Users)}
+              {stat("Win rate", `${Math.round((d.win_rate || 0) * 100)}%`, BarChart3)}
+              {stat("Points awarded", (d.points_awarded || 0).toLocaleString(), Coins)}
+              {stat("Coupons won", d.coupons_won, Gift)}
+              {stat("Coupons redeemed", d.coupons_redeemed, Ticket)}
+            </div>
+            <h3 className={`mt-6 mb-2 text-sm font-black ${light ? "text-slate-900" : "text-white"}`}>Prize distribution</h3>
+            <div className="space-y-1" data-testid="sponsor-analytics-distribution">
+              {(d.prize_distribution || []).length === 0 ? (
+                <div className={`text-xs italic ${light ? "text-slate-500" : "text-slate-500"}`}>No plays yet.</div>
+              ) : d.prize_distribution.map((p) => (
+                <div key={p.label} className={`flex justify-between text-xs p-2 rounded-lg ${light ? "bg-slate-50" : "bg-slate-950"}`}>
+                  <span className={light ? "text-slate-800" : "text-slate-200"}>{p.label}</span>
+                  <span className={`font-black ${light ? "text-slate-900" : "text-white"}`}>{p.count}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

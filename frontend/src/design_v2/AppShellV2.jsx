@@ -20,6 +20,7 @@ import OnAirOfferCard from "@/shell/OnAirOfferCard";
 import VariantSwitcher from "@/shell/VariantSwitcher";  // eslint-disable-line no-unused-vars -- moved to /admin/appearance
 import NotificationBell from "@/components/NotificationBell";
 import CityChip from "@/components/CityChip";
+import NewCityPrompt from "@/components/NewCityPrompt";
 import WorkspaceSwitcher from "@/components/portal/WorkspaceSwitcher";
 // VariantSwitcher moved to the admin backend (/admin/appearance).
 import BannerAdSlot from "@/components/BannerAdSlot";
@@ -95,6 +96,7 @@ export default function AppShellV2({ children }) {
   return (
     <div data-testid="shell-v2" className="nlv2 flex flex-col">
       <ShellV2Header />
+      <NewCityPrompt />
       <main className={`flex-1 pt-6 pb-52 ${dockMainLg}`}>
         <div className={`${CONTAINER} flex gap-6 xl:gap-8 items-start`}>
           <div className="flex-1 min-w-0">{children}</div>
