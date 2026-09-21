@@ -233,6 +233,57 @@ async def refresh_account_status(*, stripe_account_id: str,
               "stripe_status_synced_at": now.isoformat()}
 
 
+async def instant_payout_precheck(*, stripe_account_id: str,
+                                  currency: str = "usd") -> dict:
+    """Instant-payout eligibility + instant_available balance for a connected
+    account. Never raises for expected states — returns ok=False + reason.
+    Draws nothing; read-only."""
+    _configure()
+    cur = (currency or "usd").lower()
+
+    def _sync():
+        acct = stripe.Account.retrieve(stripe_account_id)
+        if not bool(getattr(acct, "payouts_enabled", False)):
+            return {"ok": False, "reason": "payouts_disabled"}
+        bal = stripe.Balance.retrieve(stripe_account=stripe_account_id)
+        avail = [x for x in (bal.get("available") or []) if x.get("currency") == cur]
+        available = int(avail[0]["amount"]) if avail else 0
+        inst = [x for x in (bal.get("instant_available") or []) if x.get("currency") == cur]
+        instant_available = int(inst[0]["amount"]) if inst else 0
+        ext = stripe.Account.list_external_accounts(stripe_account_id, limit=100)
+        eligible = [x for x in (ext.get("data") or [])
+                    if "instant" in (x.get("available_payout_methods") or [])]
+        if not eligible:
+            return {"ok": False, "reason": "no_instant_eligible_external_account",
+                    "available": available, "instant_available": instant_available}
+        if instant_available <= 0:
+            return {"ok": False, "reason": "insufficient_instant_balance",
+                    "available": available, "instant_available": instant_available}
+        return {"ok": True, "available": available,
+                "instant_available": instant_available, "destination": eligible[0]["id"]}
+
+    return await asyncio.to_thread(_sync)
+
+
+async def create_instant_payout(*, stripe_account_id: str, amount_cents: int,
+                                currency: str = "usd",
+                                idempotency_key: str) -> dict:
+    """INSTANT payout from the connected account's OWN balance to its default
+    external account (Stripe-Account header). Fees already taken upstream — this
+    does not re-deduct. Raises stripe.StripeError (caller maps to a fallback)."""
+    _configure()
+
+    def _sync():
+        return stripe.Payout.create(
+            amount=int(amount_cents), currency=(currency or "usd").lower(),
+            method="instant", stripe_account=stripe_account_id,
+            idempotency_key=idempotency_key)
+
+    p = await asyncio.to_thread(_sync)
+    return {"payout_id": p.id, "status": p.status, "amount": p.amount,
+            "currency": p.currency, "arrival_date": getattr(p, "arrival_date", None)}
+
+
 async def create_login_link(stripe_account_id: str) -> str:
     """Return a URL the merchant can use to access their Stripe Express-lite
     dashboard (payouts, transaction history)."""
@@ -280,6 +331,8 @@ __all__ = [
     "retrieve_account_status",
     "refresh_account_status",
     "create_login_link",
+    "instant_payout_precheck",
+    "create_instant_payout",
     "derive_onboarding_status",
     "run_sc1_migration",
     "SC1_DEFAULT_FIELDS",

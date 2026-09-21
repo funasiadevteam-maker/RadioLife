@@ -6523,6 +6523,29 @@ try:
         except Exception as _e_ph:
             logger.warning(f"payouts_hub bootstrap: {_e_ph}")
     app.add_event_handler("startup", _payouts_hub_bootstrap)
+
+    async def _payout_digest_cron():
+        import asyncio as _a
+        from datetime import datetime as _dt, timezone as _tz
+        from routes.payouts_hub import send_weekly_earnings_digests as _swed
+        while True:
+            try:
+                now = _dt.now(_tz.utc)
+                if now.weekday() == 4 and now.hour == 9:  # Friday ~09:00 UTC
+                    iso = now.isocalendar()
+                    key = f"digest-{iso[0]}-W{iso[1]}"
+                    if not await db.payout_digest_runs.find_one({"_id": key}):
+                        await db.payout_digest_runs.insert_one({"_id": key, "ran_at": now})
+                        res = await _swed(db)
+                        logger.info(f"[payout-digest] weekly run {key}: sent={res.get('sent')}")
+            except Exception as _e_pd:
+                logger.warning(f"payout digest cron: {_e_pd}")
+            await _a.sleep(3600)
+
+    async def _payout_digest_boot():
+        import asyncio as _a
+        app.state.payout_digest_task = _a.create_task(_payout_digest_cron())
+    app.add_event_handler("startup", _payout_digest_boot)
     logger.info("Payouts Hub (unified Stripe Connect) routes registered")
 except Exception as _e_ph_reg:
     logger.warning(f"Payouts Hub routes failed ({_e_ph_reg})")

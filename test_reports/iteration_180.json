@@ -1,0 +1,29 @@
+{
+  "summary": "Iter180 Payouts Hub enhancements (history, insights, instant cash-out, weekly email digest) tested end-to-end on backend + web + mobile. All 16 backend tests pass. Web /payouts and mobile /payouts both render the new Fee Insights (empty state) and Payout History (empty state) sections; instant cash-out button is correctly hidden because demo merchant is not payout-ready; existing PENDING/Finish-Stripe-setup CTA still surfaces. Weekly digest endpoint returns ok/provider_live:true/sent:0 for admin, is rejected for non-admins. Cashout endpoint never 500s and always returns dashboard_url on fallback (verified over multiple calls). Regression: /api/payouts/overview + /api/admin/vendor-fees still work; /api/vendor-payments/* still 404.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter180_payouts_enhancements.py",
+    "/app/test_reports/pytest/iter180.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PayoutsOnboarding.jsx still uses window.alert() for cash-out fallback/error messaging (lines 153, 156, 159). Non-blocking; consider a toast for a better UX, and pass the mapped copy from CASHOUT_MSG for known reasons.",
+    "payouts_hub.py hard-codes preview host as fallback in _frontend_url() (line 58). Cosmetic only — _origin() prefers request Origin/Referer.",
+    "Mobile payouts.tsx silently swallows cashout errors (catch {}). At minimum log or surface a subtle toast so users know when the API call failed vs succeeded.",
+    "History endpoint returns transactions from dream_payouts / payment_transactions_v2 with limit(50) but sort is descending on created_at — sorted output is not stable if created_at is missing; consider a secondary sort key."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter180_payouts_enhancements.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (web + mobile parity verified)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (web login + mobile demo login), admin@bigfm.dubai / AdminPass123!",
+  "seed_data_creation": "None. Demo merchant remains non-payout-ready (as documented in iter179).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Demo merchant still has stripe_account_id but charges_enabled=false (state carried over from iter179). To exercise populated history/insights/cash-out-ready UI, either: (a) flip businesses.stripe_charges_enabled=true for biz_demo_marketplace and insert payment_transactions_v2 docs with status='succeeded' and created_at within the last 6 weeks, or (b) complete a real Stripe TEST KYC via /payouts/onboard. The cash-out button only appears when a.ready is true (charges_enabled OR payouts_enabled).",
+  "rca of the issue": ""
+}

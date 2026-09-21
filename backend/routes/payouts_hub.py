@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -378,6 +378,321 @@ async def put_vendor_fees(body: VendorFeesBody, request: Request,
     return await get_vendor_fees(request, user)
 
 
+# ─────────────────────────── History ───────────────────────────────
+def _adv_txn_view(p: dict) -> dict:
+    return {"id": p.get("booking_id") or str(p.get("_id")),
+            "date": _iso(p.get("created_at")),
+            "gross_cents": int(p.get("gross_cents", 0)),
+            "fee_cents": int(p.get("platform_fee_cents", 0)),
+            "net_cents": int(p.get("advisor_share_cents", 0)),
+            "status": p.get("status"), "ref": p.get("transfer_id")}
+
+
+def _mer_txn_view(t: dict) -> dict:
+    amt = int(t.get("amount_cents", 0))
+    fee = int(t.get("application_fee_cents", 0))
+    return {"id": t.get("transaction_id") or str(t.get("_id")),
+            "date": _iso(t.get("succeeded_at") or t.get("created_at")),
+            "gross_cents": amt, "fee_cents": fee,
+            "net_cents": int(t.get("merchant_net_cents", max(0, amt - fee))),
+            "status": t.get("status"),
+            "ref": t.get("stripe_charge_id") or t.get("transaction_id")}
+
+
+@router.get("/history")
+async def history(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user["user_id"]
+    accounts: list[dict] = []
+    a = await _advisor_profile(db, uid)
+    if a:
+        rows = [_adv_txn_view(p) async for p in
+                db.dream_payouts.find({"advisor_id": a["advisor_id"]})
+                .sort("created_at", -1).limit(50)]
+        accounts.append({"vendor_type": "advisor", "ref_id": a["advisor_id"],
+                         "transactions": rows})
+    biz = await _owned_business(db, uid)
+    if biz:
+        mid = biz.get("business_id") or biz.get("_id")
+        rows = [_mer_txn_view(t) async for t in
+                db.payment_transactions_v2.find({"merchant_id": mid})
+                .sort("created_at", -1).limit(50)]
+        accounts.append({"vendor_type": "merchant", "ref_id": mid,
+                         "transactions": rows})
+    return {"accounts": accounts}
+
+
+# ─────────────────────────── Insights ──────────────────────────────
+def _week_starts(n: int) -> list:
+    today = _now().date()
+    monday = today - timedelta(days=today.weekday())
+    return [monday - timedelta(weeks=i) for i in range(n - 1, -1, -1)]
+
+
+def _empty_weeks(starts: list) -> list:
+    return [{"week_start": ws.isoformat(), "label": ws.strftime("%b %d"),
+             "sales_cents": 0, "fees_cents": 0, "net_cents": 0} for ws in starts]
+
+
+def _bucket_idx(dt, starts: list) -> Optional[int]:
+    if not isinstance(dt, datetime):
+        return None
+    d = dt.date()
+    for i, ws in enumerate(starts):
+        if ws <= d < ws + timedelta(days=7):
+            return i
+    return None
+
+
+@router.get("/insights")
+async def insights(request: Request, weeks: int = 6,
+                   user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user["user_id"]
+    n = max(1, min(12, int(weeks or 6)))
+    starts = _week_starts(n)
+    cutoff = datetime(starts[0].year, starts[0].month, starts[0].day,
+                      tzinfo=timezone.utc)
+    accounts: list[dict] = []
+
+    a = await _advisor_profile(db, uid)
+    if a:
+        buckets = _empty_weeks(starts)
+        async for p in db.dream_payouts.find(
+                {"advisor_id": a["advisor_id"], "created_at": {"$gte": cutoff}}):
+            i = _bucket_idx(p.get("created_at"), starts)
+            if i is None:
+                continue
+            buckets[i]["sales_cents"] += int(p.get("gross_cents", 0))
+            buckets[i]["fees_cents"] += int(p.get("platform_fee_cents", 0))
+            buckets[i]["net_cents"] += int(p.get("advisor_share_cents", 0))
+        accounts.append({"vendor_type": "advisor", "ref_id": a["advisor_id"],
+                         "weeks": buckets})
+
+    biz = await _owned_business(db, uid)
+    if biz:
+        mid = biz.get("business_id") or biz.get("_id")
+        buckets = _empty_weeks(starts)
+        async for t in db.payment_transactions_v2.find(
+                {"merchant_id": mid, "status": "succeeded",
+                 "created_at": {"$gte": cutoff}}):
+            i = _bucket_idx(t.get("succeeded_at") or t.get("created_at"), starts)
+            if i is None:
+                continue
+            amt = int(t.get("amount_cents", 0))
+            fee = int(t.get("application_fee_cents", 0))
+            buckets[i]["sales_cents"] += amt
+            buckets[i]["fees_cents"] += fee
+            buckets[i]["net_cents"] += int(t.get("merchant_net_cents", max(0, amt - fee)))
+        accounts.append({"vendor_type": "merchant", "ref_id": mid, "weeks": buckets})
+
+    return {"accounts": accounts, "window_weeks": n}
+
+
+# ─────────────────────────── Instant cash-out ──────────────────────
+DASHBOARD_LOGIN_URL = "https://dashboard.stripe.com/login"
+
+
+class CashoutBody(BaseModel):
+    vendor_type: str = Field(..., pattern="^(advisor|merchant)$")
+
+
+async def _resolve_cashout_account(db, uid: str, vendor_type: str):
+    """→ (stripe_account_id | None, currency, ready)."""
+    if vendor_type == "advisor":
+        a = await _advisor_profile(db, uid)
+        if not a:
+            raise HTTPException(404, {"code": "not_an_advisor"})
+        return (a.get("stripe_account_id"), "usd",
+                bool(a.get("stripe_payouts_enabled") or a.get("stripe_charges_enabled")))
+    biz = await _owned_business(db, uid)
+    if not biz:
+        raise HTTPException(404, {"code": "not_a_merchant"})
+    return (biz.get("stripe_account_id"),
+            _currency_for_market(biz.get("market") or biz.get("city")),
+            merchant_payout_ready(biz))
+
+
+@router.post("/cashout")
+async def cashout(body: CashoutBody, request: Request,
+                  user: dict = Depends(current_user)):
+    import uuid as _uuid
+    db = request.app.state.db
+    uid = user["user_id"]
+    acct, currency, ready = await _resolve_cashout_account(db, uid, body.vendor_type)
+    if not acct or not ready:
+        return {"status": "fallback", "reason": "not_onboarded",
+                "dashboard_url": DASHBOARD_LOGIN_URL}
+    try:
+        pre = await scs.instant_payout_precheck(stripe_account_id=acct, currency=currency)
+    except Exception as e:
+        logger.warning("[cashout] precheck failed: %s", e)
+        return {"status": "fallback", "reason": "precheck_failed",
+                "dashboard_url": DASHBOARD_LOGIN_URL}
+    if not pre.get("ok"):
+        return {"status": "fallback", "reason": pre.get("reason"),
+                "available_cents": int(pre.get("available", 0)),
+                "instant_available_cents": int(pre.get("instant_available", 0)),
+                "dashboard_url": DASHBOARD_LOGIN_URL}
+    amount = int(pre["instant_available"])
+    idem = f"cashout:{body.vendor_type}:{acct}:{amount}:{_uuid.uuid4().hex[:8]}"
+    try:
+        payout = await scs.create_instant_payout(
+            stripe_account_id=acct, amount_cents=amount,
+            currency=currency, idempotency_key=idem)
+    except Exception as e:
+        blob = (getattr(e, "code", "") or "") + " " + str(e)
+        if ("not_allowed_on_standard_account" in blob
+                or "Cannot create payouts" in blob
+                or "payouts_not_allowed" in blob):
+            return {"status": "fallback",
+                    "reason": "standard_platform_payout_not_allowed",
+                    "instant_available_cents": amount,
+                    "dashboard_url": DASHBOARD_LOGIN_URL}
+        logger.warning("[cashout] payout create failed: %s", e)
+        return {"status": "fallback", "reason": "payout_error",
+                "dashboard_url": DASHBOARD_LOGIN_URL}
+    await db.vendor_instant_payouts.insert_one({
+        "_id": payout["payout_id"], "vendor_type": body.vendor_type,
+        "stripe_account_id": acct, "amount_cents": amount, "currency": currency,
+        "status": payout["status"], "user_id": uid, "created_at": _now()})
+    return {"status": payout["status"], "payout_id": payout["payout_id"],
+            "amount_cents": amount, "currency": currency}
+
+
+# ─────────────────────── Weekly earnings digest ────────────────────
+WEEKLY_WINDOW_DAYS = 7
+
+
+def _money_str(c) -> str:
+    return f"${(int(c or 0) / 100):.2f}"
+
+
+def _digest_body(name: str, vendor_type: str, agg: dict) -> tuple[str, str]:
+    label = "expert" if vendor_type == "advisor" else "business"
+    sales, fees = _money_str(agg["sales"]), _money_str(agg["fees"])
+    paid, pending = _money_str(agg["paid"]), _money_str(agg["pending"])
+    html = (f"<div style='font-family:system-ui,sans-serif;color:#111'>"
+            f"<h2 style='color:#059669'>Your week on FUUSIC</h2>"
+            f"<p>Hi {name}, here's your {label} earnings summary for the last 7 days.</p>"
+            f"<table cellpadding='8' style='border-collapse:collapse;margin-top:8px'>"
+            f"<tr><td style='color:#666'>Sales</td><td><b>{sales}</b></td></tr>"
+            f"<tr><td style='color:#666'>Platform fees</td><td>{fees}</td></tr>"
+            f"<tr><td style='color:#666'>Paid out</td><td><b style='color:#059669'>{paid}</b></td></tr>"
+            f"<tr><td style='color:#666'>Pending</td><td>{pending}</td></tr>"
+            f"<tr><td style='color:#666'>Transactions</td><td>{agg['count']}</td></tr>"
+            f"</table>"
+            f"<p style='color:#666;font-size:12px;margin-top:20px'>— FUUSIC Payouts</p></div>")
+    text = (f"Your week on FUUSIC ({label})\nSales {sales}\nFees {fees}\n"
+            f"Paid {paid}\nPending {pending}\nTransactions {agg['count']}\n— FUUSIC")
+    return html, text
+
+
+def _send_one_digest(email, name, vendor_type, agg, live) -> dict:
+    if not email:
+        return {"vendor_type": vendor_type, "name": name, "sent": False,
+                "reason": "no_email"}
+    html, text = _digest_body(name, vendor_type, agg)
+    if not live:
+        logger.info("[payout-digest] MOCK (mailgun not live) → %s (%s): %s",
+                    email, vendor_type, agg)
+        return {"vendor_type": vendor_type, "name": name, "email": email,
+                "sent": False, "reason": "provider_not_live", "summary": agg}
+    try:
+        from services.mailgun_client import send_email
+        send_email(to=email, subject="Your weekly FUUSIC earnings",
+                   html=html, text=text, tags=["payout_weekly_digest"])
+        return {"vendor_type": vendor_type, "name": name, "email": email, "sent": True}
+    except Exception as e:
+        logger.warning("[payout-digest] send failed %s: %s", email, e)
+        return {"vendor_type": vendor_type, "name": name, "email": email,
+                "sent": False, "reason": "send_error"}
+
+
+async def send_weekly_earnings_digests(db, *, only_user_id: Optional[str] = None) -> dict:
+    """Email each ACTIVE vendor (advisor/merchant with activity in the last 7
+    days) a sales/fees/paid/pending summary via Mailgun. No-op (logged) when
+    Mailgun isn't live. `only_user_id` narrows to one vendor (for admin/test)."""
+    try:
+        from services.mailgun_client import is_live
+        live = bool(is_live())
+    except Exception:
+        live = False
+    cutoff = _now() - timedelta(days=WEEKLY_WINDOW_DAYS)
+
+    adv: dict = {}
+    async for p in db.dream_payouts.find({"created_at": {"$gte": cutoff}}):
+        aid = p.get("advisor_id")
+        if not aid:
+            continue
+        b = adv.setdefault(aid, {"sales": 0, "fees": 0, "paid": 0,
+                                 "pending": 0, "count": 0})
+        share = int(p.get("advisor_share_cents", 0))
+        b["sales"] += int(p.get("gross_cents", 0))
+        b["fees"] += int(p.get("platform_fee_cents", 0))
+        b["count"] += 1
+        if p.get("status") == "paid":
+            b["paid"] += share
+        else:
+            b["pending"] += share
+
+    mer: dict = {}
+    async for t in db.payment_transactions_v2.find(
+            {"created_at": {"$gte": cutoff}, "status": "succeeded"}):
+        mid = t.get("merchant_id")
+        if not mid:
+            continue
+        amt = int(t.get("amount_cents", 0))
+        fee = int(t.get("application_fee_cents", 0))
+        b = mer.setdefault(mid, {"sales": 0, "fees": 0, "paid": 0,
+                                 "pending": 0, "count": 0})
+        b["sales"] += amt
+        b["fees"] += fee
+        b["paid"] += int(t.get("merchant_net_cents", max(0, amt - fee)))
+        b["count"] += 1
+
+    results: list[dict] = []
+    sent = 0
+    for aid, agg in adv.items():
+        a = await db.advisor_profiles.find_one({"advisor_id": aid})
+        if not a:
+            continue
+        if only_user_id and a.get("user_id") != only_user_id:
+            continue
+        u = await db.users.find_one({"user_id": a.get("user_id")}, {"email": 1})
+        r = _send_one_digest((u or {}).get("email"),
+                             a.get("display_name") or "Advisor", "advisor", agg, live)
+        results.append(r)
+        sent += 1 if r.get("sent") else 0
+    for mid, agg in mer.items():
+        biz = await db.businesses.find_one({"$or": [{"business_id": mid}, {"_id": mid}]})
+        if not biz:
+            continue
+        owner = biz.get("owner_user_id")
+        owners = biz.get("owner_user_ids") or ([owner] if owner else [])
+        if only_user_id and only_user_id not in owners:
+            continue
+        email = biz.get("owner_email") or biz.get("email")
+        if not email:
+            uid0 = owner or (owners[0] if owners else None)
+            if uid0:
+                u = await db.users.find_one({"user_id": uid0}, {"email": 1})
+                email = (u or {}).get("email")
+        r = _send_one_digest(email, biz.get("name") or "Business", "merchant", agg, live)
+        results.append(r)
+        sent += 1 if r.get("sent") else 0
+
+    return {"ok": True, "provider_live": live, "sent": sent,
+            "advisors": len(adv), "merchants": len(mer), "results": results[:50]}
+
+
+@admin_router.post("/payouts/send-weekly-digest")
+async def admin_send_weekly_digest(request: Request, user_id: Optional[str] = None,
+                                   user: dict = Depends(require_admin)):
+    db = request.app.state.db
+    return await send_weekly_earnings_digests(db, only_user_id=user_id)
+
+
 async def ensure_payout_hub_defaults(db) -> None:
     """Seed the gate flag once. Fee defaults are managed by the migration +
     admin screen, so we don't overwrite them here."""
@@ -389,4 +704,4 @@ async def ensure_payout_hub_defaults(db) -> None:
 
 __all__ = ["router", "admin_router", "ensure_payout_hub_defaults",
            "gate_on", "advisor_payout_ready", "merchant_payout_ready",
-           "advisor_pct", "merchant_pct"]
+           "advisor_pct", "merchant_pct", "send_weekly_earnings_digests"]

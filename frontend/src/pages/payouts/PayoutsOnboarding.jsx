@@ -1,13 +1,14 @@
 // Payments, Payouts & Earnings — unified self-serve Stripe Connect for BOTH
 // social professionals (advisors, 15% fee) and business merchants (5% fee).
-// Backed by the Payouts Hub (/api/payouts/*), which reconciles onto the same
-// Standard connected accounts used by dream_payouts + payment_service.
+// Backed by the Payouts Hub (/api/payouts/*). Includes an Earnings Dashboard,
+// a weekly fees-vs-earnings insights chart, dated payout history, and an
+// instant cash-out (with graceful Stripe-dashboard fallback for Standard).
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  Loader2, ShieldCheck, CheckCircle2, AlertTriangle, ArrowRight,
-  Landmark, Store, Sparkles, ArrowLeft,
+  Loader2, ShieldCheck, CheckCircle2, AlertTriangle, ArrowRight, Zap,
+  Landmark, Store, Sparkles, ArrowLeft, Receipt,
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -16,26 +17,42 @@ const TYPE_META = {
   merchant: { label: "Business / Store", Icon: Store, blurb: "Get paid for sales & bookings" },
 };
 const money = (c) => `$${(((c || 0)) / 100).toFixed(2)}`;
+const CASHOUT_MSG = {
+  not_onboarded: "Finish Stripe payout setup first.",
+  no_instant_eligible_external_account: "Add an instant-eligible debit card in your Stripe dashboard to cash out instantly.",
+  insufficient_instant_balance: "No instant-available balance to cash out yet.",
+  payouts_disabled: "Payouts aren't enabled on your Stripe account yet.",
+  standard_platform_payout_not_allowed: "Opening your Stripe dashboard so you can cash out.",
+  precheck_failed: "Couldn't check your balance. Opening Stripe.",
+  payout_error: "Instant payout unavailable. Opening Stripe.",
+};
 
 export default function PayoutsOnboarding() {
   const [sp, setSp] = useSearchParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [history, setHistory] = useState({});
+  const [insights, setInsights] = useState({});
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(sp.get("connect") === "done" ? "checking" : "");
 
   const load = useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API}/payouts/overview`, { withCredentials: true });
-      setData(data);
+      const [ov, hist, ins] = await Promise.all([
+        axios.get(`${API}/payouts/overview`, { withCredentials: true }),
+        axios.get(`${API}/payouts/history`, { withCredentials: true }).catch(() => ({ data: { accounts: [] } })),
+        axios.get(`${API}/payouts/insights?weeks=6`, { withCredentials: true }).catch(() => ({ data: { accounts: [] } })),
+      ]);
+      setData(ov.data);
+      const hMap = {}; (hist.data.accounts || []).forEach((a) => { hMap[a.vendor_type] = a.transactions || []; });
+      const iMap = {}; (ins.data.accounts || []).forEach((a) => { iMap[a.vendor_type] = a.weeks || []; });
+      setHistory(hMap); setInsights(iMap);
     } catch (_) { setData({ eligible: false, accounts: [] }); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // On return from Stripe hosted onboarding, sync each account's live status
-  // (the return URL alone is NOT proof of completion) then reload.
   useEffect(() => {
     if (sp.get("connect")) {
       (async () => {
@@ -93,7 +110,10 @@ export default function PayoutsOnboarding() {
           </div>
         ) : (
           <div className="mt-6 space-y-4">
-            {accounts.map((a) => <PayoutCard key={a.vendor_type} a={a} onChanged={load} />)}
+            {accounts.map((a) => (
+              <PayoutCard key={a.vendor_type} a={a} onChanged={load}
+                hist={history[a.vendor_type] || []} ins={insights[a.vendor_type] || []} />
+            ))}
           </div>
         )}
       </div>
@@ -101,11 +121,12 @@ export default function PayoutsOnboarding() {
   );
 }
 
-function PayoutCard({ a, onChanged }) {
+function PayoutCard({ a, onChanged, hist, ins }) {
   const meta = TYPE_META[a.vendor_type] || TYPE_META.merchant;
   const Icon = meta.Icon;
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cashing, setCashing] = useState(false);
   const active = !!a.ready;
   const pending = !active && !!a.has_account;
   const e = a.earnings || {};
@@ -115,14 +136,28 @@ function PayoutCard({ a, onChanged }) {
     setBusy(true);
     try {
       const { data } = await axios.post(`${API}/payouts/onboard`, {
-        vendor_type: a.vendor_type, agreement_accepted: true,
-        origin_url: window.location.origin,
+        vendor_type: a.vendor_type, agreement_accepted: true, origin_url: window.location.origin,
       }, { withCredentials: true });
       if (data.onboarding_url) window.location.href = data.onboarding_url;
     } catch (e) {
       setBusy(false);
       alert(e?.response?.data?.detail?.code || "Couldn't start payout setup. Please try again.");
     }
+  };
+
+  const cashout = async () => {
+    setCashing(true);
+    try {
+      const { data } = await axios.post(`${API}/payouts/cashout`, { vendor_type: a.vendor_type }, { withCredentials: true });
+      if (data.status === "fallback") {
+        alert(CASHOUT_MSG[data.reason] || "Instant payout unavailable.");
+        if (data.dashboard_url) window.open(data.dashboard_url, "_blank", "noopener");
+      } else {
+        alert(`Instant payout ${data.status} — ${money(data.amount_cents)} on its way.`);
+        onChanged();
+      }
+    } catch (_) { alert("Cash-out failed. Please try again."); }
+    finally { setCashing(false); }
   };
 
   return (
@@ -149,14 +184,30 @@ function PayoutCard({ a, onChanged }) {
 
       {/* Earnings dashboard */}
       <div className="mt-4 rounded-2xl bg-gradient-to-br from-emerald-600/90 to-teal-600/90 p-4" data-testid={`payouts-earnings-${a.vendor_type}`}>
-        <div className="text-[10px] font-black tracking-widest text-white/80">NET EARNINGS</div>
-        <div className="text-3xl font-black tabular-nums" data-testid={`payouts-earnings-paid-${a.vendor_type}`}>{money(e.paid_cents)}</div>
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-[10px] font-black tracking-widest text-white/80">NET EARNINGS</div>
+            <div className="text-3xl font-black tabular-nums" data-testid={`payouts-earnings-paid-${a.vendor_type}`}>{money(e.paid_cents)}</div>
+          </div>
+          {active && (
+            <button onClick={cashout} disabled={cashing} data-testid={`payout-cashout-${a.vendor_type}`}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white text-emerald-700 font-black text-xs px-3 py-2 disabled:opacity-50">
+              {cashing ? <Loader2 className="animate-spin" size={14} /> : <Zap size={14} />} Cash out
+            </button>
+          )}
+        </div>
         <div className="mt-2 grid grid-cols-3 gap-2 text-center">
           <Stat label="Sales" value={money(e.sales_cents)} />
           <Stat label="Fees" value={money(e.fees_cents)} />
           <Stat label="Pending" value={money(e.pending_cents)} />
         </div>
       </div>
+
+      {/* Fee Insights (last 6 weeks) */}
+      <FeeInsights weeks={ins} vendorType={a.vendor_type} />
+
+      {/* Payout History */}
+      <PayoutHistory rows={hist} vendorType={a.vendor_type} />
 
       {active ? (
         <div className="mt-4 flex items-center gap-2 text-sm text-emerald-300" data-testid={`payout-active-${a.vendor_type}`}>
@@ -183,6 +234,77 @@ function PayoutCard({ a, onChanged }) {
       )}
     </div>
   );
+}
+
+function FeeInsights({ weeks, vendorType }) {
+  const data = weeks || [];
+  const max = Math.max(1, ...data.map((w) => Math.max(w.fees_cents || 0, w.net_cents || 0)));
+  const total = data.reduce((s, w) => s + (w.net_cents || 0) + (w.fees_cents || 0), 0);
+  return (
+    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4" data-testid={`payouts-insights-${vendorType}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] font-black uppercase tracking-widest text-white/50">Fees vs earnings · 6 weeks</div>
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Net</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-400" /> Fees</span>
+        </div>
+      </div>
+      {total === 0 ? (
+        <div className="text-xs text-white/40 text-center py-4" data-testid={`payouts-insights-empty-${vendorType}`}>No earnings in the last 6 weeks yet.</div>
+      ) : (
+        <div className="flex items-end justify-between gap-2 h-24">
+          {data.map((w) => (
+            <div key={w.week_start} className="flex-1 flex flex-col items-center gap-1">
+              <div className="flex items-end gap-0.5 h-20 w-full justify-center">
+                <div className="w-1/3 rounded-t bg-emerald-400" style={{ height: `${Math.max(2, ((w.net_cents || 0) / max) * 100)}%` }} title={`Net ${money(w.net_cents)}`} />
+                <div className="w-1/3 rounded-t bg-rose-400" style={{ height: `${Math.max(2, ((w.fees_cents || 0) / max) * 100)}%` }} title={`Fees ${money(w.fees_cents)}`} />
+              </div>
+              <div className="text-[8px] text-white/40">{w.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PayoutHistory({ rows, vendorType }) {
+  const list = rows || [];
+  return (
+    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4" data-testid={`payouts-history-${vendorType}`}>
+      <div className="flex items-center gap-1.5 mb-3">
+        <Receipt size={13} className="text-white/50" />
+        <div className="text-[10px] font-black uppercase tracking-widest text-white/50">Payout history</div>
+      </div>
+      {list.length === 0 ? (
+        <div className="text-xs text-white/40 text-center py-4" data-testid={`payouts-history-empty-${vendorType}`}>No transactions yet.</div>
+      ) : (
+        <div className="max-h-56 overflow-auto -mx-1">
+          {list.slice(0, 20).map((t) => (
+            <div key={t.id} className="flex items-center gap-3 px-1 py-2 border-b border-white/5 last:border-0" data-testid={`payouts-history-row-${vendorType}`}>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold tabular-nums">{money(t.net_cents)} <span className="text-white/40 font-normal">net</span></div>
+                <div className="text-[10px] text-white/40">{t.date ? new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—"} · {money(t.gross_cents)} gross · {money(t.fee_cents)} fee</div>
+              </div>
+              <HistoryStatus status={t.status} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryStatus({ status }) {
+  const map = {
+    paid: "bg-emerald-500/15 text-emerald-300",
+    succeeded: "bg-emerald-500/15 text-emerald-300",
+    pending: "bg-amber-500/15 text-amber-300",
+    held_no_account: "bg-amber-500/15 text-amber-300",
+    failed: "bg-rose-500/15 text-rose-300",
+  };
+  const cls = map[status] || "bg-white/10 text-white/50";
+  return <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase ${cls}`}>{(status || "—").replace(/_/g, " ")}</span>;
 }
 
 function Stat({ label, value }) {
