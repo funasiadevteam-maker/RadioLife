@@ -138,23 +138,59 @@ export default function OnAirOfferCard() {
   const merchant = offer.title || "A local spot";
   const deal = offer.discount_label || offer.offer_type || "offer";
 
+  const openOffer = () => {
+    fireHomeEvent("offer_click",
+      { campaign_id: offer.offer_id, business_id: offer.business_id });
+    setDismissed(true);
+    navigate(offer.business_id ? `/shop/${offer.business_id}` : "/shop");
+  };
+
+  const saveCoupon = async (e) => {
+    e.stopPropagation();
+    fireHomeEvent("offer_save",
+      { campaign_id: offer.offer_id, business_id: offer.business_id });
+    if (!offer.offer_id) { openOffer(); return; }
+    try {
+      await axios.post(`${API}/commerce/offers/${offer.offer_id}/claim`,
+        { claim_source: "rj_action_card", claim_context: { station, surface: "on_air_card" } },
+        { withCredentials: true });
+      toast.success("Coupon saved to your wallet", {
+        description: "Find it under Wallet → Coupons.",
+      });
+    } catch (err) {
+      const code = err?.response?.data?.detail || err?.response?.data;
+      if (err?.response?.status === 401) {
+        toast.error("Sign in to save offers to your wallet.");
+      } else if (typeof code === "string" && code.includes("max_per_user")) {
+        toast.info("You've already saved this offer.");
+      } else {
+        toast.error("Couldn't save that coupon. Try again.");
+      }
+    } finally {
+      setDismissed(true);
+    }
+  };
+
   return (
     <div data-testid="player-contextual-offer"
       className="rl-card px-3.5 py-2.5 flex items-center gap-3 mb-2 max-w-3xl mx-auto pointer-events-auto">
-      <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
-        style={{ background: "color-mix(in srgb, var(--accent-gold) 16%, transparent)", color: "var(--accent-gold)" }}>
-        <MapPin size={10} /> On air
-      </span>
-      <div className="min-w-0 flex-1 text-sm truncate">
-        <span className="text-text-secondary">On </span>
-        <span className="font-bold text-text-primary">{station}</span>
-        <span className="text-text-secondary"> — </span>
-        <span className="font-bold text-text-primary">{merchant}</span>
-        <span className="text-text-secondary"> · {deal} near you</span>
-      </div>
-      <button onClick={() => navigate("/shop")} data-testid="player-offer-claim"
+      <button type="button" onClick={openOffer} data-testid="player-offer-open"
+        className="flex items-center gap-3 min-w-0 flex-1 text-left">
+        <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
+          style={{ background: "color-mix(in srgb, var(--accent-gold) 16%, transparent)", color: "var(--accent-gold)" }}>
+          <MapPin size={10} /> On air
+        </span>
+        <span className="min-w-0 flex-1 text-sm truncate">
+          <span className="text-text-secondary">On </span>
+          <span className="font-bold text-text-primary">{station}</span>
+          <span className="text-text-secondary"> — </span>
+          <span className="font-bold text-text-primary">{merchant}</span>
+          <span className="text-text-secondary"> · {deal} near you</span>
+        </span>
+      </button>
+      <button onClick={saveCoupon} data-testid="player-offer-claim"
         className="shrink-0 inline-flex items-center gap-1.5 bg-accent-gold text-black font-black rounded-full h-8 px-3 text-xs hover:brightness-110 transition">
-        <Coins size={13} /> Claim offer
+        <Coins size={13} /> Save coupon
       </button>
       <button onClick={() => setDismissed(true)} data-testid="player-offer-dismiss" aria-label="Dismiss offer"
         className="shrink-0 w-7 h-7 grid place-items-center rounded-full text-text-secondary hover:text-text-primary">

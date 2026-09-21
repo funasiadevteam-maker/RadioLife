@@ -31,6 +31,8 @@ export default function SocialV2() {
   const [params] = useSearchParams();
   const qTab = params.get("tab");
   const qAction = params.get("action");
+  const qSession = params.get("session");
+  const qRef = params.get("ref");
   const validTab = TABS.some((t) => t.key === qTab) ? qTab : null;
   const [tab, setTab] = useState(qAction ? "together" : (validTab || "together"));
   const [home, setHome] = useState(null);
@@ -59,7 +61,7 @@ export default function SocialV2() {
             </div>
           )}
           {!loading && tab === "together" && (
-            <TogetherTab home={home} reload={loadHome} initialAction={qAction} />
+            <TogetherTab home={home} reload={loadHome} initialAction={qAction} playSession={qSession} playRef={qRef} />
           )}
           {!loading && tab === "friends" && <FriendsTab />}
           {!loading && tab === "live" && <LiveTab />}
@@ -133,7 +135,7 @@ function TabBar({ tab, setTab, counts }) {
 }
 
 // ───────────────────────── Together ────────────────────────────────
-function TogetherTab({ home, reload, initialAction }) {
+function TogetherTab({ home, reload, initialAction, playSession, playRef }) {
   const navigate = useNavigate();
   const importedStation = usePlayerStore((s) => s.importedStation);
   const podcastEpisode = usePlayerStore((s) => s.podcastEpisode);
@@ -279,7 +281,7 @@ function TogetherTab({ home, reload, initialAction }) {
         )}
       </div>
       {goOpen && <GoTogetherModal onClose={() => setGoOpen(false)} />}
-      {playOpen && <PlayTogetherModal onClose={() => setPlayOpen(false)} />}
+      {playOpen && <PlayTogetherModal onClose={() => setPlayOpen(false)} sessionId={playSession} refId={playRef} />}
       {shopOpen && <ShopTogetherModal onClose={() => setShopOpen(false)} />}
     </div>
   );

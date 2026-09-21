@@ -1,0 +1,53 @@
+{
+  "summary": "Iter 170 — Play Together referral + Shop Together crash-fix + On-Air Offer claim regression on shared backend + web + mobile. Backend 8/8 pytest pass (test_iter170_play_together_referral.py): (a) POST /api/social/play/sessions -> ps_* session_id, accepts invitees[]; GET /api/social/play/sessions items all carry `invited`, `joined`, `is_host` booleans. (b) Referral: freeuser joins demo's session with {ref:demo_uid} -> reward={points:500, joiner_points:500, referrer_id:<demo>, referrer_points:500}. 2nd join by same user -> reward:null (idempotent). Self-referral (ref==joiner) -> reward:null. No-ref+not-in-invitees -> reward:null. (c) Coupon claim: POST /api/commerce/offers/ofr_qa_onetime_demo/claim {claim_source:'rj_action_card'} -> 200 with coupon_id (or 409 max_per_user_reached on retest — both acceptable). off_fpk_40 -> 409 out_of_inventory as designed. WEB: Shop Together crash FIX VERIFIED — created 'TEST cart iter170', cart-detail renders with cart-mine-paid ('Your share is paid' green Check icon), NO error boundary. Play Together modal opened after fixing the referenced-but-undefined props issue below; friend chip (Free Tester) renders; play-create succeeds ('Session started — now invite your friends! 🎮' toast); invite row exposes play-invite-contacts-<sid> / play-share-facebook-<sid> / play-share-instagram-<sid> / play-share-whatsapp-<sid> / play-copy-link-<sid>. Referral deep-link /social?action=play&session=<demo_sid>&ref=<demo_uid> AS freeuser auto-opened Play modal, joined the session (Joined badge on that row + full invite row now exposed), and freeuser's points pill jumped from 502 to 1,002 confirming +500 award. play-join-* visible on non-joined sessions; play-invited-badge-* did not appear because seeded sessions had no explicit invitees for freeuser (only friend of demo — verified via API). MOBILE (Expo web preview at expo. slug): tab-social -> social-do-play opens play-together-sheet; 1 friend chip; play-create succeeded and 11 invite rows rendered, each with play-invite-contacts-<sid>, play-share-social-<sid>, play-copy-link-<sid> (all present). Tapping play-share-social-* and play-invite-contacts-* did NOT crash the app (fall back to web share sheet / native share as expected — native Contacts/SMS is documented as native-build-only).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {
+          "component": "SocialV2 TogetherTab",
+          "issue": "FIXED. TogetherTab destructured only {home, reload, initialAction} but its JSX referenced playSession/playRef (line 284) which are passed by the parent SocialPage (line 64). Clicking 'Play Together' (social-do-play) triggered `ReferenceError: playSession is not defined`, taking the entire Together tab to the global 'Something went wrong' error boundary. Fixed by adding playSession/playRef to the destructure at /app/frontend/src/pages/social/SocialV2.jsx:138. After fix: modal opens, session creation succeeds, referral deep-link works, +500 points confirmed on joiner (points pill 502 -> 1,002).",
+          "selector": "[data-testid='social-do-play'] -> [data-testid='play-together-modal']",
+          "priority": "HIGH"
+        }
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter170_play_together_referral.py",
+    "/app/test_reports/pytest/iter170.xml"
+  ],
+  "action_items": [
+    "None blocking. Optional: seed an explicit invitee for freeuser on a demo-hosted session to visibly demonstrate play-invited-badge-<sid> on both web + mobile — the render path is present (checked at SocialTogether.jsx:599 and mobile/src/social/together.tsx:444) but no seeded session invites freeuser today, so the badge did not visually appear during this run (API `invited` boolean flag itself is asserted per-item in the backend test).",
+    "Optional: verify player-contextual-offer / player-offer-open / player-offer-claim on-air banner in a session with a nearby offer (could not be triggered deterministically in the preview — station audio playback + geo offer bind was not reproducible from headless Playwright). Backend claim endpoint is already covered end-to-end by pytest."
+  ],
+  "critical_code_review_comments": [
+    "P0 crash root cause was a simple destructure omission introduced when playSession/playRef were plumbed through from SocialPage to TogetherTab. React should have flagged the undefined identifier at build time only if ESLint no-undef was strict — DISABLE_ESLINT_PLUGIN=true in /app/frontend/.env suppresses this class of error. Consider re-enabling ESLint (or at least a CI lint gate) so future missing-prop references fail loud instead of only at runtime inside an error boundary.",
+    "PlayTogetherModal (SocialTogether.jsx:506+) correctly wires sessionId/refId props for the referral deep-link — auto-open + auto-join flow verified end-to-end.",
+    "Shop Together <Check> import (SocialTogether.jsx:10) is now present and correctly used on both cart-mine-paid (line 744) and per-item PAID chip (line 706). Crash regressed cleanly.",
+    "Backend referral logic (routes/social_together.py:503-539): host-fallback referrer only fires when joiner is in the explicit invitees list — matches spec. play_referrals collection acts as the idempotency key (dup insert raises Exception -> reward:null on rejoin). PointsService.award is also keyed by (source, source_id, idempotency_key) so points cannot double-award even if the referral doc is re-inserted."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/social/SocialV2.jsx",
+    "/app/backend/tests/test_iter170_play_together_referral.py",
+    "/app/test_reports/iteration_170.json",
+    "/app/test_reports/pytest/iter170.xml"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (host) + freeuser@bigfm.dubai / FreePass123! (joiner). Referral deep-link tested with sid=ps_900b4c6189c7476d ref=user_eeb941588d134d0d as freeuser -> +500 pts.",
+  "seed_data_creation": "Test sessions created during runs: ps_900b4c6189c7476d ('TEST_iter170 referral'), ps_* labelled 'TEST_iter170 web session', 'TEST_iter170 host session', 'TEST_iter170 no-ref session', 'TEST_iter170 self-ref session' plus 1 mobile-hosted session. Non-destructive; sessions remain 'active' (no cleanup script in current backend).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 170 confirmed the two P0 fixes (Shop Together <Check> import + Play Together friend picker/share/referral) both surfaces + backend. Fixed one blocking web-only regression: TogetherTab was missing `playSession`/`playRef` in its destructure (SocialV2.jsx:138) which caused a runtime ReferenceError as soon as any user opened Play Together — the error boundary swallowed the entire Together tab. Backend regression pytest is at /app/backend/tests/test_iter170_play_together_referral.py (8/8 pass). On-Air Offer banner UI (player-contextual-offer) was NOT reproduced live in the preview because triggering it requires a station-playing player + resolved nearby offer under Playwright — backend /api/commerce/offers/{id}/claim endpoint is covered by pytest, and OnAirOfferCard.jsx code correctly wires player-offer-open (navigate /shop/<biz>), player-offer-claim (POST claim), player-offer-dismiss (all set dismissed=true auto-hiding the banner).",
+  "rca of the issue": "P0 web regression `ReferenceError: playSession is not defined` at TogetherTab. Reproduction: log in as any authenticated user on web -> /social -> click 'Play Together' pillar (social-do-play). Immediately, React throws inside the ternary render of `playOpen && <PlayTogetherModal sessionId={playSession} refId={playRef} />` because `playSession` and `playRef` are unresolved identifiers in TogetherTab's scope (SocialV2.jsx:138 destructure omitted them, but the parent at line 64 does pass qSession/qRef via props named playSession/playRef). React error boundary catches -> the whole Together tab replaced with 'Something went wrong'. Mitigation applied: added `playSession, playRef` to the destructure at /app/frontend/src/pages/social/SocialV2.jsx:138. After hot-reload, Play Together modal opens, friend chips render, play-create succeeds, share buttons all render, and the referral deep-link auto-join grants +500 pts to the joiner (verified visually via points pill jump 502 -> 1,002 as freeuser)."
+}

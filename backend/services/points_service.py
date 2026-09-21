@@ -67,6 +67,12 @@ DEFAULT_RULES: list[dict] = [
     {"rule_id": "referral_signup",      "label": "Referral signup",
      "base_points": 100, "daily_cap_per_user": None,
      "weekly_cap_per_user": None, "monthly_cap_per_user": None},
+    # Play Together viral referral — reward on invited-friend join (both
+    # the joiner and the referrer). Daily cap = 5 rewarded referrals/day
+    # per user (5 × 500) to keep the $5-$10-value reward from being farmed.
+    {"rule_id": "game_referral",        "label": "Play Together referral",
+     "base_points": 500, "daily_cap_per_user": 2500,
+     "weekly_cap_per_user": None, "monthly_cap_per_user": None},
     {"rule_id": "voucher_bonus",        "label": "Voucher bonus",
      "base_points": 25,  "daily_cap_per_user": 100,
      "weekly_cap_per_user": None, "monthly_cap_per_user": None},

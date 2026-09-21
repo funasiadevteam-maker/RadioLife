@@ -18,7 +18,8 @@
           "audio"
         ],
         "NSCameraUsageDescription": "Scan customer QR codes to take payment.",
-        "NSLocationWhenInUseUsageDescription": "Show shops and services near you."
+        "NSLocationWhenInUseUsageDescription": "Show shops and services near you.",
+        "NSContactsUsageDescription": "Invite your friends to play together."
       }
     },
     "android": {
@@ -33,7 +34,8 @@
         "WAKE_LOCK",
         "CAMERA",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "READ_CONTACTS"
       ],
       "package": "com.bigfm.app",
       "versionCode": 104,

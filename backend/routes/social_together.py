@@ -20,18 +20,20 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import (APIRouter, Depends, File, Form, HTTPException, Request,
-                     Response, UploadFile)
+from fastapi import (APIRouter, Body, Depends, File, Form, HTTPException,
+                     Request, Response, UploadFile)
 from pydantic import BaseModel, Field
 
 from auth import current_user
 from routes.social_v2 import _friend_ids, _user_public, _users_map
 from services.object_storage import get_storage
+from services.points_service import PointsService
 
 router = APIRouter(prefix="/api/social", tags=["social_together"])
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB cap (photos + short clips/voice)
 MOMENT_TTL_DAYS = 7                  # moments fade from the feed after a week
+REFERRAL_POINTS = 500               # awarded to BOTH joiner + referrer
 
 MIME_EXT = {
     "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
@@ -97,6 +99,9 @@ async def ensure_social_together(db) -> None:
     await db.social_media_files.create_index("storage_key", name="smf_key")
     await db.play_sessions.create_index([("status", 1), ("created_at", -1)],
                                         name="ps_status_time")
+    # One referral reward per (session, joiner) — prevents re-join farming.
+    await db.play_referrals.create_index(
+        [("session_id", 1), ("joiner_id", 1)], unique=True, name="pref_uniq")
 
 
 # ═══════════════════════════ Media upload ══════════════════════════
@@ -438,6 +443,7 @@ def _play_public(p: dict, viewer: str, host: Optional[dict],
             "host": host, "is_host": p.get("host_id") == viewer,
             "status": p.get("status"), "players": players,
             "player_count": len(parts), "joined": viewer in parts,
+            "invited": viewer in (p.get("invitees") or []),
             "created_at": _iso(p.get("created_at"))}
 
 
@@ -490,17 +496,69 @@ async def list_play_sessions(request: Request, user: dict = Depends(current_user
     return {"items": out}
 
 
+class JoinBody(BaseModel):
+    ref: Optional[str] = None       # referrer user_id from a shared invite link
+
+
+async def _award_play_referral(db, sid: str, joiner: str, ref: Optional[str],
+                               host_id: Optional[str],
+                               invitees: list[str]) -> Optional[dict]:
+    """Reward a viral Play Together join. Both the joining friend AND the
+    referrer earn REFERRAL_POINTS. Rewarded once per (session, joiner);
+    self-referral is ignored; the points engine's daily cap prevents
+    farming. Falls back to the host as referrer when the joiner was in the
+    session's explicit invitee list but no ?ref was supplied."""
+    referrer: Optional[str] = None
+    if ref and ref != joiner:
+        if await db.users.find_one({"user_id": ref}, {"_id": 1}):
+            referrer = ref
+    if not referrer and joiner in (invitees or []) and host_id and host_id != joiner:
+        referrer = host_id
+    if not referrer:
+        return None
+    try:
+        await db.play_referrals.insert_one(
+            {"_id": f"pref_{uuid.uuid4().hex[:16]}", "session_id": sid,
+             "joiner_id": joiner, "referrer_id": referrer, "created_at": _now()})
+    except Exception:
+        return None  # duplicate (already rewarded for this session+joiner)
+    svc = PointsService(db)
+    jr = await svc.award(
+        user_id=joiner, source="game_referral", source_id=sid,
+        idempotency_key=f"game_referral:join:{sid}:{joiner}",
+        metadata={"role": "joiner", "session_id": sid, "referrer_id": referrer})
+    rr = await svc.award(
+        user_id=referrer, source="game_referral", source_id=sid,
+        idempotency_key=f"game_referral:invite:{sid}:{joiner}",
+        metadata={"role": "referrer", "session_id": sid, "joiner_id": joiner})
+    return {
+        "points": REFERRAL_POINTS,
+        "joiner_points": jr.delta if jr.ok else 0,
+        "referrer_id": referrer,
+        "referrer_points": rr.delta if rr.ok else 0,
+    }
+
+
 @router.post("/play/sessions/{sid}/join")
 async def join_play_session(sid: str, request: Request,
+                            body: Optional[JoinBody] = Body(default=None),
                             user: dict = Depends(current_user)):
     db = request.app.state.db
+    uid = user["user_id"]
     p = await db.play_sessions.find_one({"_id": sid})
     if not p or p.get("status") != "active":
         raise HTTPException(404, {"code": "session_not_found"})
+    already = uid in (p.get("participants") or [])
     await db.play_sessions.update_one(
-        {"_id": sid}, {"$addToSet": {"participants": user["user_id"]}})
+        {"_id": sid}, {"$addToSet": {"participants": uid}})
+    reward = None
+    if not already:
+        reward = await _award_play_referral(
+            db, sid, joiner=uid, ref=(body.ref if body else None),
+            host_id=p.get("host_id"), invitees=p.get("invitees") or [])
     p = await db.play_sessions.find_one({"_id": sid})
-    return {"joined": True, "player_count": len(p.get("participants") or [])}
+    return {"joined": True, "player_count": len(p.get("participants") or []),
+            "reward": reward}
 
 
 @router.post("/play/sessions/{sid}/leave")

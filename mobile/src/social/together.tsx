@@ -1,14 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
-  ActivityIndicator, Modal, Linking, RefreshControl,
+  ActivityIndicator, Modal, Linking, RefreshControl, Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as Contacts from 'expo-contacts';
+import * as SMS from 'expo-sms';
+import * as Clipboard from 'expo-clipboard';
 import { TUBE, TSPACE, TRADIUS, TFONT } from '../constants/tube';
-import api from '../api/client';
+import api, { BACKEND } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
+import MiniToast from '../components/MiniToast';
+
+const REFERRAL_POINTS = 500;
 
 const CTX_KINDS = [
   { key: 'listening', label: 'Listening', icon: 'musical-notes' },
@@ -367,18 +374,40 @@ function OutingRow({ o }: any) {
 }
 
 export function PlayTogetherSheet({ visible, onClose }: any) {
+  const { user } = useAuth();
   const [games, setGames] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [friends, setFriends] = useState<any[]>([]);
   const [game, setGame] = useState('trivia');
   const [title, setTitle] = useState('');
+  const [invitees, setInvitees] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const load = useCallback(async () => {
     try { const { data } = await api.get('/social/play/games'); setGames(data.games || []); } catch (_) {}
     try { const { data } = await api.get('/social/play/sessions'); setSessions(data.items || []); } catch (_) {}
+    try { const { data } = await api.get('/social/friends'); setFriends(data.friends || []); } catch (_) {}
   }, []);
   useEffect(() => { if (visible) load(); }, [visible, load]);
-  const create = async () => { setSaving(true); try { await api.post('/social/play/sessions', { game_key: game, title }); setTitle(''); load(); } catch (_) {} finally { setSaving(false); } };
-  const join = async (sid: string) => { try { await api.post(`/social/play/sessions/${sid}/join`); load(); } catch (_) {} };
+  const create = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.post('/social/play/sessions', { game_key: game, title, invitees });
+      setCreatedId(data?.session_id || null);
+      setToast(invitees.length ? 'Session started — friends invited! 🎮' : 'Session started — invite friends! 🎮');
+      setTitle(''); setInvitees([]); load();
+    } catch (_) { setToast('Couldn’t start the session.'); } finally { setSaving(false); }
+  };
+  const join = async (sid: string) => {
+    try {
+      const { data } = await api.post(`/social/play/sessions/${sid}/join`, {});
+      const earned = data?.reward?.joiner_points || 0;
+      setToast(earned > 0 ? `Joined! +${earned} points 🎉` : 'Joined!');
+      load();
+    } catch (_) { setToast('Couldn’t join that session.'); }
+  };
+  const gameLabel = games.find((g) => g.key === game)?.label;
   return (
     <Sheet visible={visible} onClose={onClose} title="Play Together" testID="play-together-sheet">
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -389,18 +418,94 @@ export function PlayTogetherSheet({ visible, onClose }: any) {
         ))}
       </View>
       <TextInput value={title} onChangeText={setTitle} placeholder="Session title (optional)" placeholderTextColor={TUBE.textMuted} style={[st.sheetInput, { marginTop: 10 }]} testID="play-title" />
+      {friends.length > 0 && (
+        <View style={{ marginTop: 8 }}>
+          <Text style={st.sheetLbl}>Invite friends</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {friends.map((f) => { const on = invitees.includes(f.user_id);
+              return <Pressable key={f.user_id} testID={`play-invite-${f.user_id}`} onPress={() => setInvitees((s) => on ? s.filter((x) => x !== f.user_id) : [...s, f.user_id])}>
+                {on ? <LinearGradient colors={['#a855f7', '#ec4899']} style={st.ctxChipA}><Text style={st.ctxTxtA}>{f.name}</Text></LinearGradient> : <View style={st.ctxChip}><Text style={st.ctxTxt}>{f.name}</Text></View>}
+              </Pressable>;
+            })}
+          </View>
+        </View>
+      )}
       <Pressable onPress={create} disabled={saving} testID="play-create" style={{ marginTop: 10 }}>
         <LinearGradient colors={['#a855f7', '#ec4899']} style={st.sheetBtn}>{saving ? <ActivityIndicator color="#fff" /> : <><Ionicons name="game-controller" size={16} color="#fff" /><Text style={st.sheetBtnTxt}>Start session</Text></>}</LinearGradient>
       </Pressable>
+      {createdId ? <PlayInviteRow sid={createdId} gameLabel={gameLabel} userId={user?.user_id} setToast={setToast} /> : null}
       {sessions.map((p) => (
-        <View key={p.session_id} style={[st.pulseRow, { marginTop: 10 }]} testID={`play-session-${p.session_id}`}>
-          <View style={[st.pulseIcon, { backgroundColor: 'rgba(236,72,153,0.15)' }]}><Ionicons name="game-controller" size={18} color={TUBE.pink} /></View>
-          <View style={{ flex: 1 }}><Text style={st.pulseTitle} numberOfLines={1}>{p.title}</Text><Text style={st.pulseMeta}>{p.game_label} · {p.player_count} playing</Text></View>
-          {p.joined ? <Text style={{ color: '#86efac', fontSize: TFONT.xs, fontWeight: '800' }}>Joined</Text>
-            : <Pressable onPress={() => join(p.session_id)} testID={`play-join-${p.session_id}`}><LinearGradient colors={['#a855f7', '#ec4899']} style={st.joinBtn}><Text style={st.joinTxt}>Join</Text></LinearGradient></Pressable>}
+        <View key={p.session_id} style={[st.card, { marginTop: 10 }]} testID={`play-session-${p.session_id}`}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={[st.pulseIcon, { backgroundColor: 'rgba(236,72,153,0.15)' }]}><Ionicons name="game-controller" size={18} color={TUBE.pink} /></View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={st.pulseTitle} numberOfLines={1}>{p.title}</Text>
+                {p.invited && !p.joined ? <View style={st.invitedBadge} testID={`play-invited-badge-${p.session_id}`}><Text style={st.invitedTxt}>INVITED</Text></View> : null}
+              </View>
+              <Text style={st.pulseMeta}>{p.game_label} · {p.player_count} playing{p.is_host ? ' · you host' : ''}</Text>
+            </View>
+            {p.joined ? <Text style={{ color: '#86efac', fontSize: TFONT.xs, fontWeight: '800' }}>Joined</Text>
+              : <Pressable onPress={() => join(p.session_id)} testID={`play-join-${p.session_id}`}><LinearGradient colors={['#a855f7', '#ec4899']} style={st.joinBtn}><Text style={st.joinTxt}>Join</Text></LinearGradient></Pressable>}
+          </View>
+          {(p.is_host || p.joined) ? <PlayInviteRow sid={p.session_id} gameLabel={p.game_label} userId={user?.user_id} setToast={setToast} /> : null}
         </View>
       ))}
+      <MiniToast message={toast} onDone={() => setToast(null)} />
     </Sheet>
+  );
+}
+
+// Viral share + contact-invite row for a Play Together session.
+function PlayInviteRow({ sid, gameLabel, userId, setToast }: any) {
+  const link = `${BACKEND}/social?action=play&session=${sid}${userId ? `&ref=${userId}` : ''}`;
+  const shareText =
+    `🎮 Come play ${gameLabel || 'a game'} with me on FUUSIC! ` +
+    `You get ${REFERRAL_POINTS} points (worth $5–$10) just for joining.`;
+
+  // Native share sheet → Facebook / Instagram / WhatsApp / Messages, etc.
+  const shareNative = async () => {
+    try { await Share.share({ message: `${shareText} ${link}`, url: link }); } catch (_) {}
+  };
+  const copyLink = async () => {
+    try { await Clipboard.setStringAsync(link); setToast?.('Invite link copied'); } catch (_) {}
+  };
+  // Contextual contacts → SMS invite. Follows the permission contract:
+  // check → request once → never dead-end (falls back to the share sheet).
+  const inviteContacts = async () => {
+    try {
+      let perm = await Contacts.getPermissionsAsync();
+      if (perm.status !== 'granted' && perm.canAskAgain) {
+        perm = await Contacts.requestPermissionsAsync();
+      }
+      if (perm.status !== 'granted') { shareNative(); return; }
+      if (typeof (Contacts as any).presentContactPickerAsync !== 'function') { shareNative(); return; }
+      const contact = await (Contacts as any).presentContactPickerAsync();
+      const phone = contact?.phoneNumbers?.[0]?.number;
+      const smsOk = await SMS.isAvailableAsync();
+      if (phone && smsOk) { await SMS.sendSMSAsync([phone], `${shareText} ${link}`); }
+      else { shareNative(); }
+    } catch (_) { shareNative(); }
+  };
+
+  return (
+    <View style={st.inviteBox} testID={`play-invite-${sid}`}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Ionicons name="trophy" size={13} color="#fbbf24" />
+        <Text style={st.inviteHead}>Friends earn {REFERRAL_POINTS} pts — you earn {REFERRAL_POINTS} too</Text>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+        <Pressable onPress={inviteContacts} testID={`play-invite-contacts-${sid}`}>
+          <LinearGradient colors={['#a855f7', '#ec4899']} style={st.inviteBtn}><Ionicons name="phone-portrait" size={13} color="#fff" /><Text style={st.inviteBtnTxt}>Contacts</Text></LinearGradient>
+        </Pressable>
+        <Pressable onPress={shareNative} testID={`play-share-social-${sid}`} style={[st.inviteBtn, { backgroundColor: '#1877f2' }]}>
+          <Ionicons name="share-social" size={13} color="#fff" /><Text style={st.inviteBtnTxt}>Share</Text>
+        </Pressable>
+        <Pressable onPress={copyLink} testID={`play-copy-link-${sid}`} style={[st.inviteBtn, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
+          <Ionicons name="copy" size={13} color={TUBE.text} /><Text style={[st.inviteBtnTxt, { color: TUBE.text }]}>Copy link</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -602,4 +707,10 @@ const st = StyleSheet.create({
   paidBtn: { backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' },
   payAll: { height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
   payAllTxt: { color: TUBE.textMuted, fontSize: TFONT.sm, fontWeight: '700' },
+  invitedBadge: { paddingHorizontal: 7, height: 18, borderRadius: 9, backgroundColor: 'rgba(251,191,36,0.2)', alignItems: 'center', justifyContent: 'center' },
+  invitedTxt: { color: '#fbbf24', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  inviteBox: { marginTop: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: TUBE.line, borderRadius: 14, padding: 12 },
+  inviteHead: { color: '#e9d5ff', fontSize: TFONT.xs, fontWeight: '900', flexShrink: 1 },
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 18 },
+  inviteBtnTxt: { color: '#fff', fontSize: TFONT.xs, fontWeight: '900' },
 });
