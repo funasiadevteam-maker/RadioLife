@@ -75,8 +75,8 @@ export default function AppShellV2({ children }) {
   const bare = BARE_ROUTES.some((r) => r.test(pathname))
     || isMarketingPath(pathname)
     || (pathname === "/" && !user)
-    || launchBlocked
-    || pathname.startsWith("/admin");
+    || launchBlocked;
+  const isAdmin = pathname.startsWith("/admin");
 
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const bootstrapGeo = useGeoStore((s) => s.bootstrap);
@@ -84,6 +84,15 @@ export default function AppShellV2({ children }) {
   useEffect(() => { hydrateTheme(); }, [hydrateTheme]);
   useEffect(() => { if (!geoReady) bootstrapGeo(); }, [geoReady, bootstrapGeo]);
 
+  // Admin routes render their own content but must clear the fixed
+  // AdminSidebar (220px). Offset only on lg+ where the rail is visible.
+  if (isAdmin) {
+    return (
+      <div className="lg:pl-[220px]" data-testid="admin-shell-offset">
+        {children}
+      </div>
+    );
+  }
   if (bare) return <>{children}</>;
 
   // Desktop-only bottom clearance adapts to the player dock position so the
