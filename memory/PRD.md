@@ -1371,3 +1371,14 @@ Consumer master brand is now **FUUSIC** — "Everything You Love, Together." / "
 **Deferred (Phase 3, needs external setup):** fuusic.com domain + OAuth origins + real mailboxes (currently radiolife.app is the live working domain for links/emails), app-store resubmission.
 
 **Backlog queued next (user-requested):** Cart Payment Split (per-member shares), Clip Sharing (public shareable clip cards + links).
+
+---
+
+## 2026-06 (fork) — WAVE 1 + WAVE 2 SHIPPED (see CHANGELOG.md for detail)
+- **Wave 1 (mobile, iter175 PASS):** Mobile Scratch Card wired into Games grid; mobile Dream AI personalized matched-advisor nudge (parity with web).
+- **Wave 2 (web+mobile+backend, iter176 PASS 19/19):** Switch City (web `CityChip` in V2 header + mobile Profile picker → `PATCH /api/users/me/market`); Sponsor Game Builder — merchant portal `/merchant/sponsor-games` + backend `/api/games/sponsor/{merchant_id}/*` writing branded Wheel/Scratch (`branded_games`) with logo upload + points/coupon prize pool. Created wheels appear in `/api/games/wheel/list` and are playable via `?game_id=`.
+
+### Remaining backlog (P2)
+- Push Notifications (FCM / Firebase `google-services.json`; needs a native build via Publish).
+- Refactor `backend/server.py` (~7.9k lines) into domain routers/services.
+- Surface merchant-sponsored instant games in the consumer Games hub (discovery) — currently playable via direct `game_id` link + wheel list only.

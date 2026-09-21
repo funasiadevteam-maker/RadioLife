@@ -50,6 +50,8 @@ GAMES = [
     {"key": "quiz", "label": "Bollywood Quiz", "icon": "film"},
     {"key": "wheel", "label": "Wheel of Fortune", "icon": "sync",
      "instant": True, "route": "/games/wheel"},
+    {"key": "scratch", "label": "Scratch Card", "icon": "ticket",
+     "instant": True, "route": "/games/scratch"},
 ]
 GAME_LABELS = {g["key"]: g["label"] for g in GAMES}
 

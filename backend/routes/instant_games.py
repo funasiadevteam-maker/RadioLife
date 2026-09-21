@@ -7,15 +7,20 @@ coupon prize; a looping BGM track is streamed from object storage.
 """
 from __future__ import annotations
 
+import mimetypes
+import os
 import random
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
+from fastapi import (APIRouter, Body, Depends, File, HTTPException, Request,
+                     Response, UploadFile)
 from pydantic import BaseModel, Field
 
 from auth import current_user, require_admin
+from services.merchant_rbac_service import resolve_merchant_with_role
 from services.object_storage import get_storage
 from services.points_service import PointsService
 
@@ -72,6 +77,23 @@ async def seed_instant_games(db) -> None:
             "sponsor_name": "Karak House", "logo_url": None, "bgm_key": BGM_KEY,
             "segments": segs, "daily_spins": DEFAULT_DAILY_SPINS,
             "active": True, "created_at": _now()})
+    # Scratch cards reuse the same prize pool + sponsor model.
+    if not await db.branded_games.find_one({"_id": "scratch_house"}):
+        await db.branded_games.insert_one({
+            "_id": "scratch_house", "game_type": "scratch",
+            "sponsor_name": "FUUSIC", "logo_url": None, "bgm_key": BGM_KEY,
+            "segments": _HOUSE_SEGMENTS, "daily_spins": DEFAULT_DAILY_SPINS,
+            "active": True, "created_at": _now()})
+    if not await db.branded_games.find_one({"_id": "scratch_demo_sponsor"}):
+        segs2 = [dict(s) for s in _HOUSE_SEGMENTS]
+        segs2[6] = {"label": "FREE KARAK", "kind": "coupon",
+                    "coupon_offer_id": "ofr_qa_onetime_demo",
+                    "weight": 5, "color": "#ef4444"}
+        await db.branded_games.insert_one({
+            "_id": "scratch_demo_sponsor", "game_type": "scratch",
+            "sponsor_name": "Karak House", "logo_url": None, "bgm_key": BGM_KEY,
+            "segments": segs2, "daily_spins": DEFAULT_DAILY_SPINS,
+            "active": True, "created_at": _now()})
 
 
 def _public_segments(game: dict) -> list[dict]:
@@ -89,10 +111,22 @@ def _bgm_url(request: Request, game: dict) -> Optional[str]:
     return f"{_base_url(request)}/api/games/bgm/wheel" if game.get("bgm_key") else None
 
 
+def _abs_url(request: Request, u: Optional[str]) -> Optional[str]:
+    """Sponsor logos may be stored as a relative `/api/static/…` path; make
+    them absolute so both the web <img> and mobile expo-image can load them."""
+    if not u:
+        return u
+    if u.startswith("http"):
+        return u
+    if u.startswith("/"):
+        return f"{_base_url(request)}{u}"
+    return u
+
+
 def _config_payload(request: Request, game: dict, spins_left: int) -> dict:
     return {"game_id": game["_id"], "game_type": game.get("game_type", "wheel"),
             "sponsor_name": game.get("sponsor_name"),
-            "logo_url": game.get("logo_url"),
+            "logo_url": _abs_url(request, game.get("logo_url")),
             "bgm_url": _bgm_url(request, game),
             "daily_spins": int(game.get("daily_spins") or DEFAULT_DAILY_SPINS),
             "spins_left": spins_left, "segments": _public_segments(game)}
@@ -195,9 +229,62 @@ async def wheel_spin(request: Request, body: SpinBody = Body(default=SpinBody())
             "balance": bal}
 
 
+class ScratchBody(BaseModel):
+    game_id: Optional[str] = None
+
+
+def _scratch_tiles(segments: list[dict], idx: int) -> tuple[list[str], bool]:
+    """Match-3 presentation: a win shows three identical tiles; a loss shows
+    a mix that never accidentally matches all three."""
+    seg = segments[idx]
+    labels = [s["label"] for s in segments]
+    win = seg.get("kind") in ("points", "coupon")
+    if win:
+        return [seg["label"], seg["label"], seg["label"]], True
+    others = [l for l in labels if l != seg["label"]] or [seg["label"]]
+    a = seg["label"]
+    b = random.choice(others)
+    c_pool = [l for l in labels if l not in (a, b)] or others
+    c = random.choice(c_pool)
+    tiles = [a, b, c]
+    random.shuffle(tiles)
+    if tiles.count(tiles[0]) == 3:
+        tiles[0] = others[0]
+    return tiles, False
+
+
+@router.post("/scratch/play")
+async def scratch_play(request: Request,
+                       body: ScratchBody = Body(default=ScratchBody()),
+                       user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user["user_id"]
+    game = await _load_game(db, body.game_id or "scratch_house")
+    if await _spins_left(db, uid, game) <= 0:
+        raise HTTPException(429, {"code": "no_spins_left",
+                                  "message": "You’re out of cards for today."})
+    segments = game.get("segments") or []
+    weights = [max(0, int(s.get("weight") or 0)) for s in segments]
+    if not segments or sum(weights) <= 0:
+        raise HTTPException(503, {"code": "scratch_misconfigured"})
+    idx = random.choices(range(len(segments)), weights=weights, k=1)[0]
+    seg = segments[idx]
+    play_id = uuid.uuid4().hex[:16]
+    prize = await _award_segment(db, uid, game, seg, play_id)
+    tiles, win = _scratch_tiles(segments, idx)
+    await db.wheel_spins.insert_one(
+        {"_id": f"sc_{play_id}", "user_id": uid, "game_id": game["_id"],
+         "day": _today(), "segment_index": idx, "prize": prize,
+         "tiles": tiles, "created_at": _now()})
+    left = await _spins_left(db, uid, game)
+    bal = await PointsService(db).get_balance(uid)
+    return {"tiles": tiles, "win": win, "prize": prize,
+            "spins_left": left, "balance": bal}
+
+
 @router.get("/bgm/wheel")
 async def wheel_bgm(request: Request):
-    """Public streaming loop for the wheel BGM (no auth so <audio> can load)."""
+    """Public streaming loop for the game BGM (no auth so <audio> can load)."""
     st = get_storage()
     head = st.head(key=BGM_KEY)
     if not head:
@@ -258,6 +345,172 @@ async def admin_list_branded_games(request: Request,
                     "daily_spins": g.get("daily_spins"),
                     "segments": g.get("segments")})
     return {"items": out}
+
+
+# ─────────────────── Merchant Sponsor Game Builder ─────────────────
+# Self-serve screen for stores to configure a branded Wheel/Scratch game
+# (logo + coupon prize pool). Ownership via the shared merchant RBAC helper.
+ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+LOGO_MAX_BYTES = 3 * 1024 * 1024
+
+
+def _biz_id(biz: dict) -> str:
+    return biz.get("business_id") or str(biz.get("_id"))
+
+
+async def _merchant_offers(db, business_id: str) -> list[dict]:
+    out: list[dict] = []
+    async for o in db.offers.find({"business_id": business_id}).sort("created_at", -1):
+        out.append({"offer_id": o.get("offer_id"), "title": o.get("title"),
+                    "status": o.get("status"), "image_url": o.get("image_url")})
+    return out
+
+
+def _sponsor_game_view(g: dict) -> dict:
+    return {"game_id": g["_id"], "game_type": g.get("game_type"),
+            "sponsor_name": g.get("sponsor_name"), "logo_url": g.get("logo_url"),
+            "active": g.get("active"), "daily_spins": g.get("daily_spins"),
+            "segments": g.get("segments")}
+
+
+class SponsorSegmentIn(BaseModel):
+    label: str = Field(..., max_length=40)
+    kind: str = "points"                    # points | coupon | none
+    value: int = 0
+    weight: int = 1
+    color: str = "#a855f7"
+    coupon_offer_id: Optional[str] = None
+
+
+class SponsorGameIn(BaseModel):
+    game_id: Optional[str] = None
+    game_type: str = "wheel"                # wheel | scratch
+    sponsor_name: Optional[str] = None
+    logo_url: Optional[str] = None
+    daily_spins: int = DEFAULT_DAILY_SPINS
+    segments: list[SponsorSegmentIn] = Field(default_factory=list)
+    active: bool = True
+
+
+@router.get("/sponsor/{merchant_id}/builder")
+async def sponsor_builder_data(merchant_id: str, request: Request,
+                               user: dict = Depends(current_user)):
+    """Everything the builder screen needs: the store, its offers (for the
+    coupon prize pool), the store's existing branded games, and defaults."""
+    db = request.app.state.db
+    biz, _role = await resolve_merchant_with_role(
+        db, merchant_id=merchant_id, user=user, permission="can_create_links")
+    bid = _biz_id(biz)
+    await _ensure_seeded(db)
+    games: list[dict] = []
+    async for g in db.branded_games.find(
+            {"sponsor_business_id": bid}).sort("created_at", -1):
+        games.append(_sponsor_game_view(g))
+    return {"business": {"merchant_id": bid, "name": biz.get("name"),
+                         "logo_url": _abs_url(request, biz.get("logo_url"))},
+            "offers": await _merchant_offers(db, bid),
+            "games": games,
+            "defaults": {"daily_spins": DEFAULT_DAILY_SPINS,
+                         "segments": _HOUSE_SEGMENTS}}
+
+
+@router.post("/sponsor/{merchant_id}/branded-games")
+async def sponsor_upsert_game(merchant_id: str, body: SponsorGameIn,
+                              request: Request,
+                              user: dict = Depends(current_user)):
+    db = request.app.state.db
+    biz, _role = await resolve_merchant_with_role(
+        db, merchant_id=merchant_id, user=user, permission="can_create_links")
+    bid = _biz_id(biz)
+    if body.game_type not in ("wheel", "scratch"):
+        raise HTTPException(400, {"code": "bad_game_type"})
+    segs_in = body.segments or []
+    if not segs_in:
+        raise HTTPException(400, {"code": "no_segments"})
+    if sum(max(0, int(s.weight or 0)) for s in segs_in) <= 0:
+        raise HTTPException(400, {"code": "weights_zero"})
+    valid_offers = {o["offer_id"] for o in await _merchant_offers(db, bid)}
+    segments: list[dict] = []
+    for s in segs_in:
+        seg = {"label": s.label, "kind": s.kind, "value": int(s.value or 0),
+               "weight": max(0, int(s.weight or 0)), "color": s.color}
+        if s.kind == "coupon":
+            if not s.coupon_offer_id or s.coupon_offer_id not in valid_offers:
+                raise HTTPException(400, {"code": "invalid_coupon_offer",
+                                          "offer_id": s.coupon_offer_id})
+            seg["coupon_offer_id"] = s.coupon_offer_id
+        segments.append(seg)
+    gid = body.game_id
+    if gid:
+        existing = await db.branded_games.find_one({"_id": gid})
+        if not existing or existing.get("sponsor_business_id") != bid:
+            raise HTTPException(403, {"code": "not_owner"})
+    else:
+        gid = f"{body.game_type}_spn_{uuid.uuid4().hex[:10]}"
+    doc = {"_id": gid, "game_type": body.game_type,
+           "sponsor_name": (body.sponsor_name or biz.get("name") or "Sponsor")[:60],
+           "logo_url": body.logo_url or biz.get("logo_url"),
+           "sponsor_business_id": bid, "owner_user_id": user["user_id"],
+           "bgm_key": BGM_KEY, "segments": segments,
+           "daily_spins": max(1, int(body.daily_spins or DEFAULT_DAILY_SPINS)),
+           "active": bool(body.active), "updated_at": _now()}
+    await db.branded_games.update_one(
+        {"_id": gid}, {"$set": doc, "$setOnInsert": {"created_at": _now()}},
+        upsert=True)
+    return {"ok": True, "game_id": gid}
+
+
+@router.post("/sponsor/{merchant_id}/branded-games/{game_id}/toggle")
+async def sponsor_toggle_game(merchant_id: str, game_id: str, request: Request,
+                              user: dict = Depends(current_user)):
+    db = request.app.state.db
+    biz, _role = await resolve_merchant_with_role(
+        db, merchant_id=merchant_id, user=user, permission="can_create_links")
+    bid = _biz_id(biz)
+    g = await db.branded_games.find_one({"_id": game_id})
+    if not g or g.get("sponsor_business_id") != bid:
+        raise HTTPException(404, {"code": "not_found"})
+    new_active = not bool(g.get("active"))
+    await db.branded_games.update_one({"_id": game_id},
+                                      {"$set": {"active": new_active}})
+    return {"ok": True, "active": new_active}
+
+
+@router.post("/sponsor/{merchant_id}/game-logo")
+async def sponsor_upload_logo(merchant_id: str, request: Request,
+                              file: UploadFile = File(...),
+                              user: dict = Depends(current_user)):
+    db = request.app.state.db
+    biz, _role = await resolve_merchant_with_role(
+        db, merchant_id=merchant_id, user=user, permission="can_create_links")
+    bid = _biz_id(biz)
+    ct = (file.content_type or "").lower()
+    if ct not in ALLOWED_LOGO_TYPES:
+        raise HTTPException(400, {"code": "unsupported_type", "detail": ct})
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".upload")
+    total = 0
+    try:
+        while True:
+            chunk = await file.read(1 << 15)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > LOGO_MAX_BYTES:
+                raise HTTPException(413, {"code": "file_too_large"})
+            tmp.write(chunk)
+    finally:
+        tmp.close()
+    try:
+        ext = (mimetypes.guess_extension(ct) or ".png").lstrip(".")
+        key = f"static/merchant_assets/{bid}/game_logo_{uuid.uuid4().hex[:6]}.{ext}"
+        get_storage().upload(local_path=tmp.name, key=key, content_type=ct)
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+    rel = key[len("static/"):] if key.startswith("static/") else key
+    return {"ok": True, "logo_url": f"{_base_url(request)}/api/static/{rel}"}
 
 
 __all__ = ["router", "seed_instant_games"]

@@ -28,6 +28,7 @@ export default function DreamDetail() {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
   const [reflecting, setReflecting] = useState(false);
+  const [sugg, setSugg] = useState<any>(null);
 
   const load = useCallback(async () => {
     try { const { data } = await api.get(`/social/dreams/${id}`); setD(data); }
@@ -48,6 +49,12 @@ export default function DreamDetail() {
     catch (_) {} finally { setBusy(false); }
   };
   const report = async () => { await act(() => api.post(`/social/dreams/${id}/report`, { reason: 'Reported from mobile' })); };
+
+  const hasRef = !!d?.ai_reflection;
+  useEffect(() => {
+    if (!hasRef || sugg) return;
+    api.get(`/social/dreams/${id}/suggested-advisor`).then(({ data }) => setSugg(data)).catch(() => {});
+  }, [hasRef, id, sugg]);
 
   if (!d) return <View style={[s.screen, s.center]}><ActivityIndicator color={D.violet} /></View>;
   const ref = d.ai_reflection;
@@ -97,9 +104,25 @@ export default function DreamDetail() {
                 {(ref.questions_to_consider || []).map((q: string, i: number) => <Text key={i} style={s.aiLine}>— {q}</Text>)}
                 {ref.gentle_note ? <Text style={s.aiNote}>{ref.gentle_note}</Text> : null}
                 {ref.safety_note ? <Text style={s.aiSafety}>⚠ {ref.safety_note}</Text> : null}
-                <Pressable onPress={() => router.push('/social/dreams?tab=advisors' as any)} testID="dream-expert-cta" style={s.expertCta}>
-                  <Ionicons name="checkmark-circle" size={14} color="#ddd6fe" /><Text style={s.expertCtaTxt}>Prefer a human? Ask a verified expert</Text>
-                </Pressable>
+                {sugg?.advisor ? (
+                  <View style={s.matchCard} testID="dream-suggested-advisor">
+                    <AvatarM name={sugg.advisor.display_name} url={sugg.advisor.avatar_url || sugg.advisor.photo_url} size={38} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={s.matchName} numberOfLines={1}>{sugg.advisor.display_name}</Text>
+                        <Ionicons name="checkmark-circle" size={12} color="#67e8f9" />
+                      </View>
+                      <Text style={s.matchReason} numberOfLines={1}>{sugg.category_label} · {sugg.reason}</Text>
+                    </View>
+                    <Pressable onPress={() => router.push(`/social/dreams/advisor/${sugg.advisor.advisor_id}` as any)} testID="dream-talk-advisor" style={s.matchBtn}>
+                      <Text style={s.matchBtnTxt}>Talk to {String(sugg.advisor.display_name || 'expert').split(' ')[0]}</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable onPress={() => router.push('/social/dreams?tab=advisors' as any)} testID="dream-expert-cta" style={s.expertCta}>
+                    <Ionicons name="checkmark-circle" size={14} color="#ddd6fe" /><Text style={s.expertCtaTxt}>Prefer a human? Ask a verified expert</Text>
+                  </Pressable>
+                )}
               </View>
             )}
           </View>
@@ -158,6 +181,11 @@ const s = StyleSheet.create({
   expertLink: { color: '#ddd6fe', fontSize: TFONT.xs, fontWeight: '800' },
   expertCta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, alignSelf: 'flex-start', height: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(167,139,250,0.4)' },
   expertCtaTxt: { color: '#ede9fe', fontSize: TFONT.xs, fontWeight: '800' },
+  matchCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, padding: 10, borderRadius: TRADIUS.md, borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', backgroundColor: 'rgba(168,85,247,0.1)' },
+  matchName: { color: D.text, fontSize: TFONT.xs, fontWeight: '900', flexShrink: 1 },
+  matchReason: { color: '#ddd6fe', fontSize: 10, marginTop: 1 },
+  matchBtn: { height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: D.magenta, alignItems: 'center', justifyContent: 'center' },
+  matchBtnTxt: { color: '#fff', fontSize: 11, fontWeight: '900' },
   aiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 22, backgroundColor: D.magenta },
   aiBtnTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
   aiHeader: { color: 'rgba(240,171,252,0.9)', fontSize: TFONT.xs, fontStyle: 'italic' },

@@ -163,6 +163,7 @@ export default function GamesHub() {
 
   const QUICK_GAMES = [
     { id: 'spin', icon: 'aperture-outline', label: 'Spin & Win', desc: 'Spin the wheel for BigCoin & coupons', color: '#a855f7', route: '/games/spin' },
+    { id: 'scratch', icon: 'gift-outline', label: 'Scratch & Win', desc: 'Rub to reveal — match 3 to win', color: '#6366F1', route: '/games/scratch' },
     { id: 'trivia', icon: 'musical-notes-outline', label: 'Music Trivia', desc: 'Guess the song and earn BigCoin', color: '#f59e0b', route: '/games/trivia-game' },
     { id: 'lyric', icon: 'mic-outline', label: 'Guess the Lyric', desc: 'Finish the lyric to win rewards', color: '#6366F1', route: '/games/lyric-game' },
   ];

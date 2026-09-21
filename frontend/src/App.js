@@ -96,6 +96,7 @@ import MeFollowing from "@/pages/MeFollowing";
 import MeSaved from "@/pages/MeSaved";
 // Phase PG.1 — Play & Win game engine.
 import MerchantGames from "@/pages/merchant/MerchantGames";
+import MerchantSponsorGames from "@/pages/merchant/MerchantSponsorGames";
 import GamePlay from "@/pages/play/GamePlay";
 import PlayDiscover from "@/pages/play/PlayDiscover";
 
@@ -331,6 +332,7 @@ import Trivia from "@/Trivia";
 import TriviaPlay from "@/TriviaPlay";
 import { TriviaRoomCreate, TriviaJoin, TriviaRoom } from "@/TriviaRoom";
 import WheelGame from "@/pages/games/WheelGame";
+import ScratchGame from "@/pages/games/ScratchGame";
 import TVDisplay from "@/TV";
 import {
   VenueDashboard, VenueTVs, VenueTrivia, VenueAnnounce,
@@ -627,6 +629,9 @@ function AppRouter() {
       <Route path="/games/wheel" element={
         <ProtectedRoute><WheelGame /></ProtectedRoute>
       } />
+      <Route path="/games/scratch" element={
+        <ProtectedRoute><ScratchGame /></ProtectedRoute>
+      } />
       {/* Phase 16c — TV display (token-paired, no user auth needed) */}
       <Route path="/tv" element={<TVDisplay />} />
       {/* Phase 16c — Venue Staff dashboard */}
@@ -828,6 +833,7 @@ function AppRouter() {
         <Route path="gift-cards"        element={<MerchantGiftCards />} />
         <Route path="prepaid-meals"  element={<MerchantPrepaidMeals />} />
         <Route path="games"                element={<MerchantGames />} />
+        <Route path="sponsor-games"    element={<MerchantSponsorGames />} />
         <Route path="profile"              element={<MerchantProfile />} />
         <Route path="stripe"                element={<MerchantStripe />} />
         <Route path="settings"            element={<MerchantSettings />} />

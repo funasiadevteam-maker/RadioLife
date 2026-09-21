@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
-  SafeAreaView, Alert, Switch,
+  SafeAreaView, Alert, Switch, Modal, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,15 @@ const ERAS = ['80s', '90s', '2000s', '2010s', '2020s'];
 const MOODS = ['energetic', 'chill', 'romantic', 'party', 'uplifting', 'melancholy', 'devotional', 'nostalgic'];
 const ACTIVITIES = ['morning_commute', 'workday_focus', 'lunch_break', 'evening_commute', 'dinner', 'late_night_drive', 'workout', 'party', 'devotional_time'];
 const DUBAI_AREAS = ['Karama', 'Bur Dubai', 'Deira', 'Al Nahda', 'JLT', 'Business Bay', 'Downtown', 'Marina', 'Sharjah', 'Other'];
+const MARKETS = [
+  { key: 'dubai', label: 'Dubai', country: 'United Arab Emirates' },
+  { key: 'new_york', label: 'New York', country: 'United States' },
+  { key: 'london', label: 'London', country: 'United Kingdom' },
+  { key: 'mumbai', label: 'Mumbai', country: 'India' },
+  { key: 'los_angeles', label: 'Los Angeles', country: 'United States' },
+  { key: 'dfw', label: 'Dallas', country: 'United States' },
+];
+const MARKET_LABEL: Record<string, string> = MARKETS.reduce((a, m) => ({ ...a, [m.key]: m.label }), {});
 const HOSTS = [
   { id: 'auto', label: 'Auto (smart routing)' },
   { id: 'veer_dubai', label: 'Veer — late-night charm' },
@@ -34,6 +43,10 @@ export default function ProfileScreen() {
   const [resetting, setResetting] = useState(false);
   const [section, setSection] = useState<'menu' | 'prefs'>('menu');
   const [creatorStatus, setCreatorStatus] = useState<string | null>(null);
+  const [market, setMarket] = useState<string | null>(null);
+  const [cityLabel, setCityLabel] = useState<string>('');
+  const [cityOpen, setCityOpen] = useState(false);
+  const [cityBusy, setCityBusy] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.preference_vector) setPv({ ...user.preference_vector });
@@ -42,7 +55,25 @@ export default function ProfileScreen() {
       const c = me?.creator || me;
       if (c?.application_status) setCreatorStatus(c.application_status);
     }).catch(() => setCreatorStatus(null));
+    api.get('/geo/me').then(({ data }) => {
+      setMarket(data?.market || null);
+      setCityLabel(data?.city || MARKET_LABEL[data?.market] || '');
+    }).catch(() => {});
   }, [user]);
+
+  const pickCity = async (key: string) => {
+    if (cityBusy) return;
+    setCityBusy(key);
+    try {
+      await api.patch('/users/me/market', { market: key });
+      setMarket(key);
+      setCityLabel(MARKET_LABEL[key] || key);
+      setCityOpen(false);
+      Alert.alert('City updated', `You're now browsing ${MARKET_LABEL[key] || key}. Local stations, news and offers will update.`);
+    } catch (_) {
+      Alert.alert('Error', "Couldn't switch city. Please try again.");
+    } finally { setCityBusy(null); }
+  };
 
   if (!user) return null;
   if (!pv) return <View style={st.loadingWrap}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -119,6 +150,8 @@ export default function ProfileScreen() {
           <Text style={st.menuLabel}>ACCOUNT</Text>
           <MenuItem icon="person-outline" label="Edit Preferences" sub="Languages, genres, moods, RJ personality"
             onPress={() => setSection('prefs')} testID="menu-edit-prefs" />
+          <MenuItem icon="location-outline" label="Switch City" sub={cityLabel ? `Currently: ${cityLabel}` : 'Change your local market'}
+            onPress={() => setCityOpen(true)} testID="menu-switch-city" />
           <MenuItem icon="card-outline" label="Billing & Plans" sub="Manage subscription, upgrade, payment"
             onPress={() => router.push('/billing')} testID="menu-billing" />
           <MenuItem icon="notifications-outline" label="Notifications" sub="Push notification preferences"
@@ -163,6 +196,36 @@ export default function ProfileScreen() {
             onPress={confirmDelete} testID="menu-delete-account" />
           <FunAsiaFooter />
         </ScrollView>
+
+        <Modal visible={cityOpen} transparent animationType="slide" onRequestClose={() => setCityOpen(false)}>
+          <Pressable style={cst.backdrop} onPress={() => setCityOpen(false)} testID="city-modal-backdrop">
+            <Pressable style={cst.sheet} onPress={(e) => e.stopPropagation()} testID="city-modal">
+              <View style={cst.handle} />
+              <Text style={cst.title}>Change your city</Text>
+              <Text style={cst.sub}>FUUSIC personalises stations, news and offers per market.</Text>
+              <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+                {MARKETS.map((m) => {
+                  const active = m.key === market;
+                  return (
+                    <TouchableOpacity key={m.key} disabled={!!cityBusy} onPress={() => pickCity(m.key)}
+                      testID={`city-option-${m.key}`} activeOpacity={0.8}
+                      style={[cst.row, active && cst.rowActive]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[cst.rowLabel, active && { color: COLORS.primary }]}>{m.label}</Text>
+                        <Text style={cst.rowCountry}>{m.country}</Text>
+                      </View>
+                      {cityBusy === m.key
+                        ? <ActivityIndicator size="small" color={COLORS.primary} />
+                        : active
+                          ? <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
+                          : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -301,4 +364,16 @@ const st = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: RADIUS.md, marginTop: SPACING.md },
   saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+});
+
+const cst = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.lg, paddingBottom: 34, borderWidth: 1, borderColor: COLORS.cardBorder },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.surfaceBorder, marginBottom: SPACING.md },
+  title: { color: COLORS.text, fontSize: 20, fontWeight: '900' },
+  sub: { color: COLORS.textDim, fontSize: 12, marginTop: 4, marginBottom: SPACING.md },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.surface, marginBottom: 8 },
+  rowActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(168,85,247,0.08)' },
+  rowLabel: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
+  rowCountry: { color: COLORS.textDim, fontSize: 11, marginTop: 2 },
 });

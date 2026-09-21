@@ -1,0 +1,54 @@
+{
+  "summary": "Wave 2 verification of SWITCH CITY (web+mobile) and SPONSOR GAME BUILDER (web+backend). Backend: 19/19 pytest PASS in /app/backend/tests/test_iter176_switch_city_sponsor_builder.py (geo/me shape, PATCH /api/users/me/market for all 6 markets + 400 for unsupported, sponsor /builder for owner + 403 for non-owner, upsert points-only wheel + validation for no_segments/weights_zero/bad_game_type/invalid_coupon_offer, toggle active, logo upload happy + bad content-type rejection, playability via /api/games/wheel/config + /api/games/wheel/list surfacing, legacy /api/games/wheel/config regression). Web UI: topbar-city-chip mounted in AppShellV2 opens city-chip-sheet with all 6 markets, selecting london updates the chip label AND /api/geo/me?market=london; /merchant/sponsor-games renders sponsor-games-page + sponsor-games-new-btn + full sponsor-builder-modal (wheel/scratch tabs, name/logo url/upload, segments with kind/label/weight/points/offer/color, load-pool, add-slice, daily-spins, save) — publish path creates a sponsor-game-card-<id> in the list. Sidebar shows both legacy 'Games' and new 'Sponsor Games' entries side-by-side; legacy /merchant/games still loads. Mobile: profile tab shows menu-switch-city with current city subtitle; tapping opens city-modal with all 6 city-option-<key> options and selecting london updates the subtitle to 'Currently: London'. IMPORTANT UI GATE FOUND: MerchantShell redirects owners with merchant_status in {draft,submitted,rejected} to /merchant/status, which blocks access to /merchant/sponsor-games until the merchant is approved — test@'s two owned merchants (biz_dc324d800f66, biz_karak_cafe_karama) are BOTH in draft state in the seed, so a fresh preview cannot reach the new page as a business owner. I temporarily promoted biz_dc324d800f66 to approved to exercise the UI, then reverted it and cleaned up test-created branded_games.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Merchant Portal → Sponsor Games", "issue": "No test@ merchant is approved by default (both biz_dc324d800f66 and biz_karak_cafe_karama are merchant_status=draft), so MerchantShell (/app/frontend/src/pages/merchant/MerchantShell.jsx:99-104) hard-redirects owners to /merchant/status and the new /merchant/sponsor-games page is unreachable from a fresh preview. Seeds should include one APPROVED merchant for test@ (or the sponsor-games route should be reachable in the draft flow).", "affected_selectors": ["[data-testid='sponsor-games-page']","[data-testid='sponsor-games-new-btn']"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "RN Web deprecation warning '\"shadow*\" style props are deprecated. Use \"boxShadow\".' still emitted on multiple screens (already reported in iter175, unrelated to Wave 2)."},
+        {"component": "props.pointerEvents", "issue": "RN Web deprecation warning 'props.pointerEvents is deprecated. Use style.pointerEvents' still present (already reported in iter175, unrelated to Wave 2)."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter176_switch_city_sponsor_builder.py",
+    "/app/test_reports/pytest/iter176.xml"
+  ],
+  "action_items": [
+    "Seed one APPROVED merchant for test@bigfm.dubai (or automatically approve biz_dc324d800f66 in the demo seeder) so /merchant/sponsor-games is reachable from a fresh preview without dev intervention.",
+    "(Optional) Also ensure test@ merchant has at least one active offer so the coupon-slice picker path can be exercised in the UI (the points-only path works fine when offers are empty)."
+  ],
+  "critical_code_review_comments": [
+    "Backend /api/games/sponsor/{merchant_id}/branded-games correctly validates weights/segments/game_type and enforces ownership via resolve_merchant_with_role — 403 for non-owner is returned by RBAC before the ownership branch runs, so the toggle non-owner test returns 403 instead of 404 (still fine).",
+    "instant_games.py:_abs_url normalises relative /api/static/... logos before returning to clients — good for cross-platform (web + expo-image).",
+    "geo_routes.PATCH /api/users/me/market normalises input (lower/underscore) and rejects unsupported markets with 400 — matches spec.",
+    "sponsor-game-card testID pattern 'sponsor-game-card-<id>' verified live (e.g. sponsor-game-card-wheel_spn_cbf2a7f657).",
+    "Segment 'points' testID is only rendered when kind==points (segment 2 was 'Try again' / kind=none in seeded pool) — this is correct behaviour, not a missing testID bug."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter176_switch_city_sponsor_builder.py",
+    "/app/test_reports/iteration_176.json",
+    "/app/test_reports/pytest/iter176.xml"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100% (all Wave 2 testIDs verified on both surfaces after approving one merchant)"},
+  "test_credentials": "Web: test@bigfm.dubai / TestUser123! (business owner) — required to see /merchant/sponsor-games; demo@bigfm.dubai / DemoPass123! for 403 non-owner checks. Mobile: 'Try the demo' testID demo-login-btn (POST /api/auth/demo → bearer).",
+  "seed_data_creation": "Backend test creates a TEST_-prefixed sponsor wheel via POST /api/games/sponsor/{merchant_id}/branded-games and cleans nothing (idempotent branded_games doc). UI test created one sponsor-game-card via the modal; both were cleaned up (db.branded_games.deleteMany sponsor_business_id=biz_dc324d800f66). biz_dc324d800f66 merchant_status was temporarily flipped to 'approved' then reverted back to 'draft' after the UI run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The sponsor-games route is gated by MerchantShell status check. To retest the UI without approving a merchant, either (a) approve one of test@'s merchants (mongosh: db.businesses.updateOne({business_id:'biz_dc324d800f66'}, {$set:{merchant_status:'approved'}})) or (b) update the seeder to ship an approved merchant for test@. Backend endpoints are all working; use test_iter176 pytest as a regression check for future sponsor-builder / switch-city changes. Both mobile deprecation warnings (shadow*, pointerEvents) are pre-existing and were already reported in iter175.",
+  "rca of the issue": "Not a backend/frontend bug — the Sponsor Games page CANNOT be reached in a clean preview because both merchants seeded for test@bigfm.dubai are in merchant_status='draft' and MerchantShell.jsx forces those owners into the /merchant/status wizard. Recommended fix path: seed the 'TEST_iter57_pickup' merchant as approved in the idempotent seeder so business-owner flows (payment links / games / sponsor games) are exercisable out-of-the-box."
+}

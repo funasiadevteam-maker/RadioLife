@@ -525,6 +525,51 @@ async def ai_reflect(dream_id: str, request: Request,
     return {"ok": True, "ai_reflection": reflection}
 
 
+# Dream tag → best-matched advisor specialty (for the post-reflection nudge).
+_TAG_ADVISOR = {
+    "Religious/Spiritual": "spiritual_advisor", "Family": "spiritual_advisor",
+    "Death": "dream_interpreter", "Flying": "dream_interpreter",
+    "Falling": "dream_interpreter", "Water": "dream_interpreter",
+    "Animals": "dream_interpreter", "Lucid": "dream_interpreter",
+    "Love": "tarot_reader", "Travel": "astrologer", "Work": "numerologist",
+    "Nightmare": "licensed_sleep", "Recurring": "licensed_sleep",
+}
+
+
+@router.get("/{dream_id}/suggested-advisor")
+async def suggested_advisor(dream_id: str, request: Request,
+                            user: dict = Depends(current_user)):
+    """After an AI reflection, gently suggest the best-matched verified advisor
+    for this dream's theme."""
+    db = request.app.state.db
+    flags = await db.guidance_flags.find_one({"_id": "guidance_flags"}) or DEFAULT_FLAGS
+    if not flags.get("advisor_marketplace_enabled", True):
+        return {"advisor": None}
+    d = await _dream_or_404(db, dream_id)
+    uid = user["user_id"]
+    friends = await _friend_ids(db, uid)
+    if not _can_view(d, uid, friends):
+        raise HTTPException(403, {"code": "not_visible"})
+    cat, matched_tag = None, None
+    for t in (d.get("tags") or []):
+        if t in _TAG_ADVISOR:
+            cat, matched_tag = _TAG_ADVISOR[t], t
+            break
+    cat = cat or "dream_interpreter"
+    a = await db.advisor_profiles.find_one(
+        {"status": "approved", "category": cat}, sort=[("rating", -1)])
+    if not a:
+        a = await db.advisor_profiles.find_one(
+            {"status": "approved"}, sort=[("rating", -1)])
+    if not a:
+        return {"advisor": None}
+    label = CATEGORY_LABELS.get(a.get("category"), "advisor")
+    reason = (f"Matched to your dream’s “{matched_tag}” theme"
+              if matched_tag else f"A great {label.lower()} to explore this dream")
+    return {"advisor": _advisor_public(a), "reason": reason,
+            "category": a.get("category"), "category_label": label}
+
+
 # ───────────────────────── Saved dreams ────────────────────────────
 @router.get("/me/saved")
 async def my_saved(request: Request, user: dict = Depends(current_user)):

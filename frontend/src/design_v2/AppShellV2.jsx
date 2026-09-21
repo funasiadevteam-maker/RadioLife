@@ -19,6 +19,7 @@ import PlayerBarV2 from "./PlayerBarV2";
 import OnAirOfferCard from "@/shell/OnAirOfferCard";
 import VariantSwitcher from "@/shell/VariantSwitcher";  // eslint-disable-line no-unused-vars -- moved to /admin/appearance
 import NotificationBell from "@/components/NotificationBell";
+import CityChip from "@/components/CityChip";
 import WorkspaceSwitcher from "@/components/portal/WorkspaceSwitcher";
 // VariantSwitcher moved to the admin backend (/admin/appearance).
 import BannerAdSlot from "@/components/BannerAdSlot";
@@ -156,6 +157,7 @@ function ShellV2Header() {
 
       {/* Right cluster */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+        <span className="hidden sm:block"><CityChip /></span>
         <Link to="/social" data-testid="nlv2-top-social" title="Social"
           className="lg:hidden w-9 h-9 rounded-full grid place-items-center text-[#8b96b8] hover:text-white">
           <Users size={18} />

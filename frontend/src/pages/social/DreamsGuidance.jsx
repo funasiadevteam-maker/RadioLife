@@ -494,11 +494,12 @@ function ReadingRow({ b, reload }) {
 }
 
 // ───────────────────────── Dream detail modal ──────────────────────
-function DreamModal({ dreamId, config, onClose, onBrowseAdvisors }) {
+function DreamModal({ dreamId, config, onClose, onBrowseAdvisors, onOpenAdvisor }) {
   const [d, setD] = useState(null);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [reflecting, setReflecting] = useState(false);
+  const [sugg, setSugg] = useState(null);
 
   const load = useCallback(async () => {
     try { const { data } = await api.get(`/${dreamId}`); setD(data); } catch (_) { onClose(); }
@@ -519,6 +520,10 @@ function DreamModal({ dreamId, config, onClose, onBrowseAdvisors }) {
   };
 
   const ref = d?.ai_reflection;
+  useEffect(() => {
+    if (!ref || sugg) return;
+    api.get(`/${dreamId}/suggested-advisor`).then(({ data }) => setSugg(data)).catch(() => {});
+  }, [ref, dreamId, sugg]);
   return (
     <Modal onClose={onClose} testid="dream-modal">
       {!d ? <Center><Loader2 className="animate-spin text-violet-400" /></Center> : (
@@ -565,10 +570,24 @@ function DreamModal({ dreamId, config, onClose, onBrowseAdvisors }) {
                     {ref.questions_to_consider.map((q, i) => <p key={i} className="text-sm text-slate-300">— {q}</p>)}</div>)}
                 {ref.gentle_note && <p className="text-xs text-slate-400 pt-1">{ref.gentle_note}</p>}
                 {ref.safety_note && <p className="text-xs text-amber-300 pt-1 flex items-start gap-1"><Shield size={13} className="mt-0.5 shrink-0" /> {ref.safety_note}</p>}
-                <button type="button" onClick={() => onBrowseAdvisors?.()} data-testid="dream-expert-cta"
-                        className="mt-1 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-bold border border-violet-400/40 text-violet-100 hover:bg-violet-500/15 transition">
-                  <BadgeCheck size={14} /> Prefer a human? Ask a verified expert
-                </button>
+                {sugg?.advisor ? (
+                  <div className="mt-2 rounded-xl border border-violet-400/30 bg-violet-500/10 p-2.5 flex items-center gap-2.5" data-testid="dream-suggested-advisor">
+                    <Avatar name={sugg.advisor.display_name} url={sugg.advisor.avatar_url} size={38} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-black text-white truncate flex items-center gap-1">{sugg.advisor.display_name} <BadgeCheck size={12} className="text-cyan-300" /></div>
+                      <div className="text-[10px] text-violet-200/90 truncate">{sugg.category_label} · {sugg.reason}</div>
+                    </div>
+                    <button type="button" onClick={() => onOpenAdvisor?.(sugg.advisor)} data-testid="dream-talk-advisor"
+                            className="shrink-0 h-8 px-3 rounded-full text-[11px] font-black text-white" style={{ background: "linear-gradient(135deg,#7c3aed,#c026d3)" }}>
+                      Talk to {String(sugg.advisor.display_name || "expert").split(" ")[0]}
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => onBrowseAdvisors?.()} data-testid="dream-expert-cta"
+                          className="mt-1 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-bold border border-violet-400/40 text-violet-100 hover:bg-violet-500/15 transition">
+                    <BadgeCheck size={14} /> Prefer a human? Ask a verified expert
+                  </button>
+                )}
               </div>
             )}
           </div>

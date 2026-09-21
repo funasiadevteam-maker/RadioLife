@@ -1,0 +1,44 @@
+{
+  "summary": "Mobile parity verification for FUUSIC Scratch Card game + Expert Booking Nudge on dreams. Backend sanity for POST /api/games/scratch/play, GET /api/games/wheel/config?game_id=scratch_house, POST /api/social/dreams/{id}/reflect, GET /api/social/dreams/{id}/suggested-advisor — all PASS. Mobile Expo web preview: Games tab shows quick-game-scratch tile which navigates to /games/scratch and renders scratch-game/scratch-mute/scratch-spins-left; out-of-cards state (scratch-no-spins) rendered correctly when daily allotment exhausted. Dreams detail: FUUSIC Dream AI block renders, dream-reflect-btn triggers reflection, dream-ai-reflection appears, and personalized dream-suggested-advisor + dream-talk-advisor card is shown (matched Stella Moon to the Flying tag) — no fallback needed.",
+  "platforms_tested": ["mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "games/scratch (no-spins state)", "issues": ["When daily allotment is exhausted, the card area shows only the intro hint 'Tap New card then scratch the three tiles' which is misleading since no play button is shown. Consider hiding/replacing the hint when scratch-no-spins is rendered."]}
+      ],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Runtime warning 'shadow* style props are deprecated. Use boxShadow.' emitted by RN Web on Games hub. Non-blocking but should migrate. Reference: /app/mobile/app/(tabs)/games.tsx (shadowColor/shadowOffset/shadowOpacity/shadowRadius on featuredCard & quickTile)"},
+        {"component": "props.pointerEvents", "issue": "Runtime warning 'props.pointerEvents is deprecated. Use style.pointerEvents' — traceable to the Animated.View foil in /app/mobile/app/games/scratch.tsx:25 (pointerEvents prop). Move to style.pointerEvents."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter175_scratch_and_dream_advisor.py",
+    "/app/test_reports/pytest/iter175.xml"
+  ],
+  "action_items": [
+    "(Minor, cosmetic) Hide the intro hint 'Tap New card then scratch the three tiles' when scratch-no-spins is showing, or replace with an out-of-cards illustration for consistency.",
+    "(Minor) Migrate shadow* style props to boxShadow across mobile/app/(tabs)/games.tsx to silence RN Web deprecation warnings.",
+    "(Minor) In /app/mobile/app/games/scratch.tsx:25 move `pointerEvents` from prop to style to silence RN deprecation warning."
+  ],
+  "critical_code_review_comments": [
+    "Scratch screen correctly falls back to 429 handling by zeroing spins_left; UI reflects out-of-cards state via testID scratch-no-spins.",
+    "Dreams detail correctly gates the suggested-advisor fetch behind hasRef and one-shot via sugg state (useEffect at [id].tsx:54-57) — no duplicate calls observed.",
+    "Suggested-advisor tap navigates to /social/dreams/advisor/{advisor_id} — confirm this route exists in the mobile app (not verified in this run, but tap-target present)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter175_scratch_and_dream_advisor.py"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100% (all mobile testIDs verified)"},
+  "test_credentials": "Mobile demo login via testID demo-login-btn -> POST /api/auth/demo -> bearer in session_token field (used by mobile client). Also usable: demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "Backend test creates a public dream (mood Peaceful, tags Flying/Water) via POST /api/social/dreams; mobile UI test does the same by injecting a fetch inside the Expo web preview using the localStorage token.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend endpoints for scratch (/api/games/scratch/play, /api/games/wheel/config?game_id=scratch_house) and dreams AI+suggested-advisor are wired and returning expected shape. Mobile testIDs verified: quick-game-scratch, scratch-game, scratch-play (hidden when out of cards), scratch-spins-left, scratch-mute, scratch-no-spins, scratch-tile, scratch-result; dream-detail, dream-ai-block, dream-reflect-btn, dream-ai-reflection, dream-suggested-advisor, dream-talk-advisor, dream-expert-cta (fallback path — not triggered here since seed advisor Stella Moon matched Flying tag).",
+  "rca of the issue": "N/A — no functional bugs found."
+}
