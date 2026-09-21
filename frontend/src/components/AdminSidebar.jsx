@@ -88,6 +88,7 @@ const SECTIONS = [
     icon: Sparkles,
     items: [
       { to: "/admin/flagship-stations",       label: "Flagship Stations", testid: "adnav-radio-flagship" },
+      { to: "/admin/radio-library",           label: "Radio Library",     testid: "adnav-radio-library" },
       { to: "/admin/radio/claims",               label: "Radio Claims",       testid: "adnav-radio-claims" },
       { to: "/admin/bulk-upload",                 label: "Bulk Upload",         testid: "adnav-radio-bulk-upload" },
       { to: "/admin/podcasts/applications", label: "Podcast Apps",       testid: "adnav-podcasts-apps" },

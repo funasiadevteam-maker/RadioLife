@@ -2,6 +2,15 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — ADMIN: REBUILD TRACK LIBRARY (one-tap) — self-verified (curl + admin screenshot)
+One-tap admin recovery so AI radio's demo music can be restored if the library ever goes missing.
+- **Shared service** `services/demo_library.py`: single source of truth for the 16 royalty-free demo tracks (`track_specs`) + `rebuild_demo_track_library(db, storage, force)` — upserts the track rows and uploads any MISSING audio to object storage (Tigris), skipping ones already present (unless force). Writes progress to `admin_track_rebuild` status doc.
+- **Admin API** (`routes/home_config_admin.py`, require_admin): `POST /api/admin/rebuild-track-library[?force=true]` runs the rebuild as a background task (returns immediately; stale >15min runs can be retried); `GET /api/admin/rebuild-track-library/status` returns progress + `library_size`/`persisted_ok`. Non-admin → 401.
+- **Admin UI** `admin/RadioLibrary.jsx` at `/admin/radio-library` (+ AdminSidebar link under Content → "Radio Library"): shows persisted N/16 + Healthy/Needs-rebuild badge, a "Rebuild track library" button (+ "Force re-upload all") with a live progress bar polling the status endpoint.
+- Verified: status healthy 16/16; POST rebuild → all 16 skipped (already present) → done; non-admin blocked.
+- Files: `backend/services/demo_library.py` (NEW), `backend/routes/home_config_admin.py`, `frontend/src/admin/RadioLibrary.jsx` (NEW), `frontend/src/App.js`, `frontend/src/components/AdminSidebar.jsx`.
+
+
 ## 2026-06 (fork) — PERSIST TRACKS (Tigris) + CATALOG GENRE PICKS + LIVE-RAIL LANG FILTER — testing agent PASS iter169 (8/8 backend + web), mobile parity screenshot-verified
 - **Persist Radio Tracks**: the 16 demo music tracks are now uploaded to object storage (Tigris) and their rows set to `storage_provider=tigris`, `storage_key=demo_tracks/demo_track_N.mp3`, `playable_status=ok` (`scripts/persist_demo_tracks.py`, loads `.env` into `os.environ` so `get_storage()` resolves Tigris). AI radio resolves audio from Tigris signed URLs, so playback survives a fresh fork/redeploy (Tigris bucket is persistent). Verified `/api/radio/start` (retro_lounge, morning_masala) → segment; `/api/radio/segment/{id}` → audio/mpeg. (ffmpeg still needs to exist on the pod — installed 5.1.9.)
 - **Onboarding Genre Picks**: new `GET /api/shell/recommended-genres` ranks genres from the real catalog (tracks genre counts + channels allowed_genres/music_genre). Both web `Onboarding.js` and mobile `app/onboarding.tsx` step 2 render a "★ Popular on FUUSIC" recommended row (`step-genres-recommended` / `-chips`) above the full "All genres" grid, sharing the same `pv.genres` selection. Mobile onboarding step 0/1 copy also neutralised (no "Namaste"/"Aap kya sunte ho").
