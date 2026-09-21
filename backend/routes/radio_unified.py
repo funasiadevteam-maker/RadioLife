@@ -27,6 +27,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from auth import current_user_optional
+from core.content_language import (
+    station_language_or_query, user_content_languages, user_show_all,
+)
 from routes.live_radio import (
     _AI_CHANNEL_TAG_MAP, _ai_channel_to_card, _imported_to_card,
     _strip_mongo,
@@ -323,10 +326,26 @@ def _merge_lang_group(base: Dict[str, Any], lang_group: Optional[str]) -> None:
         base["$and"].append(lg)
 
 
+def _merge_content_language(base: Dict[str, Any], prefs) -> None:
+    """Fold the user's content-language HARD filter (preferred langs OR neutral)
+    into a browse query without clobbering the active/flagship `$or` gate."""
+    if not prefs:
+        return
+    clause = station_language_or_query(prefs)
+    if "$and" in base:
+        base["$and"].append(clause)
+    else:
+        active_or = base.pop("$or", None)
+        base["$and"] = []
+        if active_or:
+            base["$and"].append({"$or": active_or})
+        base["$and"].append(clause)
+
+
 # ─────────────────────── /browse ───────────────────────
 async def _browse_imported_fast(db, request, q, cat_slug, language, country,
                                 page: int, limit: int, user, genre=None, sort="popular",
-                                lang_group=None):
+                                lang_group=None, content_prefs=None):
     """DB-paginated imported-only browse. Flagships first, then votes/clicks."""
     station_ids = None
     if cat_slug:
@@ -355,6 +374,7 @@ async def _browse_imported_fast(db, request, q, cat_slug, language, country,
         active_or = base.pop("$or")
         base["$and"] = [{"$or": active_or}, {"$or": search_or}]
     _merge_lang_group(base, lang_group)
+    _merge_content_language(base, content_prefs)
     total = await db.imported_radio_stations.count_documents(base)
     skip = (page - 1) * limit
     cards: List[Dict[str, Any]] = []
@@ -406,6 +426,7 @@ async def browse(
     source: str = Query("all"),
     sort: str = Query("popular"),
     lang_group: Optional[str] = Query(None),
+    show_all: bool = Query(False, description="Bypass the content-language filter."),
     page: int = Query(1, ge=1),
     limit: int = Query(24, ge=1, le=100),
     user: Optional[dict] = Depends(current_user_optional),
@@ -421,6 +442,13 @@ async def browse(
     imp_cards: List[Dict[str, Any]] = []
     cat_slug = (category or "").strip().lower() or None
 
+    # Content-language HARD filter — English-only default unless the user opted
+    # into more languages. Skipped when an explicit language / lang_group is
+    # chosen, show_all is passed, or the user turned on "show all languages".
+    content_prefs = None
+    if not language and not lang_group and not show_all and not user_show_all(user):
+        content_prefs = user_content_languages(user)
+
     # Phase MKT.2 — fast DB-level pagination for the imported-only directory
     # (the mobile Stations screen browses `source=imported`).  Avoids the
     # in-memory 2000-doc materialize+merge so the 40K+ directory stays fast
@@ -428,7 +456,7 @@ async def browse(
     if sources == {"imported"}:
         return await _browse_imported_fast(
             db, request, q, cat_slug, language, country, page, limit, user, genre, sort,
-            lang_group=lang_group)
+            lang_group=lang_group, content_prefs=content_prefs)
 
     # AI tier.
     if "bigfm_ai" in sources:
@@ -493,6 +521,7 @@ async def browse(
             active_or = imp_q.pop("$or")
             imp_q["$and"] = [{"$or": active_or}, {"$or": search_or}]
         _merge_lang_group(imp_q, lang_group)
+        _merge_content_language(imp_q, content_prefs)
         async for s in db.imported_radio_stations.find(imp_q) \
                           .sort([("votes", -1), ("click_count", -1)]).limit(2000):
             imp_cards.append(_imported_to_card(s))

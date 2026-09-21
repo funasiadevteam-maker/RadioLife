@@ -39,10 +39,13 @@ export default function HomeNewLookV2() {
     axios.get(`${API}/shell/home`, { withCredentials: true })
       .then((r) => { if (!cancel) setHome(r.data || {}); })
       .catch(() => { if (!cancel) setHome({}); });
-    axios.get(`${API}/social/home`, { withCredentials: true })
+    const loadSocial = () => axios.get(`${API}/social/home`, { withCredentials: true })
       .then((r) => { if (!cancel) setSocial(r.data || {}); })
-      .catch(() => { if (!cancel) setSocial(null); });
-    return () => { cancel = true; };
+      .catch(() => { if (!cancel) setSocial((s) => s); });
+    loadSocial();
+    // Poll so live friend/room activity appears the moment friends go live.
+    const t = setInterval(loadSocial, 20000);
+    return () => { cancel = true; clearInterval(t); };
   }, []);
 
   const name = user?.first_name || (user?.name || "").split(" ")[0] || "there";
@@ -63,16 +66,20 @@ export default function HomeNewLookV2() {
     else window.location.assign("/radio");
   };
 
-  // For You — inject the native sponsored offer as one labelled card.
-  const forYouItems = [...((home?.for_you) || [])];
-  if (home?.native_offer) {
-    const n = home.native_offer;
-    forYouItems.splice(Math.min(3, forYouItems.length), 0, {
-      id: n.business_id || n.campaign_id || "native",
-      title: n.title, subtitle: n.subtitle, image: n.image,
-      sponsored: true, to: n.to,
-      business_id: n.business_id, campaign_id: n.campaign_id, kind: n.kind,
-    });
+  // For You — mixed rail (stations + Moments + live + offer + game) from the
+  // backend; falls back to stations + the native offer if unavailable.
+  let forYouItems = home?.mixed_for_you;
+  if (!forYouItems || !forYouItems.length) {
+    forYouItems = [...((home?.for_you) || [])];
+    if (home?.native_offer) {
+      const n = home.native_offer;
+      forYouItems.splice(Math.min(3, forYouItems.length), 0, {
+        id: n.business_id || n.campaign_id || "native",
+        title: n.title, subtitle: n.subtitle, image: n.image,
+        sponsored: true, to: n.to,
+        business_id: n.business_id, campaign_id: n.campaign_id, kind: n.kind,
+      });
+    }
   }
   const liveItems = (home?.live_now) || [];
 

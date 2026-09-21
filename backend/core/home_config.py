@@ -86,16 +86,17 @@ DEFAULT_SECTIONS: dict[str, dict] = {
     "premium": {"visible": True, "title": ""},
 }
 
-# "Do something together" — one of FUUSIC's clearest differentiators.
+# "Do something together" — one of FUUSIC's clearest differentiators. Each
+# `to` deep-links straight into the matching Social flow (?action=…).
 TOGETHER_ACTIONS = [
     {"key": "listen", "label": "Listen Together",
-     "sub": "Sync a station with friends", "to": "/social", "icon": "headphones"},
+     "sub": "Sync a station with friends", "to": "/social?action=listen", "icon": "headphones"},
     {"key": "play", "label": "Play Together",
-     "sub": "Team up on games & trivia", "to": "/social", "icon": "gamepad-2"},
+     "sub": "Team up on games & trivia", "to": "/social?action=play", "icon": "gamepad-2"},
     {"key": "shop", "label": "Shop Together",
-     "sub": "Share a group cart", "to": "/social", "icon": "shopping-bag"},
+     "sub": "Share a group cart", "to": "/social?action=shop", "icon": "shopping-bag"},
     {"key": "go", "label": "Go Together",
-     "sub": "Plan a night out", "to": "/social", "icon": "map-pin"},
+     "sub": "Plan a night out", "to": "/social?action=go", "icon": "map-pin"},
 ]
 
 _DOC_ID = "home_config_v2"

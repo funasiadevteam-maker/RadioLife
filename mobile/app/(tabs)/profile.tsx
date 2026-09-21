@@ -177,7 +177,17 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <Text style={st.prefsTitle}>Edit Preferences</Text>
 
-        <View style={st.prefBlock}><Text style={st.prefTitle}>Languages</Text><ChipGrid options={LANGUAGES} selected={pv.languages || []} onToggle={toggle('languages')} testID="pref-languages" /></View>
+        <View style={st.prefBlock}>
+          <Text style={st.prefTitle}>Languages</Text>
+          <ChipGrid options={LANGUAGES} selected={pv.languages || []} onToggle={toggle('languages')} testID="pref-languages" />
+          <TouchableOpacity testID="pref-show-all-languages" activeOpacity={0.7}
+            onPress={() => setPv((p: any) => ({ ...p, show_all_languages: !p.show_all_languages }))}
+            style={st.showAllRow}>
+            <Ionicons name={pv.show_all_languages ? 'checkbox' : 'square-outline'} size={20}
+              color={pv.show_all_languages ? COLORS.secondary : COLORS.textDim} />
+            <Text style={st.showAllText}>Show content in all languages (don’t filter to mine)</Text>
+          </TouchableOpacity>
+        </View>
         <View style={st.prefBlock}><Text style={st.prefTitle}>Genres</Text><ChipGrid options={GENRES} selected={pv.genres || []} onToggle={toggle('genres')} testID="pref-genres" /></View>
         <View style={st.prefBlock}><Text style={st.prefTitle}>Eras</Text><ChipGrid options={ERAS} selected={pv.eras || []} onToggle={toggle('eras')} testID="pref-eras" /></View>
         <View style={st.prefBlock}><Text style={st.prefTitle}>Moods</Text><ChipGrid options={MOODS} selected={pv.moods || []} onToggle={toggle('moods')} testID="pref-moods" /></View>
@@ -264,6 +274,8 @@ const st = StyleSheet.create({
   prefsTitle: { color: COLORS.text, fontSize: 22, fontWeight: '900', marginBottom: SPACING.lg, letterSpacing: -0.5 },
   prefBlock: { marginBottom: SPACING.lg },
   prefTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
+  showAllRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: SPACING.sm },
+  showAllText: { flex: 1, fontSize: 12, color: COLORS.textDim, fontWeight: '600' },
   areaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   areaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.surfaceBorder, backgroundColor: COLORS.surface },
   areaChipOn: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },

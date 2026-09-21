@@ -90,6 +90,20 @@ def build_router(db, get_current_user) -> APIRouter:
             projection={"_id": 0},
         ).sort([("weight", -1), ("name", 1)]):
             out.append(c)
+        # Content-language HARD filter — hide language-specific categories
+        # (e.g. Bollywood) for users who didn't opt into that language.
+        try:
+            from core.content_language import (
+                user_content_languages as _ucl, user_show_all as _usa,
+                content_allowed as _ca,
+            )
+            if not _usa(user):
+                _prefs = _ucl(user)
+                out = [c for c in out if _ca(
+                    f"{c.get('name', '')} {c.get('slug', '')} {c.get('description', '')}",
+                    _prefs, explicit=c.get("content_language"))]
+        except Exception:
+            pass
         return {"market": market, "categories": out}
 
     # ─── Start a solo session ───────────────────────────────────────────

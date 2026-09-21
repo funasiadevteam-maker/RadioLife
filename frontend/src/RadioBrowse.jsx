@@ -192,6 +192,7 @@ export default function RadioBrowse() {
     genre:      searchParams.get("genre") || "",
     lang_group: searchParams.get("lang_group") || "",
     source:      searchParams.get("source") || "all",
+    show_all:  searchParams.get("show_all") === "1",
   }), [searchParams]);
 
   const [genreOptions, setGenreOptions] = useState([]);
@@ -213,7 +214,8 @@ export default function RadioBrowse() {
       if (filters.country) params.country = filters.country;
       if (filters.genre) params.genre = filters.genre;
       if (filters.lang_group) params.lang_group = filters.lang_group;
-      const r = await axios.get(`${API}/radio/browse`, { params });
+      if (filters.show_all) params.show_all = true;
+      const r = await axios.get(`${API}/radio/browse`, { params, withCredentials: true });
       setMeta({ total: r.data.total, page: r.data.page, limit: r.data.limit });
       setCounts(r.data.counts_by_source || {});
       setItems((prev) => append ? [...prev, ...(r.data.items || [])]
@@ -345,7 +347,24 @@ export default function RadioBrowse() {
             </button>
           );
         })}
+        {/* Content-language escape — English-only by default; show every language. */}
+        <button
+          type="button"
+          onClick={() => updateFilter("show_all", filters.show_all ? "" : "1")}
+          data-testid="radio-browse-show-all-languages"
+          title="Show stations in every language"
+          className={`ml-auto px-4 h-9 rounded-full text-sm font-semibold border transition-colors
+                          ${filters.show_all
+                            ? "bg-violet-500 text-white border-violet-500"
+                            : "bg-white/[0.04] text-white/70 border-white/[0.10] hover:bg-white/[0.08] hover:text-white"}`}>
+          {filters.show_all ? "✓ All languages" : "Show all languages"}
+        </button>
       </div>
+      {!filters.show_all && !filters.language && !filters.lang_group && (
+        <p data-testid="radio-browse-lang-note" className="text-xs text-white/45 -mt-2 mb-4">
+          Showing stations in your languages. Tap “Show all languages” to see every station.
+        </p>
+      )}
 
       {/* Filter bar */}
       <div data-testid="radio-browse-filters"

@@ -3,7 +3,7 @@ import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
   ActivityIndicator, RefreshControl, Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,10 +23,16 @@ const TABS = [
 
 export default function SocialScreen() {
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState('together');
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const initialTab = TABS.some((t) => t.key === params.tab) ? String(params.tab) : 'together';
+  const [tab, setTab] = useState(initialTab);
   const [home, setHome] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (params.tab && TABS.some((t) => t.key === params.tab)) setTab(String(params.tab));
+  }, [params.tab]);
 
   const loadHome = useCallback(async () => {
     try { const { data } = await api.get('/social/home'); setHome(data); }

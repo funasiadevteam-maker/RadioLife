@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request, Body, HTTPException
 from auth import current_user, current_user_optional
 from services.station_art import resolve_art as _resolve_art
 from core.home_config import get_home_config, build_fuusic_world, TOGETHER_ACTIONS
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import re
 
 router = APIRouter(prefix="/api/shell")
@@ -417,6 +417,93 @@ async def _native_offer(db, city: str):
     return None
 
 
+async def _mixed_for_you(db, user, city, station_cards, native_offer):
+    """For You beyond audio — interleave stations with a Moment, a live
+    room/show, an offer and a game, each tagged with `type` + `badge` so the
+    client can render mixed cards. Purely additive; every card carries `to`."""
+    stations = []
+    for c in (station_cards or [])[:6]:
+        sid = c.get("id")
+        stations.append({
+            "id": sid, "type": "station", "badge": "Station",
+            "title": c.get("name"), "subtitle": c.get("city") or "Radio",
+            "image": c.get("art"), "live": bool(c.get("live")),
+            "to": (f"/radio/station/{sid}?autoplay=1" if sid else "/radio"),
+        })
+    extras = []
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    try:
+        m = await db.social_moments.find_one(
+            {"visibility": "public", "media_url": {"$nin": [None, ""]},
+             "created_at": {"$gte": cutoff}}, sort=[("created_at", -1)])
+        if m:
+            extras.append({
+                "id": m["_id"], "type": "moment", "badge": "Moment",
+                "title": (m.get("caption") or "A new Moment")[:60],
+                "subtitle": "From the FUUSIC community",
+                "image": m.get("media_url"), "to": "/social?tab=moments",
+            })
+    except Exception:
+        pass
+    try:
+        ls = await db.live_shows.find_one(
+            {"status": "live"}, sort=[("started_at", -1)])
+        if ls:
+            extras.append({
+                "id": ls["_id"], "type": "live", "badge": "Live", "live": True,
+                "title": ls.get("title") or ls.get("business_name") or "Live now",
+                "subtitle": ls.get("business_name") or "FUUSIC Live",
+                "image": ls.get("cover_url"), "to": "/social?tab=live",
+            })
+        else:
+            rm = await db.listen_rooms.find_one(
+                {"active": True}, sort=[("last_active_at", -1)])
+            if rm:
+                content = rm.get("content") or {}
+                extras.append({
+                    "id": rm["_id"], "type": "live", "badge": "Live", "live": True,
+                    "title": content.get("name") or rm.get("title") or "Listening room",
+                    "subtitle": "Listen together", "image": content.get("favicon"),
+                    "to": f"/social/room/{rm['_id']}",
+                })
+    except Exception:
+        pass
+    if native_offer:
+        extras.append({
+            "id": (native_offer.get("business_id") or native_offer.get("campaign_id") or "offer"),
+            "type": "offer", "badge": "Offer", "sponsored": True,
+            "title": native_offer.get("title"), "subtitle": native_offer.get("subtitle"),
+            "image": native_offer.get("image"), "to": native_offer.get("to") or "/shop",
+            "business_id": native_offer.get("business_id"),
+            "campaign_id": native_offer.get("campaign_id"), "kind": native_offer.get("kind"),
+        })
+    try:
+        g = await db.game_campaigns.find_one(
+            {"status": "active"}, sort=[("created_at", -1)])
+        if g:
+            extras.append({
+                "id": g.get("campaign_id"), "type": "game", "badge": "Play",
+                "title": g.get("name") or "Play & Win",
+                "subtitle": "Games, trivia & prizes",
+                "image": g.get("clip_image_url") or g.get("cover_url"),
+                "to": "/play-and-win",
+            })
+    except Exception:
+        pass
+
+    out = []
+    ei = 0
+    for sc in stations:
+        out.append(sc)
+        if ei < len(extras):
+            out.append(extras[ei])
+            ei += 1
+    while ei < len(extras):
+        out.append(extras[ei])
+        ei += 1
+    return out[:10]
+
+
 @router.get("/home")
 async def shell_home(request: Request, city: str = ""):
     """Audio-first Home payload (platform-agnostic — web + mobile).
@@ -480,9 +567,11 @@ async def shell_home(request: Request, city: str = ""):
     # default). Backward-compatible: existing fields above are unchanged.
     cfg = await get_home_config(db)
     fuusic_world = build_fuusic_world(cfg["pillar_order"])
+    mixed_for_you = await _mixed_for_you(db, user, city, for_you, native_offer)
 
     return {
         "for_you": for_you,
+        "mixed_for_you": mixed_for_you,
         "live_now": live_now,
         "native_offer": native_offer,
         "listening_reward": {"points_per_min": 1},

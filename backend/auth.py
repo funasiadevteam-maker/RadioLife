@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional
 
 import bcrypt
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr, Field
 
@@ -75,6 +75,8 @@ class PreferenceVector(BaseModel):
     explicit_ok: bool = False
     # Phase 3.7 — Multi-market support
     market: str = "dubai"           # "dubai" | "dfw"
+    # Content-language filter — English-only default; "show all" escapes it.
+    show_all_languages: bool = False
 
 
 class UserOut(BaseModel):
@@ -1153,6 +1155,28 @@ async def users_me(user: dict = Depends(current_user)):
 async def users_get_prefs(user: dict = Depends(current_user)):
     pv = user.get("preference_vector") or {}
     return PreferenceVector(**pv)
+
+
+@users_router.patch("/content-languages", response_model=UserOut)
+async def users_set_content_languages(
+    request: Request,
+    body: dict = Body(default={}),
+    user: dict = Depends(current_user),
+):
+    """Lightweight update of just the content-language filter (languages +
+    show-all toggle) — powers the inline 'Show all languages' control and the
+    Settings screen. No full onboarding validation."""
+    db = request.app.state.db
+    pv = dict(user.get("preference_vector") or {})
+    if isinstance(body.get("languages"), list):
+        pv["languages"] = [str(x) for x in body["languages"] if str(x).strip()]
+    if "show_all_languages" in body:
+        pv["show_all_languages"] = bool(body["show_all_languages"])
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"preference_vector": pv}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return _serialize_user(fresh)
 
 
 @users_router.post("/preferences", response_model=UserOut)

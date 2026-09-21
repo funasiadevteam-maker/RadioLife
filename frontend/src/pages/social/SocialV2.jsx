@@ -2,7 +2,7 @@
 // "Do things together": Together (default) · Live · Moments · Clubs · Friends.
 // Design-independent functionality; premium New Look V2 presentation.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import {
@@ -28,7 +28,11 @@ const TABS = [
 ];
 
 export default function SocialV2() {
-  const [tab, setTab] = useState("together");
+  const [params] = useSearchParams();
+  const qTab = params.get("tab");
+  const qAction = params.get("action");
+  const validTab = TABS.some((t) => t.key === qTab) ? qTab : null;
+  const [tab, setTab] = useState(qAction ? "together" : (validTab || "together"));
   const [home, setHome] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -55,7 +59,7 @@ export default function SocialV2() {
             </div>
           )}
           {!loading && tab === "together" && (
-            <TogetherTab home={home} reload={loadHome} />
+            <TogetherTab home={home} reload={loadHome} initialAction={qAction} />
           )}
           {!loading && tab === "friends" && <FriendsTab />}
           {!loading && tab === "live" && <LiveTab />}
@@ -129,7 +133,7 @@ function TabBar({ tab, setTab, counts }) {
 }
 
 // ───────────────────────── Together ────────────────────────────────
-function TogetherTab({ home, reload }) {
+function TogetherTab({ home, reload, initialAction }) {
   const navigate = useNavigate();
   const importedStation = usePlayerStore((s) => s.importedStation);
   const podcastEpisode = usePlayerStore((s) => s.podcastEpisode);
@@ -137,6 +141,7 @@ function TogetherTab({ home, reload }) {
   const [goOpen, setGoOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const didAction = useRef(false);
 
   const nowPlaying = importedStation
     ? { type: "live", name: importedStation.name, art: importedStation.favicon }
@@ -176,6 +181,17 @@ function TogetherTab({ home, reload }) {
 
   const rooms = home?.suggested_rooms || [];
   const friendsNow = home?.friends_now || [];
+
+  // Deep-link: open the matching flow directly from Home's Together cards.
+  useEffect(() => {
+    if (didAction.current || !initialAction) return;
+    didAction.current = true;
+    if (initialAction === "play") setPlayOpen(true);
+    else if (initialAction === "shop") setShopOpen(true);
+    else if (initialAction === "go") setGoOpen(true);
+    else if (initialAction === "listen") startRoom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAction]);
 
   return (
     <div className="space-y-8" data-testid="social-together">

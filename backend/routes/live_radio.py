@@ -27,6 +27,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+from core.content_language import (
+    user_content_languages, user_show_all, station_language_or_query,
+)
 
 from services.radio_browser_import import (
     CATEGORIES, send_click_track,
@@ -221,6 +224,7 @@ async def list_stations(
     country: Optional[str] = Query(None,
                                   description="ISO country code, e.g. AE / US / GB."),
     q: Optional[str] = Query(None, description="Free-text search on station name."),
+    show_all: bool = Query(False, description="Bypass the content-language filter."),
     page: int = Query(1, ge=1),
     limit: int = Query(24, ge=1, le=100),
     include_dead: bool = Query(
@@ -261,6 +265,16 @@ async def list_stations(
         sids = list({r["station_id"] async for r in sid_cur})
         imp_query["id"] = {"$in": sids}
 
+    # Content-language HARD filter — hide stations clearly in a non-preferred
+    # language (neutral/unknown stay). Skipped when an explicit language filter
+    # is supplied, the caller passes show_all, or the user opted into show-all.
+    lang_prefs = None
+    if not language and not show_all:
+        _u = await current_user_optional(request)
+        if not user_show_all(_u):
+            lang_prefs = user_content_languages(_u)
+            imp_query = {"$and": [imp_query, station_language_or_query(lang_prefs)]}
+
     skip = (page - 1) * limit
     sort_spec = [("stream_health_status", -1),    # "ok" sorts before "unknown" / "down"
                           ("votes", -1),
@@ -277,7 +291,8 @@ async def list_stations(
         "total": total + len(ai_cards),
         "page": page, "limit": limit,
         "filters": {"category": cat_slug, "language": language,
-                              "country": (country or "").upper() or None, "q": q},
+                              "country": (country or "").upper() or None, "q": q,
+                              "content_languages": lang_prefs, "show_all": show_all},
     }
 
 

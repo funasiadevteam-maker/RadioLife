@@ -3147,6 +3147,20 @@ def _score_track(track, pv, prev_track, played_ids, recent_artists,
     activities = pv.get("activities") or []
     fav_artists = [a.lower() for a in (pv.get("favorite_artists") or [])]
     if track.get("language") and track["language"] in languages: s += 30
+    # Content-language bias — strongly deprioritise tracks in a known
+    # non-preferred language (kept as a penalty, not a hard drop, so
+    # curated channels never end up empty).
+    if languages and track.get("language"):
+        try:
+            from core.content_language import (
+                detect_languages as _detlang, ONBOARDING_LANG_MAP as _olm,
+            )
+            _det = _detlang(track["language"])
+            _pref = {_olm.get(str(l).lower(), str(l).lower()) for l in languages}
+            if _det and not (_det & _pref):
+                s -= 40
+        except Exception:
+            pass
     if track.get("genre") and track["genre"] in genres: s += 20
     era = track.get("era") or _era_bucket(track.get("release_year"))
     if era and era in eras: s += 15

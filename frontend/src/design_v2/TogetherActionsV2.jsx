@@ -8,10 +8,10 @@ const ICONS = {
 };
 
 const FALLBACK = [
-  { key: "listen", label: "Listen Together", sub: "Sync a station with friends", to: "/social", icon: "headphones" },
-  { key: "play", label: "Play Together", sub: "Team up on games & trivia", to: "/social", icon: "gamepad-2" },
-  { key: "shop", label: "Shop Together", sub: "Share a group cart", to: "/social", icon: "shopping-bag" },
-  { key: "go", label: "Go Together", sub: "Plan a night out", to: "/social", icon: "map-pin" },
+  { key: "listen", label: "Listen Together", sub: "Sync a station with friends", to: "/social?action=listen", icon: "headphones" },
+  { key: "play", label: "Play Together", sub: "Team up on games & trivia", to: "/social?action=play", icon: "gamepad-2" },
+  { key: "shop", label: "Shop Together", sub: "Share a group cart", to: "/social?action=shop", icon: "shopping-bag" },
+  { key: "go", label: "Go Together", sub: "Plan a night out", to: "/social?action=go", icon: "map-pin" },
 ];
 
 // One of FUUSIC's clearest differentiators — do things WITH people.

@@ -313,23 +313,23 @@ export default function Onboarding() {
       <main className="wizard-main">
         {step === 0 && (
           <section className="step-section" data-testid="step-welcome">
-            <h1 className="step-title">Namaste, {city || "doston"}.</h1>
+            <h1 className="step-title">Welcome{city ? `, ${city}` : ""}.</h1>
             <p className="step-lede">
-              Kuch sawal hain — phir non-stop music chalega.
-              30 seconds, max. After that, your radio sirf aapke vibe ke liye chalega.
+              A few quick questions — then non-stop music. 30 seconds, max.
+              We’ll tune FUUSIC to the languages and vibe you choose.
             </p>
             <div className="welcome-bullets">
               <div className="welcome-bullet"><span className="mono num">01</span> Pick languages, genres &amp; moods you like</div>
               <div className="welcome-bullet"><span className="mono num">02</span> Pick your RJ (or let us choose)</div>
-              <div className="welcome-bullet"><span className="mono num">03</span> Press ON AIR. Music chalu.</div>
+              <div className="welcome-bullet"><span className="mono num">03</span> Press ON AIR. Music on.</div>
             </div>
           </section>
         )}
 
         {step === 1 && (
           <section className="step-section">
-            <h1 className="step-title">Aap kya sunte ho?</h1>
-            <p className="step-lede">Pick one or more languages (min 1).</p>
+            <h1 className="step-title">What do you listen to?</h1>
+            <p className="step-lede">Pick your languages (min 1). FUUSIC shows content in these — English by default. You can change this anytime in Profile.</p>
             <ChipGrid options={LANGUAGES} selected={pv.languages} onToggle={toggle("languages")}
                       data-testid="step-languages" />
           </section>

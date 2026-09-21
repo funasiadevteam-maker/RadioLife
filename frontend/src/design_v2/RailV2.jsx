@@ -64,6 +64,13 @@ export default function RailV2({ title, subtitle, items = [], testId }) {
                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
                   </span>
                 )}
+                {it.type && !it.sponsored && !it.live && !["station"].includes(it.type) && (
+                  <span data-testid={`nlv2-rail-badge-${it.type}`}
+                    className="absolute top-2 left-2 text-[8.5px] font-black tracking-widest px-2 py-0.5 rounded-full"
+                    style={{ background: "rgba(124,58,237,0.92)", color: "#fff" }}>
+                    {(it.badge || it.type).toUpperCase()}
+                  </span>
+                )}
                 <div className="absolute right-2.5 bottom-2.5 w-9 h-9 rounded-full grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity"
                   style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
                   <Play size={15} fill="#fff" color="#fff" />

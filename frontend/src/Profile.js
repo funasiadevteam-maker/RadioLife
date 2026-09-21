@@ -167,6 +167,13 @@ export default function Profile() {
         <h2 className="pref-title">Languages</h2>
         <Toggleable list={LANGUAGES} selected={pv.languages} onToggle={toggle("languages")}
                     data-testid="pref-languages" />
+        <label data-testid="pref-show-all-languages"
+               style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12,
+                        fontSize: 13, color: "#c3cbe4", cursor: "pointer" }}>
+          <input type="checkbox" checked={!!pv.show_all_languages}
+                 onChange={(e) => setPv((p) => ({ ...p, show_all_languages: e.target.checked }))} />
+          Show content in all languages (don’t filter to my languages)
+        </label>
       </section>
 
       {/* Phase 3 — Subscription tile (anchor #billing for menu links) */}

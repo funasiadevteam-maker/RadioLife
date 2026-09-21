@@ -1,0 +1,30 @@
+{
+  "summary": "Iter 167 — LANGUAGE + MUSIC PREFERENCE filtering verified end-to-end on shared backend + web + mobile Expo. Backend 19/19 pytest pass covering content_language engine (detect_languages Bollywood->hindi, neutral 'Spin & Win' -> empty, content_allowed english/hindi/show_all), PATCH /api/users/content-languages (persists + verified via /users/me + restored to english defaults), /api/radio/browse english=1,383 stations vs show_all=1,742 vs lang_group=hindi=108, /api/live-radio/stations english < show_all and filters.content_languages echoed, /api/games_v2/play_and_win hides Bollywood campaigns for english user (no 500, sections intact), /api/trivia/categories hides bollywood categories for english user, and server._score_track applies -40 penalty for hindi track for english user (soft not hard drop). Web /radio/browse: 'Show all languages' toggle flips ?show_all=1 (1,383 -> 1,756 matched), label toggles to '✓ All languages', lang note hidden when show_all active. Web /profile: 'Show content in all languages' checkbox present with pref-show-all-languages testID and Languages block chips render (English checked). Web /onboarding step 1: neutral English copy (Welcome, Dallas.) — no Namaste / Aap kya sunte ho. Mobile Profile > Edit Preferences: pref-show-all-languages toggle renders + Ionicons icon changes state on tap; language chips and other prefs (Genres, Eras, Moods) still work. Demo user RESTORED to {languages:['english'], show_all_languages:false}.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter167_content_language.py",
+    "/app/test_reports/pytest/iter167.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Pre-existing (not caused by this feature): /api/radio/start returns 409 empty_playable_pool for demo user across ALL AI channels (premium_mehfil, party_dubai, morning_masala, late_night_drive, retro_lounge) with reason 'build_failed' on demo_track_X. This is a track URL/build regression, not a language-filter issue — but consumer of AI radio (Start My Radio) will fail for demo. Recommend main agent verify demo AI radio streaming (independent of this feature).",
+    "core/content_language.detect_languages uses substring match — 'hindi' appears inside 'hindustani' (already handled) but also inside 'chindi/hindu' etc. Low risk today but worth noting: consider word-boundary regex if keyword corpus grows.",
+    "content_language.KNOWN keyword set doesn't include 'hindi film' or 'filmi' outside 'filmi'; multi-token station names like 'Bombay Retro' won't detect as hindi. Neutral fallback means they leak through to english users. Acceptable per spec (neutral == shown), but flag for product decision."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter167_content_language.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "None — used existing seeded demo user; mutated preference_vector during tests and RESTORED to {languages:['english'], show_all_languages:false} at end (verified via /api/users/me).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Language filter is a HARD filter with three escapes: per-request ?show_all=true/1, per-user preference_vector.show_all_languages=true, and explicit ?language= / ?lang_group= params. Neutral (no known language token) content is always allowed. Verified numbers today: /radio/browse english=1383 vs show_all=1742 vs lang_group=hindi=108 (spec-parity). /live-radio/stations english=1338 vs show_all=1710 (spec-parity). PATCH /api/users/content-languages accepts partial body (only languages or only show_all_languages) and returns updated UserOut. Web toggle at [data-testid=radio-browse-show-all-languages], note at [data-testid=radio-browse-lang-note], profile checkbox at [data-testid=pref-show-all-languages]. Mobile toggle at [data-testid=pref-show-all-languages] under menu-edit-prefs. AI radio penalty is -40 (soft, not hard drop) — but note pre-existing /api/radio/start empty_playable_pool 409 for demo user across all channels due to build_failed on demo_track_X (unrelated to this feature).",
+  "rca of the issue": ""
+}

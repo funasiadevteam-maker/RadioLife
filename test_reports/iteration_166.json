@@ -1,0 +1,30 @@
+{
+  "summary": "Iter 166 — LIVE SOCIAL CARDS + MIXED FOR YOU + TOGETHER DEEP-LINKS validated on shared backend + web New Look V2 + mobile Expo. Backend 11/11 pytest pass (mixed_for_you shape, typed cards, station autoplay deep-link, offer sponsored flag, together_actions deep-links, /api/social/home auth). Web Home: For You rail renders MIXED cards with LIVE + SPONSORED + purple GAME badge (nlv2-rail-badge-game); moment badge not rendered because demo has no public moments (expected — honest empty state). All four together buttons (listen/play/shop/go) navigate to /social?action=... — Play deep-link opens Social page (URL confirmed /social?action=play, social-v2 mounted). WhatsHappeningNowV2 shows honest 'Discover Social' empty state (demo has no friends live). ?tab=live and ?tab=moments route correctly on SocialV2. Mobile Home: 9 home-foryou tiles rendered with LIVE/PLAY/OFFER/SPONSORED typed badges; friends_live rail empty (expected); home-social-discover empty card shown; FUUSIC World 'Live' pill deep-links to /social?tab=live; mobile Social ?tab=live opens Live tab and shows live rooms. No regressions.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter166_live_social_mixed.py",
+    "/app/test_reports/pytest/iter166.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "RailV2 badge logic: game/moment/offer cards without images show only lucide Radio fallback — cover art from social_moments.media_url and game_campaigns.clip_image_url should always be present, otherwise rail UX degrades. Consider a gradient placeholder for missing images.",
+    "HomeNewLookV2 polls /api/social/home every 20s but doesn't back off when tab is hidden — minor battery/network waste (document.visibilityState check would help).",
+    "SocialV2 with invalid ?tab=<x> retains the URL and silently falls back to Together tab (correct behavior); consider stripping the invalid param via history.replaceState for a cleaner shareable URL."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter166_live_social_mixed.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "None — used existing seeded demo user (no friends live, no public moments, so friends_now[] and moment cards are empty by design).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live Social Cards were not exercised end-to-end with a real friend in a room (demo user has only 1 friend and none active). To fully verify, log in as two friend accounts, POST /api/social/rooms + heartbeat from one, and expect the other user's Home to surface nlv2-happening-friend-0 (web) / home-friend-live-0 (mobile) within ~20s. Empty state was intentionally chosen and passes honest-data requirement. All typed badges verified on both surfaces.",
+  "rca of the issue": ""
+}

@@ -1779,6 +1779,23 @@ async def public_play_and_win(db, user: dict) -> dict:
                 "session_id=%s err=%s",
                 (s or {}).get("session_id"), e)
             continue
+    # Content-language HARD filter — hide clearly language-specific games
+    # (e.g. Bollywood/Hindi) for users who didn't opt into that language.
+    try:
+        from core.content_language import (
+            user_content_languages as _ucl, user_show_all as _usa,
+            content_allowed as _ca,
+        )
+        if not _usa(user):
+            _prefs = _ucl(user)
+
+            def _lang_ok(v: dict) -> bool:
+                return _ca(f"{v.get('title', '')} {v.get('description', '')}",
+                           _prefs, explicit=v.get("content_language"))
+            unlocked_for_you = [v for v in unlocked_for_you if _lang_ok(v)]
+            expiring_soon = [v for v in expiring_soon if _lang_ok(v)]
+    except Exception:
+        pass
     return {
         "unlocked_for_you": unlocked_for_you,
         "sponsored_near_you": [],     # Phase 9 — empty for 8a

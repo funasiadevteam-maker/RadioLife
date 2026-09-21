@@ -32,7 +32,7 @@ const fireEvent = (event: string, extra: Record<string, any> = {}) => {
 const FUUSIC_WORLD = [
   { key: 'social', label: 'Social', icon: 'people', to: '/(tabs)/social', bg: '#14b8a6', featured: true },
   { key: 'listen', label: 'Listen', icon: 'headset', to: '/(tabs)/listen', bg: '#a855f7' },
-  { key: 'live', label: 'Live', icon: 'radio', to: '/(tabs)/social', bg: '#f43f5e' },
+  { key: 'live', label: 'Live', icon: 'radio', to: '/(tabs)/social?tab=live', bg: '#f43f5e' },
   { key: 'shop', label: 'Shop', icon: 'storefront', to: '/(tabs)/shop', bg: '#ec4899' },
   { key: 'play', label: 'Play', icon: 'game-controller', to: '/(tabs)/games', bg: '#8b5cf6' },
   { key: 'dining', label: 'Dining', icon: 'restaurant', to: '/dining', bg: '#fb923c' },
@@ -73,6 +73,15 @@ export default function HomeScreen() {
 
   useEffect(() => { if (!authLoading && user) load(); }, [authLoading, user]);
 
+  // Poll social so friends-live cards appear the moment friends go live.
+  useEffect(() => {
+    if (!user) return undefined;
+    const t = setInterval(() => {
+      api.get('/social/home').then((r) => setSocialHome(r.data || null)).catch(() => {});
+    }, 25000);
+    return () => clearInterval(t);
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     api.get('/geo/resolve_city').then((r) => {
@@ -87,7 +96,9 @@ export default function HomeScreen() {
 
   const firstName = user?.name?.split(' ')[0] || '';
   const hasSession = !!activeChannelName;
-  const forYouRaw: any[] = home?.for_you || [];
+  const forYouRaw: any[] = (Array.isArray(home?.mixed_for_you) && home.mixed_for_you.length)
+    ? home.mixed_for_you
+    : (home?.for_you || []);
   const liveNow: any[] = home?.live_now || [];
   const nativeOffer = home?.native_offer;
   const perMin = home?.listening_reward?.points_per_min ?? 1;
@@ -99,6 +110,7 @@ export default function HomeScreen() {
   const liveExp = Number(happening.live_experiences || 0);
   const socialReqs = Number(socialHome?.counts?.friend_requests || 0);
   const socialActive = friendsActive > 0 || liveExp > 0 || socialReqs > 0;
+  const friendsNow: any[] = Array.isArray(socialHome?.friends_now) ? socialHome.friends_now : [];
 
   const forYou = chip === 'live'
     ? forYouRaw.filter((x) => x.live)
@@ -202,6 +214,29 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
+        {/* Friends live now — real avatars + join listening room */}
+        {friendsNow.length > 0 && (
+          <View style={s.shelf}>
+            <View style={s.shelfHead}><Text style={s.shelfTitle}>Friends live now</Text></View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 12 }}>
+              {friendsNow.slice(0, 8).map((f, i) => (
+                <Pressable key={f.user_id || i} testID={`home-friend-live-${i}`} style={s.friendCard}
+                  onPress={() => { fireEvent('home_whats_happening_click', { kind: 'friend' }); router.push((f.room_id ? `/social/room/${f.room_id}` : '/(tabs)/social') as any); }}>
+                  <View style={s.friendAvatarWrap}>
+                    {f.avatar_url
+                      ? <Image source={{ uri: resolveImg(f.avatar_url) || undefined }} style={s.friendAvatar} contentFit="cover" transition={150} />
+                      : <View style={[s.friendAvatar, s.friendAvatarFallback]}><Text style={s.friendInitial}>{(f.name || '?').slice(0, 1).toUpperCase()}</Text></View>}
+                    <View style={s.friendLiveDot} />
+                  </View>
+                  <Text style={s.friendName} numberOfLines={1}>{f.name || 'Friend'}</Text>
+                  <Text style={s.friendCtx} numberOfLines={1}>{f.context ? `to ${f.context}` : 'listening'}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* A · Continue Listening / Start My Radio */}
         {hasSession ? (
           <Pressable style={s.continueCard} testID="home-continue" onPress={() => router.push('/now-playing')}>
@@ -229,7 +264,7 @@ export default function HomeScreen() {
           <View style={s.shelfHead}>
             <View style={{ flex: 1 }}>
               <Text style={s.shelfTitle}>For You</Text>
-              <Text style={s.shelfSuffix}>AI RADIO · LIVE RADIO · PODCASTS</Text>
+              <Text style={s.shelfSuffix}>STATIONS · MOMENTS · LIVE · PLAY</Text>
             </View>
             <Pressable onPress={() => router.push('/(tabs)/listen')} hitSlop={8}>
               <Text style={s.seeAll}>See all</Text>
@@ -251,15 +286,26 @@ export default function HomeScreen() {
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 12 }}>
-              {forYou.map((st) => (
-                <Pressable key={st.slug || st.id} testID={`home-foryou-${st.slug || st.id}`} style={s.stationTile}
-                  onPress={() => playCard(st)}>
-                  <Image source={{ uri: resolveImg(st.art) || undefined }} style={s.stationImg} contentFit="cover" transition={200} />
-                  {st.live && <View style={s.liveBadge}><Text style={s.liveBadgeText}>LIVE</Text></View>}
-                  <Text style={s.tileName} numberOfLines={1}>{st.name}</Text>
-                  <Text style={s.tileSub} numberOfLines={1}>{st.city || 'Radio'}</Text>
-                </Pressable>
-              ))}
+              {forYou.map((st, i) => {
+                const isStation = !st.type || st.type === 'station';
+                const img = st.art || st.image;
+                const nm = st.name || st.title;
+                const sub = st.city || st.subtitle || 'Radio';
+                return (
+                  <Pressable key={st.id || st.slug || i} testID={`home-foryou-${st.id || st.slug || i}`} style={s.stationTile}
+                    onPress={() => {
+                      if (isStation) { playCard({ id: st.id, name: nm, art: img }); }
+                      else { fireEvent('home_pillar_click', { kind: st.type }); router.push(st.to as any); }
+                    }}>
+                    <Image source={{ uri: resolveImg(img) || undefined }} style={s.stationImg} contentFit="cover" transition={200} />
+                    {st.type && !isStation && !st.live
+                      ? <View style={s.typeBadge}><Text style={s.typeBadgeText}>{(st.badge || st.type).toUpperCase()}</Text></View>
+                      : st.live ? <View style={s.liveBadge}><Text style={s.liveBadgeText}>LIVE</Text></View> : null}
+                    <Text style={s.tileName} numberOfLines={1}>{nm}</Text>
+                    <Text style={s.tileSub} numberOfLines={1}>{sub}</Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           )}
         </View>
@@ -450,6 +496,17 @@ const s = StyleSheet.create({
   tileSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
   liveBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: TUBE.live, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
   liveBadgeText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+  typeBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(124,58,237,0.92)', borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
+  typeBadgeText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+
+  friendCard: { width: 96, alignItems: 'center' },
+  friendAvatarWrap: { width: 72, height: 72, marginBottom: 6 },
+  friendAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: TUBE.elevated, borderWidth: 2, borderColor: '#14b8a6' },
+  friendAvatarFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#14b8a6' },
+  friendInitial: { color: '#fff', fontSize: TFONT.xl, fontWeight: '900' },
+  friendLiveDot: { position: 'absolute', bottom: 2, right: 6, width: 14, height: 14, borderRadius: 7, backgroundColor: TUBE.live, borderWidth: 2, borderColor: TUBE.bg },
+  friendName: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800', textAlign: 'center' },
+  friendCtx: { color: '#5eead4', fontSize: TFONT.xs, fontWeight: '600', textAlign: 'center' },
   sponsorBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: TUBE.gold, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
   sponsorBadgeText: { color: TUBE.onAccent, fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
 
