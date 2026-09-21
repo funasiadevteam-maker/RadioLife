@@ -115,7 +115,8 @@ async def _advisor_profile(db, uid: str) -> Optional[dict]:
 
 
 async def _owned_business(db, uid: str) -> Optional[dict]:
-    return await db.businesses.find_one({"owner_user_id": uid})
+    return await db.businesses.find_one(
+        {"$or": [{"owner_user_id": uid}, {"owner_user_ids": uid}]})
 
 
 # ─────────────────────────── Earnings ──────────────────────────────

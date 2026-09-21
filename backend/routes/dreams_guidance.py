@@ -853,18 +853,17 @@ async def book_reading(body: BookingBody, request: Request,
     if not origin:
         raise HTTPException(400, {"code": "origin_required"})
 
-    # Stripe Connect split: if the advisor completed payout onboarding, run a
-    # DIRECT charge on their connected account with our platform application fee
-    # (advisor is merchant of record → they own any chargeback). Otherwise fall
-    # back to a plain platform charge, unless the admin requires onboarding.
-    from routes.vendor_payments import (connect_checkout_options,
-                                         require_payout_onboarding)
-    split = await connect_checkout_options(db, "advisor", body.advisor_id, fee)
-    if split is None and await require_payout_onboarding(db):
+    # Unified Payouts Hub gate: when the admin requires payout onboarding, an
+    # advisor cannot sell until their Stripe Connect account is active. The
+    # advisor's share is transferred to their connected account on delivery via
+    # dream_payouts.settle_booking_payout (separate charges & transfers), so
+    # checkout is a plain platform charge (no direct-charge split here).
+    from routes.payouts_hub import gate_on, advisor_payout_ready
+    if await gate_on(db) and not await advisor_payout_ready(db, body.advisor_id):
         raise HTTPException(409, {"code": "advisor_payout_not_ready"})
-    currency = (split or {}).get("currency", "usd")
+    currency = "usd"
 
-    session_kwargs = dict(
+    session = stripe.checkout.Session.create(
         mode="payment",
         line_items=[{"price_data": {"currency": currency,
                      "product_data": {"name": f"{a.get('display_name')} — {svc.get('title')}"},
@@ -873,16 +872,6 @@ async def book_reading(body: BookingBody, request: Request,
         cancel_url=f"{origin}/payment/cancel",
         metadata={"kind": "dream_reading", "booking_id": bid,
                   "advisor_id": body.advisor_id})
-    request_opts = {}
-    if split is not None:
-        session_kwargs["payment_intent_data"] = {
-            "application_fee_amount": split["application_fee_amount"]}
-        request_opts["stripe_account"] = split["stripe_account"]
-        booking["connected_account_id"] = split["connected_account_id"]
-        booking["application_fee_cents"] = split["application_fee_amount"]
-        booking["platform_fee_bps"] = split["fee_bps"]
-        booking["currency"] = currency
-    session = stripe.checkout.Session.create(**session_kwargs, **request_opts)
     booking["session_id"] = session.id
     await db.reading_bookings.insert_one(dict(booking))
     return {"ok": True, "booking_id": bid, "status": "pending_payment",

@@ -6507,23 +6507,25 @@ try:
 except Exception as _e_games:
     logger.warning(f"Instant games routes failed ({_e_games})")
 
-# Vendor payments — Stripe Connect marketplace (platform commission + payouts).
+# Payouts Hub — unified Stripe Connect (advisor 15% / merchant 5% split,
+# onboarding gate, earnings). Supersedes the retired vendor_payments module;
+# routes onto the SAME Standard accounts used by dream_payouts + payment_service.
 try:
-    from routes.vendor_payments import (router as _vendor_pay_router,
-                                         admin_router as _vendor_pay_admin_router,
-                                         ensure_vendor_payment_indexes as _ensure_vp_idx)
-    app.include_router(_vendor_pay_router)
-    app.include_router(_vendor_pay_admin_router)
+    from routes.payouts_hub import (router as _payouts_hub_router,
+                                     admin_router as _payouts_hub_admin_router,
+                                     ensure_payout_hub_defaults as _ensure_payout_hub)
+    app.include_router(_payouts_hub_router)
+    app.include_router(_payouts_hub_admin_router)
 
-    async def _vendor_payments_bootstrap():
+    async def _payouts_hub_bootstrap():
         try:
-            await _ensure_vp_idx(db)
-        except Exception as _e_vp:
-            logger.warning(f"vendor_payments bootstrap: {_e_vp}")
-    app.add_event_handler("startup", _vendor_payments_bootstrap)
-    logger.info("Vendor payments (Stripe Connect) routes registered")
-except Exception as _e_vp_reg:
-    logger.warning(f"Vendor payments routes failed ({_e_vp_reg})")
+            await _ensure_payout_hub(db)
+        except Exception as _e_ph:
+            logger.warning(f"payouts_hub bootstrap: {_e_ph}")
+    app.add_event_handler("startup", _payouts_hub_bootstrap)
+    logger.info("Payouts Hub (unified Stripe Connect) routes registered")
+except Exception as _e_ph_reg:
+    logger.warning(f"Payouts Hub routes failed ({_e_ph_reg})")
 
 
 # Per-user UI preferences (player dock position, etc.).

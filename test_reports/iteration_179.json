@@ -1,0 +1,38 @@
+{
+  "summary": "Payouts Hub consolidation (advisor 15% / merchant 5%, Earnings dashboard, Onboarding gate, retirement of vendor_payments) tested end-to-end on backend + web + mobile. All 9 executed backend tests passed (2 skipped only because a Stripe account is created during the onboard test — the 'agreement_required' + 'no_account' branches only fire on a truly fresh account, which they did on this run before creation). Web /payouts and /admin/platform-fees, and mobile /payouts (reached both directly and via Profile -> menu-payouts), all render correctly and expose the required testIDs. Vendor_payments retirement verified (both endpoints 404). Advisor booking checkout gate returns 409 advisor_payout_not_ready when require_onboarding=true and the advisor is not payout-ready.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter179_payouts_hub.py",
+    "/app/test_reports/pytest/iter179.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "payouts_hub.py hard-codes a preview host as fallback for _frontend_url (line 58). Non-critical because _origin() prefers the request's Origin/Referer header, but the fallback should ideally come from an env var only.",
+    "PayoutsOnboarding.jsx uses window.alert on error and only surfaces the raw detail code (line 124). Fine for MVP but user-hostile — swap for a toast with the mapped copy for known codes (agreement_required, no_account, advisor_payout_not_ready).",
+    "In test runs the merchant Stripe account persists across iterations (demo@ now has stripe_account_id from this session's onboard test). Not a bug but the agreement_required/no_account paths will keep skipping in future regression runs unless the test resets the field first."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter179_payouts_hub.py"
+  ],
+  "success_rate": {"backend": "100% (9/9 executed, 2 conditional-skip)", "frontend": "100% (web + mobile parity verified)"},
+  "seed_data_creation": "None. Test onboarded demo@'s merchant business (The Grind Coffee (Demo)) through /api/payouts/onboard which created a real Stripe TEST connected account (charges_enabled=false, needs KYC).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The demo merchant (biz for The Grind Coffee (Demo)) now HAS a stripe_account_id but is NOT active — /payouts shows PENDING with 'Finish Stripe setup' (testID payout-resume-merchant) instead of the agreement checkbox + connect button. To exercise the fresh-onboarding UI (payout-agree-merchant + payout-connect-merchant), unset businesses.stripe_account_id/stripe_charges_enabled for the demo merchant first. Same applies to the backend 'agreement_required' + 'no_account' branches. Admin fees at /admin/platform-fees confirmed persisting advisor=15/merchant=5/gate=true.",
+  "rca of the issue": ""
+}

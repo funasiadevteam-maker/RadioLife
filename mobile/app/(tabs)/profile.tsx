@@ -177,6 +177,9 @@ export default function ProfileScreen() {
           <MenuItem icon="flash-outline" label="Sponsor a Bonus" sub="Run a points multiplier at your venue"
             onPress={() => router.push('/merchant/bonuses')}
             testID="menu-merchant-bonuses" />
+          <MenuItem icon="cash-outline" label="Payouts & Earnings" sub="Get paid via Stripe · view your earnings"
+            onPress={() => router.push('/payouts')}
+            testID="menu-payouts" />
           {creatorStatus === 'approved' && (
             <MenuItem icon="mic-outline" label="Creator Studio" sub="Manage channels, episodes, distribution"
               onPress={() => router.push('/creator')}
