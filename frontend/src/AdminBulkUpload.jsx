@@ -22,6 +22,27 @@ import AdminBulkUploadHistory, { MyRecentUploadsWidget }
 const ACCEPT = ".mp3,.wav,.m4a,.flac,.ogg,.zip,audio/*";
 const isZipName = (n) => /\.zip$/i.test(n || "");
 
+// Bulk uploads are chunked into small requests so a large batch never exceeds
+// the platform's ingress request timeout (which killed big single-request
+// uploads mid-transfer on normal upload bandwidth). Each request stays small.
+const BATCH_MAX_FILES = 12;
+const BATCH_MAX_BYTES = 30 * 1024 * 1024;   // 30 MB per request — safe on slow uplinks
+
+function makeBatches(files) {
+  const batches = [];
+  let cur = [], curBytes = 0;
+  for (const f of files) {
+    const sz = f.size || 0;
+    if (cur.length && (cur.length >= BATCH_MAX_FILES ||
+                       curBytes + sz > BATCH_MAX_BYTES)) {
+      batches.push(cur); cur = []; curBytes = 0;
+    }
+    cur.push(f); curBytes += sz;
+  }
+  if (cur.length) batches.push(cur);
+  return batches;
+}
+
 const fmtBytes = (b) => {
   if (!b) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -96,6 +117,7 @@ export default function AdminBulkUpload() {
     max_extracted_files: 1000, max_zip_entries: 500,
   });
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null);   // { done, total } while uploading
   const [result, setResult] = useState(null);
   const [tab, setTab] = useState("upload");   // Phase 22g — upload | history
   const fileRef = useRef(null);
@@ -136,62 +158,92 @@ export default function AdminBulkUpload() {
       toast.error(`Total ${fmtBytes(totalBytes)} exceeds ${fmtBytes(limits.max_bytes)}`);
       return;
     }
-    const fd = new FormData();
-    // 22b: a single `files[]` field accepts any combination of audio + ZIPs.
-    staged.forEach((f) => fd.append("files", f));
-    if (defaults.language) fd.append("default_language", defaults.language);
-    if (defaults.genre)       fd.append("default_genre", defaults.genre);
-    if (defaults.era)           fd.append("default_era", defaults.era);
-    if (defaults.channel_eligibility)
-        fd.append("channel_eligibility", defaults.channel_eligibility);
+
+    // Snapshot staged file sizes (for the dedupe MB-saved report) before we
+    // clear the pool.
+    const sizeByName = {};
+    staged.forEach((f) => { sizeByName[f.name] = f.size || 0; });
+
+    // Split into small requests so no single upload exceeds the ingress
+    // timeout, then aggregate every batch's result into one summary.
+    const batches = makeBatches(staged);
 
     setBusy(true);
     setResult(null);
-    try {
-      const r = await axios.post(`${API}/admin/tracks/bulk-upload`, fd, {
-        headers: {"Content-Type": "multipart/form-data"},
-        timeout: 600000,
-      });
-      // Phase 22e: stash a copy of staged-file sizes (keyed by filename)
-      // so we can report MB-saved by dedupe even after we clear `staged`.
-      const sizeByName = {};
-      staged.forEach((f) => { sizeByName[f.name] = f.size || 0; });
-      const enriched = {
-        ...r.data,
-        _staged_size_by_name: sizeByName,
-      };
-      setResult(enriched);
-      // Phase 22e toast — spec: "X imported, Y duplicates auto-skipped (saved Z MB)"
-      // Z is summed from `duplicates_skipped_details[*].file_name` matched
-      // against the original staged File[] (matches loose audio uploads;
-      // ZIP entries fall through, so MB is omitted when Z stays at 0).
-      const imported = (r.data.imported_count ?? r.data.uploaded ?? 0);
-      const dups     = (r.data.duplicates_skipped ?? r.data.duplicates ?? 0);
-      const dupDetails = r.data.duplicates_skipped_details || [];
-      const savedBytes = dupDetails.reduce(
-        (acc, d) => acc + (sizeByName[d.file_name] || 0), 0);
-      const savedMB = savedBytes / (1024 * 1024);
-      const mbStr = savedMB > 0 ? ` (saved ${savedMB.toFixed(2)} MB)` : "";
-      toast.success(
-        `${imported} imported, ${dups} duplicates auto-skipped${mbStr}`,
-        { duration: 5000 });
-      setStaged([]);
-      if (fileRef.current) fileRef.current.value = "";
-    } catch (e) {
-      const d = e?.response?.data?.detail;
-      if (d && typeof d === "object" && d.code === "no_valid_audio") {
-        setResult({ ok: false, uploaded: 0, duplicates: 0,
-                          skipped_non_audio: 0, failed: 0,
-                          items: d.items || [] });
-        toast.error("No valid audio in submission");
-      } else if (d && typeof d === "object" && d.code === "too_many_extracted_files") {
-        toast.error(`Too many extracted files (limit ${d.limit}; archive: ${d.archive})`);
-      } else {
-        toast.error(typeof d === "string" ? d : (d?.code || "Upload failed"));
+    setProgress({ done: 0, total: batches.length });
+
+    const agg = {
+      ok: true, uploaded: 0, duplicates: 0, skipped_non_audio: 0, failed: 0,
+      zip_archives_processed: 0, audio_files_direct: 0,
+      audio_files_extracted_from_zip: 0, items: [],
+      duplicates_skipped_details: [], job_ids: [],
+    };
+    let anyBatchError = false;
+
+    for (let bi = 0; bi < batches.length; bi += 1) {
+      const fd = new FormData();
+      batches[bi].forEach((f) => fd.append("files", f));
+      if (defaults.language) fd.append("default_language", defaults.language);
+      if (defaults.genre)       fd.append("default_genre", defaults.genre);
+      if (defaults.era)           fd.append("default_era", defaults.era);
+      if (defaults.channel_eligibility)
+          fd.append("channel_eligibility", defaults.channel_eligibility);
+      try {
+        const r = await axios.post(`${API}/admin/tracks/bulk-upload`, fd, {
+          headers: {"Content-Type": "multipart/form-data"},
+          timeout: 300000,
+        });
+        const d = r.data || {};
+        agg.uploaded                       += d.uploaded || 0;
+        agg.duplicates                    += d.duplicates || 0;
+        agg.skipped_non_audio         += d.skipped_non_audio || 0;
+        agg.failed                            += d.failed || 0;
+        agg.zip_archives_processed  += d.zip_archives_processed || 0;
+        agg.audio_files_direct           += d.audio_files_direct || 0;
+        agg.audio_files_extracted_from_zip += d.audio_files_extracted_from_zip || 0;
+        if (Array.isArray(d.items)) agg.items.push(...d.items);
+        if (Array.isArray(d.duplicates_skipped_details))
+          agg.duplicates_skipped_details.push(...d.duplicates_skipped_details);
+        if (d.job_id) agg.job_ids.push(d.job_id);
+      } catch (e) {
+        anyBatchError = true;
+        const dd = e?.response?.data?.detail;
+        if (dd && typeof dd === "object" && Array.isArray(dd.items)) {
+          agg.items.push(...dd.items);
+          agg.failed += dd.items.filter((it) => it.status === "failed").length;
+        } else {
+          const reason = typeof dd === "string"
+            ? dd : (dd?.code || e?.message || "upload_failed");
+          batches[bi].forEach((f) => agg.items.push({
+            source: "direct", filename: f.name, status: "failed", reason,
+          }));
+          agg.failed += batches[bi].length;
+        }
       }
-    } finally {
-      setBusy(false);
+      setProgress({ done: bi + 1, total: batches.length });
     }
+
+    agg.ok = agg.uploaded > 0 || !anyBatchError;
+    agg._staged_size_by_name = sizeByName;
+    agg.job_id = agg.job_ids[0];
+    setResult(agg);
+
+    const savedBytes = agg.duplicates_skipped_details.reduce(
+      (acc, d) => acc + (sizeByName[d.file_name] || 0), 0);
+    const savedMB = savedBytes / (1024 * 1024);
+    const mbStr = savedMB > 0 ? ` (saved ${savedMB.toFixed(2)} MB)` : "";
+    if (agg.uploaded > 0 || !anyBatchError) {
+      toast.success(
+        `${agg.uploaded} imported, ${agg.duplicates} duplicates auto-skipped${mbStr}`
+          + (anyBatchError ? ` · ${agg.failed} failed` : ""),
+        { duration: 6000 });
+    } else {
+      toast.error(`Upload failed — ${agg.failed} file(s) not uploaded`);
+    }
+    setStaged([]);
+    if (fileRef.current) fileRef.current.value = "";
+    setBusy(false);
+    setProgress(null);
   };
 
   // Group the items into a render-ready stream: direct rows + per-archive
@@ -364,12 +416,16 @@ export default function AdminBulkUpload() {
                                       fontWeight: 700,
                                       opacity: staged.length ? 1 : 0.4}}>
               {busy ? <Loader2 size={14} className="spin"/> : <Upload size={14}/>}
-              {" "}{busy ? "Uploading…" : `Upload ${staged.length || ""}`}
+              {" "}{busy
+                      ? (progress ? `Uploading ${progress.done}/${progress.total}…` : "Uploading…")
+                      : `Upload ${staged.length || ""}`}
             </button>
             {busy && (
               <span data-testid="bulk-upload-busy" className="mono"
                           style={{color: "#9aa3af", fontSize: 11}}>
-                processing — extracting ZIPs + tagging…
+                {progress
+                  ? `uploading batch ${progress.done} of ${progress.total} — tagging + storing…`
+                  : "processing — extracting ZIPs + tagging…"}
               </span>
             )}
           </div>

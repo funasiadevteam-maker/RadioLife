@@ -267,7 +267,11 @@ async def _spool_upload_to_disk(f: UploadFile, dst: Path) -> str:
         out.write(data)
     try:
         from services.object_storage import get_storage as _get_storage
-        _get_storage().upload_bytes(key=f"storage/bulk_tracks/{dst.name}", data=data)
+        _st = _get_storage()
+        # Offload the blocking S3/Tigris PUT so it never stalls the event loop
+        # (a bulk request does one of these per file).
+        await asyncio.to_thread(
+            lambda: _st.upload_bytes(key=f"storage/bulk_tracks/{dst.name}", data=data))
     except Exception:
         pass
     return hasher.hexdigest()
