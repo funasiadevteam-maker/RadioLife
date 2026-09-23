@@ -11,7 +11,7 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import {
   Upload, FolderUp, FileArchive, Music, Loader2, CheckCircle2,
-  Recycle, AlertTriangle, XCircle, ArrowLeft,
+  Recycle, AlertTriangle, XCircle, ArrowLeft, Clock, Zap,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { API } from "@/AuthContext";
@@ -120,7 +120,34 @@ export default function AdminBulkUpload() {
   const [progress, setProgress] = useState(null);   // { done, total } while uploading
   const [result, setResult] = useState(null);
   const [tab, setTab] = useState("upload");   // Phase 22g — upload | history
+  const [backgroundMode, setBackgroundMode] = useState(false);
+  const [bgJobs, setBgJobs] = useState([]);    // Phase 22h — background import trackers
   const fileRef = useRef(null);
+
+  // Phase 22h — poll each queued background job until it reaches a terminal
+  // state so the admin sees progress without leaving the page (and can close
+  // the tab safely — processing continues server-side).
+  const TERMINAL = ["completed", "partial", "failed", "abandoned",
+                    "client_disconnected"];
+  useEffect(() => {
+    if (!bgJobs.length) return;
+    if (bgJobs.every((j) => TERMINAL.includes(j.status))) return;
+    const iv = setInterval(async () => {
+      const updated = await Promise.all(bgJobs.map(async (j) => {
+        if (TERMINAL.includes(j.status)) return j;
+        try {
+          const r = await axios.get(`${API}/me/bulk-upload/jobs/${j.job_id}`);
+          const d = r.data || {};
+          return { ...j, status: d.status || j.status,
+            uploaded: d.uploaded_count ?? d.uploaded ?? j.uploaded,
+            duplicates: d.duplicate_count ?? d.duplicates_skipped ?? j.duplicates,
+            failed: d.failed_count ?? d.failed ?? j.failed };
+        } catch { return j; }
+      }));
+      setBgJobs(updated);
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [bgJobs]);
 
   useEffect(() => {
     axios.get(`${API}/admin/tracks/bulk-upload/limits`)
@@ -170,7 +197,8 @@ export default function AdminBulkUpload() {
 
     setBusy(true);
     setResult(null);
-    setProgress({ done: 0, total: batches.length });
+    setBgJobs([]);
+    setProgress({ done: 0, total: batches.length, pct: 0 });
 
     const agg = {
       ok: true, uploaded: 0, duplicates: 0, skipped_non_audio: 0, failed: 0,
@@ -178,6 +206,7 @@ export default function AdminBulkUpload() {
       audio_files_extracted_from_zip: 0, items: [],
       duplicates_skipped_details: [], job_ids: [],
     };
+    const queuedJobs = [];   // Phase 22h — background batches (202)
     let anyBatchError = false;
 
     for (let bi = 0; bi < batches.length; bi += 1) {
@@ -188,12 +217,27 @@ export default function AdminBulkUpload() {
       if (defaults.era)           fd.append("default_era", defaults.era);
       if (defaults.channel_eligibility)
           fd.append("channel_eligibility", defaults.channel_eligibility);
+      if (backgroundMode) fd.append("background", "1");
       try {
         const r = await axios.post(`${API}/admin/tracks/bulk-upload`, fd, {
           headers: {"Content-Type": "multipart/form-data"},
           timeout: 300000,
+          onUploadProgress: (evt) => {
+            const frac = evt.total ? evt.loaded / evt.total : 0;
+            setProgress({ done: bi, total: batches.length,
+              pct: Math.round(((bi + frac) / batches.length) * 100) });
+          },
         });
         const d = r.data || {};
+        if (d.background || d.status === "processing") {
+          // Background: only a job_id comes back now — track it, don't aggregate.
+          queuedJobs.push({ job_id: d.job_id, queued_files: d.queued_files || 0,
+            status: "running", uploaded: 0, duplicates: 0, failed: 0 });
+          if (d.job_id) agg.job_ids.push(d.job_id);
+          setProgress({ done: bi + 1, total: batches.length,
+            pct: Math.round(((bi + 1) / batches.length) * 100) });
+          continue;
+        }
         agg.uploaded                       += d.uploaded || 0;
         agg.duplicates                    += d.duplicates || 0;
         agg.skipped_non_audio         += d.skipped_non_audio || 0;
@@ -220,7 +264,24 @@ export default function AdminBulkUpload() {
           agg.failed += batches[bi].length;
         }
       }
-      setProgress({ done: bi + 1, total: batches.length });
+      setProgress({ done: bi + 1, total: batches.length,
+        pct: Math.round(((bi + 1) / batches.length) * 100) });
+    }
+
+    // Phase 22h — background import: batches were spooled + queued; show the
+    // job trackers and let the admin close the tab. Processing continues.
+    if (backgroundMode && queuedJobs.length) {
+      setBgJobs(queuedJobs);
+      const totalQueued = queuedJobs.reduce((a, j) => a + (j.queued_files || 0), 0);
+      toast.success(
+        `${totalQueued} file(s) queued in ${queuedJobs.length} background job(s). ` +
+        `You can close this tab — import continues server-side.`,
+        { duration: 7000 });
+      setStaged([]);
+      if (fileRef.current) fileRef.current.value = "";
+      setBusy(false);
+      setProgress(null);
+      return;
     }
 
     agg.ok = agg.uploaded > 0 || !anyBatchError;
@@ -404,6 +465,25 @@ export default function AdminBulkUpload() {
             </div>
           )}
 
+          <label data-testid="bulk-background-toggle-row"
+                      style={{marginTop: 14, display: "flex", gap: 8,
+                                  alignItems: "center", cursor: "pointer",
+                                  fontSize: 12, color: "#9aa3af"}}>
+            <input type="checkbox"
+                        data-testid="bulk-background-toggle"
+                        checked={backgroundMode}
+                        onChange={(e) => setBackgroundMode(e.target.checked)}
+                        style={{accentColor: "#f59e0b"}} />
+            <Zap size={13} color={backgroundMode ? "#f59e0b" : "#6b7280"} />
+            <span>
+              <strong style={{color: backgroundMode ? "#f59e0b" : "#e7e7ea"}}>
+                Import in background
+              </strong>
+              {" "}— queue large batches and close the tab; tracks import
+              server-side. Watch progress here or under Job History.
+            </span>
+          </label>
+
           <div style={{marginTop: 14, display: "flex", gap: 8, alignItems: "center"}}>
             <button data-testid="submit-bulk-upload-btn"
                           disabled={busy || !staged.length}
@@ -421,15 +501,84 @@ export default function AdminBulkUpload() {
                       : `Upload ${staged.length || ""}`}
             </button>
             {busy && (
-              <span data-testid="bulk-upload-busy" className="mono"
-                          style={{color: "#9aa3af", fontSize: 11}}>
-                {progress
-                  ? `uploading batch ${progress.done} of ${progress.total} — tagging + storing…`
-                  : "processing — extracting ZIPs + tagging…"}
-              </span>
+              <div data-testid="bulk-upload-busy"
+                        style={{display: "flex", flexDirection: "column", gap: 4, minWidth: 240}}>
+                <span className="mono" style={{color: "#9aa3af", fontSize: 11}}>
+                  {progress
+                    ? `Uploading batch ${progress.done}/${progress.total} · ${progress.pct || 0}%`
+                    : "processing — extracting ZIPs + tagging…"}
+                </span>
+                <div style={{height: 6, borderRadius: 99, background: "#1f2430", overflow: "hidden"}}>
+                  <div data-testid="bulk-upload-progress-bar"
+                            style={{height: "100%", width: `${(progress && progress.pct) || 0}%`,
+                                        background: "linear-gradient(90deg,#f59e0b,#ec4899)",
+                                        transition: "width 200ms"}} />
+                </div>
+              </div>
             )}
           </div>
         </div>
+
+        {bgJobs.length > 0 && (
+          <div className="panel" data-testid="bulk-background-jobs">
+            <div className="panel-title">
+              <h2><Clock size={16} style={{display:"inline",marginRight:8,
+                                                          verticalAlign:-2}}/>
+                    Background imports</h2>
+              <Link to="#" onClick={(e) => { e.preventDefault(); setTab("history"); }}
+                          data-testid="bg-jobs-view-history"
+                          style={{color: "#f59e0b", fontSize: 12}}>
+                View Job History →
+              </Link>
+            </div>
+            <p style={{margin: "0 0 10px", fontSize: 12, color: "#9aa3af"}}>
+              These batches are importing server-side. You can safely close this
+              tab — progress updates automatically.
+            </p>
+            <table data-testid="bg-jobs-table"
+                          style={{width: "100%", borderCollapse: "collapse",
+                                      fontFamily: "monospace", fontSize: 12}}>
+              <thead>
+                <tr style={{textAlign: "left", color: "#9aa3af"}}>
+                  <th style={{padding: 6}}>job</th>
+                  <th style={{padding: 6}}>queued</th>
+                  <th style={{padding: 6}}>status</th>
+                  <th style={{padding: 6}}>imported</th>
+                  <th style={{padding: 6}}>dupes</th>
+                  <th style={{padding: 6}}>failed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bgJobs.map((j) => {
+                  const done = TERMINAL.includes(j.status);
+                  const color = j.status === "completed" ? "#22c55e"
+                              : j.status === "partial" ? "#f59e0b"
+                              : done ? "#ef4444" : "#60a5fa";
+                  return (
+                    <tr key={j.job_id}
+                            data-testid={`bg-job-row-${j.job_id}`}
+                            style={{borderTop: "1px solid rgba(255,255,255,0.04)"}}>
+                      <td style={{padding: 6, color: "#9aa3af"}}>{j.job_id}</td>
+                      <td style={{padding: 6}}>{j.queued_files}</td>
+                      <td style={{padding: 6}}>
+                        <span data-testid={`bg-job-status-${j.job_id}`}
+                                    style={{display: "inline-flex", alignItems: "center",
+                                                gap: 4, color}}>
+                          {done ? <CheckCircle2 size={12}/>
+                                    : <Loader2 size={12} className="spin"/>}
+                          {j.status}
+                        </span>
+                      </td>
+                      <td style={{padding: 6, color: "#22c55e"}}>{j.uploaded ?? 0}</td>
+                      <td style={{padding: 6, color: "#f59e0b"}}>{j.duplicates ?? 0}</td>
+                      <td style={{padding: 6, color: "#ef4444"}}>{j.failed ?? 0}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {result && (
           <div className="panel" data-testid="bulk-upload-results">

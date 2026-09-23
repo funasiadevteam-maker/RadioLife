@@ -97,6 +97,7 @@ import MeSaved from "@/pages/MeSaved";
 // Phase PG.1 — Play & Win game engine.
 import MerchantGames from "@/pages/merchant/MerchantGames";
 import MerchantSponsorGames from "@/pages/merchant/MerchantSponsorGames";
+import MerchantAdvertise from "@/pages/merchant/MerchantAdvertise";
 import GamePlay from "@/pages/play/GamePlay";
 import PlayDiscover from "@/pages/play/PlayDiscover";
 
@@ -842,6 +843,7 @@ function AppRouter() {
         <Route path="prepaid-meals"  element={<MerchantPrepaidMeals />} />
         <Route path="games"                element={<MerchantGames />} />
         <Route path="sponsor-games"    element={<MerchantSponsorGames />} />
+        <Route path="advertise"          element={<MerchantAdvertise />} />
         <Route path="profile"              element={<MerchantProfile />} />
         <Route path="stripe"                element={<MerchantStripe />} />
         <Route path="settings"            element={<MerchantSettings />} />

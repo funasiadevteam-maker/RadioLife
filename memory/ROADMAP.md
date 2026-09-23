@@ -2,6 +2,16 @@
 
 The Universal Advertising API (Partner API v1, Phases A→F) is COMPLETE (see CHANGELOG.md). Consumer features were paused to build it and can now resume.
 
+## ✅ DONE (2026-06 fork, iter182) — Background import + sample banners + banner cleanups
+- **Background bulk import** ✅: `/api/admin/tracks/bulk-upload?background=1` spools then returns 202 + job_id and processes off-request (poll `/api/me/bulk-upload/jobs/{job_id}`); admin can close the tab. Web toggle + live job tracker.
+- **Sample banners** ✅: 118 category-themed Pillow composites (123 total house sample campaigns) populate the advertiser rail rotation with variety. Re-run `python -m scripts.seed_sample_banners` from /app/backend.
+- **Banner cleanups** ✅: CTR unit unified to a fraction across endpoints; server-side weight clamp (1–10).
+
+## Remaining backlog (next up)
+- **Push Notifications (P2, mobile)** — real FCM/Firebase (`google-services.json`) instead of in-app alerts. INTEGRATION; needs a Publish native build (can't be tested on Expo Go / web preview). Only build on explicit user request.
+- **Mobile parity (P2)** — the new advertiser self-serve banners + background-import UX are web-only; mirror on mobile if desired.
+- **Bulk-upload streaming (P3, optional)** — `_spool_upload_to_disk` reads each file fully into memory; bounded by the 30 MB client chunk so fine in practice, but could restore 1 MB chunked reads to match its docstring for true 5 GB single-request safety.
+
 ## P0 — ✅ DONE (2026-09): game-win wallet crediting + daily streak
 - **Real game-win crediting** ✅: `POST /api/play/resolve` now credits the BigPoints wallet via `bigcoin.award` when a `bigcoin` prize is won. Verified.
 - **Daily play-streak bonus** ✅: +10 BP/day growing bonus, capped +70, once per UTC day, resets on a missed day. `GET /api/play/streak`. Verified.

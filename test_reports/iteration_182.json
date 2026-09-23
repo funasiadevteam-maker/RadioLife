@@ -1,0 +1,32 @@
+{
+  "summary": "Iter182 — Background bulk-upload, CTR unification, banner weight clamp, and sample banner rotation tested on backend + web UI. 9/9 pytest cases pass (100%). Backend: (A) POST /api/admin/tracks/bulk-upload?background=1 returns HTTP 202 immediately with {ok, job_id, status:'processing', queued_files>=1}; polling GET /api/me/bulk-upload/jobs/{job_id} reaches status='completed' with imported_count>=1 within ~1s. Foreground default (no background flag) still returns HTTP 200 with the full synchronous payload (uploaded>=1, items[], job_id) and dedupe of re-uploaded bytes still returns status='duplicate'. no_files_provided → 400. (D) GET /api/ads/portal/banner/mine?merchant_id=biz_8484f6f985d5 now returns ctr as a FRACTION (0 <= ctr <= 1.0) — verified across all live campaigns. POST /api/ads/portal/banner/publish with weight=99999 persists weight=10 (verified directly in Mongo doc). (B) GET /api/ads/banner/decision?slot_key=right_rail_mpu_1 as free user rotates across >=6 distinct campaign_ids over 20 calls and returns creative_image_url = /api/static/banners/samples/biz_*.jpg for house_sample_ads; each such URL serves HTTP 200 image/jpeg. Premium demo user still gets {source:'none', reason:'premium'}. Data: db.banner_ad_campaigns has 123 docs with advertiser_id='house_sample_ads', status='active', is_sample=true — 25/25/25 on right_rail_mpu_1/2/3, 24 on top_billboard, 24 on inline_mpu_1, plus 1 each on 6 other slots. Web UI: /admin/bulk-upload renders the new 'Import in background' checkbox (data-testid=bulk-background-toggle) — verified present + toggleable; file staging works. /merchant/advertise renders 10 advertise-mine rows with CTR cells (data-testid=advertise-ctr-{campaign_id}) all showing percentage format '0.00%' (computed as ctr*100). Cleaned up 6 QA tracks after testing.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter182_bg_import_banner_cleanup.py",
+    "/app/test_reports/pytest/iter182.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin_tracks_bulk.py: `_spool_upload_to_disk` now reads the entire UploadFile with `await f.read()` into memory BEFORE writing (line 264). The 22e file comment still claims 1MB chunked streaming; the chunked-read regressed to a single big read at some point. For a 5GB request this will push peak RSS proportional to file size again. Consider restoring the chunk loop.",
+    "banner_ads_v2.py: portal-publish `weight` clamp (min 1, max 10) is now applied server-side (good — fixes iter181 comment). GET /api/ads/portal/banner/mine still does NOT return the persisted `weight` field to the merchant — the UI can't display or verify the clamp; consider exposing it.",
+    "AdminBulkUpload.jsx has a plain `<button>Upload</button>` submit but no `data-testid` on the submit button itself — QA had to fall back to text matching. Consider adding `data-testid=bulk-upload-submit` for stable automation."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter182_bg_import_banner_cleanup.py"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (both required UIs verified)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!, demo@bigfm.dubai / DemoPass123!, freeuser@bigfm.dubai / FreePass123!",
+  "seed_data_creation": "Test created 3 tracks + 1 banner campaign (headline='QA182 weight clamp', weight=10) under biz_8484f6f985d5. QA tracks (title ^QA182_) were deleted at end (6 rows). QA banner campaign remains (kept for the weight-clamp evidence; main agent may prune if desired).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 182 fully verified: (a) background bulk-upload 202+poll→completed and foreground 200 regression + dedupe; (b) 123 house_sample_ads seeded and rotating; (d) CTR fraction on /portal/banner/mine + weight clamp to 10 on publish. Note the small regression: `_spool_upload_to_disk` reads the whole UploadFile into memory in one shot (comment still says chunked 1MB streaming). Not blocking correctness but reintroduces high peak RSS on multi-GB uploads.",
+  "rca of the issue": ""
+}

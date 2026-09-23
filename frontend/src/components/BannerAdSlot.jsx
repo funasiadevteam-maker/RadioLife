@@ -83,6 +83,11 @@ export default function BannerAdSlot({ slotKey, pageRoute, className,
         if (typeof r.data?.variant_idx === "number") {
           _recentVariants.set.add(r.data.variant_idx);
         }
+        // Direct campaigns rotate too — record the served campaign so the
+        // next slot on this page-load avoids repeating the same business.
+        if (r.data?.campaign_id) {
+          _recentVariants.set.add(r.data.campaign_id);
+        }
         setData(r.data);
         if (r.data?.source === "adsense") loadAdSense();
       } catch (e) { /* silent */ }

@@ -1,0 +1,34 @@
+{
+  "summary": "Iter181 — Banner rotation + Advertiser Self-Serve + Banner Performance tested end-to-end on backend + web UI. All 16 pytest cases pass (100%). Backend: portal slots (5) OK, upload-creative validates unsupported content-type + >4MB + foreign-merchant 403, publish honors instant/review/paid → active/pending/pending_payment, /portal/banner/mine returns impressions/clicks/ctr and increments after decisions are served, {cid}/toggle flips active↔paused, foreign-merchant on mine/publish returns 403. Rotation: with 3 active campaigns on right_rail_mpu_1 the free user got ≥2 distinct campaign_ids across 15 calls (weighted-random confirmed). Premium demo user still gets {source:'none', reason:'premium'}. Web UI: /merchant/advertise renders under demo@ with all required testIDs (5 slot chips, 3 publish modes, upload/click-url/publish/preview/file-input, my-list rows with impr/clicks/ctr/toggle). End-to-end publish (instant) via UI increased list from 6→7 rows, impressions counters render on live rows (3/6/5), toggle flips row to PAUSED with 'Resume' button. Admin /admin/bulk-upload loads clean; progress bar + busy indicator testIDs verified in source (they render only while busy, so cannot be observed idle); history shows prior 12/12 batches completing OK.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter181_banner_selfserve_rotation.py",
+    "/app/test_reports/pytest/iter181.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MerchantAdvertise.jsx `publish()` calls `load()` which sets loading=true and unmounts the entire content region (including the 'Your banners' list) for the whole reload. Minor UX flicker; consider a soft refresh that only re-fetches `mine` without hiding the form/list, or use a separate `refreshing` flag.",
+    "banner_ads_v2.py `portal_banner_publish` returns http 200 regardless of storage-upload failure (upload path silently ignores tigris exception at line 584). Non-blocking — local disk copy is served — but any observability of tigris failures is missing. Consider a warn log.",
+    "banner_ads_v2.py CTR is computed as clicks/impressions in /advertiser/banner-campaigns (fraction) but clicks/impressions*100 in /portal/banner/mine (percentage). Inconsistent — consumers must know which endpoint they hit. Consider unifying (either always fraction or always percentage) and documenting.",
+    "banner_ads_v2.py `banner_decision` reads `request.query_params.get('recent')` TWICE (lines 223 and 267) with the same variable name, overwriting semantics (first: campaign_ids for direct-sold; second: variant_indices for house). Works because they're mutually exclusive branches, but the double-use is fragile — refactor into two distinct query params (e.g. recent_ids vs recent_variants).",
+    "banner_ads_v2.py portal-publish `weight` accepted from client with no server-side cap. A merchant could pass weight=99999 to always dominate rotation. Consider clamping (e.g. max 10) on the server."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter181_banner_selfserve_rotation.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (web verified)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (owns approved biz_8484f6f985d5), freeuser@bigfm.dubai / FreePass123!, admin@bigfm.dubai / AdminPass123!",
+  "seed_data_creation": "Portal self-serve campaigns were published against biz_8484f6f985d5 during tests (multiple bcamp_* on right_rail_mpu_1..3 with mixed statuses active/paused/pending/pending_payment). These persist in banner_ad_campaigns; the demo merchant's 'Your banners' list now has ~7 rows.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 181 fully verified banner rotation + self-serve + performance flow. Rotation now uses weighted-random over frequency-cap-eligible campaigns (confirmed empirically). Note the two nit inconsistencies for a future cleanup: (a) CTR unit differs between /advertiser/banner-campaigns (fraction) and /portal/banner/mine (percentage); (b) `recent=` query param is reused for two different meanings inside decision().",
+  "rca of the issue": ""
+}

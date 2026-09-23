@@ -10,13 +10,16 @@ Collections:
    banner_ad_impressions   — per-impression log w/ click flag
 """
 from __future__ import annotations
+import asyncio
 import logging
 import os
+import random
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import (APIRouter, Depends, File, Form, HTTPException, Request,
+                     UploadFile)
 
 from auth import current_user
 from services.premium_gate import is_premium_or_trial
@@ -217,12 +220,23 @@ async def banner_decision(request: Request,
         "end_date":   {"$gte": _now_iso()},
     }).limit(20)
     chosen: Optional[dict] = None
+    recent_param = request.query_params.get("recent", "")
+    recent_ids = {t.strip() for t in recent_param.split(",") if t.strip()}
+    eligible: list[dict] = []
     async for c in cand:
         if not await _frequency_cap_ok(db, user["user_id"], c["_id"],
                                           c.get("frequency_cap_per_user_per_day", 0)):
             continue
-        chosen = c
-        break
+        eligible.append(c)
+    if eligible:
+        # Rotation: drop campaigns already shown on this page-load, then pick
+        # weighted-random so the same business isn't always served first.
+        pool = [c for c in eligible if c["_id"] not in recent_ids] or eligible
+        # Clamp weight defensively (1–10) so a legacy row with an uncapped
+        # weight can't monopolise rotation.
+        weights = [min(10, max(1, int(c.get("weight") or c.get("priority") or 1)))
+                   for c in pool]
+        chosen = random.choices(pool, weights=weights, k=1)[0]
 
     if chosen:
         impr_id = "imp_" + uuid.uuid4().hex[:14]
@@ -507,3 +521,159 @@ async def create_checkout(cid: str, request: Request,
         {"_id": cid}, {"$set": {"stripe_session_id": session_id}})
     return {"ok": True, "checkout_url": session_url,
             "session_id": session_id, "mock": False}
+
+
+# ─── Business-portal SELF-SERVE banners ──────────────────────────────
+# A store owner uploads a creative + picks slot(s) and either goes live
+# instantly (auto-approved house inventory), submits for admin review, or
+# pays (reuses the checkout above). Plus per-campaign performance.
+
+PORTAL_SLOT_KEYS = ["right_rail_mpu_1", "right_rail_mpu_2", "right_rail_mpu_3",
+                    "inline_mpu_1", "inline_mpu_2"]
+
+
+async def _owned_business_or_403(db, merchant_id: str, user: dict) -> dict:
+    if not merchant_id:
+        raise HTTPException(400, {"code": "merchant_id_required"})
+    biz = await db.businesses.find_one({
+        "$and": [
+            {"$or": [{"business_id": merchant_id}, {"_id": merchant_id}]},
+            {"$or": [{"owner_user_id": user["user_id"]},
+                     {"owner_user_ids": user["user_id"]}]},
+        ]})
+    if not biz:
+        raise HTTPException(403, {"code": "not_your_business"})
+    return biz
+
+
+@router.get("/portal/banner/slots")
+async def portal_banner_slots(request: Request,
+                              user: dict = Depends(current_user)):
+    db = request.app.state.db
+    out = []
+    for sk in PORTAL_SLOT_KEYS:
+        s = await db.banner_ad_slots.find_one({"slot_key": sk})
+        if s:
+            out.append({"slot_key": sk, "label": s.get("label") or sk,
+                        "size": s.get("size")})
+    return {"slots": out}
+
+
+@router.post("/portal/banner/upload-creative")
+async def portal_upload_creative(request: Request,
+                                 merchant_id: str = Form(...),
+                                 file: UploadFile = File(...),
+                                 user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_business_or_403(db, merchant_id, user)
+    ext_map = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+    if file.content_type not in ext_map:
+        raise HTTPException(400, {"code": "unsupported_content_type"})
+    data = await file.read()
+    if len(data) > 4 * 1024 * 1024:
+        raise HTTPException(400, {"code": "file_too_large", "limit_mb": 4})
+    key_dir = f"portal/{merchant_id}"
+    fname = f"{uuid.uuid4().hex[:12]}.{ext_map[file.content_type]}"
+    disk_dir = f"/app/backend/static/banners/{key_dir}"
+    os.makedirs(disk_dir, exist_ok=True)
+    with open(f"{disk_dir}/{fname}", "wb") as fh:
+        fh.write(data)
+    try:
+        from services.object_storage import get_storage
+        await asyncio.to_thread(lambda: get_storage().upload_bytes(
+            key=f"static/banners/{key_dir}/{fname}", data=data,
+            content_type=file.content_type))
+    except Exception:
+        pass
+    return {"ok": True,
+            "creative_image_url": f"/api/static/banners/{key_dir}/{fname}"}
+
+
+@router.post("/portal/banner/publish")
+async def portal_banner_publish(body: dict, request: Request,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    merchant_id = body.get("merchant_id")
+    biz = await _owned_business_or_403(db, merchant_id, user)
+    creative = body.get("creative_image_url")
+    if not creative:
+        raise HTTPException(400, {"code": "creative_required"})
+    slot_keys = [sk for sk in (body.get("slot_keys") or [])
+                 if sk in PORTAL_SLOT_KEYS]
+    if not slot_keys:
+        raise HTTPException(400, {"code": "slot_required"})
+    mode = (body.get("publish_mode") or "instant").lower()
+    status = {"instant": "active", "review": "pending",
+              "paid": "pending_payment"}.get(mode, "active")
+    click_url = (body.get("click_url")
+                 or f"/business/{biz.get('slug') or merchant_id}")
+    cid = "bcamp_" + uuid.uuid4().hex[:14]
+    doc = {
+        "_id": cid, "campaign_id": cid,
+        "advertiser_id": user["user_id"], "business_id": merchant_id,
+        "sponsor_name": biz.get("name"),
+        "slot_keys": slot_keys, "creative_image_url": creative,
+        "click_url": click_url,
+        "start_date": _now_iso(),
+        "end_date": (datetime.now(timezone.utc)
+                     + timedelta(days=180)).isoformat(),
+        "daily_budget": 0.0, "total_budget": 0.0,
+        "status": status, "targeting_json": {},
+        "frequency_cap_per_user_per_day": int(body.get("frequency_cap") or 8),
+        # Server-side clamp (1–10) so a merchant can't pass weight=99999 to
+        # permanently dominate the weighted-random rotation.
+        "weight": min(10, max(1, int(body.get("weight") or 1))),
+        "created_at": _now_iso(),
+        "approved_at": _now_iso() if status == "active" else None,
+        "approved_by": "self_serve_auto" if status == "active" else None,
+        "rejected_reason": None, "stripe_session_id": None,
+        "source": "portal_self_serve",
+    }
+    await db.banner_ad_campaigns.insert_one(doc)
+    return {"ok": True, "campaign_id": cid, "status": status,
+            "live": status == "active"}
+
+
+@router.get("/portal/banner/mine")
+async def portal_banner_mine(merchant_id: str, request: Request,
+                             user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_business_or_403(db, merchant_id, user)
+    out = []
+    async for c in db.banner_ad_campaigns.find(
+            {"business_id": merchant_id}).sort("created_at", -1):
+        cid = c["_id"]
+        impressions = await db.banner_ad_impressions.count_documents(
+            {"campaign_id": cid})
+        clicks = await db.banner_ad_impressions.count_documents(
+            {"campaign_id": cid, "was_clicked": True})
+        out.append({
+            "campaign_id": cid, "status": c.get("status"),
+            "creative_image_url": c.get("creative_image_url"),
+            "click_url": c.get("click_url"),
+            "slot_keys": c.get("slot_keys", []),
+            "created_at": c.get("created_at"),
+            "impressions": impressions, "clicks": clicks,
+            # CTR is a FRACTION (clicks/impressions) — consumers multiply by
+            # 100 for display. Kept consistent with /advertiser/banner-campaigns
+            # and /advertiser/rail-analytics.
+            "ctr": round(clicks / impressions, 4) if impressions else 0.0,
+        })
+    return {"items": out, "count": len(out)}
+
+
+@router.post("/portal/banner/{cid}/toggle")
+async def portal_banner_toggle(cid: str, request: Request,
+                               user: dict = Depends(current_user)):
+    db = request.app.state.db
+    c = await db.banner_ad_campaigns.find_one({"_id": cid})
+    if not c:
+        raise HTTPException(404, {"code": "not_found"})
+    await _owned_business_or_403(db, c.get("business_id"), user)
+    new = "paused" if c.get("status") == "active" else "active"
+    patch = {"status": new}
+    if new == "active" and not c.get("approved_at"):
+        patch["approved_at"] = _now_iso()
+        patch["approved_by"] = "self_serve_auto"
+    await db.banner_ad_campaigns.update_one({"_id": cid}, {"$set": patch})
+    return {"ok": True, "status": new}
