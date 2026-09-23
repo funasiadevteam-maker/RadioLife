@@ -65,6 +65,7 @@ export default function BannerAdSlot({ slotKey, pageRoute, className,
                                         style: styleOverride }) {
   const [data, setData]    = useState(null);
   const [loading, setLoad] = useState(true);
+  const [imgBroken, setImgBroken] = useState(false);
   const ref                 = useRef(null);
   const beaconFiredRef      = useRef(false);
   const isMobile            = useIsMobile();
@@ -88,6 +89,7 @@ export default function BannerAdSlot({ slotKey, pageRoute, className,
         if (r.data?.campaign_id) {
           _recentVariants.set.add(r.data.campaign_id);
         }
+        setImgBroken(false);
         setData(r.data);
         if (r.data?.source === "adsense") loadAdSense();
       } catch (e) { /* silent */ }
@@ -170,6 +172,12 @@ export default function BannerAdSlot({ slotKey, pageRoute, className,
   };
 
   const isHouse = data.source === "house";
+  const hasText = !!(data.headline || data.sub_text);
+  // A creative that 404s or resolves to a degenerate 1x1 placeholder must
+  // NEVER render as a blank box. If there's no text to fall back to, hide
+  // the slot entirely so the rail doesn't look broken.
+  const showImg = data.creative_image_url && !imgBroken;
+  if (data.creative_image_url && imgBroken && !hasText) return null;
   return (
     <a data-testid={`bannerad-${data.source}-${slotKey}`}
        data-banner-source={data.source} data-banner-size={sizeKey}
@@ -185,8 +193,10 @@ export default function BannerAdSlot({ slotKey, pageRoute, className,
       <span style={{ position: "absolute", top: 4, right: 6,
                       fontSize: 9, fontFamily: "monospace",
                       color: "rgba(255,255,255,0.4)", letterSpacing: 0.5 }}>AD</span>
-      {data.creative_image_url ? (
+      {showImg ? (
         <img src={data.creative_image_url} alt=""
+              onError={() => setImgBroken(true)}
+              onLoad={(e) => { if ((e.currentTarget?.naturalWidth || 0) <= 2) setImgBroken(true); }}
               style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
       ) : (
         <div style={{ textAlign: "center", padding: 12 }}>

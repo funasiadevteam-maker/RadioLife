@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Radio as RadioIcon, Play, Pause, SkipForward, Volume2, VolumeX, MapPin, Loader2,
   LogOut, User as UserIcon, Shield, Users, Share2, Clock, Crown, Lock, Coins, Sparkles, Award,
-  ThumbsUp, ThumbsDown,
+  ThumbsUp, ThumbsDown, RefreshCw,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { useAuth, API } from "@/AuthContext";
@@ -108,7 +108,10 @@ export default function Radio() {
 
   const [starting, setStarting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
-  const [switching, setSwitching] = useState(null);
+  // Audio-engine warm-up banner — set when /radio/start returns 503
+  // `audio_engine_unavailable` so listeners see a friendly notice + Retry
+  // instead of a dead player.
+  const [audioWarming, setAudioWarming] = useState(false);  const [switching, setSwitching] = useState(null);
   const [skipCountdown, setSkipCountdown] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -263,6 +266,7 @@ export default function Radio() {
     try {
       const body = channelSlug ? { channel: channelSlug } : { channel: activeChannel };
       const r = await axios.post(`${API}/radio/start`, body, { timeout: 120000 });
+      setAudioWarming(false);
       setSessionId(r.data.session_id);
       sessionRef.current = r.data.session_id;
       applySkipState(r.data.skip_state);
@@ -323,6 +327,10 @@ export default function Radio() {
         // swap). The user can click another channel chip if they want.
         toast.error(detail?.message
                     || "This station has no playable tracks right now. Try a different station.");
+      } else if (code === "audio_engine_unavailable" || e?.response?.status === 503) {
+        // Audio engine warming up — show a persistent, friendly banner
+        // (not just a fleeting toast) so it never looks broken.
+        setAudioWarming(true);
       } else {
         toast.error(typeof detail === "string"
                     ? detail
@@ -453,6 +461,8 @@ export default function Radio() {
           access: detail,
           channel: { slug: detail.channel, name: detail.channel_name },
         });
+      } else if (code === "audio_engine_unavailable" || status === 503) {
+        setAudioWarming(true);
       } else {
         toast.error(detail || "Could not switch channel");
       }
@@ -596,6 +606,41 @@ export default function Radio() {
       <Toaster theme="dark" position="bottom-right" richColors />
       <ReactivationBanner />
       <RjActionCard user={user} />
+
+      {audioWarming && (
+        <div className="audio-warming-banner" data-testid="audio-warming-banner"
+                  role="status"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    margin: "0 0 14px", padding: "12px 16px", borderRadius: 14,
+                    background: "linear-gradient(90deg, rgba(245,158,11,0.16), rgba(245,158,11,0.05))",
+                    border: "1px solid rgba(245,158,11,0.35)",
+                  }}>
+          <Loader2 size={18} className="spin" color="#f59e0b" style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: "#f7c948", fontSize: 14 }}>
+              Audio engine warming up
+            </div>
+            <div style={{ color: "#cbb48a", fontSize: 12, marginTop: 2 }}>
+              We're getting your station ready — this only takes a moment. Your music starts right after.
+            </div>
+          </div>
+          <button type="button"
+                        data-testid="audio-warming-retry"
+                        onClick={() => { setAudioWarming(false); startRadio(); }}
+                        disabled={starting}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          padding: "8px 14px", borderRadius: 999, border: "none",
+                          background: "#f59e0b", color: "#1a1205",
+                          fontWeight: 700, fontSize: 13, flexShrink: 0,
+                          cursor: starting ? "default" : "pointer",
+                          opacity: starting ? 0.6 : 1,
+                        }}>
+            <RefreshCw size={14} className={starting ? "spin" : ""} /> Retry
+          </button>
+        </div>
+      )}
 
       <header className="radio-header" data-testid="radio-header">
         <div className="radio-brand">

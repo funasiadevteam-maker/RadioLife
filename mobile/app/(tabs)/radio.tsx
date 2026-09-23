@@ -52,6 +52,7 @@ export default function RadioScreen() {
   const [switching, setSwitching] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [audioWarming, setAudioWarming] = useState(false);
   const [skipCountdown, setSkipCountdown] = useState(0);
   const [cityLabel, setCityLabel] = useState('');
 
@@ -240,6 +241,7 @@ export default function RadioScreen() {
     try {
       const body = { channel: activeChannel };
       const r = await radioApi.post('/radio/start', body);
+      setAudioWarming(false);
       setSession(r.data.session_id);
       sessionRef.current = r.data.session_id;
       applySkipState(r.data.skip_state);
@@ -256,6 +258,8 @@ export default function RadioScreen() {
       const code = detail?.code;
       if (e?.response?.status === 403 && code) {
         openGate(detail, { slug: detail.channel, name: detail.channel_name });
+      } else if (code === 'audio_engine_unavailable' || e?.response?.status === 503) {
+        setAudioWarming(true);
       } else {
         Alert.alert('Error', typeof detail === 'string' ? detail : 'Could not start radio');
       }
@@ -342,6 +346,8 @@ export default function RadioScreen() {
       const detail = e?.response?.data?.detail;
       if (e?.response?.status === 403 && detail?.code) {
         openGate(detail, { slug: detail.channel, name: detail.channel_name });
+      } else if (detail?.code === 'audio_engine_unavailable' || e?.response?.status === 503) {
+        setAudioWarming(true);
       } else {
         Alert.alert('Error', typeof detail === 'string' ? detail : 'Could not switch');
       }
@@ -395,6 +401,26 @@ export default function RadioScreen() {
         </View>
 
         <Text style={s.tagline} testID="radio-tag">DIL SE · DUBAI SE</Text>
+
+        {audioWarming && (
+          <View style={s.warmBanner} testID="audio-warming-banner">
+            <ActivityIndicator size="small" color="#f59e0b" />
+            <View style={s.warmTextWrap}>
+              <Text style={s.warmTitle}>Audio engine warming up</Text>
+              <Text style={s.warmBody}>
+                We're getting your station ready — this only takes a moment.
+              </Text>
+            </View>
+            <TouchableOpacity
+              testID="audio-warming-retry"
+              disabled={starting}
+              onPress={() => { setAudioWarming(false); startRadio(); }}
+              style={[s.warmBtn, starting && { opacity: 0.6 }]}>
+              <Ionicons name="refresh" size={14} color="#1a1205" />
+              <Text style={s.warmBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Channel Switcher Strip */}
         {channels.length > 0 && (
@@ -568,6 +594,22 @@ const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   scrollContent: { paddingBottom: 40 },
+  warmBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: SPACING.md, marginBottom: SPACING.sm,
+    padding: SPACING.md, borderRadius: RADIUS.lg,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderWidth: 1, borderColor: 'rgba(245,158,11,0.35)',
+  },
+  warmTextWrap: { flex: 1, minWidth: 0 },
+  warmTitle: { color: '#f7c948', fontWeight: '800', fontSize: FONT.md },
+  warmBody: { color: '#cbb48a', fontSize: FONT.sm, marginTop: 2 },
+  warmBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#f59e0b', paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 999,
+  },
+  warmBtnText: { color: '#1a1205', fontWeight: '800', fontSize: FONT.sm },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.md, paddingTop: SPACING.lg },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary },

@@ -2,6 +2,23 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — FIX: blank "SPONSORED" banner boxes (broken creatives in rotation)
+User reported the seeded sample banners weren't showing (empty rail slots). Root cause was BAD DATA in the active rotation pool, not the seed: the demo merchant (biz_8484f6f985d5) had 10 `portal_self_serve` campaigns whose creatives were 1×1 / 69-byte placeholder PNGs (or pointed at a non-existent `biz_placeholder.jpg` → 404). These sit at the front of the pool, so the weighted-random kept serving them → blank boxes.
+- **Data fix** (`backend/scripts/fix_broken_banner_creatives.py`): repointed all 10 broken demo-merchant portal creatives to a freshly rendered 600×500 composite (`/api/static/banners/samples/biz_8484f6f985d5.jpg`) and paused any campaign still pointing at the missing placeholder. Audit now reports **0 broken creatives across 128 active rail campaigns**.
+- **Frontend hardening** (`frontend/src/components/BannerAdSlot.jsx`): a creative that 404s (`onError`) or resolves to a degenerate ≤2px image (`onLoad` naturalWidth check) now sets `imgBroken` and either falls back to headline/sub_text text or hides the slot entirely — so a future bad upload can never render as a blank "AD" box again.
+- Verified: `/radio` + `/listen` right rails reliably show full sample banners across repeated reloads (Akira Back, Dr. Mehta Dental, Dome Cafe, Uchi Dallas, Pickl, White Dubai …), all `naturalWidth ≥ 600`.
+
+
+
+## 2026-06 (fork) — AUDIO STATUS BANNER (web + mobile parity, e2e-verified)
+Follow-up to the ffmpeg hardening: when `/api/radio/start` returns the new `503 audio_engine_unavailable`, both clients now show a friendly, persistent "Audio engine warming up" banner (gold spinner + "Retry" button) INSTEAD of a fleeting error toast/Alert — so the player never looks broken.
+- **Web** (`frontend/src/Radio.js`): new `audioWarming` state; the `startRadio` + `switchChannel` catch handlers detect `code === 'audio_engine_unavailable'` / HTTP 503 and raise the banner (cleared on the next successful start). Banner rendered at the top of `radio-split-root` (testids `audio-warming-banner`, `audio-warming-retry`).
+- **Mobile** (`mobile/app/(tabs)/radio.tsx`): mirrored `audioWarming` state + banner (RN `View`/`ActivityIndicator`/`Ionicons refresh`, theme tokens) with matching testids; not an `Alert`.
+- Verified end-to-end by temporarily removing the ffmpeg binaries → `/api/radio/start` returned 503 → captured the banner on BOTH the web player and the Expo mobile player (Retry button + "ON AIR · TAP TO START" still visible). ffmpeg restored; backend + mobile healthy.
+- Also relayed to the user (via support) that Emergent production images do NOT ship ffmpeg — the supported path to make AI-radio/podcast audio actually PLAY (not just degrade) is to replace local ffmpeg/ffprobe calls with a cloud media-processing API (Cloudinary/Mux/etc.). Deferred pending user decision.
+
+
+
 ## 2026-06 (fork) — DEPLOYMENT HARDENING: ffmpeg graceful degradation (backend, self-verified)
 Context: a production deploy failed at the platform's `WAKEUP_ENVIRONMENT` / `ensure-environment` step (HTTP 500) — an infra provisioning error BEFORE build/deploy, not code (deployment-readiness scan = PASS, zero code blockers). While investigating, confirmed the sandbox's `install-guard` strips runtime-installed `ffmpeg`, so a fresh production container may also lack it. Hardened the backend so a missing ffmpeg degrades cleanly instead of crashing / poisoning data.
 - **`audio_pipeline.py`**: added `ffmpeg_available()` (cached probe of both `ffmpeg`+`ffprobe` on PATH), `reset_ffmpeg_cache()`, and typed `FFmpegUnavailableError`. `ffprobe_duration`/`ffprobe_info` now return safe zeros when the binary is absent (callers already fall back to mutagen tags). All six ffmpeg-run builders (`build_stream`, `concat_with_gaps`, `truncate_audio`, `build_party_segment`, `build_short_station_id_transition`, `build_segment`, `build_segment_no_rj`) raise `FFmpegUnavailableError` up-front instead of a raw `FileNotFoundError`.
