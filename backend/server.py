@@ -39,7 +39,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from audio_pipeline import (
     build_segment, build_stream, build_party_segment, concat_with_gaps, ffprobe_info,
-    new_uuid_filename, truncate_audio,
+    new_uuid_filename, truncate_audio, ffmpeg_available, FFmpegUnavailableError,
 )
 from auth import (
     PreferenceVector, auth_router, current_user, current_user_optional,
@@ -1313,8 +1313,18 @@ async def _deferred_bootstrap(app_: FastAPI):
     # when the production deploy expects a pre-baked image.
     if (not shutil.which("ffmpeg") or not shutil.which("ffprobe")) \
             and not os.getenv("SKIP_FFMPEG_BOOT_INSTALL"):
-        try: _sp.run(["apt-get", "install", "-y", "ffmpeg"], capture_output=True, timeout=60)
+        try:
+            # `apt-get update` first — package lists are often stale/reset in a
+            # fresh container, so a bare `install` fails with "Unable to locate
+            # package ffmpeg". Both bounded so a locked-down image can't hang boot.
+            _sp.run(["apt-get", "update"], capture_output=True, timeout=60)
+            _sp.run(["apt-get", "install", "-y", "ffmpeg"], capture_output=True, timeout=120)
         except Exception as e: logger.error(f"ffmpeg install failed: {e}")
+        # Re-probe the cached availability flag now the binary may exist.
+        try:
+            from audio_pipeline import reset_ffmpeg_cache, ffmpeg_available
+            reset_ffmpeg_cache(); ffmpeg_available()
+        except Exception: pass
     try: await ensure_auth_indexes(db)
     except Exception as e: logger.warning(f"auth indexes: {e}")
     try:
@@ -4481,6 +4491,16 @@ app.state.schedule_prebuild_warm_start = schedule_prebuild_warm_start
 async def radio_start(req: RadioStartRequest, user: dict = Depends(current_user)):
     if not user.get("onboarding_complete"):
         raise HTTPException(403, "Finish onboarding first")
+    # Audio-engine pre-check — the AI-radio segment builder shells out to
+    # ffmpeg/ffprobe. If those binaries aren't on the host (e.g. a fresh
+    # production container where the boot-time install didn't run), fail
+    # fast with a clear 503 INSTEAD of burning 3 build retries and falsely
+    # flagging good tracks as unplayable.
+    if not ffmpeg_available():
+        logger.error("[radio_start] ffmpeg/ffprobe unavailable — audio engine offline")
+        raise HTTPException(status_code=503, detail={
+            "code": "audio_engine_unavailable",
+            "message": "The audio engine is starting up. Please try again shortly."})
     # Phase 10c.1 — require explicit channel.  Used to silently fall back
     # to DEFAULT_CHANNEL_SLUG which bypassed the gate by accident.
     if not req.channel:
@@ -4599,6 +4619,14 @@ async def radio_start(req: RadioStartRequest, user: dict = Depends(current_user)
                     _ctx_for_now(session=session), force_format="solo",
                     skip_rj=True)
                 break
+            except FFmpegUnavailableError:
+                # Host-wide audio-engine outage — NOT a broken track. Bail
+                # immediately with a clean 503 so we don't flag good tracks.
+                logger.error("[radio_start] ffmpeg unavailable during build — "
+                             "aborting without flagging track")
+                raise HTTPException(status_code=503, detail={
+                    "code": "audio_engine_unavailable",
+                    "message": "The audio engine is starting up. Please try again shortly."})
             except Exception as e:
                 logger.warning("[radio_start] segment build failed for "
                                f"track={first_track.get('_id')} sp={_sp}: {e}")

@@ -18,12 +18,49 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
 from typing import List, Optional
 
 _log = logging.getLogger("bigfm.audio_pipeline")
+
+
+class FFmpegUnavailableError(RuntimeError):
+    """Raised when the ffmpeg/ffprobe binaries aren't installed on the host.
+
+    Lets callers return a clean 'audio engine unavailable' response instead
+    of crashing with a raw FileNotFoundError — and, importantly, lets the
+    radio engine distinguish a host-wide outage from a genuinely broken
+    track so it doesn't falsely flag good tracks as unplayable."""
+
+
+_FFMPEG_OK: Optional[bool] = None
+
+
+def ffmpeg_available() -> bool:
+    """True when BOTH ffmpeg and ffprobe are on PATH. Result is cached; call
+    `reset_ffmpeg_cache()` after a runtime install to force a re-probe."""
+    global _FFMPEG_OK
+    if _FFMPEG_OK is None:
+        _FFMPEG_OK = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+        if not _FFMPEG_OK:
+            _log.warning("[audio_pipeline] ffmpeg/ffprobe not found on PATH — "
+                                      "audio segment building is disabled until installed")
+    return _FFMPEG_OK
+
+
+def reset_ffmpeg_cache() -> None:
+    """Clear the cached availability probe (e.g. after a boot-time install)."""
+    global _FFMPEG_OK
+    _FFMPEG_OK = None
+
+
+def _require_ffmpeg() -> None:
+    if not ffmpeg_available():
+        raise FFmpegUnavailableError(
+            "ffmpeg/ffprobe are not installed on this host")
 
 
 def _resolve_ffmpeg_input(url) -> str:
@@ -64,7 +101,10 @@ def _resolve_ffmpeg_input(url) -> str:
 
 
 def ffprobe_duration(file_path: str | Path) -> float:
-    """Return audio duration in seconds via ffprobe."""
+    """Return audio duration in seconds via ffprobe. Returns 0.0 gracefully
+    when ffprobe isn't installed (callers fall back to tag-based duration)."""
+    if not ffmpeg_available():
+        return 0.0
     inp = _resolve_ffmpeg_input(file_path)
     result = subprocess.run(
         [
@@ -83,7 +123,10 @@ def ffprobe_duration(file_path: str | Path) -> float:
 
 
 def ffprobe_info(file_path: str | Path) -> dict:
-    """Return {duration_sec, bitrate} via ffprobe."""
+    """Return {duration_sec, bitrate} via ffprobe. Degrades to zeros when
+    ffprobe isn't installed."""
+    if not ffmpeg_available():
+        return {"duration_sec": 0.0, "bitrate": None}
     inp = _resolve_ffmpeg_input(file_path)
     result = subprocess.run(
         [
@@ -134,6 +177,7 @@ def build_stream(
     assert len(rj_paths) == n - 1, "need exactly N-1 RJ clips"
     assert len(track_durations) == n
     assert len(rj_durations) == n - 1
+    _require_ffmpeg()
 
     # Inputs: tracks [0..n-1], rj voices [n..2n-2]
     # Phase Π+4 — every track path is resolved through
@@ -283,6 +327,7 @@ def concat_with_gaps(
     """
     if not parts:
         raise ValueError("concat_with_gaps: no parts")
+    _require_ffmpeg()
     n = len(parts)
     inputs: List[str] = []
     for p in parts:
@@ -340,6 +385,8 @@ def truncate_audio(
     """If `src` is longer than `max_sec`, truncate IN-PLACE with a short fade-out.
     Returns True if a truncation actually happened.
     """
+    if not ffmpeg_available():
+        return False
     dur = ffprobe_duration(src)
     if dur <= max_sec + 0.05:
         return False
@@ -395,7 +442,7 @@ def build_party_segment(
     DUCK_LEAD = 4.0   # seconds music ducks while voice fades in
     duck_volume = DUCK_BY_ENERGY.get("party", 0.63)
     deep_duck = duck_volume * 0.55  # extra duck while SFX hits (DUBAI shout)
-
+    _require_ffmpeg()
     track_duration = float(track_duration)
     rj_duration = float(rj_duration)
 
@@ -556,6 +603,7 @@ def build_short_station_id_transition(
 
     Returns {duration_sec, segments: [...]}.
     """
+    _require_ffmpeg()
     track_a_duration = float(track_a_duration)
     track_b_duration = float(track_b_duration)
     sid_d = float(ffprobe_duration(station_id_path))
@@ -662,6 +710,7 @@ def build_segment(
     """
     DUCK_LEAD = 4.0  # seconds music ducks while voice fades in
     duck_volume = DUCK_BY_ENERGY.get(energy_level, DUCK_VOLUME)
+    _require_ffmpeg()
 
     track_duration = float(track_duration)
     rj_duration = float(rj_duration)
@@ -807,6 +856,7 @@ def build_segment_no_rj(
     Returns the same shape as `build_segment(...)` so callers that
     expect `duration_sec` / `rj_start_sec` keep working.
     """
+    _require_ffmpeg()
     track_duration = float(track_duration)
     stinger_dur = 0.0
     stinger_inserted = False
