@@ -5,7 +5,7 @@
 //   • POST /api/ads/admin/banner-campaigns/{cid}/reject  {reason}
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { CheckCircle2, XCircle, Loader2, ExternalLink, ShieldCheck, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, ExternalLink, ShieldCheck, RefreshCw, AlertTriangle, HeartPulse } from "lucide-react";
 import { API } from "@/AuthContext";
 
 const CFG = { withCredentials: true };
@@ -26,6 +26,29 @@ export default function AdminRailAds() {
   const [items, setItems] = useState(null);
   const [busy, setBusy] = useState(null);
   const [err, setErr] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [healthBusy, setHealthBusy] = useState(null);
+
+  async function loadHealth() {
+    setHealth(null);
+    try {
+      const { data } = await axios.get(`${API}/ads/admin/rotation-health`, CFG);
+      setHealth(data);
+    } catch (e) {
+      setHealth({ error: e?.response?.data?.detail?.code || e.message,
+                  items: [], unhealthy_count: 0, active_total: 0 });
+    }
+  }
+  async function pauseUnhealthy(cid) {
+    setHealthBusy(cid);
+    try {
+      await axios.post(`${API}/ads/admin/rotation-health/${cid}/pause`, {}, CFG);
+      await loadHealth();
+      await load();
+    } catch (e) { setErr(e?.response?.data?.detail || e.message); }
+    finally { setHealthBusy(null); }
+  }
+  useEffect(() => { loadHealth(); /* eslint-disable-next-line */ }, []);
 
   async function load() {
     setItems(null); setErr(null);
@@ -63,6 +86,66 @@ export default function AdminRailAds() {
         <p className="text-sm text-slate-400 mb-5">
           Approve or reject the right-rail banner campaigns advertisers buy. Approved campaigns go live in the New Look V2 home right rail.
         </p>
+
+        {/* Rotation Health — active campaigns whose creative is missing/broken */}
+        <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-4" data-testid="rotation-health-panel">
+          <div className="flex items-center gap-2">
+            <HeartPulse className="w-4 h-4 text-fuchsia-400" />
+            <h2 className="text-sm font-black uppercase tracking-wide">Rotation Health</h2>
+            {health && !health.error && (
+              <span data-testid="rotation-health-summary"
+                className={`ml-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                  health.unhealthy_count ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400"}`}>
+                {health.unhealthy_count
+                  ? `${health.unhealthy_count} broken / ${health.active_total} active`
+                  : `All ${health.active_total} active creatives healthy`}
+              </span>
+            )}
+            <button onClick={loadHealth} data-testid="rotation-health-refresh"
+              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-900 border border-slate-800 hover:text-white text-slate-400">
+              <RefreshCw className="w-3 h-3" /> Rescan
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Live campaigns whose image is missing, 404s, is a 1×1 placeholder, blank, or unreadable. Pause them so listeners never see a blank slot.
+          </p>
+          {health === null ? (
+            <div className="flex items-center gap-2 text-slate-400 text-xs py-4">
+              <Loader2 className="w-4 h-4 animate-spin" /> Scanning creatives…
+            </div>
+          ) : health.error ? (
+            <div className="mt-2 text-xs text-red-400">{String(health.error)}</div>
+          ) : health.unhealthy_count === 0 ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-emerald-400" data-testid="rotation-health-clean">
+              <CheckCircle2 className="w-4 h-4" /> No broken creatives in rotation.
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2" data-testid="rotation-health-list">
+              {health.items.map((h) => (
+                <div key={h.campaign_id} data-testid={`rotation-health-row-${h.campaign_id}`}
+                  className="flex items-center gap-3 rounded-xl bg-slate-950/60 border border-amber-500/20 px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold text-white truncate">
+                      {h.sponsor_name || h.business_id || "—"}
+                      <span className="ml-2 text-[10px] font-mono text-slate-500">{h.campaign_id}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">
+                      <span className="text-amber-400 font-mono">{h.issue}</span>
+                      {" · "}{(h.slot_keys || []).join(", ")}
+                      {h.creative_image_url ? ` · ${h.creative_image_url}` : ""}
+                    </div>
+                  </div>
+                  <button onClick={() => pauseUnhealthy(h.campaign_id)} disabled={healthBusy === h.campaign_id}
+                    data-testid={`rotation-health-pause-${h.campaign_id}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-slate-900 text-[11px] font-black hover:bg-amber-400 disabled:opacity-40 shrink-0">
+                    {healthBusy === h.campaign_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />} Pause
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 mb-5 flex-wrap">
           {TABS.map((t) => (

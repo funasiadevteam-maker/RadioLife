@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import api, { BACKEND } from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import SafeImage from '../../src/components/SafeImage';
-import AdBanner from '../../src/components/AdBanner';
+import BannerAdSlotV2 from '../../src/components/BannerAdSlotV2';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { useStationsStore } from '../../src/stores/useStationsStore';
 import { playImportedStation } from '../../src/services/playStation';
@@ -182,8 +182,8 @@ export default function ListenScreen() {
             {/* For You — personalized top stations */}
             <Rail id="for_you" icon="sparkles" title="Made for you" stations={rails.for_you || []} more={() => router.push('/stations')} />
 
-            {/* Purchasable ad slot */}
-            <AdBanner zone="browse_row" />
+            {/* Purchasable ad slot — v2 rotation (local business banners) */}
+            <BannerAdSlotV2 slotKey="inline_mpu_1" pageRoute="/listen" />
 
             {/* Trending */}
             <Rail id="trending" icon="flame" title="Trending now" stations={rails.trending || []} more={() => router.push('/stations')} />

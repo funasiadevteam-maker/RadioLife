@@ -78,7 +78,8 @@ export default function MerchantAdvertise() {
       setCreativeUrl(r.data.creative_image_url);
       toast.success("Creative uploaded");
     } catch (e) {
-      toast.error(e?.response?.data?.detail?.code || "Upload failed");
+      const d = e?.response?.data?.detail;
+      toast.error((d && (d.message || d.code)) || "Upload failed");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";

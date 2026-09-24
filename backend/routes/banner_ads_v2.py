@@ -251,6 +251,8 @@ async def banner_decision(request: Request,
                 "creative_image_url": chosen["creative_image_url"],
                 "click_url": chosen["click_url"],
                 "size": slot["size"],
+                "mobile_size": slot.get("mobile_size"),
+                "mobile_only": bool(slot.get("mobile_only")),
                 "impression_pixel": f"/api/ads/banner/_pixel/{impr_id}"}
 
     # 2. AdSense backfill (only if client_id configured)
@@ -437,6 +439,98 @@ def _require_admin(u: dict):
         raise HTTPException(403, {"code": "forbidden"})
 
 
+STATIC_ROOT = "/app/backend/static"
+
+
+def _creative_health(url: str | None) -> Optional[str]:
+    """Return an issue string for a broken/degenerate creative, else None.
+    Only deep-checks locally-served (/api/static/...) files; external https
+    creatives are assumed OK (no network probe)."""
+    if not url:
+        return "missing_url"
+    if url.startswith("/api/static/"):
+        path = os.path.join(STATIC_ROOT, url[len("/api/static/"):])
+        if not os.path.exists(path):
+            return "file_missing"
+        try:
+            from PIL import Image
+            with Image.open(path) as im:
+                w, h = im.size
+                if w <= 2 or h <= 2:
+                    return f"degenerate_{w}x{h}"
+                if all(mn == mx for (mn, mx) in im.convert("RGB").getextrema()):
+                    return "blank_single_color"
+        except Exception as e:
+            return f"unreadable:{str(e)[:40]}"
+    return None
+
+
+def _validate_upload_image(data: bytes) -> tuple[int, int]:
+    """Reject tiny / blank / unreadable banner uploads BEFORE they can enter
+    the rotation. Raises HTTPException(400) with a merchant-friendly message."""
+    import io
+    from PIL import Image
+    try:
+        im = Image.open(io.BytesIO(data))
+        im.load()
+    except Exception:
+        raise HTTPException(400, {"code": "invalid_image",
+            "message": "That file isn't a readable image. Upload a PNG, JPG or WEBP."})
+    w, h = im.size
+    if w < 200 or h < 50:
+        raise HTTPException(400, {"code": "image_too_small",
+            "message": f"Banner is too small ({w}×{h}px). Use at least 200×50px.",
+            "min": "200x50", "got": f"{w}x{h}"})
+    try:
+        if all(mn == mx for (mn, mx) in im.convert("RGB").getextrema()):
+            raise HTTPException(400, {"code": "image_blank",
+                "message": "That image looks blank. Upload your actual banner artwork."})
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    return w, h
+
+
+@router.get("/admin/rotation-health")
+async def admin_rotation_health(request: Request,
+                                user: dict = Depends(current_user)):
+    """List every ACTIVE campaign whose creative is missing, 404s, is a
+    degenerate ≤2px placeholder, blank, or unreadable — so bad creatives
+    never silently sit in the live rotation."""
+    _require_admin(user)
+    db = request.app.state.db
+    bad, total = [], 0
+    async for c in db.banner_ad_campaigns.find({"status": "active"}):
+        total += 1
+        issue = _creative_health(c.get("creative_image_url"))
+        if issue:
+            bad.append({
+                "campaign_id": c.get("_id"),
+                "sponsor_name": c.get("sponsor_name"),
+                "business_id": c.get("business_id"),
+                "source": c.get("source"),
+                "slot_keys": c.get("slot_keys", []),
+                "creative_image_url": c.get("creative_image_url"),
+                "issue": issue,
+            })
+    return {"active_total": total, "unhealthy_count": len(bad), "items": bad}
+
+
+@router.post("/admin/rotation-health/{cid}/pause")
+async def admin_pause_unhealthy(cid: str, request: Request,
+                                user: dict = Depends(current_user)):
+    _require_admin(user)
+    db = request.app.state.db
+    r = await db.banner_ad_campaigns.update_one(
+        {"_id": cid},
+        {"$set": {"status": "paused", "paused_reason": "unhealthy_creative",
+                  "updated_at": _now_iso()}})
+    if not r.matched_count:
+        raise HTTPException(404, {"code": "not_found"})
+    return {"ok": True, "status": "paused"}
+
+
 @router.get("/admin/banner-campaigns")
 async def admin_list_banner_campaigns(request: Request,
                                          status: str = "pending",
@@ -572,6 +666,9 @@ async def portal_upload_creative(request: Request,
     data = await file.read()
     if len(data) > 4 * 1024 * 1024:
         raise HTTPException(400, {"code": "file_too_large", "limit_mb": 4})
+    # Reject tiny / blank / unreadable uploads so a broken creative can never
+    # reach the live rotation (Rotation Health guard, upload-side).
+    _validate_upload_image(data)
     key_dir = f"portal/{merchant_id}"
     fname = f"{uuid.uuid4().hex[:12]}.{ext_map[file.content_type]}"
     disk_dir = f"/app/backend/static/banners/{key_dir}"

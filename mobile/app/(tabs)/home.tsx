@@ -10,7 +10,7 @@ import { Image } from 'expo-image';
 import { useAuth } from '../../src/contexts/AuthContext';
 import api, { BACKEND } from '../../src/api/client';
 import TubeDrawer from '../../src/components/TubeDrawer';
-import AdBanner from '../../src/components/AdBanner';
+import BannerAdSlotV2 from '../../src/components/BannerAdSlotV2';
 import { TUBE, TSPACE, TRADIUS, TFONT } from '../../src/constants/tube';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { playImportedStation } from '../../src/services/playStation';
@@ -374,7 +374,7 @@ export default function HomeScreen() {
         {/* H · Display ad — Free listeners only */}
         {!isPremium && (
           <View style={{ marginTop: TSPACE.lg }} testID="home-display-ad">
-            <AdBanner zone="browse_row" />
+            <BannerAdSlotV2 slotKey="inline_mpu_1" pageRoute="/home" />
           </View>
         )}
       </ScrollView>

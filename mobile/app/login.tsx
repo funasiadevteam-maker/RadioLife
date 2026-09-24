@@ -21,6 +21,18 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  // Hide the Apple button unless the backend confirms Apple is configured
+  // (no credentials -> the flow 400s/503s, so don't surface a dead button).
+  const [providers, setProviders] = useState<{ google: boolean; apple: boolean }>({ google: true, apple: false });
+
+  useEffect(() => {
+    let alive = true;
+    const apiBase = (process.env.EXPO_PUBLIC_BACKEND_URL || '').replace(/\/+$/, '');
+    axios.get(`${apiBase}/api/auth/providers`)
+      .then((r) => { if (alive && r?.data) setProviders((p) => ({ ...p, ...r.data })); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -97,7 +109,7 @@ export default function Login() {
           <Text style={s.googleText}>Continue with Google</Text>
         </TouchableOpacity>
 
-        {Platform.OS === 'ios' && (
+        {Platform.OS === 'ios' && providers.apple && (
           <TouchableOpacity
             style={s.appleBtn}
             onPress={async () => {

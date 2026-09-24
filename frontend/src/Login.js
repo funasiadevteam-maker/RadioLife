@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Loader2, Mail, KeyRound, User as UserIcon, ChevronRight, Radio as RadioIcon, Sun, Moon } from "lucide-react";
 import { Toaster, toast } from "sonner";
-import { useAuth } from "./AuthContext";
+import { useAuth, API } from "./AuthContext";
 import SignInWithGoogleButton from "./SignInWithGoogleButton";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
 import { useTheme } from "@/theme/useTheme";
@@ -30,6 +30,18 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [themeChoice, setThemeChoice] = useState(theme || "dark");
   const pickTheme = (t) => { setThemeChoice(t); setTheme(t); };
+  // Only surface a provider button when the backend confirms it's
+  // configured — hides a dead "Sign in with Apple" button on instances
+  // where Apple credentials aren't set (avoids the 400/503 dead-end).
+  const [providers, setProviders] = useState({ email: true, google: true, apple: false });
+  useEffect(() => {
+    let alive = true;
+    fetch(`${API}/auth/providers`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (alive && d) setProviders((p) => ({ ...p, ...d })); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -127,7 +139,7 @@ export default function Login() {
             : "Tell us your taste once, then non-stop music."}
         </p>
 
-        {!isFUUSIC && (
+        {!isFUUSIC && providers.google && (
           <>
             <SignInWithGoogleButton
               fullWidth
@@ -143,6 +155,7 @@ export default function Login() {
           </>
         )}
 
+        {providers.apple && (
         <button
           type="button"
           className="apple-btn"
@@ -164,6 +177,7 @@ export default function Login() {
           </svg>
           <span>Sign in with Apple</span>
         </button>
+        )}
 
         <div className="auth-or"><span>or with email</span></div>
 

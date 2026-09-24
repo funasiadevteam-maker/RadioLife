@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — AUTH: prod OAuth 400 diagnosis + provider gating (web + mobile + backend, self-verified)
+User reported Google + Apple sign-in fail with **400** on production (`https://fuusic.com`). Root cause is CONFIGURATION, not code:
+- **Google 400 = `redirect_uri_mismatch`**: the backend correctly derives the callback from the request host (`_base_from_request` → `https://fuusic.com/api/auth/google/callback`) and re-uses that exact pinned `redirect_uri` in the token exchange (verified on preview). But `fuusic.com` is NOT in the Google Cloud Console OAuth client's Authorized redirect URIs (only `radiolife.app` + the preview URL were). **FIX (owner action, only they can do it):** in Google Cloud Console → APIs & Services → Credentials → the OAuth client → add **Authorized redirect URI** `https://fuusic.com/api/auth/google/callback` and **Authorized JavaScript origin** `https://fuusic.com`; ensure the OAuth consent screen is Published/In production. No code change bypasses this (Google requires pre-registration).
+- **Apple = not configured**: backend has none of `APPLE_TEAM_ID / APPLE_KEY_ID / APPLE_KEY_PATH / APPLE_SIWA_SERVICE_ID / APPLE_SIWA_REDIRECT_URI`, so the Apple button always 400s/503s. `services/apple_siwa.py` (ES256 client-secret JWT + JWKS verify + code exchange) is correct — it just needs credentials.
+- **Code shipped**: new public `GET /api/auth/providers` → `{email, google, apple}` (reads real env config). Web `Login.js` + mobile `app/login.tsx` now fetch it and only render a provider button when configured, so the dead "Sign in with Apple" button is hidden until Apple creds exist (Google stays; it's configured). Verified: `/api/auth/providers` → `{"email":true,"google":true,"apple":false}`; web /login shows Google + email + demo, Apple hidden.
+- Files: `backend/auth.py` (providers endpoint), `frontend/src/Login.js`, `frontend/src/AuthContext.js` (export API), `mobile/app/login.tsx`.
+
+
 ## 2026-06 (fork) — FIX: blank "SPONSORED" banner boxes (broken creatives in rotation)
 User reported the seeded sample banners weren't showing (empty rail slots). Root cause was BAD DATA in the active rotation pool, not the seed: the demo merchant (biz_8484f6f985d5) had 10 `portal_self_serve` campaigns whose creatives were 1×1 / 69-byte placeholder PNGs (or pointed at a non-existent `biz_placeholder.jpg` → 404). These sit at the front of the pool, so the weighted-random kept serving them → blank boxes.
 - **Data fix** (`backend/scripts/fix_broken_banner_creatives.py`): repointed all 10 broken demo-merchant portal creatives to a freshly rendered 600×500 composite (`/api/static/banners/samples/biz_8484f6f985d5.jpg`) and paused any campaign still pointing at the missing placeholder. Audit now reports **0 broken creatives across 128 active rail campaigns**.

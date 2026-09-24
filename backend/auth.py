@@ -533,6 +533,23 @@ async def logout(request: Request, response: Response):
     return {"ok": True}
 
 
+@auth_router.get("/providers")
+async def auth_providers():
+    """Public: report which sign-in providers are actually configured on
+    this instance so clients can hide buttons that would otherwise 400/503
+    (e.g. Apple with no credentials). `google`/`apple` reflect real env
+    config; `email` is always available.
+    REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT
+    URLS, THIS BREAKS THE AUTH."""
+    cid, csecret = _google_creds()
+    try:
+        from services import apple_siwa as _apple
+        apple_ok = _apple.is_configured()
+    except Exception:
+        apple_ok = False
+    return {"email": True, "google": bool(cid and csecret), "apple": apple_ok}
+
+
 # ─── Password-reset flow (Phase AUTH.PWR, 2026-07-31) ────────────
 # `POST /api/auth/forgot-password` — anti-enumeration: ALWAYS returns
 #     the same generic success message whether the email exists or not.
