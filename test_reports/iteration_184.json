@@ -1,0 +1,27 @@
+{
+  "summary": "Phases 4/5/6 verified on web and mobile (Expo web preview). Backend contracts pre-verified via curl (scheduled show ls_demo_scheduled_01 returned by GET /api/social/liveshows?status=scheduled; GET /api/bar-games/biz_demo_bar returns eligible=true with 1 spin available and 7 segments; a spin consumed the unlock and flipped state to locked as expected). WEB: /social shows tabs with social-tab-pulse label='Nearby' and social-tab-live label='Live'; Live tab renders live-upcoming section + live-upcoming-ls_demo_scheduled_01 card (The Grill House / Friday Night Live Shopping); opening it shows live-upcoming-badge, live-scheduled-time ('Starts Sat 5:44 AM · in 5h'), and live-start-now (Go live now) for the host; golive-open opens golive-modal with the new golive-schedule datetime input. /shop/biz_demo_bar renders BarGameCard (bar-game-card + bar-game-spin); tapping spin spun the wheel, showed bar-game-result ('🔄 One more round? — no win this time.'), and (with 0 spins left) rendered bar-game-locked + bar-game-claim; bar-game-code was correctly NOT shown on a losing spin. /play-and-win shows section-predict-win with predict-win-card that navigates to /predict-win. MOBILE: /social has social-tab-pulse label='Nearby' + social-tab-live label='Live'; Live tab shows live-upcoming, live-upcoming-ls_demo_scheduled_01; viewer shows live-upcoming-badge, live-scheduled-time, live-start-now. Go Live sheet: opener testID is live-golive (not golive-open); sheet renders golive-sheet with all 4 WHEN preset chips (golive-when-0/1/3/24) and golive-start button. /shop/biz_demo_bar renders bar-game-card with bar-game-locked + bar-game-claim (consistent with the earlier web spin consuming the demo user's 1 unlock). Games tab shows predict-win-card that navigates to /games/predict. All 4 phases meet spec. Parity: OK across web/mobile.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "SPIN UNLOCK CONSUMED: The demo user's 1 pre-seeded spin at biz_demo_bar was consumed during web test (landed on non-win). If a subsequent test needs to verify the WIN branch (bar-game-code visible + winning result text), please reset the unlock (e.g. re-run the seed for the demo paid order or grant a spin via the internal spin-unlock endpoint) before re-testing.",
+    "OPTIONAL / DOC: The mobile GoLive sheet opener testID is 'live-golive' (in /app/mobile/src/social/live.tsx), while web uses 'golive-open'. Not a bug — but the review-request text implies 'golive-open' on both surfaces. Consider aligning the testID names (add testID='golive-open' as an alias on the mobile Pressable at live.tsx:45) so future scripts don't need per-platform branching."
+  ],
+  "critical_code_review_comments": [
+    "Bar spin on a losing outcome intentionally shows bar-game-result but NOT bar-game-code (verified in /app/frontend/src/pages/bar/BarGameCard.jsx and mobile /app/mobile/src/components/BarGameCard.tsx). Future acceptance suites should only assert bar-game-code when result.win===true — tests should not treat its absence on a losing spin as a bug.",
+    "Upcoming section renders only when scheduled shows exist (live-upcoming conditional on upcoming.length>0). This is correct; empty-state falls through to 'No live shows right now'."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (pre-verified endpoints re-checked via curl)", "frontend": "100% (web + mobile acceptance items all pass)"},
+  "test_credentials": "Web login: demo@bigfm.dubai / DemoPass123!. Mobile: demo-login-btn.",
+  "seed_data_creation": "None. Used the pre-seeded ls_demo_scheduled_01 scheduled show, biz_demo_bar business, and the demo user's pre-seeded 1 spin unlock (consumed during test).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview URLs: web https://mobile-games-v2.preview.emergentagent.com, mobile https://mobile-games-v2.expo.preview.emergentagent.com. To retest the WIN branch of the bar wheel, reset biz_demo_bar spin unlock for demo user first — this run consumed the only unlock (result was 'One more round?' non-win). Mobile GoLive opener testID is 'live-golive' (NOT 'golive-open'); mobile schedule chips are golive-when-0/1/3/24 inside the sheet golive-sheet. LiveKit A/V is mocked — the stage placeholder is expected. Web pinned-products testid pattern is live-product-<id> (container live-products), not live-pinned-<id>.",
+  "rca of the issue": "n/a — no defects found."
+}

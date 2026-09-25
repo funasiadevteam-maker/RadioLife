@@ -12,6 +12,8 @@ Checkout Session URL is returned and finalized on status poll.
 from __future__ import annotations
 
 import logging
+import random
+import uuid
 from typing import Optional
 from urllib.parse import urlparse
 import os
@@ -228,6 +230,78 @@ def _require_active_sub(sub, is_prem):
         raise HTTPException(403, {"code": "premium_required"})
     if not sub or sub.get("status") != "active":
         raise HTTPException(403, {"code": "no_active_membership"})
+
+
+# ── Roll-a-Dice "free meal for 8" promo game ────────────────────────
+# Roll two dice; a double-six (total 12) wins a free meal for 8. The win
+# probability is exactly 1/12 (weighted RNG — NOT natural 2-dice odds).
+DICE_WIN_CHANCE = 1.0 / 12.0
+DICE_PRIZE = "Free meal for 8 people"
+
+
+def _dice_today_key() -> str:
+    return dc._now().strftime("%Y-%m-%d")
+
+
+def _dice_public(doc):
+    if not doc:
+        return None
+    created = doc.get("created_at")
+    return {
+        "roll_id": doc["_id"], "die1": doc["die1"], "die2": doc["die2"],
+        "total": doc["die1"] + doc["die2"], "win": bool(doc.get("win")),
+        "prize": doc.get("prize") if doc.get("win") else None,
+        "code": doc.get("code") if doc.get("win") else None,
+        "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
+    }
+
+
+@router.get("/dice")
+async def dice_status(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    today = _dice_today_key()
+    last = await db.dining_dice_rolls.find_one(
+        {"user_id": user["user_id"], "day": today}, sort=[("created_at", -1)])
+    wins = await db.dining_dice_rolls.count_documents(
+        {"user_id": user["user_id"], "win": True})
+    return {
+        "config": {
+            "prize": DICE_PRIZE, "win_chance": "1 in 12", "party_size": 8,
+            "how_it_works": "Roll two dice. Land a double six (a total of 12) and your whole table eats free — a meal for 8, on the house.",
+            "rolls_per_day": 1,
+        },
+        "can_roll": last is None,
+        "last_result": _dice_public(last),
+        "total_wins": wins,
+    }
+
+
+@router.post("/dice/roll")
+async def dice_roll(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    today = _dice_today_key()
+    existing = await db.dining_dice_rolls.find_one(
+        {"user_id": user["user_id"], "day": today})
+    if existing:
+        raise HTTPException(429, {"code": "already_rolled_today",
+                                  "result": _dice_public(existing)})
+    win = random.random() < DICE_WIN_CHANCE
+    if win:
+        die1 = die2 = 6
+    else:
+        die1, die2 = 6, 6
+        while die1 == 6 and die2 == 6:
+            die1 = random.randint(1, 6)
+            die2 = random.randint(1, 6)
+    code = ("MEAL8-" + uuid.uuid4().hex[:8].upper()) if win else None
+    doc = {
+        "_id": f"dice_{uuid.uuid4().hex[:16]}", "user_id": user["user_id"],
+        "day": today, "die1": die1, "die2": die2, "win": win,
+        "prize": DICE_PRIZE if win else None, "code": code,
+        "redeemed": False, "created_at": dc._now(),
+    }
+    await db.dining_dice_rolls.insert_one(doc)
+    return _dice_public(doc)
 
 
 @router.post("/selection/start")

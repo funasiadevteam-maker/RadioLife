@@ -18,6 +18,7 @@ import ItemOptionModal, { defaultMenuSelection, menuQuickAddReady } from "../Ite
 import ProductVariantModal from "../components/ProductVariantModal";
 import StoreCartPanel from "../components/StoreCartPanel";
 import { useSavedForLater } from "../useSavedForLater";
+import BarGameCard from "@/pages/bar/BarGameCard";
 
 const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 const EARN_ICONS = { "bag-check": ShoppingBag, location: MapPin, wallet: Wallet };
@@ -357,6 +358,7 @@ export default function ShopBusinessRadioLife() {
 
             {/* Shop extras */}
             <div className="mt-3">{extras}</div>
+            <BarGameCard businessId={b.business_id} />
 
             {/* Get your usual? */}
             {mode === "menu" && usual && !usualDismissed && (

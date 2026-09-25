@@ -65,6 +65,16 @@ export default function DiningHome() {
           <Text style={s.heroSub}>Choose Veg or Non-Veg — we spin you a surprise restaurant. Every meal a flat {money(home?.meal_price_cents)}.</Text>
         </LinearGradient>
 
+        <TouchableOpacity onPress={() => router.push('/dining/dice')} testID="dining-dice-cta"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.gold + '55', backgroundColor: COLORS.gold + '14' }}>
+          <Ionicons name="dice" size={20} color={COLORS.gold} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.text, fontWeight: '900', fontSize: FONT.md }}>Roll the dice — win a free meal for 8</Text>
+            <Text style={{ color: COLORS.textDim, fontSize: FONT.xs, marginTop: 2 }}>1 in 12 chance · one roll a day</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color={COLORS.gold} />
+        </TouchableOpacity>
+
         {m && m.status === 'active' ? (
           <>
             <View style={s.statsRow}>

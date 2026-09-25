@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
-  ActivityIndicator, Modal, Linking, RefreshControl,
+  ActivityIndicator, Modal, Linking, RefreshControl, Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,13 +19,20 @@ function Avatar({ name, url, size = 40 }: any) {
 
 export function LiveTab() {
   const [shows, setShows] = useState<any[]>([]);
+  const [upcoming, setUpcoming] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [goLive, setGoLive] = useState(false);
   const load = useCallback(async () => {
-    try { const { data } = await api.get('/social/liveshows?status=live'); setShows(data.items || []); }
-    catch (_) {} finally { setLoading(false); setRefreshing(false); }
+    try {
+      const [live, sched] = await Promise.all([
+        api.get('/social/liveshows?status=live'),
+        api.get('/social/liveshows?status=scheduled'),
+      ]);
+      setShows(live.data.items || []);
+      setUpcoming(sched.data.items || []);
+    } catch (_) {} finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -42,6 +49,26 @@ export function LiveTab() {
           <View style={st.liveTag}><Text style={st.liveTagTxt}>● LIVE</Text></View>
         </LinearGradient>
       </Pressable>
+
+      {upcoming.length > 0 && (
+        <View testID="live-upcoming" style={{ gap: 10 }}>
+          <Text style={st.section}>UPCOMING LIVE EVENTS</Text>
+          {upcoming.map((s) => (
+            <Pressable key={s.show_id} onPress={() => setOpen(s.show_id)} testID={`live-upcoming-${s.show_id}`} style={st.showCard}>
+              <LinearGradient colors={['#1e3a8a', '#0e7490']} style={st.showCover}>
+                {s.cover_url ? <ExpoImage source={{ uri: s.cover_url }} style={{ width: '100%', height: '100%', opacity: 0.8 }} contentFit="cover" /> : <Ionicons name="videocam" size={28} color="rgba(255,255,255,0.6)" />}
+                <View style={st.upcomingBadge}><Ionicons name="time-outline" size={10} color="#fff" /><Text style={st.liveBadgeTxt}> UPCOMING</Text></View>
+              </LinearGradient>
+              <View style={{ padding: 12 }}>
+                <Text style={st.showTitle} numberOfLines={1}>{s.title}</Text>
+                <Text style={[st.showMeta, { color: TUBE.electric }]} numberOfLines={1}>{whenText(s.scheduled_at)}</Text>
+                <Text style={st.showMeta} numberOfLines={1}>{s.business_name} · {s.pinned_products?.length || 0} products</Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       {loading ? <ActivityIndicator color={TUBE.magenta} style={{ marginTop: 30 }} />
         : shows.length === 0 ? <View style={st.empty}><Text style={st.emptyTxt}>No live shows right now — tap Go Live 🎥</Text></View>
           : shows.map((s) => (
@@ -57,20 +84,39 @@ export function LiveTab() {
               </View>
             </Pressable>
           ))}
-      <GoLiveSheet visible={goLive} onClose={() => setGoLive(false)} onLive={(id: string) => { setGoLive(false); setOpen(id); }} />
+      <GoLiveSheet visible={goLive} onClose={() => setGoLive(false)} onLive={(id: string) => { setGoLive(false); setOpen(id); }} onScheduled={() => { setGoLive(false); load(); }} />
     </ScrollView>
   );
 }
 
-function GoLiveSheet({ visible, onClose, onLive }: any) {
+function whenText(iso?: string) {
+  if (!iso) return 'Scheduled';
+  const d = new Date(iso);
+  const diff = d.getTime() - Date.now();
+  if (diff <= 0) return 'Starting soon';
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const when = d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  return h >= 1 ? `Starts ${when} · in ${h}h` : `Starts ${when} · in ${m}m`;
+}
+
+function GoLiveSheet({ visible, onClose, onLive, onScheduled }: any) {
   const [title, setTitle] = useState('');
   const [biz, setBiz] = useState('');
   const [desc, setDesc] = useState('');
+  const [when, setWhen] = useState<number>(0); // hours from now; 0 = now
   const [busy, setBusy] = useState(false);
+  const presets = [{ h: 0, l: 'Now' }, { h: 1, l: 'In 1h' }, { h: 3, l: 'In 3h' }, { h: 24, l: 'Tomorrow' }];
   const go = async () => {
     if (title.trim().length < 2) return;
     setBusy(true);
-    try { const { data } = await api.post('/social/liveshows', { title, business_name: biz, description: desc }); onLive(data.show_id); setTitle(''); setBiz(''); setDesc(''); }
+    try {
+      const body: any = { title, business_name: biz, description: desc };
+      if (when > 0) body.scheduled_at = new Date(Date.now() + when * 3600000).toISOString();
+      const { data } = await api.post('/social/liveshows', body);
+      setTitle(''); setBiz(''); setDesc(''); setWhen(0);
+      if (data.status === 'scheduled') onScheduled?.(); else onLive(data.show_id);
+    }
     catch (_) {} finally { setBusy(false); }
   };
   return (
@@ -78,8 +124,16 @@ function GoLiveSheet({ visible, onClose, onLive }: any) {
       <TextInput value={title} onChangeText={setTitle} placeholder="Show title" placeholderTextColor={TUBE.textMuted} style={st.input} testID="golive-title" />
       <TextInput value={biz} onChangeText={setBiz} placeholder="Business name (optional)" placeholderTextColor={TUBE.textMuted} style={st.input} testID="golive-biz" />
       <TextInput value={desc} onChangeText={setDesc} placeholder="What are you showing?" placeholderTextColor={TUBE.textMuted} style={[st.input, { height: 70, textAlignVertical: 'top' }]} multiline testID="golive-desc" />
-      <Pressable onPress={go} disabled={busy} testID="golive-start" style={{ marginTop: 10 }}>
-        <LinearGradient colors={['#a855f7', '#ec4899']} style={st.btn}>{busy ? <ActivityIndicator color="#fff" /> : <><Ionicons name="videocam" size={16} color="#fff" /><Text style={st.btnTxt}>Start streaming</Text></>}</LinearGradient>
+      <Text style={[st.section, { marginTop: 14 }]}>WHEN</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="golive-schedule">
+        {presets.map((p) => (
+          <Pressable key={p.h} onPress={() => setWhen(p.h)} testID={`golive-when-${p.h}`} style={[st.whenChip, when === p.h && st.whenChipActive]}>
+            <Text style={[st.whenChipTxt, when === p.h && { color: '#fff' }]}>{p.l}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Pressable onPress={go} disabled={busy} testID="golive-start" style={{ marginTop: 14 }}>
+        <LinearGradient colors={['#a855f7', '#ec4899']} style={st.btn}>{busy ? <ActivityIndicator color="#fff" /> : <><Ionicons name={when > 0 ? 'calendar' : 'videocam'} size={16} color="#fff" /><Text style={st.btnTxt}>{when > 0 ? 'Schedule event' : 'Start streaming'}</Text></>}</LinearGradient>
       </Pressable>
     </Sheet>
   );
@@ -141,6 +195,7 @@ function LiveViewer({ showId, onClose }: any) {
     } catch (_) {} finally { setBuying(null); }
   };
   const endShow = async () => { try { await api.post(`/social/liveshows/${showId}/end`); onClose(); } catch (_) {} };
+  const startShow = async () => { try { await api.post(`/social/liveshows/${showId}/start`); loadShow(); } catch (_) {} };
   const unpin = async (pid: string) => { try { await api.delete(`/social/liveshows/${showId}/products/${pid}`); loadShow(); } catch (_) {} };
   const saveHighlight = async () => { setSavingClip(true); try { await api.post(`/social/liveshows/${showId}/clips`, { note: '' }); await loadClips(); } catch (_) {} finally { setSavingClip(false); } };
   const buyClip = async (clip: any, p: any) => {
@@ -164,12 +219,21 @@ function LiveViewer({ showId, onClose }: any) {
         <Ionicons name="chevron-back" size={18} color={TUBE.textMuted} /><Text style={{ color: TUBE.textMuted, fontSize: TFONT.sm }}>Back to Live</Text>
       </Pressable>
       <LinearGradient colors={['#4c1d95', '#0d0a24']} style={st.stage}>
-        <View style={st.liveBadge}><Text style={st.liveBadgeTxt}>● LIVE</Text></View>
+        {show.status === 'scheduled'
+          ? <View style={st.upcomingBadgeStage} testID="live-upcoming-badge"><Text style={st.liveBadgeTxt}>◷ UPCOMING</Text></View>
+          : <View style={st.liveBadge}><Text style={st.liveBadgeTxt}>● LIVE</Text></View>}
         <Avatar name={show.host?.name} url={show.host?.avatar_url} size={64} />
         <Text style={st.stageBiz}>{show.business_name}</Text>
         <Text style={st.stageTitle}>{show.title}</Text>
-        <Text style={st.stageMeta}>{show.mode === 'live' ? 'Live video stream' : 'Simulated stream (preview)'} · {show.viewer_count} watching</Text>
-        {show.can_manage && (
+        {show.status === 'scheduled'
+          ? <Text style={[st.stageMeta, { color: TUBE.electric }]} testID="live-scheduled-time">{whenText(show.scheduled_at)}</Text>
+          : <Text style={st.stageMeta}>{show.mode === 'live' ? 'Live video stream' : 'Simulated stream (preview)'} · {show.viewer_count} watching</Text>}
+        {show.status === 'scheduled' && show.can_manage && (
+          <Pressable onPress={startShow} testID="live-start-now" style={{ marginTop: 14 }}>
+            <LinearGradient colors={['#a855f7', '#ec4899']} style={st.stageBtn}><Ionicons name="videocam" size={14} color="#fff" /><Text style={st.stageBtnTxt}>Go live now</Text></LinearGradient>
+          </Pressable>
+        )}
+        {show.can_manage && show.status !== 'scheduled' && (
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
             <Pressable onPress={() => setPinOpen(true)} testID="live-pin-open"><LinearGradient colors={['#a855f7', '#ec4899']} style={st.stageBtn}><Ionicons name="add" size={14} color="#fff" /><Text style={st.stageBtnTxt}>Pin</Text></LinearGradient></Pressable>
             <Pressable onPress={saveHighlight} disabled={savingClip} testID="live-clip" style={st.ghostBtn}>{savingClip ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="cut" size={14} color="#fff" />}<Text style={st.stageBtnTxt}>Highlight</Text></Pressable>
@@ -320,6 +384,11 @@ const st = StyleSheet.create({
   showCard: { backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, overflow: 'hidden' },
   showCover: { height: 130, alignItems: 'center', justifyContent: 'center' },
   liveBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(239,68,68,0.85)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  upcomingBadge: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(6,182,212,0.85)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  upcomingBadgeStage: { backgroundColor: 'rgba(6,182,212,0.85)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  whenChip: { paddingHorizontal: 14, height: 34, borderRadius: 17, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, alignItems: 'center', justifyContent: 'center' },
+  whenChipActive: { backgroundColor: TUBE.magenta, borderColor: TUBE.magenta },
+  whenChipTxt: { color: TUBE.textMuted, fontSize: TFONT.sm, fontWeight: '800' },
   liveBadgeTxt: { color: '#fff', fontSize: 9, fontWeight: '900' },
   viewerBadge: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   viewerTxt: { color: '#fff', fontSize: 9, fontWeight: '900' },

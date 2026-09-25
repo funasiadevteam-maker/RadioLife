@@ -1336,9 +1336,15 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_social_together(db)
     except Exception as e: logger.warning(f"social_together bootstrap: {e}")
     try:
-        from routes.live_commerce import ensure_live_commerce_indexes
+        from routes.live_commerce import ensure_live_commerce_indexes, seed_demo_live_show
         await ensure_live_commerce_indexes(db)
+        await seed_demo_live_show(db)
     except Exception as e: logger.warning(f"live_commerce bootstrap: {e}")
+    try:
+        from routes.bar_games import ensure_bar_game_indexes, seed_demo_bar
+        await ensure_bar_game_indexes(db)
+        await seed_demo_bar(db)
+    except Exception as e: logger.warning(f"bar_games bootstrap: {e}")
     try:
         from routes.social_phase45 import ensure_phase45_indexes
         await ensure_phase45_indexes(db)
@@ -6590,6 +6596,8 @@ except Exception as _e_uiprefs:
 # Social V2 — Phase 3: FUUSIC Live (video livestream commerce).
 from routes.live_commerce import router as _live_commerce_router
 app.include_router(_live_commerce_router)
+from routes.bar_games import router as _bar_games_router
+app.include_router(_bar_games_router)
 
 # Social V2 — Phase 4/5: Group carts, AI discovery, translation.
 from routes.social_phase45 import router as _social_phase45_router

@@ -3,7 +3,7 @@
 // GlobalAudio), just a larger, richer presentation: big artwork, transport,
 // a live progress bar, city, BigPoints and favorites.
 import React from "react";
-import { Play, Pause } from "lucide-react";
+import { Play, Pause, Users } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useGeoStore } from "@/store/useGeoStore";
 import { useStationFavoritesStore } from "@/store/useStationFavoritesStore";
@@ -72,6 +72,30 @@ export default function PlayerBarV2() {
   };
 
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+
+  const startListenTogether = async () => {
+    if (!hasContent) { window.location.href = "/social?action=listen"; return; }
+    let content_type = "live"; let content = {};
+    if (podcastEpisode) {
+      content_type = "podcast";
+      content = { id: podcastEpisode.episode_id, name: podcastEpisode.title, favicon: podcastEpisode.cover_image_url, podcast_id: podcastEpisode.podcast_id };
+    } else if (importedStation) {
+      content = { ...importedStation };
+    } else {
+      content = { id: activeSlug || sessionId, name: channelName || displayTrack, favicon: channelThumb };
+    }
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/social/rooms`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visibility: "public", content_type, content,
+          playback: content_type === "podcast" ? { position_sec: currentTime || 0, is_playing: true } : undefined }),
+      });
+      const d = await r.json();
+      window.location.href = d.room_id ? `/social/room/${d.room_id}` : "/social?action=listen";
+    } catch (_) { window.location.href = "/social?action=listen"; }
+  };
+
   const thumb = podcastEpisode?.cover_image_url || importedStation?.favicon || channelThumb;
   const artworkBg = thumb
     ? (thumb.startsWith("http") ? `url(${thumb}) center/cover` : `url(${BACKEND_URL}${thumb}) center/cover`)
@@ -162,6 +186,14 @@ export default function PlayerBarV2() {
         </span>
       ) : null}
 
+      {hasContent && (
+        <button type="button" onClick={startListenTogether} data-testid="player-invite-listen"
+                title="Invite to Listen Together"
+                className="hidden sm:grid place-items-center w-9 h-9 rounded-full flex-shrink-0 transition-transform hover:scale-105"
+                style={{ background: "rgba(168,85,247,0.18)", color: "#d8b4fe" }}>
+          <Users size={16} />
+        </button>
+      )}
       <PointsHeaderWidget />
       <FavoritesFlyoutToggle open={favOpen} onToggle={() => setFavOpen((v) => !v)} />
     </div>

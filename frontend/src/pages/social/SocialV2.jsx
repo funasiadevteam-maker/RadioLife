@@ -18,12 +18,13 @@ const api = axios.create({
   baseURL: `${process.env.REACT_APP_BACKEND_URL || ""}/api/social`,
   withCredentials: true,
 });
+const RADIO_API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
 const TABS = [
   { key: "together", label: "Together", icon: Sparkles },
   { key: "live", label: "Live", icon: Video },
   { key: "moments", label: "Moments", icon: Camera },
-  { key: "pulse", label: "Pulse", icon: MapPin },
+  { key: "pulse", label: "Nearby", icon: MapPin },
   { key: "friends", label: "Friends", icon: Users },
   { key: "sharedreams", label: "Share Dreams", icon: Moon },
 ];
@@ -142,7 +143,9 @@ function TogetherTab({ home, reload, initialAction, playSession, playRef }) {
   const navigate = useNavigate();
   const importedStation = usePlayerStore((s) => s.importedStation);
   const podcastEpisode = usePlayerStore((s) => s.podcastEpisode);
+  const setImportedStation = usePlayerStore((s) => s.setImportedStation);
   const [starting, setStarting] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
   const [goOpen, setGoOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
@@ -154,11 +157,30 @@ function TogetherTab({ home, reload, initialAction, playSession, playRef }) {
       ? { type: "podcast", name: podcastEpisode.title, art: podcastEpisode.cover_image_url }
       : null;
 
+  const createRoomForStation = async (station) => {
+    setStarting(true);
+    try {
+      const content = { id: station.id, name: station.name, favicon: station.favicon,
+        stream_url: station.stream_url, country: station.country, language: station.language, source: "imported" };
+      const { data } = await api.post("/rooms", { visibility: "public", content_type: "live", content });
+      navigate(`/social/room/${data.room_id}`);
+    } catch (_) { toast.error("Couldn't start the room. Please try again."); }
+    finally { setStarting(false); }
+  };
+
+  const pickAndStart = async (s) => {
+    try {
+      const r = await axios.post(`${RADIO_API}/radio/play/${s.id}`, {}, { withCredentials: true });
+      const station = { id: s.id, name: r.data?.name || s.name, stream_url: r.data?.stream_url,
+        favicon: r.data?.favicon || s.favicon, country: r.data?.country, language: r.data?.language };
+      setImportedStation({ ...station, source: "imported" });
+      setPickOpen(false);
+      await createRoomForStation(station);
+    } catch (_) { toast.error("Couldn't play that station."); }
+  };
+
   const startRoom = async () => {
-    if (!nowPlaying) {
-      toast.info("Start playing a station or podcast first, then invite friends.");
-      return;
-    }
+    if (!nowPlaying) { setPickOpen(true); return; }
     setStarting(true);
     try {
       const content = importedStation
@@ -283,6 +305,7 @@ function TogetherTab({ home, reload, initialAction, playSession, playRef }) {
           </div>
         )}
       </div>
+      {pickOpen && <StationPickModal onClose={() => setPickOpen(false)} onPick={pickAndStart} />}
       {goOpen && <GoTogetherModal onClose={() => setGoOpen(false)} />}
       {playOpen && <PlayTogetherModal onClose={() => setPlayOpen(false)} sessionId={playSession} refId={playRef} />}
       {shopOpen && <ShopTogetherModal onClose={() => setShopOpen(false)} />}
@@ -320,6 +343,54 @@ function RoomCard({ room, onJoin }) {
         <Play className="text-white/70" size={18} />
       </div>
     </button>
+  );
+}
+
+// ───────────────────────── Listen Together station picker ──────────
+function StationPickModal({ onClose, onPick }) {
+  const [q, setQ] = useState("");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  useEffect(() => {
+    let alive = true; setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await axios.get(`${RADIO_API}/radio/browse`, { params: { q: q || undefined, source: "all", limit: 24 }, withCredentials: true });
+        if (alive) setItems(r.data?.items || []);
+      } catch (_) {} finally { if (alive) setLoading(false); }
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [q]);
+  const pick = async (s) => { setBusyId(s.id); await onPick(s); setBusyId(null); };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose} data-testid="listen-station-pick">
+      <div className="w-full sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col rounded-t-3xl sm:rounded-3xl border border-white/10" style={{ background: "linear-gradient(180deg,#12102b,#0b0918)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 pb-3">
+          <div className="flex items-center gap-2 mb-1"><Headphones size={18} className="text-purple-300" /><h3 className="text-lg font-black">Pick a station to listen together</h3></div>
+          <p className="text-xs text-slate-400 mb-3">Choose a station — we'll start playing it and open a room you can share with friends.</p>
+          <div className="flex items-center gap-2 rounded-full bg-white/[0.05] border border-white/10 px-3">
+            <Search size={15} className="text-slate-400" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} data-testid="listen-station-search" placeholder="Search stations…" className="flex-1 bg-transparent py-2.5 text-sm outline-none" />
+          </div>
+        </div>
+        <div className="px-3 pb-4 overflow-y-auto no-scrollbar" data-testid="listen-station-list">
+          {loading ? <div className="flex justify-center py-10"><Loader2 className="animate-spin text-purple-400" /></div>
+            : items.length === 0 ? <div className="text-center text-sm text-slate-400 py-10">No stations found.</div>
+            : items.map((s) => (
+              <button key={s.id} type="button" onClick={() => pick(s)} disabled={!!busyId} data-testid={`listen-station-${s.id}`}
+                      className="w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-white/[0.06] text-left disabled:opacity-60">
+                <span className="grid place-items-center w-11 h-11 rounded-xl overflow-hidden bg-purple-500/20 text-purple-200 shrink-0">
+                  {s.favicon ? <img src={s.favicon} alt="" className="w-full h-full object-cover" /> : <Radio size={18} />}
+                </span>
+                <span className="min-w-0 flex-1"><span className="block text-sm font-bold truncate">{s.name}</span>
+                  <span className="block text-[11px] text-slate-400 truncate">{[s.country, s.language].filter(Boolean).join(" · ") || s.source}</span></span>
+                {busyId === s.id ? <Loader2 size={16} className="animate-spin text-purple-300" /> : <Play size={16} className="text-white/70" />}
+              </button>
+            ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

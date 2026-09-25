@@ -18,6 +18,7 @@ import { useProductCart } from '../../src/stores/useProductCart';
 import { useSavedForLater } from '../../src/stores/useSavedForLater';
 import ItemOptionSheet, { defaultMenuSelection, menuQuickAddReady } from '../../src/components/ItemOptionSheet';
 import ProductVariantSheet from '../../src/components/ProductVariantSheet';
+import BarGameCard from '../../src/components/BarGameCard';
 
 const money = (c: number) => `$${((c || 0) / 100).toFixed(2)}`;
 const absUrl = (u?: string | null) => (!u ? null : u.startsWith('http') ? u : `${process.env.EXPO_PUBLIC_BACKEND_URL}${u}`);
@@ -287,6 +288,8 @@ export default function BusinessDetail() {
               </TouchableOpacity>
             )}
           </ScrollView>
+
+          <BarGameCard businessId={biz.business_id} />
 
           {/* Get your usual? */}
           {mode === 'menu' && usual && !usualDismissed && (

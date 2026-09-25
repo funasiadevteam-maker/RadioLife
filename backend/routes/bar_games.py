@@ -1,0 +1,218 @@
+"""FUUSIC — Gamified Bar Purchase (Phase 5).
+
+After a customer buys at a bar / club-lounge (any paid marketplace order at that
+venue), they UNLOCK a drink-themed spin wheel on the bar's page. Each paid order
+grants exactly one spin; spinning consumes the unlock and may win a drink perk.
+
+Reuses the existing `marketplace_orders` + `marketplace_profiles` collections and
+`secrets.SystemRandom` for a fair weighted draw. No live payment — a "bar
+purchase" is any order with payment_status == "paid" at a bar-category business.
+"""
+from __future__ import annotations
+
+import secrets
+import uuid
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from auth import current_user
+
+router = APIRouter(prefix="/api/bar-games", tags=["bar-games"])
+
+_RNG = secrets.SystemRandom()
+
+_BAR_CATEGORIES = {"bar", "club_lounge", "club", "lounge", "pub", "nightclub", "cocktail_bar"}
+
+# Drink-themed wheel. `win` prizes issue a redemption code; the two consolation
+# segments keep it honest (not every spin wins).
+SEGMENTS = [
+    {"label": "Free house pour", "emoji": "🍺", "win": True, "weight": 6},
+    {"label": "2-for-1 cocktail", "emoji": "🍸", "win": True, "weight": 9},
+    {"label": "20% off your tab", "emoji": "🏷️", "win": True, "weight": 14},
+    {"label": "Free bar snack", "emoji": "🍟", "win": True, "weight": 11},
+    {"label": "Mocktail on us", "emoji": "🥂", "win": True, "weight": 10},
+    {"label": "So close — sip again", "emoji": "😅", "win": False, "weight": 20},
+    {"label": "One more round?", "emoji": "🔄", "win": False, "weight": 20},
+]
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _iso(v):
+    return v.isoformat() if isinstance(v, datetime) else v
+
+
+def _is_bar(profile: dict) -> bool:
+    if not profile:
+        return False
+    cat = (profile.get("category") or "").lower()
+    sub = (profile.get("subcategory") or "").lower()
+    return cat in _BAR_CATEGORIES or sub in _BAR_CATEGORIES
+
+
+async def ensure_bar_game_indexes(db) -> None:
+    await db.bar_game_unlocks.create_index(
+        [("user_id", 1), ("business_id", 1), ("consumed", 1)], name="bgu_lookup")
+    await db.bar_game_unlocks.create_index("order_id", name="bgu_order")
+    await db.bar_game_plays.create_index(
+        [("user_id", 1), ("created_at", -1)], name="bgp_time")
+
+
+def _public_config() -> dict:
+    return {
+        "segments": [{"label": s["label"], "emoji": s["emoji"], "win": s["win"]}
+                     for s in SEGMENTS],
+        "how_it_works": "Buy a round at this bar to unlock a spin. Land a drink perk and we’ll drop a code you can redeem at the bar.",
+        "spins_per_purchase": 1,
+    }
+
+
+async def _grant_from_orders(db, user_id: str, business_id: str) -> int:
+    """Convert any PAID orders at this bar that haven't yet granted a spin into
+    unlocks. Returns how many were newly granted. Idempotent per order."""
+    granted = 0
+    cursor = db.marketplace_orders.find(
+        {"user_id": user_id, "business_id": business_id,
+         "payment_status": "paid"}, {"order_id": 1})
+    async for o in cursor:
+        oid = o.get("order_id")
+        if not oid:
+            continue
+        exists = await db.bar_game_unlocks.find_one({"order_id": oid})
+        if exists:
+            continue
+        await db.bar_game_unlocks.insert_one({
+            "_id": f"bgu_{uuid.uuid4().hex[:16]}", "user_id": user_id,
+            "business_id": business_id, "order_id": oid,
+            "consumed": False, "created_at": _now()})
+        granted += 1
+    return granted
+
+
+async def _status(db, user_id: str, business_id: str) -> dict:
+    profile = await db.marketplace_profiles.find_one({"business_id": business_id})
+    if not _is_bar(profile):
+        return {"eligible": False}
+    # Auto-convert any paid orders into spin unlocks.
+    await _grant_from_orders(db, user_id, business_id)
+    available = await db.bar_game_unlocks.count_documents(
+        {"user_id": user_id, "business_id": business_id, "consumed": False})
+    last = await db.bar_game_plays.find_one(
+        {"user_id": user_id, "business_id": business_id}, sort=[("created_at", -1)])
+    return {
+        "eligible": True,
+        "business_id": business_id,
+        "business_name": profile.get("public_name"),
+        "spins_available": available,
+        "config": _public_config(),
+        "last_result": {
+            "win": bool(last.get("win")), "label": last.get("label"),
+            "code": last.get("code"), "created_at": _iso(last.get("created_at")),
+        } if last else None,
+    }
+
+
+@router.get("/{business_id}")
+async def bar_game_status(business_id: str, request: Request,
+                          user: dict = Depends(current_user)):
+    return await _status(request.app.state.db, user["user_id"], business_id)
+
+
+@router.post("/{business_id}/claim")
+async def bar_game_claim(business_id: str, request: Request,
+                         user: dict = Depends(current_user)):
+    """Re-check paid orders and grant any pending spins (called after a purchase
+    returns to the bar page)."""
+    db = request.app.state.db
+    profile = await db.marketplace_profiles.find_one({"business_id": business_id})
+    if not _is_bar(profile):
+        raise HTTPException(400, {"code": "not_a_bar"})
+    granted = await _grant_from_orders(db, user["user_id"], business_id)
+    st = await _status(db, user["user_id"], business_id)
+    return {"granted": granted, **st}
+
+
+def _draw() -> dict:
+    total = sum(s["weight"] for s in SEGMENTS)
+    r = _RNG.uniform(0, total)
+    upto = 0.0
+    for i, s in enumerate(SEGMENTS):
+        upto += s["weight"]
+        if r <= upto:
+            return {"index": i, **s}
+    return {"index": len(SEGMENTS) - 1, **SEGMENTS[-1]}
+
+
+@router.post("/{business_id}/spin")
+async def bar_game_spin(business_id: str, request: Request,
+                        user: dict = Depends(current_user)):
+    db = request.app.state.db
+    profile = await db.marketplace_profiles.find_one({"business_id": business_id})
+    if not _is_bar(profile):
+        raise HTTPException(400, {"code": "not_a_bar"})
+    # Consume one available unlock atomically.
+    unlock = await db.bar_game_unlocks.find_one_and_update(
+        {"user_id": user["user_id"], "business_id": business_id, "consumed": False},
+        {"$set": {"consumed": True, "consumed_at": _now()}})
+    if not unlock:
+        raise HTTPException(403, {"code": "no_spin_unlocked",
+                                  "message": "Buy a round at this bar to unlock a spin."})
+    seg = _draw()
+    win = bool(seg["win"])
+    code = ("BAR-" + uuid.uuid4().hex[:8].upper()) if win else None
+    play = {
+        "_id": f"bgp_{uuid.uuid4().hex[:16]}", "user_id": user["user_id"],
+        "business_id": business_id, "business_name": profile.get("public_name"),
+        "segment_index": seg["index"], "label": seg["label"], "emoji": seg["emoji"],
+        "win": win, "code": code, "redeemed": False, "created_at": _now()}
+    await db.bar_game_plays.insert_one(play)
+    available = await db.bar_game_unlocks.count_documents(
+        {"user_id": user["user_id"], "business_id": business_id, "consumed": False})
+    return {"win": win, "segment_index": seg["index"], "label": seg["label"],
+            "emoji": seg["emoji"], "prize": seg["label"] if win else None,
+            "code": code, "spins_available": available,
+            "segments": _public_config()["segments"]}
+
+
+__all__ = ["router", "ensure_bar_game_indexes"]
+
+
+# ─────────────────────────── Demo bar seed ─────────────────────────
+_DEMO_BAR_ID = "biz_demo_bar"
+
+
+async def seed_demo_bar(db) -> None:
+    """Idempotent demo bar (approved, subscribed) + one PAID order for the demo
+    user, so the drink-themed spin wheel is unlockable/testable in preview."""
+    demo = await db.users.find_one({"email": "demo@bigfm.dubai"}, {"user_id": 1})
+    now = _now()
+    if not await db.marketplace_profiles.find_one({"business_id": _DEMO_BAR_ID}):
+        await db.marketplace_profiles.insert_one({
+            "business_id": _DEMO_BAR_ID,
+            "owner_user_id": (demo or {}).get("user_id") or "system",
+            "business_type": "bar", "legal_name": "Neon Nights Bar LLC",
+            "public_name": "Neon Nights Bar",
+            "description": "Cocktails, craft beer & good vibes on Marina Walk.",
+            "category": "bar", "subcategory": "cocktail_bar",
+            "logo_url": None,
+            "cover_urls": ["https://images.unsplash.com/photo-1514933651103-005eec06c04b?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200"],
+            "locations": [], "sells": ["menu", "products"], "market": "dubai",
+            "rating": 4.6, "featured": False, "sponsored": False,
+            "status": "approved", "subscription_active": True,
+            "shop_plan_status": "active",
+            "created_at": now, "updated_at": now})
+    # One PAID demo order so the demo user has a spin to try.
+    if demo and not await db.marketplace_orders.find_one({"order_id": "ord_demo_bar_1"}):
+        await db.marketplace_orders.insert_one({
+            "order_id": "ord_demo_bar_1", "business_id": _DEMO_BAR_ID,
+            "business_name": "Neon Nights Bar", "user_id": demo["user_id"],
+            "items": [{"name": "House Cocktail", "qty": 2}],
+            "total_cents": 3600, "payment_status": "paid", "status": "accepted",
+            "created_at": now, "updated_at": now})
+
+
+__all__ = ["router", "ensure_bar_game_indexes", "seed_demo_bar"]

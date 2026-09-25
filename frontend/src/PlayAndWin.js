@@ -94,6 +94,7 @@ export default function PlayAndWin() {
         <div className="paw-loading"><Loader2 size={28} className="spin" /></div>
       ) : (
         <>
+          <PredictWinCard />
           <SponsoredInstantGames />
           <Section title="Unlocked for you" icon={<Sparkles size={14} />}
                     testId="section-unlocked"
@@ -235,6 +236,39 @@ function CampaignCard({ campaign, drivingMode }) {
           text={`Play "${campaign.title}" on FUUSIC and win ${campaign.top_prize_title || "rewards"} →`} />
       </div>
     </div>
+  );
+}
+
+// Predict & Win entry — surfaces the community prediction game on the Play tab.
+function PredictWinCard() {
+  const navigate = useNavigate();
+  return (
+    <section className="paw-section" data-testid="section-predict-win">
+      <h2 className="mono"><Trophy size={14} /> Predict &amp; Win</h2>
+      <button
+        onClick={() => navigate("/predict-win")}
+        data-testid="predict-win-card"
+        style={{
+          width: "100%", textAlign: "left", display: "flex", alignItems: "center",
+          gap: 16, padding: 18, borderRadius: 20, cursor: "pointer",
+          background: "linear-gradient(120deg,#1a1038,#3a1148)",
+          border: "1px solid rgba(245,158,11,0.35)",
+        }}>
+        <span style={{ display: "grid", placeItems: "center", width: 52, height: 52,
+          borderRadius: 16, background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
+          <Trophy size={24} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontWeight: 900, fontSize: 18, color: "#fff" }}>
+            Predict &amp; Win
+          </span>
+          <span style={{ display: "block", fontSize: 13, color: "#c4b5fd", marginTop: 2 }}>
+            Free community predictions — make your pick and win prizes.
+          </span>
+        </span>
+        <ArrowRight size={20} color="#c4b5fd" />
+      </button>
+    </section>
   );
 }
 

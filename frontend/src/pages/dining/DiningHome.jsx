@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   UtensilsCrossed, Sparkles, Ticket, Clock, ChevronLeft, Crown,
-  Minus, Plus, Store, Loader2, Leaf, Drumstick,
+  Minus, Plus, Store, Loader2, Leaf, Drumstick, Dices,
 } from "lucide-react";
 import { diningApi, DINE, money, errCode } from "./diningApi";
 
@@ -86,6 +86,13 @@ export default function DiningHome() {
           <Stat testid="dining-days-left" icon={<Crown color={DINE.pink} />} value={data?.days_remaining ?? "—"} label="Days remaining" />
         </div>
       ) : null}
+
+      <button onClick={() => nav("/dining/dice")} data-testid="dining-dice-cta"
+        className="w-full flex items-center justify-between gap-2 rounded-2xl px-5 py-4 mb-5 font-black transition"
+        style={{ background: `${DINE.gold}12`, color: DINE.text, border: `1px solid ${DINE.gold}55` }}>
+        <span className="flex items-center gap-2"><Dices size={18} style={{ color: DINE.gold }} /> Roll the dice — win a free meal for 8</span>
+        <span className="text-xs font-mono uppercase tracking-wider" style={{ color: DINE.gold }}>1 in 12 →</span>
+      </button>
 
       {active ? (
         <div className="flex flex-col sm:flex-row gap-3">

@@ -104,6 +104,7 @@ def _show_public(s: dict, host: Optional[dict], viewers: int,
         "status": s.get("status"), "viewer_count": viewers,
         "pinned_products": s.get("pinned_products") or [],
         "started_at": _iso(s.get("started_at")),
+        "scheduled_at": _iso(s.get("scheduled_at")),
         "created_at": _iso(s.get("created_at")),
     }
 
@@ -114,6 +115,7 @@ class ShowBody(BaseModel):
     description: str = Field("", max_length=500)
     business_name: str = Field("", max_length=120)
     cover_url: Optional[str] = None
+    scheduled_at: Optional[str] = None  # ISO datetime → creates an UPCOMING show
 
 
 @router.get("")
@@ -123,7 +125,9 @@ async def list_shows(request: Request, status: str = "live", show_all: bool = Fa
     q = {"status": status} if status in ("live", "ended", "scheduled") else {}
     rows: list[dict] = []
     hids: set[str] = set()
-    async for s in db.live_shows.find(q).sort("started_at", -1).limit(40):
+    sort_field = "scheduled_at" if status == "scheduled" else "started_at"
+    sort_dir = 1 if status == "scheduled" else -1
+    async for s in db.live_shows.find(q).sort(sort_field, sort_dir).limit(40):
         rows.append(s)
         hids.add(s["host_id"])
     hosts = await _users_map(db, list(hids))
@@ -154,14 +158,27 @@ async def create_show(body: ShowBody, request: Request,
         biz = (u or {}).get("name") or "FUUSIC Live"
     sid = f"ls_{uuid.uuid4().hex[:16]}"
     room = f"liveshow_{sid}"
+    # Optional scheduling → an UPCOMING show (goes live later via /start).
+    scheduled_at = None
+    if body.scheduled_at:
+        try:
+            scheduled_at = datetime.fromisoformat(body.scheduled_at.replace("Z", "+00:00"))
+            if scheduled_at.tzinfo is None:
+                scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+        except ValueError:
+            scheduled_at = None
+    is_scheduled = bool(scheduled_at and scheduled_at > _now())
     doc = {"_id": sid, "host_id": uid, "business_name": biz,
            "title": body.title.strip(), "description": body.description.strip(),
-           "cover_url": body.cover_url, "status": "live", "room_name": room,
-           "pinned_products": [], "created_at": _now(), "started_at": _now(),
+           "cover_url": body.cover_url,
+           "status": "scheduled" if is_scheduled else "live", "room_name": room,
+           "pinned_products": [], "created_at": _now(),
+           "scheduled_at": scheduled_at if is_scheduled else None,
+           "started_at": None if is_scheduled else _now(),
            "ended_at": None}
     await db.live_shows.insert_one(doc)
     host = _user_public(await db.users.find_one({"user_id": uid}))
-    return {**_show_public(doc, host, 1, uid),
+    return {**_show_public(doc, host, 1 if not is_scheduled else 0, uid),
             "join_token": _token(room, uid, "host"),
             "livekit_url": livekit_client.livekit_url(),
             "mode": livekit_client.status()["mode"]}
@@ -263,6 +280,22 @@ async def end_show(sid: str, request: Request,
     await db.live_shows.update_one(
         {"_id": sid}, {"$set": {"status": "ended", "ended_at": _now()}})
     return {"ok": True, "status": "ended"}
+
+
+@router.post("/{sid}/start")
+async def start_show(sid: str, request: Request,
+                     user: dict = Depends(current_user)):
+    """Host takes a SCHEDULED (upcoming) show live now."""
+    db = request.app.state.db
+    s = await _show_or_404(db, sid)
+    if not _can_manage(s, user["user_id"]):
+        raise HTTPException(403, {"code": "not_host"})
+    if s.get("status") == "ended":
+        raise HTTPException(400, {"code": "show_ended"})
+    await db.live_shows.update_one(
+        {"_id": sid}, {"$set": {"status": "live", "started_at": _now(),
+                                "scheduled_at": None}})
+    return {"ok": True, "status": "live"}
 
 
 # ─────────────────────────── Pinned products ───────────────────────
@@ -711,4 +744,47 @@ async def live_checkout(sid: str, body: CheckoutBody, request: Request,
             "checkout_url": session.url, "session_id": session.id}
 
 
-__all__ = ["router", "ensure_live_commerce_indexes"]
+# ─────────────── Demo scheduled Live Shopping event ────────────────
+_DEMO_SHOW_ID = "ls_demo_scheduled_01"
+_DEMO_PRODUCTS = [
+    ("Signature Angus Burger", 1200, "-20% live",
+     "https://images.unsplash.com/photo-1610440042657-612c34d95e9f?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"),
+    ("Loaded Fries Combo", 750, "",
+     "https://images.unsplash.com/photo-1561758033-d89a9ad46330?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"),
+    ("Iced Caramel Latte", 500, "Live only",
+     "https://images.unsplash.com/photo-1671759545218-831c32bfe92d?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"),
+]
+
+
+async def seed_demo_live_show(db) -> None:
+    """Idempotent: one UPCOMING business Live Shopping event, hosted by the
+    demo account, with pinned shoppable products (reuses demo shop imagery)."""
+    demo = await db.users.find_one({"email": "demo@bigfm.dubai"}, {"user_id": 1})
+    if not demo:
+        return
+    existing = await db.live_shows.find_one({"_id": _DEMO_SHOW_ID})
+    when = _now() + timedelta(hours=6)
+    products = [{"product_id": f"prod_demo_live_{i}", "title": t,
+                 "price_cents": c, "image_url": img, "offer": offer,
+                 "pinned_at": _iso(_now())}
+                for i, (t, c, offer, img) in enumerate(_DEMO_PRODUCTS)]
+    if existing:
+        # Keep it in the future & keep products present if it hasn't gone live.
+        if existing.get("status") == "scheduled":
+            await db.live_shows.update_one(
+                {"_id": _DEMO_SHOW_ID},
+                {"$set": {"scheduled_at": when,
+                          "pinned_products": products}})
+        return
+    await db.live_shows.insert_one({
+        "_id": _DEMO_SHOW_ID, "host_id": demo["user_id"],
+        "business_name": "The Grill House",
+        "title": "Friday Night Live Shopping — Grill House Specials",
+        "description": "Join us live for exclusive menu deals you can order on the spot.",
+        "cover_url": _DEMO_PRODUCTS[0][3], "status": "scheduled",
+        "room_name": f"liveshow_{_DEMO_SHOW_ID}", "pinned_products": products,
+        "created_at": _now(), "scheduled_at": when,
+        "started_at": None, "ended_at": None})
+
+
+__all__ = ["router", "ensure_live_commerce_indexes", "seed_demo_live_show"]

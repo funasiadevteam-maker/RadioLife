@@ -40,6 +40,10 @@ export const diningApi = {
   checkoutStatus: (sid) => unwrap(http.get(`/dining-club/checkout/status/${sid}`)),
   pass: (orderId) => unwrap(http.get(`/dining-club/pass/${orderId}`)),
 
+  // Roll-a-Dice promo
+  diceStatus: () => unwrap(http.get("/dining-club/dice")),
+  diceRoll: () => unwrap(http.post("/dining-club/dice/roll")),
+
   // Merchant
   merchantMe: () => unwrap(http.get("/merchant/dining-club/me")),
   merchantEnroll: (body) => unwrap(http.post("/merchant/dining-club/enroll", { ...body, origin_url: window.location.origin })),

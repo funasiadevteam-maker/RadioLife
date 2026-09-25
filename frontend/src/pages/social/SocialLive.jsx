@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   Loader2, Video, Radio, X, Send, ShoppingBag, Plus, Tag, Users,
   Trash2, StopCircle, Sparkles, Scissors, UserPlus, Share2, Download,
+  Clock, Calendar,
 } from "lucide-react";
 import { Avatar } from "./SocialV2";
 
@@ -18,13 +19,20 @@ const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 
 export function LiveTab() {
   const [shows, setShows] = useState([]);
+  const [upcoming, setUpcoming] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(null);       // show_id being viewed
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
-    try { const { data } = await api.get("?status=live"); setShows(data.items || []); }
-    catch (_) {} finally { setLoading(false); }
+    try {
+      const [live, sched] = await Promise.all([
+        api.get("?status=live"),
+        api.get("?status=scheduled"),
+      ]);
+      setShows(live.data.items || []);
+      setUpcoming(sched.data.items || []);
+    } catch (_) {} finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -40,6 +48,28 @@ export function LiveTab() {
           <div className="text-sm text-white/70">Stream to your fans and sell your products live</div></div>
         <span className="text-xs font-black px-3 py-1.5 rounded-full bg-red-500/30 text-red-200">● LIVE</span>
       </button>
+
+      {upcoming.length > 0 && (
+        <div data-testid="live-upcoming">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5"><Clock size={13} /> Upcoming live events</div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {upcoming.map((s) => (
+              <button key={s.show_id} onClick={() => setOpen(s.show_id)} data-testid={`live-upcoming-${s.show_id}`}
+                      className="text-left rounded-2xl overflow-hidden bg-white/[0.04] border border-white/10 hover:border-cyan-400/40">
+                <div className="h-32 relative grid place-items-center" style={{ background: "linear-gradient(135deg,#1e3a8a,#0e7490)" }}>
+                  {s.cover_url ? <img src={s.cover_url} alt="" className="w-full h-full object-cover opacity-80" /> : <Video className="text-white/60" size={30} />}
+                  <span className="absolute top-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full bg-cyan-500/80 text-white flex items-center gap-1"><Clock size={10} /> UPCOMING</span>
+                </div>
+                <div className="p-3">
+                  <div className="text-sm font-black truncate">{s.title}</div>
+                  <div className="text-[11px] text-cyan-300 truncate">{whenText(s.scheduled_at)}</div>
+                  <div className="text-[11px] text-slate-400 truncate">{s.business_name} · {s.pinned_products?.length || 0} products</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? <div className="flex justify-center py-16"><Loader2 className="animate-spin text-purple-400" /></div>
         : shows.length === 0 ? (
@@ -64,22 +94,41 @@ export function LiveTab() {
             ))}
           </div>
         )}
-      {creating && <GoLiveModal onClose={() => setCreating(false)} onLive={(id) => { setCreating(false); setOpen(id); }} />}
+      {creating && <GoLiveModal onClose={() => setCreating(false)} onLive={(id) => { setCreating(false); setOpen(id); }} onScheduled={() => { setCreating(false); load(); }} />}
     </div>
   );
 }
 
-function GoLiveModal({ onClose, onLive }) {
+function whenText(iso) {
+  if (!iso) return "Scheduled";
+  const d = new Date(iso);
+  const diff = d.getTime() - Date.now();
+  if (diff <= 0) return "Starting soon";
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const when = d.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return h >= 1 ? `Starts ${when} · in ${h}h` : `Starts ${when} · in ${m}m`;
+}
+
+function GoLiveModal({ onClose, onLive, onScheduled }) {
   const [title, setTitle] = useState("");
   const [biz, setBiz] = useState("");
   const [desc, setDesc] = useState("");
+  const [when, setWhen] = useState("");
   const [busy, setBusy] = useState(false);
   const go = async () => {
     if (title.trim().length < 2) { toast.info("Give your show a title."); return; }
     setBusy(true);
-    try { const { data } = await api.post("", { title, business_name: biz, description: desc }); toast.success("You’re live! 🔴"); onLive(data.show_id); }
+    try {
+      const body = { title, business_name: biz, description: desc };
+      if (when) body.scheduled_at = new Date(when).toISOString();
+      const { data } = await api.post("", body);
+      if (data.status === "scheduled") { toast.success("Live event scheduled 🗓️"); onScheduled?.(); }
+      else { toast.success("You’re live! 🔴"); onLive(data.show_id); }
+    }
     catch (_) { toast.error("Couldn’t start the show."); } finally { setBusy(false); }
   };
+  const scheduled = !!when;
   return (
     <Modal title="Go Live" onClose={onClose} testid="golive-modal">
       <div className="space-y-3">
@@ -89,9 +138,14 @@ function GoLiveModal({ onClose, onLive }) {
                className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm outline-none" />
         <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={2} placeholder="What are you showing today?" data-testid="golive-desc"
                   className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm outline-none resize-none" />
+        <div>
+          <div className="text-[11px] text-slate-400 mb-1.5 flex items-center gap-1.5"><Calendar size={12} /> Schedule for later (optional)</div>
+          <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} data-testid="golive-schedule"
+                 className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm outline-none text-slate-200" />
+        </div>
         <button onClick={go} disabled={busy} data-testid="golive-start"
                 className="w-full h-11 rounded-full text-white font-black inline-flex items-center justify-center gap-2" style={grad}>
-          {busy ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />} Start streaming
+          {busy ? <Loader2 size={16} className="animate-spin" /> : scheduled ? <Calendar size={16} /> : <Video size={16} />} {scheduled ? "Schedule event" : "Start streaming"}
         </button>
       </div>
     </Modal>
@@ -160,6 +214,7 @@ function LiveViewer({ showId, onClose }) {
     } catch (_) { toast.error("Couldn’t start checkout."); } finally { setBuying(null); }
   };
   const endShow = async () => { try { await api.post(`/${showId}/end`); toast.success("Show ended"); onClose(); } catch (_) {} };
+  const startShow = async () => { try { await api.post(`/${showId}/start`); toast.success("You’re live! 🔴"); loadShow(); } catch (_) { toast.error("Couldn’t go live."); } };
   const unpin = async (pid) => { try { await api.delete(`/${showId}/products/${pid}`); loadShow(); } catch (_) {} };
   const saveHighlight = async () => {
     setSavingClip(true);
@@ -198,13 +253,24 @@ function LiveViewer({ showId, onClose }) {
       <div className="relative rounded-3xl overflow-hidden border border-pink-400/25 aspect-video grid place-items-center"
            style={{ background: "radial-gradient(800px 400px at 50% 0%,#4c1d95,#0d0a24 70%)" }}>
         <div className="text-center">
-          <div className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1 rounded-full bg-red-500/80 text-white mb-3"><span className="w-2 h-2 rounded-full bg-white animate-pulse" /> LIVE</div>
+          {show.status === "scheduled" ? (
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1 rounded-full bg-cyan-500/80 text-white mb-3" data-testid="live-upcoming-badge"><Clock size={12} /> UPCOMING</div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1 rounded-full bg-red-500/80 text-white mb-3"><span className="w-2 h-2 rounded-full bg-white animate-pulse" /> LIVE</div>
+          )}
           <Avatar name={show.host?.name} url={show.host?.avatar_url} size={72} />
           <div className="mt-3 text-lg font-black">{show.business_name}</div>
           <div className="text-sm text-slate-300">{show.title}</div>
-          <div className="mt-2 text-[11px] text-slate-400">{show.mode === "live" ? "Live video stream" : "Simulated stream (preview)"} · <Users size={11} className="inline" /> {show.viewer_count} watching</div>
+          {show.status === "scheduled" ? (
+            <div className="mt-2 text-[11px] text-cyan-300" data-testid="live-scheduled-time">{whenText(show.scheduled_at)}</div>
+          ) : (
+            <div className="mt-2 text-[11px] text-slate-400">{show.mode === "live" ? "Live video stream" : "Simulated stream (preview)"} · <Users size={11} className="inline" /> {show.viewer_count} watching</div>
+          )}
+          {show.status === "scheduled" && show.can_manage && (
+            <button onClick={startShow} data-testid="live-start-now" className="mt-4 inline-flex items-center gap-2 h-10 px-5 rounded-full text-white text-sm font-black" style={grad}><Video size={15} /> Go live now</button>
+          )}
         </div>
-        {show.can_manage && (
+        {show.can_manage && show.status !== "scheduled" && (
           <div className="absolute top-3 right-3 flex flex-wrap gap-2 justify-end max-w-[70%]">
             <button onClick={() => setPinOpen(true)} data-testid="live-pin-open" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-white text-xs font-black" style={grad}><Plus size={14} /> Pin</button>
             <button onClick={saveHighlight} disabled={savingClip} data-testid="live-clip" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white/15 text-white text-xs font-black">{savingClip ? <Loader2 size={14} className="animate-spin" /> : <Scissors size={14} />} Highlight</button>

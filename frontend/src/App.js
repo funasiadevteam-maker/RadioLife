@@ -9,6 +9,7 @@ import RadioHome from "@/RadioHome";
 import ListenHub from "@/pages/ListenHub";
 import DiningHome from "@/pages/dining/DiningHome";
 import DiningPlay from "@/pages/dining/DiningPlay";
+import DiningDice from "@/pages/dining/DiningDice";
 import DiningPass from "@/pages/dining/DiningPass";
 import DiningMerchant from "@/pages/dining/DiningMerchant";
 import Admin from "@/Admin";
@@ -494,6 +495,7 @@ function AppRouter() {
       <Route path="/dining" element={<ProtectedRoute><DiningHome /></ProtectedRoute>} />
       <Route path="/dining/enrolled" element={<ProtectedRoute><DiningHome /></ProtectedRoute>} />
       <Route path="/dining/play" element={<ProtectedRoute><DiningPlay /></ProtectedRoute>} />
+      <Route path="/dining/dice" element={<ProtectedRoute><DiningDice /></ProtectedRoute>} />
       <Route path="/dining/pass" element={<ProtectedRoute><DiningPass /></ProtectedRoute>} />
       <Route path="/dining/pass/:orderId" element={<ProtectedRoute><DiningPass /></ProtectedRoute>} />
       <Route path="/dining/merchant" element={<ProtectedRoute><DiningMerchant /></ProtectedRoute>} />

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
-  ActivityIndicator, RefreshControl, Image,
+  ActivityIndicator, RefreshControl, Image, Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,12 +12,13 @@ import api from '../../src/api/client';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { MomentsTab, PulseTab, GoTogetherSheet, PlayTogetherSheet, ShopTogetherSheet, DiscoverSection } from '../../src/social/together';
 import { LiveTab } from '../../src/social/live';
+import { playImportedStation } from '../../src/services/playStation';
 
 const TABS = [
   { key: 'together', label: 'Together', icon: 'sparkles' },
   { key: 'live', label: 'Live', icon: 'videocam' },
   { key: 'moments', label: 'Moments', icon: 'camera' },
-  { key: 'pulse', label: 'Pulse', icon: 'location' },
+  { key: 'pulse', label: 'Nearby', icon: 'location' },
   { key: 'friends', label: 'Friends', icon: 'people' },
   { key: 'sharedreams', label: 'Share Dreams', icon: 'moon' },
 ];
@@ -112,23 +113,35 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
   const activeChannelThumb = usePlayerStore((st) => st.activeChannelThumb);
   const activeChannel = usePlayerStore((st) => st.activeChannel);
   const [starting, setStarting] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
   const [goOpen, setGoOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
 
-  const startRoom = async () => {
+  const createRoom = async (content: any) => {
     setStarting(true);
     try {
-      const content = {
-        id: activeChannel || 'radiolife',
-        name: activeChannelName || 'FUUSIC Radio',
-        favicon: activeChannelThumb || '',
-      };
       const { data } = await api.post('/social/rooms', {
         visibility: 'public', content_type: 'live', content,
       });
       router.push(`/social/room/${data.room_id}` as any);
     } catch (_) {} finally { setStarting(false); }
+  };
+
+  const startRoom = async () => {
+    if (!activeChannel) { setPickOpen(true); return; }
+    createRoom({
+      id: activeChannel || 'radiolife',
+      name: activeChannelName || 'FUUSIC Radio',
+      favicon: activeChannelThumb || '',
+    });
+  };
+
+  const pickAndStart = async (st: any) => {
+    setPickOpen(false);
+    const ok = await playImportedStation(st, router);
+    if (!ok) return;
+    createRoom({ id: st.id, name: st.name, favicon: st.favicon || st.logo_url || '' });
   };
 
   const doItems = [
@@ -228,9 +241,73 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
     <GoTogetherSheet visible={goOpen} onClose={() => setGoOpen(false)} />
     <PlayTogetherSheet visible={playOpen} onClose={() => setPlayOpen(false)} />
     <ShopTogetherSheet visible={shopOpen} onClose={() => setShopOpen(false)} />
+    <StationPickSheet visible={pickOpen} onClose={() => setPickOpen(false)} onPick={pickAndStart} />
     </>
   );
 }
+
+function StationPickSheet({ visible, onClose, onPick }: any) {
+  const [q, setQ] = useState('');
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!visible) return;
+    let alive = true; setLoading(true);
+    const t = setTimeout(async () => {
+      try { const r = await api.get('/radio/browse', { params: { q: q || undefined, source: 'all', limit: 24 } }); if (alive) setItems(r.data?.items || []); }
+      catch (_) {} finally { if (alive) setLoading(false); }
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [q, visible]);
+  const pick = async (st: any) => { setBusyId(st.id); await onPick(st); setBusyId(null); };
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={ps.wrap}>
+        <View style={ps.card} testID="listen-station-pick">
+          <View style={ps.head}>
+            <Text style={ps.title}>Pick a station to listen together</Text>
+            <Pressable onPress={onClose} testID="listen-station-close"><Ionicons name="close" size={22} color={TUBE.text} /></Pressable>
+          </View>
+          <Text style={ps.sub}>We'll start playing it and open a room you can share with friends.</Text>
+          <View style={ps.search}>
+            <Ionicons name="search" size={15} color={TUBE.textMuted} />
+            <TextInput value={q} onChangeText={setQ} placeholder="Search stations…" placeholderTextColor={TUBE.textMuted} style={ps.input} testID="listen-station-search" />
+          </View>
+          {loading ? <ActivityIndicator color={TUBE.magenta} style={{ marginVertical: 30 }} />
+            : <ScrollView style={{ maxHeight: 380 }} testID="listen-station-list" showsVerticalScrollIndicator={false}>
+                {items.length === 0 ? <Text style={ps.empty}>No stations found.</Text>
+                  : items.map((st) => (
+                    <Pressable key={st.id} testID={`listen-station-${st.id}`} onPress={() => pick(st)} disabled={!!busyId} style={ps.row}>
+                      <Image source={{ uri: st.favicon || st.logo_url || undefined }} style={ps.fav} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={ps.name} numberOfLines={1}>{st.name}</Text>
+                        <Text style={ps.meta} numberOfLines={1}>{[st.country, st.language].filter(Boolean).join(' · ') || st.source}</Text>
+                      </View>
+                      {busyId === st.id ? <ActivityIndicator color={TUBE.magenta} /> : <Ionicons name="play" size={18} color={TUBE.text} />}
+                    </Pressable>
+                  ))}
+              </ScrollView>}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const ps = StyleSheet.create({
+  wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
+  card: { backgroundColor: '#0b0918', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, maxHeight: '85%', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  title: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900', flex: 1 },
+  sub: { color: TUBE.textMuted, fontSize: TFONT.xs, marginBottom: 12 },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderRadius: 22, paddingHorizontal: 14, marginBottom: 10 },
+  input: { flex: 1, color: TUBE.text, fontSize: TFONT.sm, paddingVertical: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4 },
+  fav: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(168,85,247,0.2)' },
+  name: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
+  meta: { color: TUBE.textMuted, fontSize: TFONT.xs },
+  empty: { color: TUBE.textMuted, fontSize: TFONT.sm, textAlign: 'center', paddingVertical: 30 },
+});
 
 function FriendsTab() {
   const [q, setQ] = useState('');
