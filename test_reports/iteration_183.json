@@ -1,0 +1,36 @@
+{
+  "summary": "Phase 1 (Dreams/Astrology + Apple hide) frontend verification on web and mobile (Expo web preview). All 11 acceptance items PASS. Web: /social has 'Share Dreams' tab right after 'Friends' (social-tab-sharedreams) navigating to /social/dreams; /social/dreams shows dedicated 'Astrology' tab between Dreams and Clubs with astrology-tab, astro-dob, astro-tf-{today,week,month}, astro-generate. AI Readings kinds are only tarot/numerology/compat — horoscope removed. Dream modal footnote (dream-ai-footnote) present with correct '* AI-generated — for fun only...' text; dream-reflect-btn code shows 'Click to know what your dream means' when no cached reflection (verified via code + observed conditional; the sampled dream had a cached reflection so the button was replaced by the reflection block, which is expected). Advisors tab shows large hero (advisors-hero) 'Talk to a verified professional'. Login: GET /api/auth/providers returns {email:true,google:true,apple:false}; Apple button hidden. Mobile: social-tab-sharedreams present after Friends chip and deep-links to /social/dreams; dreams-shortcut-astrology present; advisors-hero present with correct copy; dream detail screen shows AI block, footnote disclaimer text in code and rendered (below fold), and dream-expert-cta full-width filled button 'Talk to an astrologer, sleep expert or pro' as the fallback (opened dream had suggested advisor so 'Talk to Stella' was shown instead — expected). Mobile login hides Apple, keeps Google + Try the demo + email.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "DreamDetailFootnote", "issue": "Mobile AI-generated footnote Text on dream detail lacks a testID (web has dream-ai-footnote). Not required by the acceptance list but adding testID='dream-ai-footnote' would make future parity tests easier. Ref: /app/mobile/app/social/dreams/[id].tsx:128", "testID": "dream-ai-footnote", "priority": "LOW"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL: add testID='dream-ai-footnote' on mobile /app/mobile/app/social/dreams/[id].tsx:128 Text for parity with web."
+  ],
+  "critical_code_review_comments": [
+    "Web dream-reflect-btn only renders when !ref (no cached reflection). For older dreams with cached reflection, the button is hidden by design and the reflection + advisor CTA are shown. Behavior matches spec.",
+    "Web dream-expert-cta is a fallback shown only when there is no suggested advisor. When the AI matches an advisor, the code renders dream-suggested-advisor + dream-talk-advisor gradient button instead. Same on mobile. Acceptance tests should be aware of this branching."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100% (11/11 acceptance items)"},
+  "seed_data_creation": "None. Used existing seeded demo dream dm_5cdf5de719544849 and seeded advisor Stella Moon.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Web login: email demo@bigfm.dubai / DemoPass123!. Mobile login: [data-testid=demo-login-btn]. Preview URLs: web https://mobile-games-v2.preview.emergentagent.com, mobile Expo https://mobile-games-v2.expo.preview.emergentagent.com. Consent gate (testid consent-check + consent-accept) may appear on first /social/dreams visit — check for it and accept. dream-reflect-btn only appears on a dream that has NO cached reflection (fresh dream); dream-expert-cta only appears when there is NO suggested advisor. To test the reflect+expert-cta branch end-to-end, share a NEW dream first (dreams-share-cta) and open it before it gets an AI match, or open a dream whose auto-match returned no advisor.",
+  "rca of the issue": "n/a — no bugs found."
+}

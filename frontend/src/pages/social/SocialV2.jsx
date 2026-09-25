@@ -25,6 +25,7 @@ const TABS = [
   { key: "moments", label: "Moments", icon: Camera },
   { key: "pulse", label: "Pulse", icon: MapPin },
   { key: "friends", label: "Friends", icon: Users },
+  { key: "sharedreams", label: "Share Dreams", icon: Moon },
 ];
 
 export default function SocialV2() {
@@ -35,6 +36,7 @@ export default function SocialV2() {
   const qRef = params.get("ref");
   const validTab = TABS.some((t) => t.key === qTab) ? qTab : null;
   const [tab, setTab] = useState(qAction ? "together" : (validTab || "together"));
+  const navigate = useNavigate();
   const [home, setHome] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +55,8 @@ export default function SocialV2() {
               data-testid="social-v2">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 pb-32">
         <Header home={home} />
-        <TabBar tab={tab} setTab={setTab} counts={home?.counts} />
+        <TabBar tab={tab} counts={home?.counts}
+                onSelect={(k) => (k === "sharedreams" ? navigate("/social/dreams") : setTab(k))} />
         <div className="mt-6">
           {loading && (
             <div className="flex justify-center py-20" data-testid="social-loading">
@@ -109,14 +112,14 @@ function Header({ home }) {
   );
 }
 
-function TabBar({ tab, setTab, counts }) {
+function TabBar({ tab, counts, onSelect }) {
   return (
     <div className="mt-7 flex gap-1.5 overflow-x-auto no-scrollbar" data-testid="social-tabs">
       {TABS.map((t) => {
         const active = tab === t.key;
         const badge = t.key === "friends" ? (counts?.friend_requests || 0) : 0;
         return (
-          <button key={t.key} type="button" onClick={() => setTab(t.key)}
+          <button key={t.key} type="button" onClick={() => onSelect(t.key)}
                         data-testid={`social-tab-${t.key}`}
                         className={`relative flex-shrink-0 inline-flex items-center gap-2 px-4 h-11 rounded-full text-sm font-bold transition
                           ${active ? "text-white" : "text-slate-400 hover:text-slate-200 bg-white/[0.03]"}`}
@@ -227,7 +230,7 @@ function TogetherTab({ home, reload, initialAction, playSession, playRef }) {
         <div className="min-w-0 flex-1">
           <div className="text-lg font-black">Dreams & Guidance</div>
           <div className="text-sm text-violet-200/80 truncate">
-            Share a dream, get an AI reflection, and connect with verified advisors
+            Share a dream, discover what it means, and connect with verified advisors
           </div>
         </div>
         <ChevronRight className="text-slate-400" />

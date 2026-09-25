@@ -159,7 +159,7 @@ function ClubPostModal({ slug, onClose, onDone }) {
 
 // ═══════════════════════════ AI READINGS ═══════════════════════════
 export function AiReadingsTab() {
-  const [kind, setKind] = useState("horoscope");
+  const [kind, setKind] = useState("tarot");
   const [history, setHistory] = useState([]);
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -188,7 +188,6 @@ export function AiReadingsTab() {
   };
 
   const KINDS = [
-    { key: "horoscope", label: "Horoscope", icon: Sparkles },
     { key: "tarot", label: "Tarot", icon: Wand2 },
     { key: "numerology", label: "Numerology", icon: Star },
     { key: "compat", label: "Match", icon: Heart },
@@ -265,6 +264,68 @@ export function AiReadingsTab() {
         </div>
       )}
       </>)}
+    </div>
+  );
+}
+
+// ═══════════════════════════ ASTROLOGY (own section) ══════════════
+export function AstrologyTab() {
+  const [dob, setDob] = useState("");
+  const [timeframe, setTimeframe] = useState("today");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
+  const loadHistory = useCallback(async () => {
+    try { const { data } = await readingsApi.get(""); setHistory((data.items || []).filter((r) => r.type === "horoscope")); } catch (_) {}
+  }, []);
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+  const run = async () => {
+    if (!dob) { toast.error("Add your birth date."); return; }
+    setBusy(true); setResult(null);
+    try {
+      const { data } = await readingsApi.post("/horoscope", { dob, timeframe });
+      setResult(data); loadHistory();
+      window.dispatchEvent(new Event("dreams-streak-refresh"));
+    } catch (_) { toast.error("Couldn't read the stars right now."); } finally { setBusy(false); }
+  };
+  return (
+    <div data-testid="astrology-tab">
+      <DailyCard />
+      <div className="rounded-2xl bg-amber-400/10 border border-amber-400/20 px-4 py-2.5 text-[11px] text-amber-200/90 mb-4">
+        ✦ AI-GENERATED astrology · for entertainment &amp; reflection only — not advice, not a guaranteed prediction.
+      </div>
+      <div className={`${card} mb-4`}>
+        <Field label="Your birth date">
+          <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} data-testid="astro-dob"
+                 className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm outline-none [color-scheme:dark]" />
+        </Field>
+        <div className="flex gap-2 mt-3">
+          {["today", "week", "month"].map((t) => (
+            <button key={t} type="button" onClick={() => setTimeframe(t)} data-testid={`astro-tf-${t}`}
+                    className={`flex-1 h-10 rounded-full text-sm font-bold ${timeframe === t ? "text-white" : "bg-white/[0.05] text-slate-400"}`}
+                    style={timeframe === t ? grad : undefined}>{t[0].toUpperCase() + t.slice(1)}</button>
+          ))}
+        </div>
+        <button type="button" onClick={run} disabled={busy} data-testid="astro-generate"
+                className="mt-4 w-full h-11 rounded-full font-bold text-white flex items-center justify-center gap-2" style={grad}>
+          {busy ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />} {busy ? "Reading the stars…" : "Get my horoscope"}
+        </button>
+      </div>
+      {result && <ReadingResult r={result} />}
+      {history.length > 0 && (
+        <div className="mt-6">
+          <div className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">Your horoscopes</div>
+          <div className="space-y-2">
+            {history.map((r) => (
+              <button key={r.reading_id} type="button" onClick={() => setResult(r)} data-testid={`astro-hist-${r.reading_id}`}
+                      className="w-full text-left rounded-2xl bg-white/[0.03] border border-white/[0.06] px-4 py-3 flex items-center gap-3 hover:border-violet-400/30">
+                <span className="text-violet-300"><Star size={15} /></span>
+                <span className="flex-1 min-w-0"><span className="font-bold text-sm block truncate">{r.title}</span><span className="text-[11px] text-slate-500 capitalize">{r.type}</span></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

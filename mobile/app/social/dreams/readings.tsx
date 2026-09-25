@@ -3,7 +3,7 @@ import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
   ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Share, Linking,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,7 +26,8 @@ const KINDS = [
 export default function AiReadingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [kind, setKind] = useState('horoscope');
+  const params = useLocalSearchParams();
+  const [kind, setKind] = useState<string>((params.kind as string) || 'horoscope');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);

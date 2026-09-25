@@ -80,6 +80,7 @@ export default function DreamsHub() {
         contentContainerStyle={{ gap: 8, paddingHorizontal: TSPACE.md, paddingBottom: 10 }}
         style={{ flexGrow: 0 }} testID="dreams-shortcuts">
         {[
+          { key: 'astrology', label: 'Astrology', icon: 'planet', route: '/social/dreams/readings?kind=horoscope' },
           { key: 'clubs', label: 'Clubs', icon: 'people-circle', route: '/social/dreams/clubs' },
           { key: 'clusters', label: 'Clusters', icon: 'layers', route: '/social/dreams/clusters' },
           { key: 'readings', label: 'AI Readings', icon: 'sparkles', route: '/social/dreams/readings' },
@@ -261,6 +262,10 @@ function AdvisorsTab({ config }: any) {
 
   return (
     <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 120, gap: 12 }} showsVerticalScrollIndicator={false} testID="dreams-advisors">
+      <View style={{ borderRadius: 22, padding: 16, borderWidth: 1, borderColor: 'rgba(168,85,247,0.25)', backgroundColor: 'rgba(124,58,237,0.18)' }} testID="advisors-hero">
+        <Text style={{ color: '#fff', fontSize: TFONT.lg, fontWeight: '900' }}>Talk to a verified professional</Text>
+        <Text style={{ color: '#ddd6fe', fontSize: TFONT.sm, marginTop: 4 }}>Connect 1:1 with an astrologer, sleep expert, dream analyst &amp; more.</Text>
+      </View>
       {me ? (
         <View style={s.mePanel} testID="my-advisor-panel">
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

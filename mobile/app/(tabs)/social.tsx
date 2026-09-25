@@ -19,6 +19,7 @@ const TABS = [
   { key: 'moments', label: 'Moments', icon: 'camera' },
   { key: 'pulse', label: 'Pulse', icon: 'location' },
   { key: 'friends', label: 'Friends', icon: 'people' },
+  { key: 'sharedreams', label: 'Share Dreams', icon: 'moon' },
 ];
 
 export default function SocialScreen() {
@@ -29,6 +30,7 @@ export default function SocialScreen() {
   const [home, setHome] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (params.tab && TABS.some((t) => t.key === params.tab)) setTab(String(params.tab));
@@ -59,7 +61,7 @@ export default function SocialScreen() {
             const active = tab === t.key;
             const badge = t.key === 'friends' ? (counts.friend_requests || 0) : 0;
             return (
-              <Pressable key={t.key} testID={`social-tab-${t.key}`} onPress={() => setTab(t.key)}
+              <Pressable key={t.key} testID={`social-tab-${t.key}`} onPress={() => (t.key === 'sharedreams' ? router.push('/social/dreams' as any) : setTab(t.key))}
                 style={[s.chip, active && s.chipActive]}>
                 <Ionicons name={t.icon as any} size={15} color={active ? '#fff' : TUBE.textMuted} />
                 <Text style={[s.chipTxt, active && { color: '#fff' }]}>{t.label}</Text>
@@ -164,7 +166,7 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
           <View style={{ flex: 1 }}>
             <Text style={s.heroTitle}>Dreams & Guidance</Text>
             <Text style={s.heroSub} numberOfLines={2}>
-              Share a dream, get an AI reflection, connect with verified advisors
+              Share a dream, discover what it means, connect with verified advisors
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />

@@ -95,7 +95,7 @@ export default function DreamDetail() {
             </View>
             {!ref ? (
               <Pressable onPress={reflect} disabled={reflecting} testID="dream-reflect-btn" style={s.aiBtn}>
-                {reflecting ? <ActivityIndicator color="#fff" /> : <><Ionicons name="color-wand" size={16} color="#fff" /><Text style={s.aiBtnTxt}>Get AI reflection</Text></>}</Pressable>
+                {reflecting ? <ActivityIndicator color="#fff" /> : <><Ionicons name="color-wand" size={16} color="#fff" /><Text style={s.aiBtnTxt}>Click to know what your dream means</Text></>}</Pressable>
             ) : (
               <View style={{ gap: 6 }} testID="dream-ai-reflection">
                 <Text style={s.aiHeader}>{ref.header}</Text>
@@ -120,11 +120,12 @@ export default function DreamDetail() {
                   </View>
                 ) : (
                   <Pressable onPress={() => router.push('/social/dreams?tab=advisors' as any)} testID="dream-expert-cta" style={s.expertCta}>
-                    <Ionicons name="checkmark-circle" size={14} color="#ddd6fe" /><Text style={s.expertCtaTxt}>Prefer a human? Ask a verified expert</Text>
+                    <Ionicons name="checkmark-circle" size={16} color="#fff" /><Text style={s.expertCtaTxt}>Talk to an astrologer, sleep expert or pro</Text>
                   </Pressable>
                 )}
               </View>
             )}
+            <Text testID="dream-ai-footnote" style={{ color: '#6b7280', fontSize: 10, marginTop: 10 }}>* AI-generated — for fun only, not advice, a recommendation, or a guaranteed prediction.</Text>
           </View>
 
           {/* Comments */}
@@ -179,8 +180,8 @@ const s = StyleSheet.create({
   aiChip: { paddingHorizontal: 6, height: 15, borderRadius: 8, backgroundColor: 'rgba(192,38,211,0.3)', alignItems: 'center', justifyContent: 'center' },
   aiChipTxt: { color: '#f5d0fe', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
   expertLink: { color: '#ddd6fe', fontSize: TFONT.xs, fontWeight: '800' },
-  expertCta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, alignSelf: 'flex-start', height: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(167,139,250,0.4)' },
-  expertCtaTxt: { color: '#ede9fe', fontSize: TFONT.xs, fontWeight: '800' },
+  expertCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, alignSelf: 'stretch', height: 48, paddingHorizontal: 16, borderRadius: 24, backgroundColor: '#7c3aed' },
+  expertCtaTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
   matchCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, padding: 10, borderRadius: TRADIUS.md, borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', backgroundColor: 'rgba(168,85,247,0.1)' },
   matchName: { color: D.text, fontSize: TFONT.xs, fontWeight: '900', flexShrink: 1 },
   matchReason: { color: '#ddd6fe', fontSize: 10, marginTop: 1 },

@@ -10,7 +10,7 @@ import {
   Shield, Star, ChevronLeft, Wand2, MessageCircle, Bookmark, Flag,
   BadgeCheck, Stethoscope, Lock, EyeOff, Clock, Users2, Video,
 } from "lucide-react";
-import { ClubsTab, AiReadingsTab, LiveTab, PayoutsCard, ClustersStrip, AlertsBell, StreakBadge } from "./DreamsExtras";
+import { ClubsTab, AiReadingsTab, AstrologyTab, LiveTab, PayoutsCard, ClustersStrip, AlertsBell, StreakBadge } from "./DreamsExtras";
 import { Avatar } from "./SocialV2";
 
 const api = axios.create({
@@ -20,6 +20,7 @@ const api = axios.create({
 
 const TABS = [
   { key: "dreams", label: "Dreams", icon: Moon },
+  { key: "astrology", label: "Astrology", icon: Star },
   { key: "clubs", label: "Clubs", icon: Users2 },
   { key: "aireadings", label: "AI Readings", icon: Wand2 },
   { key: "live", label: "Live", icon: Video },
@@ -82,6 +83,7 @@ export default function DreamsGuidance() {
           {!loading && tab === "journal" && (
             <JournalTab onOpen={setOpenDream} onShare={() => setShowShare(true)} />
           )}
+          {!loading && tab === "astrology" && <AstrologyTab />}
           {!loading && tab === "clubs" && <ClubsTab />}
           {!loading && tab === "aireadings" && <AiReadingsTab />}
           {!loading && tab === "live" && <LiveTab />}
@@ -283,6 +285,10 @@ function AdvisorsTab({ config, onOpen }) {
 
   return (
     <div className="space-y-5" data-testid="dreams-advisors">
+      <div className="rounded-3xl p-5 border border-violet-500/25" style={{ background: "linear-gradient(120deg,#1e1b4b,#4c1d95 70%,#6d28d9)" }} data-testid="advisors-hero">
+        <div className="text-xl font-black">Talk to a verified professional</div>
+        <div className="text-sm text-violet-200/85 mt-1">Connect 1:1 with an astrologer, sleep expert, dream analyst &amp; more — verified &amp; reviewed.</div>
+      </div>
       {me ? <MyAdvisorPanel me={me} reload={load} />
         : <button type="button" onClick={() => setShowApply(true)} data-testid="advisor-apply-cta"
                   className="w-full text-left rounded-2xl p-4 border border-white/10 bg-white/[0.04] hover:bg-white/[0.07] flex items-center gap-3">
@@ -559,7 +565,7 @@ function DreamModal({ dreamId, config, onClose, onBrowseAdvisors, onOpenAdvisor 
             {!ref ? (
               <button type="button" onClick={reflect} disabled={reflecting} data-testid="dream-reflect-btn"
                       className="inline-flex items-center gap-2 h-10 px-4 rounded-full text-sm font-bold text-white" style={{ background: "linear-gradient(135deg,#c026d3,#7c3aed)" }}>
-                {reflecting ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />} Get AI reflection
+                {reflecting ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />} Click to know what your dream means
               </button>
             ) : (
               <div className="space-y-2" data-testid="dream-ai-reflection">
@@ -584,12 +590,13 @@ function DreamModal({ dreamId, config, onClose, onBrowseAdvisors, onOpenAdvisor 
                   </div>
                 ) : (
                   <button type="button" onClick={() => onBrowseAdvisors?.()} data-testid="dream-expert-cta"
-                          className="mt-1 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-xs font-bold border border-violet-400/40 text-violet-100 hover:bg-violet-500/15 transition">
-                    <BadgeCheck size={14} /> Prefer a human? Ask a verified expert
+                          className="mt-2 w-full inline-flex items-center justify-center gap-2 h-12 px-5 rounded-full text-sm font-black text-white transition" style={{ background: "linear-gradient(135deg,#7c3aed,#c026d3)" }}>
+                    <BadgeCheck size={16} /> Talk to an astrologer, sleep expert or pro
                   </button>
                 )}
               </div>
             )}
+            <p className="text-[10px] text-slate-500 mt-3" data-testid="dream-ai-footnote">* AI-generated — for fun only, not advice, a recommendation, or a guaranteed prediction.</p>
           </div>
 
           {/* Comments */}

@@ -2,6 +2,17 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — Phase 1: Dreams / Astrology UX (web + mobile, tested iter183 PASS)
+User feedback batch → Phase 1 shipped on BOTH surfaces:
+- Dream AI action renamed "Get AI reflection" → **"Click to know what your dream means"**; added `*` disclaimer footnote ("AI-generated — for fun only, not advice…") in the dream AI block (web `dream-ai-footnote`, mobile too).
+- **Astrology is now its own section**: web = dedicated "Astrology" tab in Dreams tab bar (astrology-tab: horoscope form + daily card + history); Horoscope REMOVED from "AI Readings" (now Tarot/Numerology/Match only). Mobile = "Astrology" shortcut deep-linking to readings?kind=horoscope.
+- **"Share Dreams" placed next to Friends**: web Social tab bar tab (social-tab-sharedreams → /social/dreams); mobile Social tab chip → /social/dreams.
+- **Larger "talk to a professional" CTA**: web Advisors hero (advisors-hero "Talk to a verified professional") + enlarged full-width dream expert CTA "Talk to an astrologer, sleep expert or pro"; mobile advisors hero + enlarged expert CTA. Social "Dreams & Guidance" card copy updated (no more "AI reflection").
+- Files: frontend DreamsGuidance.jsx, DreamsExtras.jsx (new export AstrologyTab), SocialV2.jsx; mobile (tabs)/social.tsx, social/dreams/index.tsx, social/dreams/[id].tsx, social/dreams/readings.tsx.
+
+### Stripe (owner request, DECLINED with rationale)
+User asked twice to switch to a live `pk_live_…` key. Declined & NOT stored: (1) publishable key alone can't process live payments (needs `sk_live_…`); (2) platform policy = never hardcode Stripe keys; go-live is via Emergent "claim account" at Publish. App stays in Stripe TEST mode (card 4242…).
+
 ## 2026-06 (fork) — AUTH: prod OAuth 400 diagnosis + provider gating (web + mobile + backend, self-verified)
 User reported Google + Apple sign-in fail with **400** on production (`https://fuusic.com`). Root cause is CONFIGURATION, not code:
 - **Google 400 = `redirect_uri_mismatch`**: the backend correctly derives the callback from the request host (`_base_from_request` → `https://fuusic.com/api/auth/google/callback`) and re-uses that exact pinned `redirect_uri` in the token exchange (verified on preview). But `fuusic.com` is NOT in the Google Cloud Console OAuth client's Authorized redirect URIs (only `radiolife.app` + the preview URL were). **FIX (owner action, only they can do it):** in Google Cloud Console → APIs & Services → Credentials → the OAuth client → add **Authorized redirect URI** `https://fuusic.com/api/auth/google/callback` and **Authorized JavaScript origin** `https://fuusic.com`; ensure the OAuth consent screen is Published/In production. No code change bypasses this (Google requires pre-registration).
