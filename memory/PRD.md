@@ -16,6 +16,14 @@ Feature batch phases 4/5/6. LiveKit A/V stays MOCKED (stage placeholder; real vi
 - **Bar Wheel Skins** (`bar_games.py`): per-bar theme in `bar_game_skins` (accent, accent2, logo_url, custom weighted segments); config returns `theme`; `spin` draws from the skin's segments; owner/admin-gated `PUT /api/bar-games/{id}/skin` (403 for non-owner). Demo bar `biz_demo_bar` seeded with a neon skin + signature drink prizes; web/mobile BarGameCard renders the accent, logo (header + wheel hub) and custom segments.
 - Known non-blocking: mobile password login is disabled (demo-login only), so the fan-side reminder ping is validated via backend + web (not mobile UI). Test artifacts reset post-run — preview is clean.
 
+### ✨ Polish wave (2026-06, testing agent PASS iter186 — backend 7/7 + web + mobile)
+- **Wheel Sound & Haptics**: web bar spin plays a WebAudio whir + win chime + `navigator.vibrate`; mobile uses `expo-haptics` (decelerating tick pattern during spin + Success/Impact on result). Fire-and-forget (not automatable).
+- **Bar Skin Editor** (owner-only): `_status` returns `is_owner`; `PUT /api/bar-games/{id}/skin` (owner/admin, 403 otherwise). Web modal `pages/bar/BarSkinEditor.jsx` (color inputs + logo + editable prize rows); mobile screen `app/bar/skin/[id].tsx` (color swatches + logo + prize editor). Entry: `bar-game-customize` on BarGameCard (shown only when is_owner). BarGameCard now reloads on focus (mobile useFocusEffect) so edits reflect on return.
+- **Reminder Countdown + Add to calendar**: web `Countdown` + mobile `CountdownText` tick every second on upcoming cards + scheduled-viewer; `Add to calendar` (live-calendar-<id> / live-calendar-btn) opens a Google Calendar template URL (window.open / Linking).
+- **Win Wallet ('My drink perks')**: `GET /api/bar-games/wallet` (all win=True plays) + `POST /api/bar-games/plays/{play_id}/redeem`. Web page `/drink-perks` (DrinkPerks.jsx, route in App.js); mobile screen `/bar/perks`. Entry: `bar-game-perks-link` on BarGameCard.
+- **Bug fixed by testing agent**: App.js had two imports concatenated (inline comment swallowed the next import line) → web crash; split into separate lines. Lesson: avoid trailing `// comment` on an import that precedes another import. Also hardened a TDZ foot-gun in both BarGameCards (`res.segments?.length || data?.config?.segments?.length || 1`).
+- Demo state reset: demo owns biz_demo_bar with 1 purchase + 1 free spin + 1 sample unredeemed perk (BAR-NEON2FOR); freeuser has 1 free spin.
+
 
 
 ## 🌙 DREAMS & GUIDANCE — FOLLOW-UP WAVE (2026-09 fork, backend + web + mobile, testing agent PASS iter158 — 15/15 backend + web/mobile smoke)

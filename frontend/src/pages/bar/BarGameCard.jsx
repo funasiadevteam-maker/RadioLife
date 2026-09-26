@@ -1,12 +1,15 @@
 // Phase 5 — Gamified Bar Purchase. Drink-themed spin wheel on the bar's page.
 // Renders NOTHING unless the business is a bar/club. Spins come from paid orders
-// PLUS one free spin per day. Each bar can theme the wheel (colours, logo,
-// signature-drink prizes) via /api/bar-games/{id}/skin.
+// PLUS one free spin per day. Bars can theme the wheel (colours, logo, prizes).
+// Wheel has spin sound + win chime + haptics; owners can customise; wins go to
+// the "My drink perks" wallet (/drink-perks).
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Loader2, Wine, Ticket, RefreshCw, Sparkles, Gift, Clock } from "lucide-react";
+import { Loader2, Wine, Ticket, RefreshCw, Sparkles, Gift, Clock, Palette, Wallet } from "lucide-react";
+import BarSkinEditor from "./BarSkinEditor";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const WHEEL = ["#a855f7", "#ec4899", "#f59e0b", "#22d3ee", "#34d399", "#f472b6", "#8b5cf6"];
@@ -20,11 +23,57 @@ function resetIn(iso) {
   return h >= 1 ? `${h}h ${m}m` : `${m}m`;
 }
 
+// ── Sound (WebAudio, no assets) + haptics ─────────────────────────
+function playSpinSound(ctxRef) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = ctxRef.current || (ctxRef.current = new Ctx());
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    // Descending "whir" that slows down like a real wheel.
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(620, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 3.2);
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 3.3);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now); osc.stop(now + 3.35);
+  } catch (_) {}
+}
+function playWinSound(ctxRef) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = ctxRef.current || (ctxRef.current = new Ctx());
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = f;
+      const t = now + i * 0.11;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.15, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.4);
+    });
+  } catch (_) {}
+}
+const vibrate = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch (_) {} };
+
 export default function BarGameCard({ businessId }) {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [spinning, setSpinning] = useState(false);
   const [rot, setRot] = useState(0);
   const [result, setResult] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const audioRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
@@ -47,9 +96,10 @@ export default function BarGameCard({ businessId }) {
   const spin = async () => {
     if (spinning) return;
     setSpinning(true); setResult(null);
+    playSpinSound(audioRef); vibrate(20);
     try {
       const { data: res } = await axios.post(`${API}/bar-games/${businessId}/spin`, {}, { withCredentials: true });
-      const n = (res.segments || segments).length;
+      const n = res.segments?.length || data?.config?.segments?.length || 1;
       const seg = 360 / n;
       const target = 360 * 5 + (360 - (res.segment_index + 0.5) * seg);
       setRot((r) => r - (r % 360) + target);
@@ -59,7 +109,8 @@ export default function BarGameCard({ businessId }) {
         setData((d) => ({ ...d, spins_available: res.spins_available,
           free_spin_available: res.free_spin_available,
           total_playable: (res.spins_available || 0) + (res.free_spin_available ? 1 : 0) }));
-        if (res.win) toast.success(`You won: ${res.prize}! 🍸`);
+        if (res.win) { playWinSound(audioRef); vibrate([0, 60, 40, 120]); toast.success(`You won: ${res.prize}! 🍸 Saved to My Perks`); }
+        else vibrate(40);
       }, 3400);
     } catch (e) {
       setSpinning(false);
@@ -94,10 +145,25 @@ export default function BarGameCard({ businessId }) {
               style={{ background: btnGrad }}>
           {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Wine size={18} />}
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-white font-black text-base">Spin the Bar Wheel</div>
           <div className="text-[11px] truncate" style={{ color: `${accent}` }}>{data.config?.how_it_works}</div>
         </div>
+      </div>
+
+      {/* actions: perks wallet + owner customise */}
+      <div className="flex items-center gap-2 flex-wrap mt-2">
+        <button onClick={() => navigate("/drink-perks")} data-testid="bar-game-perks-link"
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-full px-3 py-1.5 bg-white/10 text-white">
+          <Wallet size={12} /> My drink perks
+        </button>
+        {data.is_owner && (
+          <button onClick={() => setEditing(true)} data-testid="bar-game-customize"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-full px-3 py-1.5"
+                  style={{ background: `${accent}22`, color: accent }}>
+            <Palette size={12} /> Customize wheel
+          </button>
+        )}
       </div>
 
       {/* spin sources */}
@@ -150,7 +216,7 @@ export default function BarGameCard({ businessId }) {
                      style={{ background: "rgba(0,0,0,0.3)", border: "1px dashed #34d399" }} data-testid="bar-game-code">
                   <Ticket size={15} /> {result.code}
                 </div>
-                <p className="text-[11px] text-slate-300/70 mt-2">Show this code at the bar to redeem.</p>
+                <p className="text-[11px] text-slate-300/70 mt-2">Saved to My Perks — show this code at the bar to redeem.</p>
               </>
             ) : (
               <div className="text-white font-bold">{result.emoji} {result.label} — no win this time.</div>
@@ -179,6 +245,12 @@ export default function BarGameCard({ businessId }) {
           )}
         </div>
       </div>
+
+      {editing && (
+        <BarSkinEditor businessId={businessId} config={data.config}
+          onClose={() => setEditing(false)}
+          onSaved={(cfg) => { setEditing(false); setData((d) => ({ ...d, config: cfg })); toast.success("Wheel updated 🎨"); }} />
+      )}
     </div>
   );
 }

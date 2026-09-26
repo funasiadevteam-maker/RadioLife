@@ -1,0 +1,44 @@
+{
+  "summary": "Tested the 4 FUUSIC polish enhancements (Bar Skin Editor, Win Wallet, Reminder Countdown + Add-to-calendar, Wheel Sound/Haptics) + regression on WEB and MOBILE. Backend: 7/7 pytest pass (is_owner true for demo, false for freeuser; PUT /skin 403 for non-owner + 200 for owner; wallet lists seeded BAR-NEON2FOR; scheduled show has scheduled_at). WEB: after fixing a CRITICAL merge typo in /app/frontend/src/App.js (see below), all UI paths validated — bar-game-customize opens BarSkinEditor modal with all inputs; save closes modal; /drink-perks lists 'Free Neon Mojito' with BAR-NEON2FOR + Mark redeemed → 'Redeemed'; Live tab upcoming card shows live-calendar-<id> + LIVE ticking countdown (05:57:34 → 05:57:32 in 2s); viewer shows live-scheduled-time (ticking) + live-calendar-btn; spin still works and renders bar-game-result; freeuser cannot see bar-game-customize. MOBILE (Expo web preview at :expo. host): demo-login-btn works; bar-game-customize navigates to /bar/skin/biz_demo_bar with bar-skin-screen + bar-skin-save; /bar/perks shows drink-perks-screen with BAR-NEON2FOR + 1 redeem btn; Live tab upcoming card ticks (05:55:31 → 05:55:28); viewer shows live-scheduled-time + live-calendar-btn; spin regression WON on this run (Glow-shot on us / BAR-D45FB6B9). ENH 1 (sound/haptics) fires silently — spin completes cleanly on both. Parity: OK.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "App.js router imports", "issue": "CRITICAL: line 222 had DrinkPerks + StationPredictWinTab imports concatenated into a single line WITHOUT a newline — the `// Win Wallet — bar-wheel perks` comment swallowed the entire `import StationPredictWinTab from '@/StationPredictWinTab'` statement. Result: ReferenceError 'StationPredictWinTab is not defined' at AppRouter render → the ENTIRE web app crashed to the 'Something went wrong' error boundary on every page. Fixed in this iteration by splitting into two lines. Reference: /app/frontend/src/App.js:222", "selector": "n/a (router-level crash)", "priority": "CRITICAL"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter186_bar_enhancements.py",
+    "/app/test_reports/pytest/iter186.xml"
+  ],
+  "action_items": [
+    "PLEASE VERIFY the App.js fix stays in place — the previous edit at line 222 collapsed two imports onto one line and broke the entire web frontend. Consider adding an ESLint rule (import/newline-after-import) or a CI smoke test that loads / and asserts a known selector to catch this class of bug next time.",
+    "Optional: BarGameCard.jsx uses a local `segments` fallback inside spin() (line 102: `(res.segments || segments).length`) — segments is defined AFTER spin() in the same function scope. In practice res.segments is always returned by the backend so this branch never trips, but it's a TDZ/hoisting foot-gun; recommend moving segments derivation above spin() or using `res.segments?.length ?? data.config?.segments?.length ?? 1`."
+  ],
+  "critical_code_review_comments": [
+    "The App.js typo (single-line import concat) shipped through because ESLint was disabled at build (DISABLE_ESLINT_PLUGIN=true in /app/frontend/.env). Consider enabling ESLint for import syntax rules only — this bug is exactly the sort ESLint import/newline-after-import catches instantly.",
+    "routes/bar_games.py still has two __all__ declarations (harmless — flagged in iter185)."
+  ],
+  "updated_files": [
+    "/app/frontend/src/App.js",
+    "/app/backend/tests/test_iter186_bar_enhancements.py"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all ENH2/3/4 selectors + regression flows verified on both web and mobile after App.js fix)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (bar owner); freeuser@bigfm.dubai / FreePass123! (non-owner). Mobile: demo-login-btn.",
+  "seed_data_creation": "None. During E2E the following state changes occurred: (a) demo user's bar spin was consumed twice (once web — result rendered; once mobile — WON 'Glow-shot on us' code BAR-D45FB6B9). (b) On WEB, one of the two perks in the wallet was marked redeemed (BAR-B87EC306). BAR-NEON2FOR is still unredeemed on mobile (verified). (c) skin PUT was called twice with the same segments/theme (accent #22d3ee). Restore state if strict counts matter — otherwise unrelated to feature correctness.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview URLs: web https://mobile-games-v2.preview.emergentagent.com , mobile https://mobile-games-v2.expo.preview.emergentagent.com. A merge-time typo in /app/frontend/src/App.js:222 broke the entire web frontend before this iteration — fixed. If the web preview shows the yellow-bolt 'Something went wrong' error boundary again, first check App.js imports for concatenated lines and inspect the browser console for 'ReferenceError: X is not defined'. ESLint is disabled (DISABLE_ESLINT_PLUGIN=true in /app/frontend/.env) so these mistakes don't get caught at build. Perks wallet now has 2 entries for demo user (one redeemed BAR-B87EC306 + one active BAR-NEON2FOR). LiveKit A/V is mocked (video only) — stage placeholder is expected. Sound/haptics (ENH 1) are fire-and-forget and cannot be asserted by automation; verified spin still completes and shows bar-game-result / bar-game-code without errors.",
+  "rca of the issue": "ROOT CAUSE (web crash): /app/frontend/src/App.js line 222 read `import DrinkPerks from \"@/pages/bar/DrinkPerks\";  // Win Wallet — bar-wheel perksimport StationPredictWinTab from \"@/StationPredictWinTab\";  // Sub-Phase E3 — business builder` — the trailing `//` comment on the first import swallowed the second import statement as part of the comment (JS single-line comments run to end of line). Runtime: `StationPredictWinTab` was never imported, so when `<ProtectedRoute><StationPredictWinTab /></ProtectedRoute>` at line 1080 evaluated during AppRouter render, React threw ReferenceError which propagated up to the app-level error boundary. FIX: Split the two imports back onto separate lines. VERIFICATION: after fix, all ENH2/3/4 flows + spin regression validated end-to-end on web + mobile."
+}

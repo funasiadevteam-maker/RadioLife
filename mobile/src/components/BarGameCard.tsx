@@ -1,13 +1,24 @@
 // Phase 5 — Gamified Bar Purchase (mobile). Drink-themed spin wheel on the
 // bar's page. Renders nothing unless the business is a bar/club. Spins come from
 // paid orders PLUS one free spin per day. Each bar can theme the wheel.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
+import * as Haptics from 'expo-haptics';
+import { useRouter, useFocusEffect } from 'expo-router';
 import api from '../api/client';
 import { COLORS, SPACING, FONT, RADIUS } from '../constants/theme';
+
+function hapticSpin() {
+  // Decelerating "click-wheel" ticks over ~3s (the spin sound, felt).
+  let t = 0, gap = 55;
+  while (t < 3000) {
+    setTimeout(() => { Haptics.selectionAsync().catch(() => {}); }, t);
+    t += gap; gap *= 1.13;
+  }
+}
 
 function resetIn(iso?: string) {
   if (!iso) return '';
@@ -19,6 +30,7 @@ function resetIn(iso?: string) {
 }
 
 export default function BarGameCard({ businessId }: { businessId: string }) {
+  const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -29,7 +41,7 @@ export default function BarGameCard({ businessId }: { businessId: string }) {
     try { const { data } = await api.get(`/bar-games/${businessId}`); setData(data); if (data?.last_result) setResult(data.last_result); }
     catch (_) { setData({ eligible: false }); }
   }, [businessId]);
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const claim = async () => {
     try { const { data } = await api.post(`/bar-games/${businessId}/claim`); setData(data); } catch (_) {}
@@ -38,9 +50,10 @@ export default function BarGameCard({ businessId }: { businessId: string }) {
   const spin = async () => {
     if (spinning) return;
     setSpinning(true); setResult(null);
+    hapticSpin();
     try {
       const { data: res } = await api.post(`/bar-games/${businessId}/spin`);
-      const n = (res.segments || segments).length || 1;
+      const n = res.segments?.length || data?.config?.segments?.length || 1;
       const seg = 360 / n;
       const target = 360 * 5 + (360 - (res.segment_index + 0.5) * seg);
       const next = rotRef.current - (rotRef.current % 360) + target;
@@ -48,6 +61,8 @@ export default function BarGameCard({ businessId }: { businessId: string }) {
         rotRef.current = next;
         setSpinning(false);
         setResult(res);
+        if (res.win) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         setData((d: any) => ({ ...d, spins_available: res.spins_available,
           free_spin_available: res.free_spin_available,
           total_playable: (res.spins_available || 0) + (res.free_spin_available ? 1 : 0) }));
@@ -79,6 +94,19 @@ export default function BarGameCard({ businessId }: { businessId: string }) {
           <Text style={s.title}>Spin the Bar Wheel</Text>
           <Text style={[s.sub, { color: accent }]} numberOfLines={2}>{data.config?.how_it_works}</Text>
         </View>
+      </View>
+
+      <View style={s.actions}>
+        <Pressable onPress={() => router.push('/bar/perks' as any)} testID="bar-game-perks-link" style={s.actionBtn}>
+          <Ionicons name="wallet-outline" size={12} color="#fff" />
+          <Text style={s.actionTxt}>My drink perks</Text>
+        </Pressable>
+        {data.is_owner ? (
+          <Pressable onPress={() => router.push(`/bar/skin/${businessId}` as any)} testID="bar-game-customize" style={[s.actionBtn, { backgroundColor: `${accent}22` }]}>
+            <Ionicons name="color-palette-outline" size={12} color={accent} />
+            <Text style={[s.actionTxt, { color: accent }]}>Customize wheel</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={s.chipRow} testID="bar-game-sources">
@@ -156,6 +184,9 @@ const s = StyleSheet.create({
   headIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   title: { color: '#fff', fontSize: FONT.md, fontWeight: '900' },
   sub: { fontSize: FONT.xs, marginTop: 2 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.1)' },
+  actionTxt: { color: '#fff', fontSize: FONT.xs, fontWeight: '800' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   chipTxt: { fontSize: FONT.xs, fontWeight: '800' },

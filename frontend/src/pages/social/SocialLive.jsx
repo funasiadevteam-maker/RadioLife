@@ -71,14 +71,21 @@ export function LiveTab() {
                 </div>
                 <div className="p-3">
                   <div className="text-sm font-black truncate">{s.title}</div>
-                  <div className="text-[11px] text-cyan-300 truncate">{whenText(s.scheduled_at)}</div>
+                  <div className="text-[11px] text-cyan-300 truncate flex items-center gap-1"><Clock size={11} /> starts in <b className="font-mono"><Countdown iso={s.scheduled_at} /></b></div>
                   <div className="text-[11px] text-slate-400 truncate">{s.business_name} · {s.pinned_products?.length || 0} products</div>
-                  <span role="button" tabIndex={0} onClick={(e) => toggleRemind(e, s)}
-                        data-testid={`live-remind-${s.show_id}`}
-                        className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-black px-3 h-8 rounded-full"
-                        style={s.reminded ? { background: "rgba(34,211,238,0.2)", color: "#67e8f9" } : { background: "rgba(255,255,255,0.08)", color: "#cbd5e1" }}>
-                    <Bell size={12} /> {s.reminded ? "Reminding" : "Remind me"}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    <span role="button" tabIndex={0} onClick={(e) => toggleRemind(e, s)}
+                          data-testid={`live-remind-${s.show_id}`}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 h-8 rounded-full"
+                          style={s.reminded ? { background: "rgba(34,211,238,0.2)", color: "#67e8f9" } : { background: "rgba(255,255,255,0.08)", color: "#cbd5e1" }}>
+                      <Bell size={12} /> {s.reminded ? "Reminding" : "Remind me"}
+                    </span>
+                    <span role="button" tabIndex={0} onClick={(e) => openCal(e, s)}
+                          data-testid={`live-calendar-${s.show_id}`}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 h-8 rounded-full bg-white/[0.08] text-slate-200">
+                      <Calendar size={12} /> Add to calendar
+                    </span>
+                  </div>
                 </div>
               </button>
             ))}
@@ -124,6 +131,35 @@ function whenText(iso) {
   const when = d.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
   return h >= 1 ? `Starts ${when} · in ${h}h` : `Starts ${when} · in ${m}m`;
 }
+
+// Live-ticking countdown to a scheduled show.
+function Countdown({ iso }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  if (!iso) return null;
+  let diff = new Date(iso).getTime() - now;
+  if (diff <= 0) return <span>Starting now…</span>;
+  const d = Math.floor(diff / 86400000); diff %= 86400000;
+  const h = Math.floor(diff / 3600000); diff %= 3600000;
+  const m = Math.floor(diff / 60000); diff %= 60000;
+  const s = Math.floor(diff / 1000);
+  const pad = (x) => String(x).padStart(2, "0");
+  return <span>{d > 0 ? `${d}d ` : ""}{pad(h)}:{pad(m)}:{pad(s)}</span>;
+}
+
+function googleCalUrl(show) {
+  const start = new Date(show.scheduled_at);
+  const end = new Date(start.getTime() + 60 * 60000);
+  const fmt = (dt) => dt.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const p = new URLSearchParams({
+    action: "TEMPLATE",
+    text: show.title || "Live show",
+    details: `${show.business_name || ""} — live shopping on FUUSIC`,
+    dates: `${fmt(start)}/${fmt(end)}`,
+  });
+  return `https://calendar.google.com/calendar/render?${p.toString()}`;
+}
+const openCal = (e, show) => { e.stopPropagation(); window.open(googleCalUrl(show), "_blank", "noopener"); };
 
 function GoLiveModal({ onClose, onLive, onScheduled }) {
   const [title, setTitle] = useState("");
@@ -284,7 +320,14 @@ function LiveViewer({ showId, onClose }) {
           <div className="mt-3 text-lg font-black">{show.business_name}</div>
           <div className="text-sm text-slate-300">{show.title}</div>
           {show.status === "scheduled" ? (
-            <div className="mt-2 text-[11px] text-cyan-300" data-testid="live-scheduled-time">{whenText(show.scheduled_at)}</div>
+            <>
+              <div className="mt-2 text-sm text-cyan-300 font-mono font-black" data-testid="live-scheduled-time"><Countdown iso={show.scheduled_at} /></div>
+              <div className="text-[11px] text-slate-400">{whenText(show.scheduled_at)}</div>
+              <button onClick={(e) => openCal(e, show)} data-testid="live-calendar-btn"
+                className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-black px-3 h-8 rounded-full bg-white/[0.08] text-slate-200">
+                <Calendar size={12} /> Add to calendar
+              </button>
+            </>
           ) : (
             <div className="mt-2 text-[11px] text-slate-400">{show.mode === "live" ? "Live video stream" : "Simulated stream (preview)"} · <Users size={11} className="inline" /> {show.viewer_count} watching</div>
           )}

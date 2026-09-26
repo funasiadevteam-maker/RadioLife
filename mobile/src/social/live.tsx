@@ -68,12 +68,22 @@ export function LiveTab() {
               </LinearGradient>
               <View style={{ padding: 12 }}>
                 <Text style={st.showTitle} numberOfLines={1}>{s.title}</Text>
-                <Text style={[st.showMeta, { color: TUBE.electric }]} numberOfLines={1}>{whenText(s.scheduled_at)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="time-outline" size={11} color={TUBE.electric} />
+                  <Text style={st.showMeta}>starts in </Text>
+                  <CountdownText iso={s.scheduled_at} style={[st.showMeta, { color: TUBE.electric, fontWeight: '900' }]} />
+                </View>
                 <Text style={st.showMeta} numberOfLines={1}>{s.business_name} · {s.pinned_products?.length || 0} products</Text>
-                <Pressable onPress={() => toggleRemind(s)} testID={`live-remind-${s.show_id}`} style={[st.remindBtn, s.reminded && st.remindOn]}>
-                  <Ionicons name="notifications" size={12} color={s.reminded ? '#67e8f9' : '#cbd5e1'} />
-                  <Text style={[st.remindTxt, s.reminded && { color: '#67e8f9' }]}>{s.reminded ? 'Reminding' : 'Remind me'}</Text>
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <Pressable onPress={() => toggleRemind(s)} testID={`live-remind-${s.show_id}`} style={[st.remindBtn, s.reminded && st.remindOn]}>
+                    <Ionicons name="notifications" size={12} color={s.reminded ? '#67e8f9' : '#cbd5e1'} />
+                    <Text style={[st.remindTxt, s.reminded && { color: '#67e8f9' }]}>{s.reminded ? 'Reminding' : 'Remind me'}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => openCal(s)} testID={`live-calendar-${s.show_id}`} style={st.remindBtn}>
+                    <Ionicons name="calendar-outline" size={12} color="#cbd5e1" />
+                    <Text style={st.remindTxt}>Add to calendar</Text>
+                  </Pressable>
+                </View>
               </View>
             </Pressable>
           ))}
@@ -109,6 +119,33 @@ function whenText(iso?: string) {
   const m = Math.floor((diff % 3600000) / 60000);
   const when = d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
   return h >= 1 ? `Starts ${when} · in ${h}h` : `Starts ${when} · in ${m}m`;
+}
+
+function CountdownText({ iso, style }: { iso?: string; style?: any }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  let diff = iso ? new Date(iso).getTime() - now : 0;
+  let txt = 'Scheduled';
+  if (iso) {
+    if (diff <= 0) txt = 'Starting now…';
+    else {
+      const d = Math.floor(diff / 86400000); diff %= 86400000;
+      const h = Math.floor(diff / 3600000); diff %= 3600000;
+      const m = Math.floor(diff / 60000); diff %= 60000;
+      const s = Math.floor(diff / 1000);
+      const pad = (x: number) => String(x).padStart(2, '0');
+      txt = `${d > 0 ? d + 'd ' : ''}${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+  }
+  return <Text style={style}>{txt}</Text>;
+}
+
+function openCal(show: any) {
+  const start = new Date(show.scheduled_at);
+  const end = new Date(start.getTime() + 3600000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(show.title || 'Live show')}&details=${encodeURIComponent((show.business_name || '') + ' — live shopping on FUUSIC')}&dates=${fmt(start)}/${fmt(end)}`;
+  Linking.openURL(url).catch(() => {});
 }
 
 function GoLiveSheet({ visible, onClose, onLive, onScheduled }: any) {
@@ -240,7 +277,8 @@ function LiveViewer({ showId, onClose }: any) {
         <Text style={st.stageBiz}>{show.business_name}</Text>
         <Text style={st.stageTitle}>{show.title}</Text>
         {show.status === 'scheduled'
-          ? <Text style={[st.stageMeta, { color: TUBE.electric }]} testID="live-scheduled-time">{whenText(show.scheduled_at)}</Text>
+          ? <><CountdownText iso={show.scheduled_at} style={[st.stageMeta, { color: TUBE.electric, fontSize: TFONT.md, fontWeight: '900' }]} />
+              <Text style={[st.stageMeta, { fontSize: TFONT.xs }]} testID="live-scheduled-time">{whenText(show.scheduled_at)}</Text></>
           : <Text style={st.stageMeta}>{show.mode === 'live' ? 'Live video stream' : 'Simulated stream (preview)'} · {show.viewer_count} watching</Text>}
         {show.status === 'scheduled' && show.can_manage && (
           <Pressable onPress={startShow} testID="live-start-now" style={{ marginTop: 14 }}>
@@ -250,6 +288,12 @@ function LiveViewer({ showId, onClose }: any) {
         {show.status === 'scheduled' && !show.can_manage && (
           <Pressable onPress={toggleRemind} testID="live-remind-btn" style={{ marginTop: 14 }}>
             <LinearGradient colors={show.reminded ? ['#0891b2', '#0e7490'] : ['#a855f7', '#ec4899']} style={st.stageBtn}><Ionicons name="notifications" size={14} color="#fff" /><Text style={st.stageBtnTxt}>{show.reminded ? 'Reminding you' : 'Remind me'}</Text></LinearGradient>
+          </Pressable>
+        )}
+        {show.status === 'scheduled' && (
+          <Pressable onPress={() => openCal(show)} testID="live-calendar-btn" style={st.calBtn}>
+            <Ionicons name="calendar-outline" size={13} color="#cbd5e1" />
+            <Text style={st.calTxt}>Add to calendar</Text>
           </Pressable>
         )}
         {show.can_manage && show.status !== 'scheduled' && (
@@ -416,6 +460,8 @@ const st = StyleSheet.create({
   remindBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)' },
   remindOn: { backgroundColor: 'rgba(34,211,238,0.2)' },
   remindTxt: { color: '#cbd5e1', fontSize: TFONT.xs, fontWeight: '800' },
+  calBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 14, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.08)' },
+  calTxt: { color: '#cbd5e1', fontSize: TFONT.xs, fontWeight: '800' },
   stage: { borderRadius: TRADIUS.lg, alignItems: 'center', padding: 24, borderWidth: 1, borderColor: 'rgba(244,114,182,0.25)' },
   stageBiz: { color: '#fff', fontSize: TFONT.lg, fontWeight: '900', marginTop: 12 },
   stageTitle: { color: '#ddd6fe', fontSize: TFONT.sm, marginTop: 2 },

@@ -139,10 +139,12 @@ async def _status(db, user_id: str, business_id: str) -> dict:
     skin = await _get_skin(db, business_id)
     last = await db.bar_game_plays.find_one(
         {"user_id": user_id, "business_id": business_id}, sort=[("created_at", -1)])
+    is_owner = profile.get("owner_user_id") == user_id
     return {
         "eligible": True,
         "business_id": business_id,
         "business_name": profile.get("public_name"),
+        "is_owner": is_owner,
         "spins_available": available,
         "free_spin_available": free_available,
         "next_free_reset": _next_midnight_iso(),
@@ -153,6 +155,36 @@ async def _status(db, user_id: str, business_id: str) -> dict:
             "code": last.get("code"), "created_at": _iso(last.get("created_at")),
         } if last else None,
     }
+
+
+@router.get("/wallet")
+async def bar_game_wallet(request: Request, user: dict = Depends(current_user)):
+    """'My drink perks' — every winning code the user has collected."""
+    db = request.app.state.db
+    items = []
+    async for p in db.bar_game_plays.find(
+            {"user_id": user["user_id"], "win": True}).sort("created_at", -1).limit(100):
+        items.append({
+            "play_id": p["_id"], "business_id": p.get("business_id"),
+            "business_name": p.get("business_name"), "label": p.get("label"),
+            "emoji": p.get("emoji"), "code": p.get("code"),
+            "redeemed": bool(p.get("redeemed")),
+            "created_at": _iso(p.get("created_at"))})
+    active = sum(1 for i in items if not i["redeemed"])
+    return {"items": items, "count": len(items), "active": active}
+
+
+@router.post("/plays/{play_id}/redeem")
+async def bar_game_redeem(play_id: str, request: Request,
+                          user: dict = Depends(current_user)):
+    """Mark a won perk as redeemed (once used at the bar)."""
+    db = request.app.state.db
+    r = await db.bar_game_plays.update_one(
+        {"_id": play_id, "user_id": user["user_id"], "win": True},
+        {"$set": {"redeemed": True, "redeemed_at": _now()}})
+    if r.matched_count == 0:
+        raise HTTPException(404, {"code": "perk_not_found"})
+    return {"ok": True, "redeemed": True}
 
 
 @router.get("/{business_id}")

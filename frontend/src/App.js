@@ -219,6 +219,7 @@ import PredictWinCampaigns from "@/Admin/PredictWinCampaigns";  // Sub-Phase E1
 import StationTracksTab from "@/StationTracksTab";  // Phase D — owner tracks workspace
 import AdminTrackModeration from "@/AdminTrackModeration";  // Phase D — admin queue
 import PredictWin from "@/PredictWin";  // Sub-Phase E2 — consumer predictions
+import DrinkPerks from "@/pages/bar/DrinkPerks";  // Win Wallet — bar-wheel perks
 import StationPredictWinTab from "@/StationPredictWinTab";  // Sub-Phase E3 — business builder
 import PredictWinKiosk from "@/PredictWinKiosk";  // Sub-Phase E3 — TV kiosk
 import PredictWinCheckin from "@/PredictWinCheckin";  // Sub-Phase E3 — QR landing
@@ -488,6 +489,9 @@ function AppRouter() {
               noindexed, does not replace `/`). */}
       <Route path="/l/v2" element={<LandingV2 />} />
       <Route path="/radio" element={<RadioRouteSwitch />} />
+      <Route path="/drink-perks" element={
+        <ProtectedRoute><DrinkPerks /></ProtectedRoute>
+      } />
       <Route path="/listen" element={
         <ProtectedRoute><ListenHub /></ProtectedRoute>
       } />
