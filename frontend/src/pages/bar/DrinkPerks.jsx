@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { Loader2, Ticket, ArrowLeft, Wine, CheckCircle2, Gift, Clock } from "lucide-react";
+import { Loader2, Ticket, ArrowLeft, Wine, CheckCircle2, Gift, Clock, Share2 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
@@ -33,6 +33,14 @@ export default function DrinkPerks() {
         active: Math.max(0, (d.active || 1) - 1) }));
       toast.success("Marked as redeemed 🍸");
     } catch (_) { toast.error("Couldn’t update."); }
+  };
+
+  const share = async (p) => {
+    const text = `🍸 I won “${p.label}” at ${p.business_name} on FUUSIC! Redeem with code ${p.code}.`;
+    try {
+      if (navigator.share) await navigator.share({ title: "FUUSIC drink perk", text });
+      else { await navigator.clipboard.writeText(text); toast.success("Perk copied — share it with a friend!"); }
+    } catch (_) {}
   };
 
   return (
@@ -71,9 +79,9 @@ export default function DrinkPerks() {
                     <Ticket size={13} /> {p.code}
                   </div>
                   {exp && (
-                    <div className={`text-[11px] font-bold mt-1 inline-flex items-center gap-1 ${isExpired ? "text-rose-400" : "text-amber-300"}`}
+                    <div className={`text-[11px] font-bold mt-1 inline-flex items-center gap-1 ${isExpired ? "text-rose-400" : p.expiring_soon ? "text-rose-300" : "text-amber-300"}`}
                          data-testid={`perk-expiry-${p.play_id}`}>
-                      <Clock size={11} /> {exp.text}
+                      <Clock size={11} /> {isExpired ? "Expired" : p.expiring_soon ? `Expires soon · ${exp.text}` : exp.text}
                     </div>
                   )}
                 </div>
@@ -82,10 +90,16 @@ export default function DrinkPerks() {
                 ) : isExpired ? (
                   <span className="text-[11px] font-bold text-rose-400 flex items-center gap-1" data-testid={`perk-expired-${p.play_id}`}>Expired</span>
                 ) : (
-                  <button onClick={() => redeem(p.play_id)} data-testid={`perk-redeem-${p.play_id}`}
-                          className="text-[11px] font-black px-3 h-9 rounded-full bg-emerald-500/20 text-emerald-300">
-                    Mark redeemed
-                  </button>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <button onClick={() => redeem(p.play_id)} data-testid={`perk-redeem-${p.play_id}`}
+                            className="text-[11px] font-black px-3 h-9 rounded-full bg-emerald-500/20 text-emerald-300">
+                      Mark redeemed
+                    </button>
+                    <button onClick={() => share(p)} data-testid={`perk-share-${p.play_id}`}
+                            className="text-[11px] font-bold px-3 h-8 rounded-full bg-white/10 text-white inline-flex items-center gap-1.5">
+                      <Share2 size={12} /> Share
+                    </button>
+                  </div>
                 )}
               </div>
               );

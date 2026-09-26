@@ -1,0 +1,46 @@
+{
+  "summary": "Tested 4 FUUSIC enhancements (Catalog Product Picker, Event Cover Art, Perk Sharing, Perk Reminders/expiring-soon) + owner-hidden regression on WEB + MOBILE. Backend 3/3 pytest pass (catalog returns 4 seeded products for biz_demo_bar; POST /api/social/liveshows accepts cover_url + persists it; GET /api/bar-games/wallet returns expiring_soon=true for BAR-SOON123 + expired=true for BAR-OLD999 + expiring_soon=false for BAR-NEON2FOR; perk_expiring notification present in /api/social/notifications). WEB /drink-perks: 3 perks render — BAR-SOON123 with RED 'Expires soon · Expires in 1d' badge + Share + Mark redeemed, BAR-NEON2FOR amber 'Expires in 14d' + Share + Mark redeemed, BAR-OLD999 dimmed opacity 0.6 with perk-expired-<id> label ONLY (no Share, no redeem). Share button click succeeds (clipboard fallback fires). WEB scheduler modal (/shop/biz_demo_bar → bar-game-schedule-live): scheduler-catalog with 4 tappable cards (all prod_demobar_0..3), tapping a card appends it to products (title + price prefilled from catalog), scheduler-cover input shows preview image, submit creates real scheduled show 'ITER188 test cover' visible on Social > Live upcoming card with cover_url image (cleaned). Freeuser correctly does NOT see bar-game-customize / bar-game-schedule-live; wheel still visible. MOBILE (Expo preview): demo-login-btn works; /bar/perks shows drink-perks-screen with all 3 perks (same states as web) + 2 share buttons on active perks + 1 perk-expired-* on OLD999; /bar/schedule/biz_demo_bar renders bar-schedule-screen with scheduler-catalog (4 items), scheduler-cover input + preview, catalog tap adds product row with prefilled name+price, submit persisted show ('ITER188 Mobile Cover Test') and router.replace navigated to /shop/biz_demo_bar (canGoBack guard from prev iter now in place — no GO_BACK console warning). Parity: OK — same testids, states, and behavior across web + mobile. Sound/haptics fire-and-forget, LiveKit A/V mocked (not asserted).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "BarOwnerScheduler.jsx", "issue": "After a SUCCESSFUL submit(), only `onScheduled?.()` is called — the modal does NOT self-close and there is no explicit `onClose()` in the success path. Whether the modal closes therefore depends on the parent wiring; on the current /shop/biz_demo_bar the modal stays visible after a real successful create (verified: ITER188 event IS persisted + appears on Social > Live, but the scheduler overlay remains open). Recommend calling `onClose?.()` after `onScheduled?.()` OR having the parent's onScheduled close the modal itself. Reference: /app/frontend/src/pages/bar/BarOwnerScheduler.jsx:53-54", "selector": "[data-testid='bar-owner-scheduler']", "priority": "LOW"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter188_enhancements.py",
+    "/app/test_reports/pytest/iter188.xml"
+  ],
+  "action_items": [
+    "(LOW) BarOwnerScheduler.jsx: after successful submit, also call onClose (or have the parent's onScheduled close the modal) — currently the overlay stays open after a real successful create so the user must manually X out even though the event was scheduled.",
+    "(Optional) Add a lightweight toast/link on both web scheduler and mobile scheduler after submit that jumps the user to Social > Live > Upcoming so they can immediately see their newly scheduled event."
+  ],
+  "critical_code_review_comments": [
+    "routes/bar_games.py: still has duplicate __all__ declarations flagged in iter185/186/187 — cosmetic only, second one wins.",
+    "BarOwnerScheduler.jsx: `addFromCatalog` filters out empty-title rows BEFORE appending — so tapping a catalog card when both empty product rows are visible collapses them into a single populated row (the two empty rows disappear). Users looking for a 3rd manual row must click 'Add product' after. Not a bug, just UX-different from what a naive user might expect. Consider preserving all rows and only replacing rows whose title equals the picked product name to avoid deduping.",
+    "DrinkPerks.jsx share(): swallows share errors silently (catch {}). Since navigator.share on desktop Chrome typically doesn't exist, the code falls through to navigator.clipboard.writeText + a success toast — but if clipboard write itself throws (e.g. non-secure context, permissions), the user gets no error feedback. Consider showing a toast.error on the clipboard-branch failure path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter188_enhancements.py",
+    "/app/test_reports/iteration_188.json",
+    "/app/test_reports/pytest/iter188.xml"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100% (all 4 ENH selectors + owner-hidden regression verified on web and mobile; one LOW-priority modal-close UX nit on web only)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (bar owner; has BAR-NEON2FOR + BAR-SOON123 + BAR-OLD999 perks in wallet). freeuser@bigfm.dubai / FreePass123! (non-owner). Mobile: demo-login-btn.",
+  "seed_data_creation": "Created + cleaned within this run: (a) ITER188 test cover — scheduled liveshow via WEB with cover_url — deleted. (b) ITER188 Mobile Cover Test — scheduled liveshow via MOBILE — deleted. No modifications to seeded BAR-NEON2FOR / BAR-SOON123 / BAR-OLD999 plays (all left as-is for next iteration).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview URLs: web https://mobile-games-v2.preview.emergentagent.com , mobile https://mobile-games-v2.expo.preview.emergentagent.com . Demo user has 3 perks pre-seeded and INTENDED to stay: bgp_soon_test (BAR-SOON123, expiring soon, red badge + Share), bgp_961ef04f4813428f (BAR-NEON2FOR, amber 14d, Share), bgp_expired_demo (BAR-OLD999, expired, dimmed, perk-expired-*). Do not redeem them. Web /shop/biz_demo_bar has both bar-game-customize + bar-game-schedule-live for demo; the scheduler modal opens fine but does NOT auto-close after a real successful create — the persisted event still appears on Social > Live (that's the LOW-pri UX nit reported this run). Mobile scheduler has router.canGoBack() guard already in place. Backend still has cosmetic duplicate __all__ in routes/bar_games.py.",
+  "rca of the issue": "No critical bug. One LOW-priority UX finding on web only: BarOwnerScheduler.jsx submit() calls onScheduled?.() but never calls onClose?.() in the success path, so the modal stays open after a successful create (event IS persisted and appears on Social > Live). Fix: add `onClose?.();` right after `onScheduled?.();` at line 54 OR have parent's onScheduled hook close the modal. All 4 enhancement flows are otherwise working end-to-end on both web and mobile."
+}

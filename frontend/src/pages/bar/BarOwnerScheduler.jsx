@@ -1,10 +1,10 @@
 // Owner Live Scheduler — a bar owner schedules a Live Shopping event and pins
 // products right from their page. Creates a scheduled show then pins each
 // product. POST /api/social/liveshows  +  POST /api/social/liveshows/{id}/products
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { X, Plus, Trash2, Loader2, Radio, Calendar } from "lucide-react";
+import { X, Plus, Trash2, Loader2, Radio, Calendar, ImagePlus, ShoppingBag } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
@@ -14,8 +14,21 @@ export default function BarOwnerScheduler({ businessId, businessName, onClose, o
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [when, setWhen] = useState("");
+  const [cover, setCover] = useState("");
+  const [catalog, setCatalog] = useState([]);
   const [products, setProducts] = useState([emptyProduct(), emptyProduct()]);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    axios.get(`${API}/shop/businesses/${businessId}/products`, { withCredentials: true })
+      .then(({ data }) => setCatalog(data.products || []))
+      .catch(() => setCatalog([]));
+  }, [businessId]);
+
+  const addFromCatalog = (c) => setProducts((l) => [
+    ...l.filter((p) => p.title.trim()),
+    { title: c.name || "", price: ((c.price_cents || 0) / 100).toString(), offer: "", image_url: c.image_url || "" },
+  ]);
 
   const upd = (i, patch) => setProducts((l) => l.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   const add = () => setProducts((l) => [...l, emptyProduct()]);
@@ -28,6 +41,7 @@ export default function BarOwnerScheduler({ businessId, businessName, onClose, o
     try {
       const { data: show } = await axios.post(`${API}/social/liveshows`,
         { title, description: desc, business_name: businessName || "",
+          cover_url: cover.trim() || null,
           scheduled_at: new Date(when).toISOString() }, { withCredentials: true });
       const valid = products.filter((p) => p.title.trim());
       for (const p of valid) {
@@ -38,6 +52,7 @@ export default function BarOwnerScheduler({ businessId, businessName, onClose, o
       }
       toast.success(`Live event scheduled with ${valid.length} product${valid.length === 1 ? "" : "s"} 🗓️`);
       onScheduled?.();
+      onClose?.();
     } catch (e) {
       toast.error("Couldn’t schedule the event.");
     } finally { setBusy(false); }
@@ -60,6 +75,29 @@ export default function BarOwnerScheduler({ businessId, businessName, onClose, o
         <label className="block text-xs text-slate-300 font-bold mb-1 flex items-center gap-1.5"><Calendar size={12} /> Date & time</label>
         <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} data-testid="scheduler-when"
                className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm text-slate-200 outline-none mb-4" />
+
+        <label className="block text-xs text-slate-300 font-bold mb-1 flex items-center gap-1.5"><ImagePlus size={12} /> Cover image URL (optional)</label>
+        {cover.trim() && <img src={cover} alt="" className="w-full h-28 object-cover rounded-xl mb-2 border border-white/10" />}
+        <input value={cover} onChange={(e) => setCover(e.target.value)} placeholder="https://… (shows in Upcoming)" data-testid="scheduler-cover"
+               className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm text-white outline-none mb-4" />
+
+        {catalog.length > 0 && (
+          <div className="mb-3" data-testid="scheduler-catalog">
+            <div className="text-xs text-slate-300 font-bold mb-2 flex items-center gap-1.5"><ShoppingBag size={12} /> Add from your shop</div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {catalog.map((c) => (
+                <button key={c.product_id} onClick={() => addFromCatalog(c)} data-testid={`scheduler-catalog-${c.product_id}`}
+                        className="shrink-0 w-24 text-left rounded-xl bg-white/[0.05] border border-white/10 overflow-hidden hover:border-pink-400/40">
+                  {c.image_url ? <img src={c.image_url} alt="" className="w-full h-16 object-cover" /> : <div className="w-full h-16 bg-white/[0.06] grid place-items-center"><ShoppingBag size={16} className="text-slate-400" /></div>}
+                  <div className="p-1.5">
+                    <div className="text-[10px] font-bold text-white truncate">{c.name}</div>
+                    <div className="text-[10px] text-emerald-300">{(c.price_cents / 100).toFixed(0)}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="text-xs text-slate-300 font-bold mb-2">Products to feature</div>
         <div className="space-y-2">

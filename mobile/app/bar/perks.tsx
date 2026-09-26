@@ -1,6 +1,6 @@
 // Win Wallet (mobile) — "My drink perks": every bar-wheel prize the user won.
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, RefreshControl, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Stack } from 'expo-router';
 import api from '../../src/api/client';
@@ -31,6 +31,10 @@ export default function DrinkPerks() {
       await api.post(`/bar-games/plays/${id}/redeem`);
       setData((d: any) => ({ ...d, items: d.items.map((i: any) => (i.play_id === id ? { ...i, redeemed: true } : i)) }));
     } catch (_) {}
+  };
+
+  const share = async (p: any) => {
+    try { await Share.share({ message: `🍸 I won “${p.label}” at ${p.business_name} on FUUSIC! Redeem with code ${p.code}.` }); } catch (_) {}
   };
 
   return (
@@ -68,8 +72,10 @@ export default function DrinkPerks() {
                 <View style={s.codeRow}><Ionicons name="ticket" size={13} color={COLORS.green} /><Text style={s.code}>{p.code}</Text></View>
                 {exp ? (
                   <View style={s.expRow} testID={`perk-expiry-${p.play_id}`}>
-                    <Ionicons name="time-outline" size={11} color={isExpired ? COLORS.red : COLORS.gold} />
-                    <Text style={[s.expTxt, { color: isExpired ? COLORS.red : COLORS.gold }]}>{exp.text}</Text>
+                    <Ionicons name="time-outline" size={11} color={(isExpired || p.expiring_soon) ? COLORS.red : COLORS.gold} />
+                    <Text style={[s.expTxt, { color: (isExpired || p.expiring_soon) ? COLORS.red : COLORS.gold }]}>
+                      {isExpired ? 'Expired' : p.expiring_soon ? `Expires soon · ${exp.text}` : exp.text}
+                    </Text>
                   </View>
                 ) : null}
               </View>
@@ -78,9 +84,15 @@ export default function DrinkPerks() {
               ) : isExpired ? (
                 <Text style={[s.redeemedTxt, { color: COLORS.red }]} testID={`perk-expired-${p.play_id}`}>Expired</Text>
               ) : (
-                <TouchableOpacity onPress={() => redeem(p.play_id)} testID={`perk-redeem-${p.play_id}`} style={s.redeemBtn}>
-                  <Text style={s.redeemBtnTxt}>Mark redeemed</Text>
-                </TouchableOpacity>
+                <View style={{ gap: 6, alignItems: 'flex-end' }}>
+                  <TouchableOpacity onPress={() => redeem(p.play_id)} testID={`perk-redeem-${p.play_id}`} style={s.redeemBtn}>
+                    <Text style={s.redeemBtnTxt}>Mark redeemed</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => share(p)} testID={`perk-share-${p.play_id}`} style={s.shareBtn}>
+                    <Ionicons name="share-social-outline" size={12} color={COLORS.text} />
+                    <Text style={s.shareTxt}>Share</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
             );
@@ -108,6 +120,8 @@ const s = StyleSheet.create({
   expTxt: { fontSize: FONT.xs, fontWeight: '800' },
   redeemBtn: { paddingHorizontal: 12, height: 34, borderRadius: 17, backgroundColor: 'rgba(22,163,74,0.14)', alignItems: 'center', justifyContent: 'center' },
   redeemBtnTxt: { color: COLORS.green, fontSize: FONT.xs, fontWeight: '900' },
+  shareBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, height: 30, borderRadius: 15, backgroundColor: COLORS.inputBg },
+  shareTxt: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '800' },
   redeemed: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   redeemedTxt: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700' },
 });

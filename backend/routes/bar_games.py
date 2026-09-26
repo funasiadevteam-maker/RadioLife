@@ -171,6 +171,7 @@ async def bar_game_wallet(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
     now = _now()
     items = []
+    remind = []
     async for p in db.bar_game_plays.find(
             {"user_id": user["user_id"], "win": True}).sort("created_at", -1).limit(100):
         created = _aware(p.get("created_at"))
@@ -179,13 +180,26 @@ async def bar_game_wallet(request: Request, user: dict = Depends(current_user)):
             exp = created + timedelta(days=_PERK_TTL_DAYS)
         expired = bool(exp and isinstance(exp, datetime) and now > exp)
         redeemed = bool(p.get("redeemed"))
+        soon = bool(exp and not expired and not redeemed and (exp - now) <= timedelta(hours=24))
         items.append({
             "play_id": p["_id"], "business_id": p.get("business_id"),
             "business_name": p.get("business_name"), "label": p.get("label"),
             "emoji": p.get("emoji"), "code": p.get("code"),
-            "redeemed": redeemed, "expired": expired,
+            "redeemed": redeemed, "expired": expired, "expiring_soon": soon,
             "expires_at": _iso(exp),
             "created_at": _iso(created)})
+        if soon and not p.get("expiry_reminded"):
+            remind.append(p)
+    # Lazy "expires soon" nudge → in-app notification (real push needs a build).
+    for p in remind:
+        await db.social_notifications.insert_one({
+            "_id": "notif_" + uuid.uuid4().hex[:14], "user_id": user["user_id"],
+            "notif_type": "perk_expiring", "source_user_id": None,
+            "source_post_id": None, "business_id": p.get("business_id"),
+            "message": f"⏳ Your ‘{p.get('label')}’ perk ({p.get('code')}) at {p.get('business_name')} expires within 24h — use it soon!"[:240],
+            "read": False, "created_at": now})
+        await db.bar_game_plays.update_one(
+            {"_id": p["_id"]}, {"$set": {"expiry_reminded": True}})
     active = sum(1 for i in items if not i["redeemed"] and not i["expired"])
     return {"items": items, "count": len(items), "active": active}
 
@@ -381,6 +395,21 @@ async def seed_demo_bar(db) -> None:
                 {"label": "One more round?", "emoji": "🔄", "win": False, "weight": 19},
             ],
             "updated_at": now})
+    # Demo bar menu so the Live scheduler's product picker isn't empty.
+    if await db.products.count_documents({"business_id": _DEMO_BAR_ID}) == 0:
+        menu = [
+            ("Neon Martini", 4200, "https://images.unsplash.com/photo-1597075687490-8f673c6c17f6?crop=entropy&cs=srgb&fm=jpg&q=85&w=600"),
+            ("Sunset Spritz", 3200, "https://images.unsplash.com/photo-1582106245687-cbb466a9f07f?crop=entropy&cs=srgb&fm=jpg&q=85&w=600"),
+            ("Craft Old Fashioned", 3800, "https://images.unsplash.com/photo-1702725365144-6e8584ea54e4?crop=entropy&cs=srgb&fm=jpg&q=85&w=600"),
+            ("Bar Snack Platter", 2600, "https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?crop=entropy&cs=srgb&fm=jpg&q=85&w=600"),
+        ]
+        for i, (name, price, img) in enumerate(menu):
+            await db.products.insert_one({
+                "product_id": f"prod_demobar_{i}", "business_id": _DEMO_BAR_ID,
+                "sort": i, "name": name, "description": "", "category": "Drinks",
+                "price_cents": price, "stock": 100, "variants": [],
+                "option_groups": [], "image_url": img, "active": True,
+                "created_at": now, "updated_at": now})
 
 
 __all__ = ["router", "ensure_bar_game_indexes", "seed_demo_bar"]

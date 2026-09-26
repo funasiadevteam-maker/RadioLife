@@ -29,6 +29,13 @@ Feature batch phases 4/5/6. LiveKit A/V stays MOCKED (stage placeholder; real vi
 - **Owner Live Scheduler**: bar owners schedule a Live Shopping event + pin products from their page. Web modal `pages/bar/BarOwnerScheduler.jsx` (title/desc/datetime + inline product rows) and mobile screen `app/bar/schedule/[id].tsx` (WHEN preset chips) both create a scheduled show via `POST /api/social/liveshows` (with `scheduled_at`) then pin each product via `POST /api/social/liveshows/{sid}/products`. Entry: owner-only `bar-game-schedule-live` on BarGameCard. No new backend endpoints (reused create + pin). Mobile submit now guards `router.canGoBack()` + success haptic.
 - Cleanup: removed a duplicate `__all__` in bar_games.py. Demo/free bar state de-duped & reset; only seed scheduled show ls_demo_scheduled_01 remains.
 
+### 🛍️ Catalog Picker + Cover Art + Perk Sharing + Perk Reminders (2026-06, testing agent PASS iter188 — backend 3/3 + web + mobile)
+- **Catalog Product Picker**: scheduler now fetches `GET /api/shop/businesses/{id}/products` and shows an 'Add from your shop' picker (scheduler-catalog, cards scheduler-catalog-<pid>) that prefills a product row; still supports manual rows. Seeded 4 demo products in `db.products` for biz_demo_bar (Neon Martini, Sunset Spritz, Craft Old Fashioned, Bar Snack Platter) via seed_demo_bar.
+- **Event Cover Art**: scheduler has a cover image URL field (scheduler-cover, with preview) sent as `cover_url` on create; Upcoming cards render it.
+- **Perk Sharing**: each active perk in the wallet has a Share button (perk-share-<id>) — web navigator.share + clipboard/toast fallback; mobile React Native Share.share.
+- **Perk Reminders**: wallet returns `expiring_soon` (non-expired/non-redeemed perk within 24h) and lazily inserts a one-time in-app `perk_expiring` notification (via existing GET /api/social/notifications). Wallet renders a red 'Expires soon · …' badge. (Real device push needs a native build.)
+- Web scheduler modal now closes on success (`onClose?.()`). Demo wallet pre-seeded with 3 states for preview: BAR-NEON2FOR (normal ~14d), BAR-SOON123 (expiring soon), BAR-OLD999 (expired).
+
 
 
 ## 🌙 DREAMS & GUIDANCE — FOLLOW-UP WAVE (2026-09 fork, backend + web + mobile, testing agent PASS iter158 — 15/15 backend + web/mobile smoke)

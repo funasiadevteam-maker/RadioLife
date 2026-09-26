@@ -3,6 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { useRouter, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import api from '../../../src/api/client';
@@ -21,13 +22,21 @@ export default function BarScheduleLive() {
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [when, setWhen] = useState(3);
+  const [cover, setCover] = useState('');
+  const [catalog, setCatalog] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([emptyProduct(), emptyProduct()]);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try { const { data } = await api.get(`/bar-games/${id}`); setBizName(data.business_name || ''); } catch (_) {}
+    try { const { data } = await api.get(`/shop/businesses/${id}/products`); setCatalog(data.products || []); } catch (_) {}
   }, [id]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const addFromCatalog = (c: any) => setProducts((l) => [
+    ...l.filter((p) => p.title.trim()),
+    { title: c.name || '', price: ((c.price_cents || 0) / 100).toString(), offer: '', image_url: c.image_url || '' },
+  ]);
 
   const upd = (i: number, patch: any) => setProducts((l) => l.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   const add = () => setProducts((l) => [...l, emptyProduct()]);
@@ -39,6 +48,7 @@ export default function BarScheduleLive() {
     try {
       const { data: show } = await api.post('/social/liveshows', {
         title, description: desc, business_name: bizName,
+        cover_url: cover.trim() || null,
         scheduled_at: new Date(Date.now() + when * 3600000).toISOString() });
       const valid = products.filter((p) => p.title.trim());
       for (const p of valid) {
@@ -71,6 +81,27 @@ export default function BarScheduleLive() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <Text style={s.lbl}>Cover image URL (optional)</Text>
+        {cover.trim() ? <ExpoImage source={{ uri: cover }} style={{ width: '100%', height: 110, borderRadius: RADIUS.md }} contentFit="cover" /> : null}
+        <TextInput value={cover} onChangeText={setCover} placeholder="https://… (shows in Upcoming)" autoCapitalize="none" placeholderTextColor={COLORS.textMuted} style={s.input} testID="scheduler-cover" />
+
+        {catalog.length > 0 ? (
+          <>
+            <Text style={s.lbl}>Add from your shop</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }} testID="scheduler-catalog">
+              {catalog.map((c) => (
+                <TouchableOpacity key={c.product_id} onPress={() => addFromCatalog(c)} testID={`scheduler-catalog-${c.product_id}`} style={s.catCard}>
+                  {c.image_url ? <ExpoImage source={{ uri: c.image_url }} style={{ width: '100%', height: 64 }} contentFit="cover" /> : <View style={s.catPlaceholder}><Ionicons name="pricetag-outline" size={16} color={COLORS.textMuted} /></View>}
+                  <View style={{ padding: 6 }}>
+                    <Text style={s.catName} numberOfLines={1}>{c.name}</Text>
+                    <Text style={s.catPrice}>{(c.price_cents / 100).toFixed(0)}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
 
         <Text style={s.lbl}>Products to feature</Text>
         {products.map((p, i) => (
@@ -108,6 +139,10 @@ const s = StyleSheet.create({
   chipOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipTxt: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '800' },
   prod: { backgroundColor: COLORS.card, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.cardBorder, padding: 10 },
+  catCard: { width: 96, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.card, overflow: 'hidden' },
+  catPlaceholder: { width: '100%', height: 64, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
+  catName: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '800' },
+  catPrice: { color: COLORS.green, fontSize: FONT.xs, fontWeight: '800' },
   pInput: { backgroundColor: COLORS.inputBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: COLORS.text, fontSize: FONT.sm },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 14, height: 38, borderRadius: 19, backgroundColor: COLORS.inputBg },
   addTxt: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
