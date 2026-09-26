@@ -49,6 +49,32 @@ export function LiveTab() {
     <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 120, gap: 14 }}
       showsVerticalScrollIndicator={false} testID="social-live"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={TUBE.magenta} />}>
+      {upcoming[0] ? (
+        <Pressable onPress={() => setOpen(upcoming[0].show_id)} testID="live-featured" style={st.featured}>
+          {upcoming[0].cover_url
+            ? <ExpoImage source={{ uri: upcoming[0].cover_url }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            : <LinearGradient colors={['#1e3a8a', '#0e7490']} style={StyleSheet.absoluteFill} />}
+          <LinearGradient colors={['rgba(6,8,22,0.15)', 'rgba(6,8,22,0.95)']} style={StyleSheet.absoluteFill} />
+          <View style={st.featuredInner}>
+            <View style={st.featuredBadge}><Ionicons name="time-outline" size={10} color="#fff" /><Text style={st.liveBadgeTxt}> NEXT LIVE</Text></View>
+            <Text style={st.featuredTitle} numberOfLines={2}>{upcoming[0].title}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={st.featuredMeta}>{upcoming[0].business_name} · starts in </Text>
+              <CountdownText iso={upcoming[0].scheduled_at} style={[st.featuredMeta, { fontWeight: '900' }]} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+              <Pressable onPress={() => toggleRemind(upcoming[0])} testID="live-featured-remind" style={[st.remindBtn, upcoming[0].reminded && st.remindOn]}>
+                <Ionicons name="notifications" size={12} color={upcoming[0].reminded ? '#67e8f9' : '#cbd5e1'} />
+                <Text style={[st.remindTxt, upcoming[0].reminded && { color: '#67e8f9' }]}>{upcoming[0].reminded ? 'Reminding' : 'Remind me'}</Text>
+              </Pressable>
+              <Pressable onPress={() => openCal(upcoming[0])} testID="live-featured-calendar" style={st.remindBtn}>
+                <Ionicons name="calendar-outline" size={12} color="#cbd5e1" />
+                <Text style={st.remindTxt}>Add to calendar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      ) : null}
       <Pressable onPress={() => setGoLive(true)} testID="live-golive">
         <LinearGradient colors={['#3a0f52', '#7f1d4a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.golive}>
           <View style={st.goliveIcon}><Ionicons name="videocam" size={24} color="#fff" /></View>
@@ -462,6 +488,11 @@ const st = StyleSheet.create({
   remindTxt: { color: '#cbd5e1', fontSize: TFONT.xs, fontWeight: '800' },
   calBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 14, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.08)' },
   calTxt: { color: '#cbd5e1', fontSize: TFONT.xs, fontWeight: '800' },
+  featured: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(34,211,238,0.3)', minHeight: 172, justifyContent: 'flex-end' },
+  featuredInner: { padding: 16 },
+  featuredBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: 'rgba(6,182,212,0.85)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginBottom: 8 },
+  featuredTitle: { color: '#fff', fontSize: TFONT.xl, fontWeight: '900' },
+  featuredMeta: { color: '#a5f3fc', fontSize: TFONT.sm },
   stage: { borderRadius: TRADIUS.lg, alignItems: 'center', padding: 24, borderWidth: 1, borderColor: 'rgba(244,114,182,0.25)' },
   stageBiz: { color: '#fff', fontSize: TFONT.lg, fontWeight: '900', marginTop: 12 },
   stageTitle: { color: '#ddd6fe', fontSize: TFONT.sm, marginTop: 2 },

@@ -49,6 +49,31 @@ export function LiveTab() {
 
   return (
     <div className="space-y-4" data-testid="social-live">
+      {upcoming[0] && (
+        <button onClick={() => setOpen(upcoming[0].show_id)} data-testid="live-featured"
+                className="relative w-full rounded-3xl overflow-hidden border border-cyan-400/30 text-left block">
+          {upcoming[0].cover_url
+            ? <img src={upcoming[0].cover_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            : <div className="absolute inset-0" style={{ background: "linear-gradient(135deg,#1e3a8a,#0e7490)" }} />}
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to top,rgba(6,8,22,0.94),rgba(6,8,22,0.2))" }} />
+          <div className="relative p-5 flex flex-col justify-end" style={{ minHeight: 168 }}>
+            <span className="inline-flex items-center gap-1 self-start text-[10px] font-black px-2 py-0.5 rounded-full bg-cyan-500/80 text-white mb-2"><Clock size={10} /> NEXT LIVE</span>
+            <div className="text-xl font-black leading-tight">{upcoming[0].title}</div>
+            <div className="text-sm text-cyan-200">{upcoming[0].business_name} · starts in <span className="font-mono font-black"><Countdown iso={upcoming[0].scheduled_at} /></span></div>
+            <div className="flex gap-2 mt-3">
+              <span role="button" tabIndex={0} onClick={(e) => toggleRemind(e, upcoming[0])} data-testid="live-featured-remind"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 h-8 rounded-full"
+                    style={upcoming[0].reminded ? { background: "rgba(34,211,238,0.25)", color: "#67e8f9" } : { background: "rgba(255,255,255,0.14)", color: "#fff" }}>
+                <Bell size={12} /> {upcoming[0].reminded ? "Reminding" : "Remind me"}
+              </span>
+              <span role="button" tabIndex={0} onClick={(e) => openCal(e, upcoming[0])} data-testid="live-featured-calendar"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 h-8 rounded-full bg-white/[0.14] text-white">
+                <Calendar size={12} /> Add to calendar
+              </span>
+            </div>
+          </div>
+        </button>
+      )}
       <button onClick={() => setCreating(true)} data-testid="live-golive"
               className="w-full rounded-3xl p-5 flex items-center gap-4 border border-white/10 text-left"
               style={{ background: "linear-gradient(120deg,#3a0f52,#7f1d4a)" }}>

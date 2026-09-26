@@ -1,0 +1,45 @@
+{
+  "summary": "Tested ENH1 Perk Redemption Scan + ENH2 Featured Live Banner + ENH3 Cover Art AI Generator + ENH4 Perk Gifting on WEB + MOBILE + regression (owner-hidden). Backend 8/8 pytest pass (staff/lookup returns valid+customer for BAR-NEON2FOR, expired for BAR-OLD999, not_found for bogus; staff/lookup + /staff/redeem correctly return 403 not_bar_staff for freeuser; POST /api/bar-games/cover-art returns 200 with a RELATIVE /api/static/station_artwork/*.webp URL that is publicly reachable as image/webp; gift rejects not_friends 400; demo's friends list contains freeuser). WEB /shop/biz_demo_bar (demo owner): bar-game-scan opens bar-staff-scan modal with scan-code + scan-lookup — bogus → 'No matching code', BAR-OLD999 → 'Expired' + NO scan-redeem (correct), BAR-NEON2FOR → 'Valid — ready to redeem' + scan-redeem present + shows customer 'Demo Listener' (valid not tapped to preserve seed). Scheduler modal exposes scheduler-gen-cover — tapping fires POST /api/bar-games/cover-art, ~32s later scheduler-cover input auto-fills with 'https://mobile-games-v2.preview.emergentagent.com/api/static/station_artwork/…webp' (client correctly prepends backend base to relative path). Freeuser correctly does NOT see bar-game-scan / bar-game-customize / bar-game-schedule-live. Social > Live: live-featured banner renders with NEXT LIVE badge, title, business, countdown ('Starting now…'), live-featured-remind toggles to 'Reminding' after API roundtrip, live-featured-calendar present. /drink-perks: 2 perk-gift-<play_id> buttons (BAR-SOON123 + BAR-NEON2FOR; BAR-OLD999 expired has none, correct). Opening gift modal shows perk-gift-modal with 1 gift-friend-<id> row 'Free Tester' (not clicked to preserve seed). MOBILE (Expo preview): demo-login-btn logs in; /bar/scan/biz_demo_bar renders bar-scan-screen with same scan flow: bogus → 'No matching code', BAR-OLD999 → Expired + no scan-redeem, BAR-NEON2FOR → Valid + scan-redeem (customer 'Demo Listener'). /bar/perks: drink-perks-screen renders 2 perk-gift-* buttons; opening gift shows perk-gift-modal + 1 gift-friend-* row (Free Tester). Social tab-live (via social-tab-live) shows live-featured + remind + calendar testids; banner text shows title + countdown + Remind toggle works. /bar/schedule/biz_demo_bar exposes scheduler-gen-cover + scheduler-cover + scheduler-title. Parity: OK — same testids + behavior on web + mobile. LiveKit A/V mocked (not asserted); haptics/native share fire-and-forget.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter189_perkflows.py",
+    "/app/test_reports/pytest/iter189.xml"
+  ],
+  "action_items": [
+    "(Optional / LOW) Data note: the review referenced seeded upcoming 'Friday Night Live Shopping' (ls_demo_scheduled_01) as the featured, but the banner is currently showing an older test event 'TEST_Scheduled Friday Cocktail Night' (its scheduled_at is sooner). Not a bug — the banner correctly picks upcoming[0] by earliest scheduled_at — but consider cleaning up prior TEST_ liveshows or bumping ls_demo_scheduled_01 sooner so the demo banner matches the intended copy.",
+    "(Optional / cosmetic) routes/bar_games.py still has duplicate __all__ declarations flagged since iter185 — harmless, second one wins; safe to remove.",
+    "(Optional / cosmetic) SocialLive.jsx web: the live-featured element is a <button> containing role='button' <span> children for remind + calendar (nested interactive controls). Works in practice + a11y-linters may complain; consider making the outer container a plain <div role='button' tabIndex={0}> or moving remind/calendar out of the button subtree."
+  ],
+  "critical_code_review_comments": [
+    "backend routes/bar_games.py:433 — gift_perk raises HTTPException(400, {code: f'perk_{status}' ...}) but the fallback 'invalid' branch is only used when status == 'valid', which is unreachable (guarded by the same line's != check). The `else 'invalid'` clause is dead code — cosmetic.",
+    "backend routes/bar_games.py:459 — POST /cover-art has no per-business ownership check. Any authenticated user can generate cover art. Since the endpoint is also reused for user-tier rate-limiting via image_gen.generate() this is likely intended, but note there's no scoping to 'owner of a bar' — a free user could burn a bar-tier art credit even if they can't schedule a live event.",
+    "frontend BarStaffScan.jsx:39 — after a successful redeem, the local `result.status` flips to 'redeemed' and the scan-redeem button correctly disappears. But the toast says 'Perk redeemed 🍸' regardless of whether the second click was actually the burn or a stale button — because the button is only removed on the setResult after the response. Fine in practice (async click debounce via `busy` flag), just noting for defensive UX."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter189_perkflows.py",
+    "/app/test_reports/iteration_189.json",
+    "/app/test_reports/pytest/iter189.xml"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (all 4 ENH testids + owner-hidden regression verified on web and mobile)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (bar owner; friends with freeuser; wallet: BAR-NEON2FOR valid, BAR-SOON123 expiring-soon, BAR-OLD999 expired). freeuser@bigfm.dubai / FreePass123! (non-owner, demo's friend). Mobile: demo-login-btn.",
+  "seed_data_creation": "No new seed data created. Seed wallet perks (BAR-NEON2FOR, BAR-SOON123, BAR-OLD999) left UNTOUCHED (valid perk lookup performed but scan-redeem intentionally NOT clicked; gift modal opened but gift-friend intentionally NOT clicked). One AI cover-art image was generated during the web scheduler test and cached — this consumes an image-gen credit but leaves no persistent state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview URLs: web https://mobile-games-v2.preview.emergentagent.com , mobile Expo https://mobile-games-v2.expo.preview.emergentagent.com . Reach the bar via /shop/biz_demo_bar (demo owns it). All 4 ENH flows in iter189 work end-to-end on both surfaces. To reach the Featured Live banner on mobile navigate to /(tabs)/social?tab=live OR tap social-tab-live; on web /social?tab=live. The banner currently spotlights an older 'TEST_Scheduled Friday Cocktail Night' rather than the review's intended 'Friday Night Live Shopping' — consider cleaning up leftover TEST_ scheduled liveshows if you want the intended copy shown. Seeded 3-perk wallet is INTACT — please continue not to redeem/gift BAR-NEON2FOR or BAR-SOON123. Backend routes/bar_games.py still has cosmetic duplicate __all__ (harmless).",
+  "rca of the issue": "No new bug. All 4 enhancements (Perk Redemption Scan, Featured Live Banner, Cover Art Generator, Perk Gifting) are working end-to-end on web + mobile + backend contract. Only nits: (a) leftover TEST_ scheduled show is chosen as the current featured banner instead of ls_demo_scheduled_01; (b) cosmetic dead-code paths listed under critical_code_review_comments."
+}

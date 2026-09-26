@@ -113,6 +113,12 @@ export default function BarGameCard({ businessId }: { businessId: string }) {
             <Text style={[s.actionTxt, { color: '#f9a8d4' }]}>Schedule Live</Text>
           </Pressable>
         ) : null}
+        {data.is_owner ? (
+          <Pressable onPress={() => router.push(`/bar/scan/${businessId}` as any)} testID="bar-game-scan" style={[s.actionBtn, { backgroundColor: 'rgba(52,211,153,0.16)' }]}>
+            <Ionicons name="scan-outline" size={12} color="#34d399" />
+            <Text style={[s.actionTxt, { color: '#34d399' }]}>Redeem a perk</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={s.chipRow} testID="bar-game-sources">

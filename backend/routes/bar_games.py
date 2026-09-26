@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth import current_user
 
@@ -345,6 +345,134 @@ async def set_skin(business_id: str, body: SkinBody, request: Request,
     await db.bar_game_skins.update_one({"business_id": business_id},
                                        {"$set": patch}, upsert=True)
     return {"ok": True, "config": _public_config(await _get_skin(db, business_id))}
+
+
+def _is_owner_or_admin(profile: dict, user: dict) -> bool:
+    is_admin = (user.get("role") == "admin") or bool(user.get("is_admin"))
+    return is_admin or (profile or {}).get("owner_user_id") == user["user_id"]
+
+
+async def _perk_status(db, p: dict) -> str:
+    if not p or not p.get("win"):
+        return "not_found"
+    if p.get("redeemed"):
+        return "redeemed"
+    now = _now()
+    exp = _aware(p.get("expires_at"))
+    if not exp and isinstance(_aware(p.get("created_at")), datetime):
+        exp = _aware(p["created_at"]) + timedelta(days=_PERK_TTL_DAYS)
+    if exp and isinstance(exp, datetime) and now > exp:
+        return "expired"
+    return "valid"
+
+
+class CodeBody(BaseModel):
+    code: str = Field(..., min_length=3, max_length=40)
+
+
+async def _staff_find(db, business_id: str, code: str) -> Optional[dict]:
+    return await db.bar_game_plays.find_one(
+        {"business_id": business_id, "code": code.strip().upper(), "win": True})
+
+
+@router.post("/{business_id}/staff/lookup")
+async def staff_lookup(business_id: str, body: CodeBody, request: Request,
+                       user: dict = Depends(current_user)):
+    """Bar staff/owner validate a customer's drink code before burning it."""
+    db = request.app.state.db
+    profile = await db.marketplace_profiles.find_one({"business_id": business_id})
+    if not _is_bar(profile):
+        raise HTTPException(400, {"code": "not_a_bar"})
+    if not _is_owner_or_admin(profile, user):
+        raise HTTPException(403, {"code": "not_bar_staff"})
+    p = await _staff_find(db, business_id, body.code)
+    status = await _perk_status(db, p)
+    perk = None
+    if p:
+        cust = await db.users.find_one({"user_id": p.get("user_id")}, {"name": 1, "_id": 0})
+        perk = {"label": p.get("label"), "emoji": p.get("emoji"), "code": p.get("code"),
+                "customer": (cust or {}).get("name") or "Guest",
+                "expires_at": _iso(_aware(p.get("expires_at")))}
+    return {"status": status, "perk": perk}
+
+
+@router.post("/{business_id}/staff/redeem")
+async def staff_redeem(business_id: str, body: CodeBody, request: Request,
+                       user: dict = Depends(current_user)):
+    """Burn (redeem) a valid drink code at the bar."""
+    db = request.app.state.db
+    profile = await db.marketplace_profiles.find_one({"business_id": business_id})
+    if not _is_bar(profile):
+        raise HTTPException(400, {"code": "not_a_bar"})
+    if not _is_owner_or_admin(profile, user):
+        raise HTTPException(403, {"code": "not_bar_staff"})
+    p = await _staff_find(db, business_id, body.code)
+    status = await _perk_status(db, p)
+    if status != "valid":
+        return {"ok": False, "status": status}
+    await db.bar_game_plays.update_one(
+        {"_id": p["_id"]}, {"$set": {"redeemed": True, "redeemed_at": _now(),
+                                     "redeemed_by": user["user_id"]}})
+    return {"ok": True, "status": "redeemed",
+            "perk": {"label": p.get("label"), "emoji": p.get("emoji"), "code": p.get("code")}}
+
+
+class GiftBody(BaseModel):
+    friend_id: str = Field(..., min_length=3, max_length=64)
+
+
+@router.post("/plays/{play_id}/gift")
+async def gift_perk(play_id: str, body: GiftBody, request: Request,
+                    user: dict = Depends(current_user)):
+    """Transfer a won drink code to an accepted friend — it leaves your
+    wallet and lands in theirs."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    p = await db.bar_game_plays.find_one({"_id": play_id, "user_id": uid, "win": True})
+    status = await _perk_status(db, p)
+    if status != "valid":
+        raise HTTPException(400, {"code": f"perk_{status}" if status != "valid" else "invalid",
+                                  "message": "This perk can’t be gifted."})
+    friend = body.friend_id
+    fr = await db.social_friendships.find_one(
+        {"status": "accepted",
+         "$or": [{"user_a": uid, "user_b": friend}, {"user_a": friend, "user_b": uid}]})
+    if not fr:
+        raise HTTPException(400, {"code": "not_friends"})
+    await db.bar_game_plays.update_one(
+        {"_id": play_id}, {"$set": {"user_id": friend, "gifted_by": uid,
+                                    "gifted_at": _now(), "expiry_reminded": False}})
+    gifter = (user.get("name") or "A friend")
+    await db.social_notifications.insert_one({
+        "_id": "notif_" + uuid.uuid4().hex[:14], "user_id": friend,
+        "notif_type": "perk_gift", "source_user_id": uid, "source_post_id": None,
+        "business_id": p.get("business_id"),
+        "message": f"🎁 {gifter} gifted you a ‘{p.get('label')}’ perk at {p.get('business_name')}!"[:240],
+        "read": False, "created_at": _now()})
+    return {"ok": True}
+
+
+class CoverBody(BaseModel):
+    prompt: str = Field(..., min_length=2, max_length=200)
+
+
+@router.post("/cover-art")
+async def cover_art(body: CoverBody, request: Request,
+                    user: dict = Depends(current_user)):
+    """AI cover art for a Live event (reuses the shared image-gen service)."""
+    db = request.app.state.db
+    tier = "admin" if user.get("role") == "admin" else ("premium" if user.get("is_premium") else "free")
+    prompt = (f"Vibrant nightlife bar event poster background, {body.prompt.strip()}, "
+              f"neon cinematic lighting, moody, high detail, no text, no words")
+    from services import image_gen
+    res = await image_gen.generate(db, prompt=prompt, user_id=user["user_id"], tier=tier)
+    if not res.get("ok"):
+        code = res.get("error") or "generation_failed"
+        raise HTTPException(429 if code == "rate_limited" else 502,
+                            {"code": code, "used": res.get("used"), "limit": res.get("limit")})
+    # Return the RELATIVE path — each client prepends its own public backend
+    # URL so the stored cover_url resolves on both web and mobile.
+    return {"ok": True, "url": res["url"], "cached": res.get("cached", False)}
 
 
 # ─────────────────────────── Demo bar seed ─────────────────────────

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { Loader2, Ticket, ArrowLeft, Wine, CheckCircle2, Gift, Clock, Share2 } from "lucide-react";
+import { Loader2, Ticket, ArrowLeft, Wine, CheckCircle2, Gift, Clock, Share2, X } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
@@ -19,6 +19,8 @@ function expiryLabel(iso) {
 export default function DrinkPerks() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [giftFor, setGiftFor] = useState(null);
+  const [friends, setFriends] = useState([]);
 
   const load = useCallback(async () => {
     try { const { data } = await axios.get(`${API}/bar-games/wallet`, { withCredentials: true }); setData(data); }
@@ -41,6 +43,23 @@ export default function DrinkPerks() {
       if (navigator.share) await navigator.share({ title: "FUUSIC drink perk", text });
       else { await navigator.clipboard.writeText(text); toast.success("Perk copied — share it with a friend!"); }
     } catch (_) {}
+  };
+
+  const openGift = async (p) => {
+    setGiftFor(p);
+    try { const { data } = await axios.get(`${API}/social/friends`, { withCredentials: true }); setFriends(data.friends || []); }
+    catch (_) { setFriends([]); }
+  };
+  const doGift = async (friendId) => {
+    const pid = giftFor.play_id;
+    try {
+      await axios.post(`${API}/bar-games/plays/${pid}/gift`, { friend_id: friendId }, { withCredentials: true });
+      setData((d) => ({ ...d, items: d.items.filter((i) => i.play_id !== pid), active: Math.max(0, (d.active || 1) - 1) }));
+      setGiftFor(null);
+      toast.success("Perk gifted 🎁");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail?.code === "not_friends" ? "You can only gift to friends." : "Couldn’t gift.");
+    }
   };
 
   return (
@@ -95,10 +114,16 @@ export default function DrinkPerks() {
                             className="text-[11px] font-black px-3 h-9 rounded-full bg-emerald-500/20 text-emerald-300">
                       Mark redeemed
                     </button>
-                    <button onClick={() => share(p)} data-testid={`perk-share-${p.play_id}`}
-                            className="text-[11px] font-bold px-3 h-8 rounded-full bg-white/10 text-white inline-flex items-center gap-1.5">
-                      <Share2 size={12} /> Share
-                    </button>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => share(p)} data-testid={`perk-share-${p.play_id}`}
+                              className="text-[11px] font-bold px-3 h-8 rounded-full bg-white/10 text-white inline-flex items-center gap-1.5">
+                        <Share2 size={12} /> Share
+                      </button>
+                      <button onClick={() => openGift(p)} data-testid={`perk-gift-${p.play_id}`}
+                              className="text-[11px] font-bold px-3 h-8 rounded-full bg-pink-500/20 text-pink-200 inline-flex items-center gap-1.5">
+                        <Gift size={12} /> Gift
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -107,6 +132,35 @@ export default function DrinkPerks() {
           </div>
         )}
       </div>
+
+      {giftFor && (
+        <div className="fixed inset-0 z-[100] grid place-items-center p-4 bg-black/70 backdrop-blur-sm"
+             onClick={() => setGiftFor(null)} data-testid="perk-gift-modal">
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 p-5 max-h-[80vh] overflow-auto"
+               style={{ background: "linear-gradient(135deg,#160f2e,#241041)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 font-black"><Gift size={18} /> Gift “{giftFor.label}”</div>
+              <button onClick={() => setGiftFor(null)} className="text-slate-400" data-testid="gift-close"><X size={20} /></button>
+            </div>
+            <p className="text-[12px] text-slate-300/70 mb-3">Pick a friend — the perk leaves your wallet and lands in theirs.</p>
+            {friends.length === 0 ? (
+              <div className="text-sm text-slate-400 text-center py-6" data-testid="gift-no-friends">Add friends first to gift a perk.</div>
+            ) : (
+              <div className="space-y-2">
+                {friends.map((f) => (
+                  <button key={f.user_id} onClick={() => doGift(f.user_id)} data-testid={`gift-friend-${f.user_id}`}
+                          className="w-full flex items-center gap-3 rounded-xl bg-white/[0.04] border border-white/10 p-2.5 text-left hover:border-pink-400/40">
+                    <span className="w-9 h-9 rounded-full bg-purple-500/30 grid place-items-center overflow-hidden text-sm font-black">
+                      {f.avatar_url ? <img src={f.avatar_url} alt="" className="w-full h-full object-cover" /> : (f.name || "?").slice(0, 1)}
+                    </span>
+                    <span className="font-bold truncate">{f.name || "Listener"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,18 @@ export default function BarScheduleLive() {
   const [catalog, setCatalog] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([emptyProduct(), emptyProduct()]);
   const [busy, setBusy] = useState(false);
+  const [genBusy, setGenBusy] = useState(false);
+
+  const genCover = async () => {
+    const prompt = (title.trim() || `${bizName || 'bar'} live night`).slice(0, 180);
+    setGenBusy(true);
+    try {
+      const { data } = await api.post('/bar-games/cover-art', { prompt });
+      const base = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      setCover(data.url?.startsWith('http') ? data.url : `${base}${data.url}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (_) {} finally { setGenBusy(false); }
+  };
 
   const load = useCallback(async () => {
     try { const { data } = await api.get(`/bar-games/${id}`); setBizName(data.business_name || ''); } catch (_) {}
@@ -82,9 +94,14 @@ export default function BarScheduleLive() {
           ))}
         </View>
 
-        <Text style={s.lbl}>Cover image URL (optional)</Text>
+        <Text style={s.lbl}>Cover image (optional)</Text>
         {cover.trim() ? <ExpoImage source={{ uri: cover }} style={{ width: '100%', height: 110, borderRadius: RADIUS.md }} contentFit="cover" /> : null}
-        <TextInput value={cover} onChangeText={setCover} placeholder="https://… (shows in Upcoming)" autoCapitalize="none" placeholderTextColor={COLORS.textMuted} style={s.input} testID="scheduler-cover" />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TextInput value={cover} onChangeText={setCover} placeholder="Paste image URL…" autoCapitalize="none" placeholderTextColor={COLORS.textMuted} style={[s.input, { flex: 1 }]} testID="scheduler-cover" />
+          <TouchableOpacity onPress={genCover} disabled={genBusy} style={s.aiBtn} testID="scheduler-gen-cover">
+            {genBusy ? <ActivityIndicator color="#7c3aed" /> : <><Ionicons name="sparkles" size={14} color="#7c3aed" /><Text style={s.aiTxt}>AI</Text></>}
+          </TouchableOpacity>
+        </View>
 
         {catalog.length > 0 ? (
           <>
@@ -133,6 +150,8 @@ const s = StyleSheet.create({
   back: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.cardBorder },
   hTitle: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900' },
   input: { backgroundColor: COLORS.inputBg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.inputBorder, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: FONT.sm },
+  aiBtn: { flexDirection: 'row', gap: 4, paddingHorizontal: 14, borderRadius: RADIUS.md, backgroundColor: 'rgba(124,58,237,0.15)', alignItems: 'center', justifyContent: 'center' },
+  aiTxt: { color: '#7c3aed', fontWeight: '900', fontSize: FONT.sm },
   lbl: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 14, height: 34, borderRadius: 17, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.inputBorder, alignItems: 'center', justifyContent: 'center' },

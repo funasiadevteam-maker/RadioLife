@@ -4,9 +4,10 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { X, Plus, Trash2, Loader2, Radio, Calendar, ImagePlus, ShoppingBag } from "lucide-react";
+import { X, Plus, Trash2, Loader2, Radio, Calendar, ImagePlus, ShoppingBag, Sparkles } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
+const BACKEND = process.env.REACT_APP_BACKEND_URL || "";
 
 const emptyProduct = () => ({ title: "", price: "", offer: "", image_url: "" });
 
@@ -18,6 +19,20 @@ export default function BarOwnerScheduler({ businessId, businessName, onClose, o
   const [catalog, setCatalog] = useState([]);
   const [products, setProducts] = useState([emptyProduct(), emptyProduct()]);
   const [busy, setBusy] = useState(false);
+  const [genBusy, setGenBusy] = useState(false);
+
+  const genCover = async () => {
+    const prompt = (title.trim() || `${businessName || "bar"} live night`).slice(0, 180);
+    setGenBusy(true);
+    try {
+      const { data } = await axios.post(`${API}/bar-games/cover-art`, { prompt }, { withCredentials: true });
+      setCover(`${BACKEND}${data.url}`);
+      toast.success("Cover art generated 🎨");
+    } catch (e) {
+      const code = e?.response?.data?.detail?.code;
+      toast.error(code === "rate_limited" ? "Hourly art limit reached — try later." : "Couldn’t generate art. Paste a URL instead.");
+    } finally { setGenBusy(false); }
+  };
 
   useEffect(() => {
     axios.get(`${API}/shop/businesses/${businessId}/products`, { withCredentials: true })
@@ -76,10 +91,17 @@ export default function BarOwnerScheduler({ businessId, businessName, onClose, o
         <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} data-testid="scheduler-when"
                className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm text-slate-200 outline-none mb-4" />
 
-        <label className="block text-xs text-slate-300 font-bold mb-1 flex items-center gap-1.5"><ImagePlus size={12} /> Cover image URL (optional)</label>
+        <label className="block text-xs text-slate-300 font-bold mb-1 flex items-center gap-1.5"><ImagePlus size={12} /> Cover image (optional)</label>
         {cover.trim() && <img src={cover} alt="" className="w-full h-28 object-cover rounded-xl mb-2 border border-white/10" />}
-        <input value={cover} onChange={(e) => setCover(e.target.value)} placeholder="https://… (shows in Upcoming)" data-testid="scheduler-cover"
-               className="w-full rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm text-white outline-none mb-4" />
+        <div className="flex gap-2 mb-4">
+          <input value={cover} onChange={(e) => setCover(e.target.value)} placeholder="Paste image URL…" data-testid="scheduler-cover"
+                 className="flex-1 min-w-0 rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 text-sm text-white outline-none" />
+          <button onClick={genCover} disabled={genBusy} data-testid="scheduler-gen-cover"
+                  className="shrink-0 px-3 rounded-xl font-black inline-flex items-center gap-1.5"
+                  style={{ background: "rgba(168,85,247,0.25)", color: "#d8b4fe" }}>
+            {genBusy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} AI
+          </button>
+        </div>
 
         {catalog.length > 0 && (
           <div className="mb-3" data-testid="scheduler-catalog">

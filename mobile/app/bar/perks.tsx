@@ -1,6 +1,6 @@
 // Win Wallet (mobile) — "My drink perks": every bar-wheel prize the user won.
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, RefreshControl, Share } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, RefreshControl, Share, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Stack } from 'expo-router';
 import api from '../../src/api/client';
@@ -18,6 +18,8 @@ export default function DrinkPerks() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [giftFor, setGiftFor] = useState<any>(null);
+  const [friends, setFriends] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     try { const { data } = await api.get('/bar-games/wallet'); setData(data); }
@@ -35,6 +37,19 @@ export default function DrinkPerks() {
 
   const share = async (p: any) => {
     try { await Share.share({ message: `🍸 I won “${p.label}” at ${p.business_name} on FUUSIC! Redeem with code ${p.code}.` }); } catch (_) {}
+  };
+
+  const openGift = async (p: any) => {
+    setGiftFor(p);
+    try { const { data } = await api.get('/social/friends'); setFriends(data.friends || []); } catch (_) { setFriends([]); }
+  };
+  const doGift = async (fid: string) => {
+    const pid = giftFor.play_id;
+    try {
+      await api.post(`/bar-games/plays/${pid}/gift`, { friend_id: fid });
+      setData((d: any) => ({ ...d, items: d.items.filter((i: any) => i.play_id !== pid) }));
+      setGiftFor(null);
+    } catch (_) {}
   };
 
   return (
@@ -88,10 +103,16 @@ export default function DrinkPerks() {
                   <TouchableOpacity onPress={() => redeem(p.play_id)} testID={`perk-redeem-${p.play_id}`} style={s.redeemBtn}>
                     <Text style={s.redeemBtnTxt}>Mark redeemed</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => share(p)} testID={`perk-share-${p.play_id}`} style={s.shareBtn}>
-                    <Ionicons name="share-social-outline" size={12} color={COLORS.text} />
-                    <Text style={s.shareTxt}>Share</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity onPress={() => share(p)} testID={`perk-share-${p.play_id}`} style={s.shareBtn}>
+                      <Ionicons name="share-social-outline" size={12} color={COLORS.text} />
+                      <Text style={s.shareTxt}>Share</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => openGift(p)} testID={`perk-gift-${p.play_id}`} style={s.giftBtn}>
+                      <Ionicons name="gift-outline" size={12} color="#db2777" />
+                      <Text style={s.giftTxt}>Gift</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
             </View>
@@ -99,6 +120,31 @@ export default function DrinkPerks() {
           })}
         </ScrollView>
       )}
+
+      <Modal visible={!!giftFor} transparent animationType="slide" onRequestClose={() => setGiftFor(null)}>
+        <TouchableOpacity style={s.modalBg} activeOpacity={1} onPress={() => setGiftFor(null)} testID="perk-gift-modal">
+          <TouchableOpacity activeOpacity={1} style={s.sheet}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={s.sheetTitle}>🎁 Gift “{giftFor?.label}”</Text>
+              <TouchableOpacity onPress={() => setGiftFor(null)} testID="gift-close"><Ionicons name="close" size={22} color={COLORS.text} /></TouchableOpacity>
+            </View>
+            <Text style={s.sheetSub}>Pick a friend — the perk leaves your wallet and lands in theirs.</Text>
+            {friends.length === 0 ? (
+              <Text style={s.giftEmpty} testID="gift-no-friends">Add friends first to gift a perk.</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 320 }}>
+                {friends.map((f) => (
+                  <TouchableOpacity key={f.user_id} onPress={() => doGift(f.user_id)} testID={`gift-friend-${f.user_id}`} style={s.friendRow}>
+                    <View style={s.friendAv}><Text style={{ color: '#fff', fontWeight: '900' }}>{(f.name || '?').slice(0, 1)}</Text></View>
+                    <Text style={s.friendName} numberOfLines={1}>{f.name || 'Listener'}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -122,6 +168,16 @@ const s = StyleSheet.create({
   redeemBtnTxt: { color: COLORS.green, fontSize: FONT.xs, fontWeight: '900' },
   shareBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, height: 30, borderRadius: 15, backgroundColor: COLORS.inputBg },
   shareTxt: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '800' },
+  giftBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, height: 30, borderRadius: 15, backgroundColor: 'rgba(219,39,119,0.12)' },
+  giftTxt: { color: '#db2777', fontSize: FONT.xs, fontWeight: '800' },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: COLORS.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.md, paddingBottom: SPACING.xl },
+  sheetTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900' },
+  sheetSub: { color: COLORS.textDim, fontSize: FONT.xs, marginBottom: 12 },
+  giftEmpty: { color: COLORS.textMuted, fontSize: FONT.sm, textAlign: 'center', paddingVertical: 24 },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder },
+  friendAv: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.purple, alignItems: 'center', justifyContent: 'center' },
+  friendName: { flex: 1, color: COLORS.text, fontSize: FONT.md, fontWeight: '800' },
   redeemed: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   redeemedTxt: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700' },
 });
