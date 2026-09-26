@@ -24,6 +24,11 @@ Feature batch phases 4/5/6. LiveKit A/V stays MOCKED (stage placeholder; real vi
 - **Bug fixed by testing agent**: App.js had two imports concatenated (inline comment swallowed the next import line) → web crash; split into separate lines. Lesson: avoid trailing `// comment` on an import that precedes another import. Also hardened a TDZ foot-gun in both BarGameCards (`res.segments?.length || data?.config?.segments?.length || 1`).
 - Demo state reset: demo owns biz_demo_bar with 1 purchase + 1 free spin + 1 sample unredeemed perk (BAR-NEON2FOR); freeuser has 1 free spin.
 
+### 🍸 Perk Expiry + Owner Live Scheduler (2026-06, testing agent PASS iter187 — backend 6/6 + web + mobile)
+- **Perk Expiry**: won plays store `expires_at` = win time + `_PERK_TTL_DAYS` (14). `GET /api/bar-games/wallet` returns `expires_at` + `expired` per item (default expiry = created_at+14d for legacy plays); `active` excludes expired/redeemed. `POST /api/bar-games/plays/{id}/redeem` → 400 `perk_expired` when past expiry. Fixed a naive-vs-aware datetime compare with an `_aware()` coercion (Mongo returns naive UTC). Web `DrinkPerks.jsx` + mobile `bar/perks.tsx` show an `Expires in Xd` (amber) / `Expired` (red) badge (perk-expiry-<id>), dim expired cards, and replace the redeem button with an `Expired` label (perk-expired-<id>).
+- **Owner Live Scheduler**: bar owners schedule a Live Shopping event + pin products from their page. Web modal `pages/bar/BarOwnerScheduler.jsx` (title/desc/datetime + inline product rows) and mobile screen `app/bar/schedule/[id].tsx` (WHEN preset chips) both create a scheduled show via `POST /api/social/liveshows` (with `scheduled_at`) then pin each product via `POST /api/social/liveshows/{sid}/products`. Entry: owner-only `bar-game-schedule-live` on BarGameCard. No new backend endpoints (reused create + pin). Mobile submit now guards `router.canGoBack()` + success haptic.
+- Cleanup: removed a duplicate `__all__` in bar_games.py. Demo/free bar state de-duped & reset; only seed scheduled show ls_demo_scheduled_01 remains.
+
 
 
 ## 🌙 DREAMS & GUIDANCE — FOLLOW-UP WAVE (2026-09 fork, backend + web + mobile, testing agent PASS iter158 — 15/15 backend + web/mobile smoke)

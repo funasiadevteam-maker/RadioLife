@@ -1,0 +1,46 @@
+{
+  "summary": "Tested ENH1 Perk Expiry + ENH2 Owner Live Scheduler on both surfaces + touched regression flow (bar-game-card). Backend 6/6 pytest pass (wallet expires_at+expired shape, seeded BAR-NEON2FOR present, active count excludes expired/redeemed, expired perk returns 400 perk_expired, owner creates scheduled show + pins product, is_owner true/false gating). WEB: /shop/biz_demo_bar shows bar-game-card with owner-only bar-game-customize + bar-game-schedule-live for demo, both HIDDEN for freeuser. Scheduler modal opens with all testids (scheduler-title/desc/when/prod-0/prod-1/add-prod/submit) — add-prod adds scheduler-prod-2, submit closes modal and creates a real scheduled liveshow (verified 'WEB TEST Neon Friday' seeded + then cleaned). /drink-perks lists 'Free Neon Mojito' with amber 'Expires in 14d' badge (perk-expiry-<id>) + Mark redeemed button; injected expired play renders red 'Expired' badge + perk-expired-<id> label INSTEAD of redeem button, card dimmed to opacity 0.6. MOBILE (Expo preview): demo-login-btn works; /bar/perks shows drink-perks-screen with 'Expires in 14d' and Mark redeemed; /bar/schedule/biz_demo_bar renders bar-schedule-screen with title/desc + all 5 preset chips (scheduler-when-1/3/6/24/48) + prod-0/1 + add-prod + submit; submit successfully creates scheduled liveshow 'MOBILE TEST Live' (verified via API, then cleaned). Parity: OK — both surfaces expose the same expiry badge + expired blocking + owner-only scheduler entry. LiveKit A/V mocked (not asserted). Sound/haptics fire silently — spin regression untouched but no console errors.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [
+        {"component": "BarScheduleLive (/app/mobile/app/bar/schedule/[id].tsx)", "issue": "After a successful schedule submit, submit() calls router.back() unconditionally. When the user opens the screen via a deep link / direct URL (no navigation history), Expo Router logs 'The action GO_BACK was not handled by any navigator'. Minor UX-only — the show IS created and persisted. Consider router.canGoBack() ? router.back() : router.replace('/(tabs)/social') and also surface a success toast so the user gets confirmation.", "testID": "scheduler-submit", "priority": "LOW"}
+      ],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter187_perk_expiry_scheduler.py",
+    "/app/test_reports/pytest/iter187.xml"
+  ],
+  "action_items": [
+    "(Optional / LOW) Mobile BarScheduleLive: guard router.back() with router.canGoBack() and add a success toast on schedule create so users on deep-linked entries get confirmation instead of a silent GO_BACK warning.",
+    "(Optional / LOW) Web BarOwnerScheduler + DrinkPerks: after schedule submit consider auto-nudging the user to Social > Live > Upcoming (or firing a toast that links there). Currently the modal just closes."
+  ],
+  "critical_code_review_comments": [
+    "routes/bar_games.py still has TWO __all__ declarations at lines 336 and 389 — only the second one takes effect (harmless, flagged in iter185 and iter186; still not cleaned up).",
+    "BarGameCard.spin() (line 104) still uses the TDZ-style fallback `res.segments?.length || data?.config?.segments?.length` (not actually a TDZ since it's inside async fn body, but the `segments` local shadow declared on line 132 is unused before line 104 — code reads confusingly). Not a bug, but readability.",
+    "DrinkPerks.jsx line 33: after a successful redeem the local optimistic update decrements `active` — but does not check whether the item was already redeemed/expired locally. In practice unreachable because expired items don't render a Mark-redeemed button, but worth a guard if the wallet ever ships multi-tab sync."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter187_perk_expiry_scheduler.py",
+    "/app/test_reports/iteration_187.json",
+    "/app/test_reports/pytest/iter187.xml"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (all ENH1 + ENH2 selectors + owner-hidden regression verified on web and mobile)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (bar owner, has BAR-NEON2FOR perk). freeuser@bigfm.dubai / FreePass123! (non-owner). Mobile: demo-login-btn.",
+  "seed_data_creation": "Created + cleaned within this run: (a) test scheduled liveshow 'WEB TEST Neon Friday' via WEB, (b) test scheduled liveshow 'MOBILE TEST Live' via MOBILE, (c) temporary expired bar_game_plays doc bgp_uitest_expired for demo user to prove red 'Expired' UI + 400 perk_expired path. All cleaned. Seeded BAR-NEON2FOR perk for demo user remains untouched and unredeemed (Expires in 14d).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview URLs: web https://mobile-games-v2.preview.emergentagent.com , mobile Expo https://mobile-games-v2.expo.preview.emergentagent.com . Reach the bar wheel from /shop/biz_demo_bar (owner: demo). To reproduce the expired-perk UI on web, insert a play doc directly (`db.bar_game_plays.insert_one({_id:'bgp_uitest_expired', user_id:<demo_uid>, business_id:'biz_demo_bar', win:True, code:'BAR-UITESTX', expires_at:<past>, created_at:<past-14d>, redeemed:False, label:'…', emoji:'🍸'})`) then open /drink-perks — you should see perk-expiry-* and perk-expired-* red badges + no redeem button + opacity 0.6. Mobile schedule submit calls router.back() unguarded — that's the only minor UX nit found. Backend routes/bar_games.py still has a duplicate __all__ (harmless).",
+  "rca of the issue": "No new bug this iteration — the two ENH features shipped work end-to-end (backend + web + mobile). One LOW-priority mobile UX nit: BarScheduleLive.submit() calls router.back() on a deep-link entry where there is no back stack, producing an Expo Router GO_BACK console warning and no success toast; suggested guard + toast in action_items."
+}

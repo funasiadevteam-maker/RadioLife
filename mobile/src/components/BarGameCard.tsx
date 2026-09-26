@@ -107,6 +107,12 @@ export default function BarGameCard({ businessId }: { businessId: string }) {
             <Text style={[s.actionTxt, { color: accent }]}>Customize wheel</Text>
           </Pressable>
         ) : null}
+        {data.is_owner ? (
+          <Pressable onPress={() => router.push(`/bar/schedule/${businessId}` as any)} testID="bar-game-schedule-live" style={[s.actionBtn, { backgroundColor: 'rgba(236,72,153,0.18)' }]}>
+            <Ionicons name="radio-outline" size={12} color="#f9a8d4" />
+            <Text style={[s.actionTxt, { color: '#f9a8d4' }]}>Schedule Live</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={s.chipRow} testID="bar-game-sources">

@@ -4,9 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { Loader2, Ticket, ArrowLeft, Wine, CheckCircle2, Gift } from "lucide-react";
+import { Loader2, Ticket, ArrowLeft, Wine, CheckCircle2, Gift, Clock } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
+
+function expiryLabel(iso) {
+  if (!iso) return null;
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return { expired: true, text: "Expired" };
+  const d = Math.ceil(diff / 86400000);
+  return { expired: false, text: `Expires in ${d}d` };
+}
 
 export default function DrinkPerks() {
   const navigate = useNavigate();
@@ -47,11 +55,14 @@ export default function DrinkPerks() {
           </div>
         ) : (
           <div className="space-y-3">
-            {data.items.map((p) => (
+            {data.items.map((p) => {
+              const exp = expiryLabel(p.expires_at);
+              const isExpired = p.expired || (exp && exp.expired);
+              return (
               <div key={p.play_id} data-testid={`perk-${p.play_id}`}
                    className="rounded-2xl border p-4 flex items-center gap-4"
-                   style={{ background: p.redeemed ? "rgba(255,255,255,0.03)" : "rgba(52,211,153,0.08)",
-                            borderColor: p.redeemed ? "rgba(255,255,255,0.1)" : "#34d39955", opacity: p.redeemed ? 0.6 : 1 }}>
+                   style={{ background: (p.redeemed || isExpired) ? "rgba(255,255,255,0.03)" : "rgba(52,211,153,0.08)",
+                            borderColor: (p.redeemed || isExpired) ? "rgba(255,255,255,0.1)" : "#34d39955", opacity: (p.redeemed || isExpired) ? 0.6 : 1 }}>
                 <span className="text-3xl">{p.emoji || "🍹"}</span>
                 <div className="flex-1 min-w-0">
                   <div className="font-black truncate">{p.label}</div>
@@ -59,9 +70,17 @@ export default function DrinkPerks() {
                   <div className="inline-flex items-center gap-1.5 mt-1 font-mono font-black text-emerald-300 text-sm">
                     <Ticket size={13} /> {p.code}
                   </div>
+                  {exp && (
+                    <div className={`text-[11px] font-bold mt-1 inline-flex items-center gap-1 ${isExpired ? "text-rose-400" : "text-amber-300"}`}
+                         data-testid={`perk-expiry-${p.play_id}`}>
+                      <Clock size={11} /> {exp.text}
+                    </div>
+                  )}
                 </div>
                 {p.redeemed ? (
                   <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1"><CheckCircle2 size={13} /> Redeemed</span>
+                ) : isExpired ? (
+                  <span className="text-[11px] font-bold text-rose-400 flex items-center gap-1" data-testid={`perk-expired-${p.play_id}`}>Expired</span>
                 ) : (
                   <button onClick={() => redeem(p.play_id)} data-testid={`perk-redeem-${p.play_id}`}
                           className="text-[11px] font-black px-3 h-9 rounded-full bg-emerald-500/20 text-emerald-300">
@@ -69,7 +88,8 @@ export default function DrinkPerks() {
                   </button>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

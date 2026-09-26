@@ -8,8 +8,9 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Loader2, Wine, Ticket, RefreshCw, Sparkles, Gift, Clock, Palette, Wallet } from "lucide-react";
+import { Loader2, Wine, Ticket, RefreshCw, Sparkles, Gift, Clock, Palette, Wallet, Radio } from "lucide-react";
 import BarSkinEditor from "./BarSkinEditor";
+import BarOwnerScheduler from "./BarOwnerScheduler";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 const WHEEL = ["#a855f7", "#ec4899", "#f59e0b", "#22d3ee", "#34d399", "#f472b6", "#8b5cf6"];
@@ -73,6 +74,7 @@ export default function BarGameCard({ businessId }) {
   const [rot, setRot] = useState(0);
   const [result, setResult] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
   const audioRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -164,6 +166,13 @@ export default function BarGameCard({ businessId }) {
             <Palette size={12} /> Customize wheel
           </button>
         )}
+        {data.is_owner && (
+          <button onClick={() => setScheduling(true)} data-testid="bar-game-schedule-live"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold rounded-full px-3 py-1.5"
+                  style={{ background: "rgba(236,72,153,0.18)", color: "#f9a8d4" }}>
+            <Radio size={12} /> Schedule Live event
+          </button>
+        )}
       </div>
 
       {/* spin sources */}
@@ -250,6 +259,11 @@ export default function BarGameCard({ businessId }) {
         <BarSkinEditor businessId={businessId} config={data.config}
           onClose={() => setEditing(false)}
           onSaved={(cfg) => { setEditing(false); setData((d) => ({ ...d, config: cfg })); toast.success("Wheel updated 🎨"); }} />
+      )}
+      {scheduling && (
+        <BarOwnerScheduler businessId={businessId} businessName={data.business_name}
+          onClose={() => setScheduling(false)}
+          onScheduled={() => setScheduling(false)} />
       )}
     </div>
   );

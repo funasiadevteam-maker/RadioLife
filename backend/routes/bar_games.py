@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/bar-games", tags=["bar-games"])
 _RNG = secrets.SystemRandom()
 
 _BAR_CATEGORIES = {"bar", "club_lounge", "club", "lounge", "pub", "nightclub", "cocktail_bar"}
+_PERK_TTL_DAYS = 14  # won drink codes expire after two weeks
 
 # Drink-themed wheel. `win` prizes issue a redemption code; the two consolation
 # segments keep it honest (not every spin wins).
@@ -56,6 +57,13 @@ def _next_midnight_iso() -> str:
 
 def _iso(v):
     return v.isoformat() if isinstance(v, datetime) else v
+
+
+def _aware(dt):
+    """Mongo returns naive UTC datetimes — coerce to aware for safe compares."""
+    if isinstance(dt, datetime) and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _is_bar(profile: dict) -> bool:
@@ -161,16 +169,24 @@ async def _status(db, user_id: str, business_id: str) -> dict:
 async def bar_game_wallet(request: Request, user: dict = Depends(current_user)):
     """'My drink perks' — every winning code the user has collected."""
     db = request.app.state.db
+    now = _now()
     items = []
     async for p in db.bar_game_plays.find(
             {"user_id": user["user_id"], "win": True}).sort("created_at", -1).limit(100):
+        created = _aware(p.get("created_at"))
+        exp = _aware(p.get("expires_at"))
+        if not exp and isinstance(created, datetime):
+            exp = created + timedelta(days=_PERK_TTL_DAYS)
+        expired = bool(exp and isinstance(exp, datetime) and now > exp)
+        redeemed = bool(p.get("redeemed"))
         items.append({
             "play_id": p["_id"], "business_id": p.get("business_id"),
             "business_name": p.get("business_name"), "label": p.get("label"),
             "emoji": p.get("emoji"), "code": p.get("code"),
-            "redeemed": bool(p.get("redeemed")),
-            "created_at": _iso(p.get("created_at"))})
-    active = sum(1 for i in items if not i["redeemed"])
+            "redeemed": redeemed, "expired": expired,
+            "expires_at": _iso(exp),
+            "created_at": _iso(created)})
+    active = sum(1 for i in items if not i["redeemed"] and not i["expired"])
     return {"items": items, "count": len(items), "active": active}
 
 
@@ -179,11 +195,19 @@ async def bar_game_redeem(play_id: str, request: Request,
                           user: dict = Depends(current_user)):
     """Mark a won perk as redeemed (once used at the bar)."""
     db = request.app.state.db
-    r = await db.bar_game_plays.update_one(
-        {"_id": play_id, "user_id": user["user_id"], "win": True},
-        {"$set": {"redeemed": True, "redeemed_at": _now()}})
-    if r.matched_count == 0:
+    now = _now()
+    p = await db.bar_game_plays.find_one(
+        {"_id": play_id, "user_id": user["user_id"], "win": True})
+    if not p:
         raise HTTPException(404, {"code": "perk_not_found"})
+    exp = _aware(p.get("expires_at"))
+    if not exp and isinstance(_aware(p.get("created_at")), datetime):
+        exp = _aware(p["created_at"]) + timedelta(days=_PERK_TTL_DAYS)
+    if exp and isinstance(exp, datetime) and now > exp:
+        raise HTTPException(400, {"code": "perk_expired",
+                                  "message": "This perk has expired."})
+    await db.bar_game_plays.update_one(
+        {"_id": play_id}, {"$set": {"redeemed": True, "redeemed_at": now}})
     return {"ok": True, "redeemed": True}
 
 
@@ -251,6 +275,7 @@ async def bar_game_spin(business_id: str, request: Request,
         "business_id": business_id, "business_name": profile.get("public_name"),
         "segment_index": seg["index"], "label": seg["label"], "emoji": seg["emoji"],
         "win": win, "code": code, "redeemed": False, "source": source,
+        "expires_at": (_now() + timedelta(days=_PERK_TTL_DAYS)) if win else None,
         "created_at": _now()}
     await db.bar_game_plays.insert_one(play)
     available = await db.bar_game_unlocks.count_documents(
@@ -306,9 +331,6 @@ async def set_skin(business_id: str, body: SkinBody, request: Request,
     await db.bar_game_skins.update_one({"business_id": business_id},
                                        {"$set": patch}, upsert=True)
     return {"ok": True, "config": _public_config(await _get_skin(db, business_id))}
-
-
-__all__ = ["router", "ensure_bar_game_indexes"]
 
 
 # ─────────────────────────── Demo bar seed ─────────────────────────

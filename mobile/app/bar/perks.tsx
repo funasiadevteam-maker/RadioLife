@@ -6,6 +6,14 @@ import { useRouter, useFocusEffect, Stack } from 'expo-router';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
 
+function expiryLabel(iso?: string) {
+  if (!iso) return null;
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return { expired: true, text: 'Expired' };
+  const d = Math.ceil(diff / 86400000);
+  return { expired: false, text: `Expires in ${d}d` };
+}
+
 export default function DrinkPerks() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
@@ -48,23 +56,35 @@ export default function DrinkPerks() {
               <Ionicons name="wine-outline" size={34} color={COLORS.textMuted} />
               <Text style={s.emptyTxt}>No perks yet — spin a bar wheel to win free drinks and deals. 🍸</Text>
             </View>
-          ) : data.items.map((p: any) => (
-            <View key={p.play_id} testID={`perk-${p.play_id}`} style={[s.card, p.redeemed && { opacity: 0.55 }]}>
+          ) : data.items.map((p: any) => {
+            const exp = expiryLabel(p.expires_at);
+            const isExpired = p.expired || (exp && exp.expired);
+            return (
+            <View key={p.play_id} testID={`perk-${p.play_id}`} style={[s.card, (p.redeemed || isExpired) && { opacity: 0.55 }]}>
               <Text style={{ fontSize: 30 }}>{p.emoji || '🍹'}</Text>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={s.label} numberOfLines={1}>{p.label}</Text>
                 <Text style={s.biz} numberOfLines={1}>{p.business_name}</Text>
                 <View style={s.codeRow}><Ionicons name="ticket" size={13} color={COLORS.green} /><Text style={s.code}>{p.code}</Text></View>
+                {exp ? (
+                  <View style={s.expRow} testID={`perk-expiry-${p.play_id}`}>
+                    <Ionicons name="time-outline" size={11} color={isExpired ? COLORS.red : COLORS.gold} />
+                    <Text style={[s.expTxt, { color: isExpired ? COLORS.red : COLORS.gold }]}>{exp.text}</Text>
+                  </View>
+                ) : null}
               </View>
               {p.redeemed ? (
                 <View style={s.redeemed}><Ionicons name="checkmark-circle" size={13} color={COLORS.textMuted} /><Text style={s.redeemedTxt}>Redeemed</Text></View>
+              ) : isExpired ? (
+                <Text style={[s.redeemedTxt, { color: COLORS.red }]} testID={`perk-expired-${p.play_id}`}>Expired</Text>
               ) : (
                 <TouchableOpacity onPress={() => redeem(p.play_id)} testID={`perk-redeem-${p.play_id}`} style={s.redeemBtn}>
                   <Text style={s.redeemBtnTxt}>Mark redeemed</Text>
                 </TouchableOpacity>
               )}
             </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -84,6 +104,8 @@ const s = StyleSheet.create({
   biz: { color: COLORS.textMuted, fontSize: FONT.xs },
   codeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   code: { color: COLORS.green, fontWeight: '900', fontSize: FONT.sm, letterSpacing: 1 },
+  expRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  expTxt: { fontSize: FONT.xs, fontWeight: '800' },
   redeemBtn: { paddingHorizontal: 12, height: 34, borderRadius: 17, backgroundColor: 'rgba(22,163,74,0.14)', alignItems: 'center', justifyContent: 'center' },
   redeemBtnTxt: { color: COLORS.green, fontSize: FONT.xs, fontWeight: '900' },
   redeemed: { flexDirection: 'row', alignItems: 'center', gap: 4 },
