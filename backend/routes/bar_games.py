@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from auth import current_user
 
@@ -42,6 +43,17 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _today() -> str:
+    return _now().strftime("%Y-%m-%d")
+
+
+def _next_midnight_iso() -> str:
+    n = _now()
+    nxt = (n.replace(hour=0, minute=0, second=0, microsecond=0)
+           + timedelta(days=1))
+    return nxt.isoformat()
+
+
 def _iso(v):
     return v.isoformat() if isinstance(v, datetime) else v
 
@@ -54,19 +66,39 @@ def _is_bar(profile: dict) -> bool:
     return cat in _BAR_CATEGORIES or sub in _BAR_CATEGORIES
 
 
+async def _get_skin(db, business_id: str) -> Optional[dict]:
+    return await db.bar_game_skins.find_one({"business_id": business_id})
+
+
+def _segments_for(skin: Optional[dict]) -> list:
+    segs = (skin or {}).get("segments")
+    if isinstance(segs, list) and len(segs) >= 3:
+        return segs
+    return SEGMENTS
+
+
 async def ensure_bar_game_indexes(db) -> None:
     await db.bar_game_unlocks.create_index(
         [("user_id", 1), ("business_id", 1), ("consumed", 1)], name="bgu_lookup")
     await db.bar_game_unlocks.create_index("order_id", name="bgu_order")
     await db.bar_game_plays.create_index(
         [("user_id", 1), ("created_at", -1)], name="bgp_time")
+    await db.bar_game_free_claims.create_index("_id", name="bgfc_id")
+    await db.bar_game_skins.create_index("business_id", unique=True, name="bgs_biz")
 
 
-def _public_config() -> dict:
+def _public_config(skin: Optional[dict] = None) -> dict:
+    segs = _segments_for(skin)
+    theme = {
+        "accent": (skin or {}).get("accent") or "#a855f7",
+        "accent2": (skin or {}).get("accent2") or "#ec4899",
+        "logo_url": (skin or {}).get("logo_url"),
+    }
     return {
         "segments": [{"label": s["label"], "emoji": s["emoji"], "win": s["win"]}
-                     for s in SEGMENTS],
-        "how_it_works": "Buy a round at this bar to unlock a spin. Land a drink perk and we’ll drop a code you can redeem at the bar.",
+                     for s in segs],
+        "theme": theme,
+        "how_it_works": "Buy a round at this bar to unlock a spin — plus one FREE spin every day. Land a drink perk and we’ll drop a code you can redeem at the bar.",
         "spins_per_purchase": 1,
     }
 
@@ -101,6 +133,10 @@ async def _status(db, user_id: str, business_id: str) -> dict:
     await _grant_from_orders(db, user_id, business_id)
     available = await db.bar_game_unlocks.count_documents(
         {"user_id": user_id, "business_id": business_id, "consumed": False})
+    free_used = await db.bar_game_free_claims.find_one(
+        {"_id": f"{user_id}:{business_id}:{_today()}"})
+    free_available = not bool(free_used)
+    skin = await _get_skin(db, business_id)
     last = await db.bar_game_plays.find_one(
         {"user_id": user_id, "business_id": business_id}, sort=[("created_at", -1)])
     return {
@@ -108,7 +144,10 @@ async def _status(db, user_id: str, business_id: str) -> dict:
         "business_id": business_id,
         "business_name": profile.get("public_name"),
         "spins_available": available,
-        "config": _public_config(),
+        "free_spin_available": free_available,
+        "next_free_reset": _next_midnight_iso(),
+        "total_playable": available + (1 if free_available else 0),
+        "config": _public_config(skin),
         "last_result": {
             "win": bool(last.get("win")), "label": last.get("label"),
             "code": last.get("code"), "created_at": _iso(last.get("created_at")),
@@ -136,46 +175,105 @@ async def bar_game_claim(business_id: str, request: Request,
     return {"granted": granted, **st}
 
 
-def _draw() -> dict:
-    total = sum(s["weight"] for s in SEGMENTS)
+def _draw(segments: list) -> dict:
+    total = sum(s["weight"] for s in segments)
     r = _RNG.uniform(0, total)
     upto = 0.0
-    for i, s in enumerate(SEGMENTS):
+    for i, s in enumerate(segments):
         upto += s["weight"]
         if r <= upto:
             return {"index": i, **s}
-    return {"index": len(SEGMENTS) - 1, **SEGMENTS[-1]}
+    return {"index": len(segments) - 1, **segments[-1]}
 
 
 @router.post("/{business_id}/spin")
 async def bar_game_spin(business_id: str, request: Request,
                         user: dict = Depends(current_user)):
     db = request.app.state.db
+    uid = user["user_id"]
     profile = await db.marketplace_profiles.find_one({"business_id": business_id})
     if not _is_bar(profile):
         raise HTTPException(400, {"code": "not_a_bar"})
-    # Consume one available unlock atomically.
+    # 1) Prefer a purchase unlock (consume atomically).
     unlock = await db.bar_game_unlocks.find_one_and_update(
-        {"user_id": user["user_id"], "business_id": business_id, "consumed": False},
+        {"user_id": uid, "business_id": business_id, "consumed": False},
         {"$set": {"consumed": True, "consumed_at": _now()}})
+    source = "purchase"
     if not unlock:
-        raise HTTPException(403, {"code": "no_spin_unlocked",
-                                  "message": "Buy a round at this bar to unlock a spin."})
-    seg = _draw()
+        # 2) Fall back to the once-a-day FREE spin (atomic claim per UTC day).
+        claim_id = f"{uid}:{business_id}:{_today()}"
+        try:
+            await db.bar_game_free_claims.insert_one(
+                {"_id": claim_id, "user_id": uid, "business_id": business_id,
+                 "day": _today(), "created_at": _now()})
+            source = "daily_free"
+        except Exception:
+            raise HTTPException(403, {"code": "no_spin_unlocked",
+                                      "message": "You’ve used today’s free spin — buy a round to unlock more."})
+    skin = await _get_skin(db, business_id)
+    seg = _draw(_segments_for(skin))
     win = bool(seg["win"])
     code = ("BAR-" + uuid.uuid4().hex[:8].upper()) if win else None
     play = {
-        "_id": f"bgp_{uuid.uuid4().hex[:16]}", "user_id": user["user_id"],
+        "_id": f"bgp_{uuid.uuid4().hex[:16]}", "user_id": uid,
         "business_id": business_id, "business_name": profile.get("public_name"),
         "segment_index": seg["index"], "label": seg["label"], "emoji": seg["emoji"],
-        "win": win, "code": code, "redeemed": False, "created_at": _now()}
+        "win": win, "code": code, "redeemed": False, "source": source,
+        "created_at": _now()}
     await db.bar_game_plays.insert_one(play)
     available = await db.bar_game_unlocks.count_documents(
-        {"user_id": user["user_id"], "business_id": business_id, "consumed": False})
+        {"user_id": uid, "business_id": business_id, "consumed": False})
+    free_used = await db.bar_game_free_claims.find_one(
+        {"_id": f"{uid}:{business_id}:{_today()}"})
     return {"win": win, "segment_index": seg["index"], "label": seg["label"],
             "emoji": seg["emoji"], "prize": seg["label"] if win else None,
-            "code": code, "spins_available": available,
-            "segments": _public_config()["segments"]}
+            "code": code, "spins_available": available, "source": source,
+            "free_spin_available": not bool(free_used),
+            "next_free_reset": _next_midnight_iso(),
+            "segments": _public_config(skin)["segments"]}
+
+
+class SkinBody(BaseModel):
+    accent: Optional[str] = None
+    accent2: Optional[str] = None
+    logo_url: Optional[str] = None
+    segments: Optional[list] = None
+
+
+@router.put("/{business_id}/skin")
+async def set_skin(business_id: str, body: SkinBody, request: Request,
+                   user: dict = Depends(current_user)):
+    """Bar owner (or admin) themes the wheel — colours, logo & signature-drink
+    prizes. Segments require label/emoji/win/weight; win/lose mix recommended."""
+    db = request.app.state.db
+    profile = await db.marketplace_profiles.find_one({"business_id": business_id})
+    if not _is_bar(profile):
+        raise HTTPException(400, {"code": "not_a_bar"})
+    is_admin = (user.get("role") == "admin") or bool(user.get("is_admin"))
+    if not is_admin and profile.get("owner_user_id") != user["user_id"]:
+        raise HTTPException(403, {"code": "not_bar_owner"})
+    patch: dict = {"business_id": business_id, "updated_at": _now()}
+    if body.accent:
+        patch["accent"] = body.accent
+    if body.accent2:
+        patch["accent2"] = body.accent2
+    if body.logo_url is not None:
+        patch["logo_url"] = body.logo_url
+    if body.segments:
+        clean = []
+        for s in body.segments:
+            if not isinstance(s, dict) or not s.get("label"):
+                continue
+            clean.append({"label": str(s["label"])[:40],
+                          "emoji": str(s.get("emoji") or "🍹")[:4],
+                          "win": bool(s.get("win", True)),
+                          "weight": max(1, int(s.get("weight") or 1))})
+        if len(clean) < 3:
+            raise HTTPException(400, {"code": "need_min_3_segments"})
+        patch["segments"] = clean
+    await db.bar_game_skins.update_one({"business_id": business_id},
+                                       {"$set": patch}, upsert=True)
+    return {"ok": True, "config": _public_config(await _get_skin(db, business_id))}
 
 
 __all__ = ["router", "ensure_bar_game_indexes"]
@@ -213,6 +311,22 @@ async def seed_demo_bar(db) -> None:
             "items": [{"name": "House Cocktail", "qty": 2}],
             "total_cents": 3600, "payment_status": "paid", "status": "accepted",
             "created_at": now, "updated_at": now})
+    # Signature neon skin so the demo bar shows the theming capability.
+    if not await db.bar_game_skins.find_one({"business_id": _DEMO_BAR_ID}):
+        await db.bar_game_skins.insert_one({
+            "business_id": _DEMO_BAR_ID,
+            "accent": "#22d3ee", "accent2": "#f472b6",
+            "logo_url": "https://images.unsplash.com/photo-1514933651103-005eec06c04b?crop=entropy&cs=srgb&fm=jpg&q=85&w=200",
+            "segments": [
+                {"label": "Free Neon Mojito", "emoji": "🍹", "win": True, "weight": 6},
+                {"label": "2-for-1 Cosmo", "emoji": "🍸", "win": True, "weight": 9},
+                {"label": "25% off your tab", "emoji": "🏷️", "win": True, "weight": 13},
+                {"label": "Free bar bites", "emoji": "🍤", "win": True, "weight": 11},
+                {"label": "Glow-shot on us", "emoji": "🥃", "win": True, "weight": 10},
+                {"label": "So close — sip again", "emoji": "😅", "win": False, "weight": 19},
+                {"label": "One more round?", "emoji": "🔄", "win": False, "weight": 19},
+            ],
+            "updated_at": now})
 
 
 __all__ = ["router", "ensure_bar_game_indexes", "seed_demo_bar"]

@@ -1,21 +1,30 @@
-// Phase 5 — Gamified Bar Purchase. Renders a drink-themed spin wheel on the
-// bar's page. Renders NOTHING unless the business is a bar/club. A spin is
-// unlocked by any paid order at this bar (server-verified).
+// Phase 5 — Gamified Bar Purchase. Drink-themed spin wheel on the bar's page.
+// Renders NOTHING unless the business is a bar/club. Spins come from paid orders
+// PLUS one free spin per day. Each bar can theme the wheel (colours, logo,
+// signature-drink prizes) via /api/bar-games/{id}/skin.
 import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Loader2, Wine, Ticket, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, Wine, Ticket, RefreshCw, Sparkles, Gift, Clock } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
-const COLORS = ["#a855f7", "#ec4899", "#f59e0b", "#22d3ee", "#34d399", "#f472b6", "#8b5cf6"];
+const WHEEL = ["#a855f7", "#ec4899", "#f59e0b", "#22d3ee", "#34d399", "#f472b6", "#8b5cf6"];
+
+function resetIn(iso) {
+  if (!iso) return "";
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return "soon";
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return h >= 1 ? `${h}h ${m}m` : `${m}m`;
+}
 
 export default function BarGameCard({ businessId }) {
   const [data, setData] = useState(null);
   const [spinning, setSpinning] = useState(false);
   const [rot, setRot] = useState(0);
   const [result, setResult] = useState(null);
-  const wheelRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
@@ -39,76 +48,99 @@ export default function BarGameCard({ businessId }) {
     if (spinning) return;
     setSpinning(true); setResult(null);
     try {
-      const { data } = await axios.post(`${API}/bar-games/${businessId}/spin`, {}, { withCredentials: true });
-      const n = (data.segments || segments).length;
+      const { data: res } = await axios.post(`${API}/bar-games/${businessId}/spin`, {}, { withCredentials: true });
+      const n = (res.segments || segments).length;
       const seg = 360 / n;
-      const target = 360 * 5 + (360 - (data.segment_index + 0.5) * seg);
+      const target = 360 * 5 + (360 - (res.segment_index + 0.5) * seg);
       setRot((r) => r - (r % 360) + target);
       setTimeout(() => {
         setSpinning(false);
-        setResult(data);
-        setData((d) => ({ ...d, spins_available: data.spins_available }));
-        if (data.win) toast.success(`You won: ${data.prize}! 🍸`);
+        setResult(res);
+        setData((d) => ({ ...d, spins_available: res.spins_available,
+          free_spin_available: res.free_spin_available,
+          total_playable: (res.spins_available || 0) + (res.free_spin_available ? 1 : 0) }));
+        if (res.win) toast.success(`You won: ${res.prize}! 🍸`);
       }, 3400);
     } catch (e) {
       setSpinning(false);
       const code = e?.response?.data?.detail?.code;
-      if (code === "no_spin_unlocked") toast.info("Buy a round at this bar to unlock a spin.");
+      if (code === "no_spin_unlocked") toast.info(e?.response?.data?.detail?.message || "No spins left today.");
       else toast.error("Couldn’t spin. Try again.");
       load();
     }
   };
 
-  if (!data) return null;
-  if (!data.eligible) return null;
+  if (!data || !data.eligible) return null;
 
+  const theme = data.config?.theme || {};
+  const accent = theme.accent || "#a855f7";
+  const accent2 = theme.accent2 || "#ec4899";
+  const logo = theme.logo_url;
   const segments = data.config?.segments || [];
   const n = segments.length || 1;
   const seg = 360 / n;
-  const spins = data.spins_available || 0;
-  const gradient = `conic-gradient(${segments.map((s, i) => `${COLORS[i % COLORS.length]} ${i * seg}deg ${(i + 1) * seg}deg`).join(",")})`;
+  const purchaseSpins = data.spins_available || 0;
+  const freeReady = !!data.free_spin_available;
+  const playable = (data.total_playable ?? (purchaseSpins + (freeReady ? 1 : 0))) > 0;
+  const gradient = `conic-gradient(${segments.map((s, i) => `${WHEEL[i % WHEEL.length]} ${i * seg}deg ${(i + 1) * seg}deg`).join(",")})`;
+  const btnGrad = `linear-gradient(135deg,${accent},${accent2})`;
 
   return (
-    <div className="mt-4 rounded-3xl p-5 border border-purple-500/25"
-         style={{ background: "linear-gradient(135deg,#1a1038,#2a1148)" }}
+    <div className="mt-4 rounded-3xl p-5 border"
+         style={{ background: "linear-gradient(135deg,#160f2e,#241041)", borderColor: `${accent}55` }}
          data-testid="bar-game-card">
       <div className="flex items-center gap-2 mb-1">
-        <span className="grid place-items-center w-9 h-9 rounded-xl text-white"
-              style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}><Wine size={18} /></span>
-        <div>
+        <span className="grid place-items-center w-9 h-9 rounded-xl text-white overflow-hidden"
+              style={{ background: btnGrad }}>
+          {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Wine size={18} />}
+        </span>
+        <div className="min-w-0">
           <div className="text-white font-black text-base">Spin the Bar Wheel</div>
-          <div className="text-[11px] text-purple-200/80">{data.config?.how_it_works}</div>
+          <div className="text-[11px] truncate" style={{ color: `${accent}` }}>{data.config?.how_it_works}</div>
         </div>
+      </div>
+
+      {/* spin sources */}
+      <div className="flex items-center gap-2 flex-wrap mt-2" data-testid="bar-game-sources">
+        {purchaseSpins > 0 && (
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-1"
+                style={{ background: `${accent}22`, color: accent }}>
+            <Ticket size={11} /> {purchaseSpins} unlocked
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-1"
+              data-testid="bar-game-free-chip"
+              style={{ background: freeReady ? "rgba(52,211,153,0.16)" : "rgba(255,255,255,0.06)",
+                       color: freeReady ? "#34d399" : "#94a3b8" }}>
+          {freeReady ? <><Gift size={11} /> Free daily spin ready</>
+                     : <><Clock size={11} /> Free spin in {resetIn(data.next_free_reset)}</>}
+        </span>
       </div>
 
       <div className="flex flex-col items-center mt-4">
         <div className="relative" style={{ width: 240, height: 240 }}>
-          {/* pointer */}
           <div className="absolute left-1/2 -translate-x-1/2 -top-1 z-10"
                style={{ width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: "20px solid #fff" }} />
-          <motion.div ref={wheelRef} animate={{ rotate: rot }}
+          <motion.div animate={{ rotate: rot }}
             transition={{ duration: 3.2, ease: [0.16, 1, 0.3, 1] }}
             className="rounded-full border-4 border-white/80 grid place-items-center"
-            style={{ width: 240, height: 240, background: gradient,
-                     boxShadow: "0 0 40px rgba(168,85,247,0.35)" }}>
+            style={{ width: 240, height: 240, background: gradient, boxShadow: `0 0 40px ${accent}55` }}>
             {segments.map((s, i) => (
               <div key={i} className="absolute text-center"
-                   style={{ transform: `rotate(${(i + 0.5) * seg}deg) translateY(-92px) rotate(-${(i + 0.5) * seg}deg)`,
-                            width: 70 }}>
+                   style={{ transform: `rotate(${(i + 0.5) * seg}deg) translateY(-92px) rotate(-${(i + 0.5) * seg}deg)`, width: 70 }}>
                 <div style={{ fontSize: 22 }}>{s.emoji}</div>
                 <div className="text-[9px] font-black text-white leading-tight">{s.label}</div>
               </div>
             ))}
-            <div className="w-12 h-12 rounded-full bg-white/90 grid place-items-center">
-              <Sparkles size={18} className="text-purple-600" />
+            <div className="w-12 h-12 rounded-full bg-white/90 grid place-items-center overflow-hidden">
+              {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Sparkles size={18} style={{ color: accent }} />}
             </div>
           </motion.div>
         </div>
 
         {result && !spinning && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-4 w-full rounded-2xl p-4 text-center"
-            data-testid="bar-game-result"
+            className="mt-4 w-full rounded-2xl p-4 text-center" data-testid="bar-game-result"
             style={{ background: result.win ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.05)",
                      border: `1px solid ${result.win ? "#34d399" : "rgba(255,255,255,0.12)"}` }}>
             {result.win ? (
@@ -118,7 +150,7 @@ export default function BarGameCard({ businessId }) {
                      style={{ background: "rgba(0,0,0,0.3)", border: "1px dashed #34d399" }} data-testid="bar-game-code">
                   <Ticket size={15} /> {result.code}
                 </div>
-                <p className="text-[11px] text-purple-200/70 mt-2">Show this code at the bar to redeem.</p>
+                <p className="text-[11px] text-slate-300/70 mt-2">Show this code at the bar to redeem.</p>
               </>
             ) : (
               <div className="text-white font-bold">{result.emoji} {result.label} — no win this time.</div>
@@ -127,20 +159,20 @@ export default function BarGameCard({ businessId }) {
         )}
 
         <div className="mt-4 w-full">
-          {spins > 0 ? (
+          {playable ? (
             <button onClick={spin} disabled={spinning} data-testid="bar-game-spin"
               className="w-full h-12 rounded-full text-white font-black inline-flex items-center justify-center gap-2"
-              style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+              style={{ background: btnGrad }}>
               {spinning ? <Loader2 size={18} className="animate-spin" /> : <Wine size={18} />}
-              {spinning ? "Spinning…" : `Spin now · ${spins} left`}
+              {spinning ? "Spinning…" : purchaseSpins > 0 ? `Spin now · ${purchaseSpins} left` : "Free daily spin"}
             </button>
           ) : (
             <div className="text-center">
-              <p className="text-sm text-purple-200/80" data-testid="bar-game-locked">
-                Buy a round here to unlock a spin.
+              <p className="text-sm text-slate-300/80" data-testid="bar-game-locked">
+                All done for today — your free spin resets in {resetIn(data.next_free_reset)}. Buy a round to unlock more.
               </p>
               <button onClick={claim} data-testid="bar-game-claim"
-                className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-purple-200 h-9 px-4 rounded-full bg-white/10">
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-white h-9 px-4 rounded-full bg-white/10">
                 <RefreshCw size={13} /> I just bought — unlock my spin
               </button>
             </div>

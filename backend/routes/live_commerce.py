@@ -84,6 +84,8 @@ async def ensure_live_commerce_indexes(db) -> None:
     await db.live_clips.create_index([("show_id", 1), ("created_at", -1)],
                                      name="lc_show_time")
     await db.live_clips.create_index([("created_at", -1)], name="lc_time")
+    await db.live_show_reminders.create_index(
+        [("show_id", 1), ("user_id", 1)], unique=True, name="lsr_uniq")
 
 
 # ─────────────────────────── Serialization ─────────────────────────
@@ -144,6 +146,15 @@ async def list_shows(request: Request, status: str = "live", show_all: bool = Fa
                 continue
         vc = await _viewer_count(db, s["_id"])
         out.append(_show_public(s, hosts.get(s["host_id"]), vc, user["user_id"]))
+    # Annotate the viewer's reminder state (for the "Remind me" toggle).
+    if out:
+        rem_ids = set()
+        async for r in db.live_show_reminders.find(
+                {"user_id": user["user_id"], "show_id": {"$in": [s["show_id"] for s in out]}},
+                {"show_id": 1}):
+            rem_ids.add(r["show_id"])
+        for s in out:
+            s["reminded"] = s["show_id"] in rem_ids
     return {"items": out, "mode": livekit_client.status()["mode"]}
 
 
@@ -217,10 +228,53 @@ async def show_detail(sid: str, request: Request,
     vc = await _viewer_count(db, sid)
     host = _user_public(await db.users.find_one({"user_id": s["host_id"]}))
     cohosts = list((await _users_map(db, s.get("cohost_ids") or [])).values())
-    return {**_show_public(s, host, vc, uid, cohosts),
+    reminded = bool(await db.live_show_reminders.find_one(
+        {"show_id": sid, "user_id": uid}))
+    return {**_show_public(s, host, vc, uid, cohosts), "reminded": reminded,
             "join_token": _token(s["room_name"], uid, "host" if manage else "guest"),
             "livekit_url": livekit_client.livekit_url(),
             "mode": livekit_client.status()["mode"]}
+
+
+class RemindBody(BaseModel):
+    on: bool = True
+
+
+@router.post("/{sid}/remind")
+async def set_reminder(sid: str, body: RemindBody, request: Request,
+                       user: dict = Depends(current_user)):
+    """Fans tap 'Remind me' on an UPCOMING show → pinged when it goes live."""
+    db = request.app.state.db
+    s = await _show_or_404(db, sid)
+    uid = user["user_id"]
+    if body.on:
+        await db.live_show_reminders.update_one(
+            {"show_id": sid, "user_id": uid},
+            {"$set": {"show_id": sid, "user_id": uid, "created_at": _now()}},
+            upsert=True)
+    else:
+        await db.live_show_reminders.delete_one({"show_id": sid, "user_id": uid})
+    count = await db.live_show_reminders.count_documents({"show_id": sid})
+    return {"ok": True, "reminded": body.on, "reminder_count": count}
+
+
+async def _notify_reminders(db, show: dict) -> int:
+    """Fan out an in-app 'now live' ping to everyone who set a reminder."""
+    sid = show["_id"]
+    title = show.get("title") or "A show you follow"
+    msg = f"🔴 {show.get('business_name') or 'A creator'} is now live: {title}"
+    sent = 0
+    async for r in db.live_show_reminders.find({"show_id": sid}, {"user_id": 1}):
+        uid = r["user_id"]
+        if uid == show.get("host_id"):
+            continue
+        await db.social_notifications.insert_one({
+            "_id": "notif_" + uuid.uuid4().hex[:14], "user_id": uid,
+            "notif_type": "live_started", "source_user_id": show.get("host_id"),
+            "source_post_id": None, "show_id": sid, "message": msg[:240],
+            "read": False, "created_at": _now()})
+        sent += 1
+    return sent
 
 
 # ─────────────────────────── Co-hosting ────────────────────────────
@@ -295,7 +349,8 @@ async def start_show(sid: str, request: Request,
     await db.live_shows.update_one(
         {"_id": sid}, {"$set": {"status": "live", "started_at": _now(),
                                 "scheduled_at": None}})
-    return {"ok": True, "status": "live"}
+    pinged = await _notify_reminders(db, s)
+    return {"ok": True, "status": "live", "reminders_pinged": pinged}
 
 
 # ─────────────────────────── Pinned products ───────────────────────

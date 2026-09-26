@@ -1,0 +1,42 @@
+{
+  "summary": "Tested all 3 FUUSIC enhancements on WEB + MOBILE with backend pytest (7/7 pass) plus live end-to-end reminder ping flow. Everything is working: (1) Daily free bar spin — GET /api/bar-games/biz_demo_bar returns free_spin_available/next_free_reset/total_playable; demo has 1 purchase + 1 free, freeuser has only 1 free; source chip row + free chip render on both web and mobile. (2) Live Reminders — freeuser toggles Remind me→Reminding→Remind me on web and mobile; POST /remind persists; demo starts the show and freeuser receives a live_started social_notification (verified: reminders_pinged=1, notif fetched via /api/social/notifications). (3) Bar wheel skins — neon skin (accent #22d3ee, accent2 #f472b6, logo_url) and 5 signature drink segments render on both surfaces; non-owner PUT /skin correctly returns 403.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Live reminders — access", "platform": "mobile", "issue": "Mobile app has 'Password login disabled' (per test_credentials); only demo-login-btn works. Because the seeded demo scheduled show (ls_demo_scheduled_01) is HOSTED BY the demo user, the fan-side reminder ping cannot be tested end-to-end on mobile UI (host detail view intentionally hides the toggle). The list-view toggle still renders and works on the demo user's own card in the Upcoming list (verified: Remind me ↔ Reminding). Backend + web fan flow fully verified.", "expected": "Ability to test reminder as a non-host fan on mobile", "actual": "Only demo (host) can sign into mobile; end-to-end 'fan reminds → host starts → fan gets notif' can only be validated on web + via API"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter185_enhancements.py",
+    "/app/test_reports/pytest/iter185.xml"
+  ],
+  "action_items": [
+    "None — all three enhancements are functional as specified. Optional: add a mobile demo helper to sign in as freeuser (or seed a second scheduled show hosted by a different user) so the reminder-ping fan-side flow can be validated end-to-end on the mobile UI too."
+  ],
+  "critical_code_review_comments": [
+    "routes/bar_games.py — module has TWO __all__ declarations (lines 279 and 332); the first is dead. Harmless but should be deduped.",
+    "routes/live_commerce.py — cohost invite writes {'type':'cohost_invite'} but reminder ping writes {'notif_type':'live_started'}; inconsistent key naming across social_notifications docs may complicate a future generic notifications feed schema. Not a bug for this feature."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter185_enhancements.py"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% for web + mobile UI elements verified"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (bar owner + demo show host); freeuser@bigfm.dubai / FreePass123! (fan for web reminder E2E). Mobile only accepts demo-login-btn.",
+  "seed_data_creation": "None. Reset the demo scheduled show back to status=scheduled + future scheduled_at, cleared reminders and the live_started notification created during E2E ping test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The E2E reminder-ping flow flips the demo show ls_demo_scheduled_01 to status=live and creates a live_started notification. This iteration reset the show back to scheduled (scheduled_at = +6h) and deleted the pinged reminder + notif so subsequent tests start clean. If you exercise POST /start again, reset in the same way (motor update: status=scheduled, scheduled_at future, started_at/ended_at null; delete reminders + live_started notifs for the show). LiveKit is mocked (video placeholder is expected). Preview URLs: web https://mobile-games-v2.preview.emergentagent.com , mobile https://mobile-games-v2.expo.preview.emergentagent.com.",
+  "rca of the issue": "No unresolved issues."
+}

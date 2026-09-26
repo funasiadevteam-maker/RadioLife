@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   Loader2, Video, Radio, X, Send, ShoppingBag, Plus, Tag, Users,
   Trash2, StopCircle, Sparkles, Scissors, UserPlus, Share2, Download,
-  Clock, Calendar,
+  Clock, Calendar, Bell,
 } from "lucide-react";
 import { Avatar } from "./SocialV2";
 
@@ -35,6 +35,15 @@ export function LiveTab() {
     } catch (_) {} finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const toggleRemind = async (e, s) => {
+    e.stopPropagation();
+    try {
+      const { data } = await api.post(`/${s.show_id}/remind`, { on: !s.reminded });
+      setUpcoming((list) => list.map((x) => x.show_id === s.show_id ? { ...x, reminded: data.reminded } : x));
+      toast.success(data.reminded ? "We’ll ping you when it goes live 🔔" : "Reminder removed");
+    } catch (_) { toast.error("Couldn’t set reminder."); }
+  };
 
   if (open) return <LiveViewer showId={open} onClose={() => { setOpen(null); load(); }} />;
 
@@ -64,6 +73,12 @@ export function LiveTab() {
                   <div className="text-sm font-black truncate">{s.title}</div>
                   <div className="text-[11px] text-cyan-300 truncate">{whenText(s.scheduled_at)}</div>
                   <div className="text-[11px] text-slate-400 truncate">{s.business_name} · {s.pinned_products?.length || 0} products</div>
+                  <span role="button" tabIndex={0} onClick={(e) => toggleRemind(e, s)}
+                        data-testid={`live-remind-${s.show_id}`}
+                        className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-black px-3 h-8 rounded-full"
+                        style={s.reminded ? { background: "rgba(34,211,238,0.2)", color: "#67e8f9" } : { background: "rgba(255,255,255,0.08)", color: "#cbd5e1" }}>
+                    <Bell size={12} /> {s.reminded ? "Reminding" : "Remind me"}
+                  </span>
                 </div>
               </button>
             ))}
@@ -215,6 +230,13 @@ function LiveViewer({ showId, onClose }) {
   };
   const endShow = async () => { try { await api.post(`/${showId}/end`); toast.success("Show ended"); onClose(); } catch (_) {} };
   const startShow = async () => { try { await api.post(`/${showId}/start`); toast.success("You’re live! 🔴"); loadShow(); } catch (_) { toast.error("Couldn’t go live."); } };
+  const toggleRemind = async () => {
+    try {
+      const { data } = await api.post(`/${showId}/remind`, { on: !show.reminded });
+      setShow((s) => ({ ...s, reminded: data.reminded }));
+      toast.success(data.reminded ? "We’ll ping you when it goes live 🔔" : "Reminder removed");
+    } catch (_) { toast.error("Couldn’t set reminder."); }
+  };
   const unpin = async (pid) => { try { await api.delete(`/${showId}/products/${pid}`); loadShow(); } catch (_) {} };
   const saveHighlight = async () => {
     setSavingClip(true);
@@ -268,6 +290,13 @@ function LiveViewer({ showId, onClose }) {
           )}
           {show.status === "scheduled" && show.can_manage && (
             <button onClick={startShow} data-testid="live-start-now" className="mt-4 inline-flex items-center gap-2 h-10 px-5 rounded-full text-white text-sm font-black" style={grad}><Video size={15} /> Go live now</button>
+          )}
+          {show.status === "scheduled" && !show.can_manage && (
+            <button onClick={toggleRemind} data-testid="live-remind-btn"
+              className="mt-4 inline-flex items-center gap-2 h-10 px-5 rounded-full text-white text-sm font-black"
+              style={show.reminded ? { background: "rgba(34,211,238,0.25)" } : grad}>
+              <Bell size={15} /> {show.reminded ? "Reminding you" : "Remind me"}
+            </button>
           )}
         </div>
         {show.can_manage && show.status !== "scheduled" && (

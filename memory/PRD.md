@@ -10,6 +10,12 @@ Feature batch phases 4/5/6. LiveKit A/V stays MOCKED (stage placeholder; real vi
 - **Phase 6 — Prediction game visibility**: mobile Games tab already surfaced Predict & Win (predict-win-card → /games/predict). NEW web: `PlayAndWin.js` (/play-and-win) gains a 'Predict & Win' section (section-predict-win → /predict-win).
 - Test creds unchanged. Demo bar spin reset post-test so preview has 1 fresh spin. Non-blocking: mobile Go Live opener testID is `live-golive` vs web `golive-open` (naming divergence, not a bug).
 
+### ➕ Enhancements wave (2026-06, testing agent PASS iter185 — backend 7/7 + web + mobile)
+- **Win Reset Timer (daily free bar spin)** (`bar_games.py`): every bar wheel now grants ONE free spin per UTC day even without a purchase (atomic claim via `bar_game_free_claims` keyed `{user}:{business}:{day}`). Status returns `free_spin_available`, `next_free_reset`, `total_playable`; `spin` consumes a purchase unlock first, else the daily free, else 403. Cards show a source-chip row (bar-game-sources + bar-game-free-chip).
+- **Live Reminders** (`live_commerce.py`): `POST/DELETE-style POST /{sid}/remind {on}` (collection `live_show_reminders`, unique per user+show); `?status=scheduled` list + detail return `reminded`; `start_show` fans out an in-app `social_notifications` ping (notif_type `live_started`, surfaced by the existing GET /api/social/notifications). Upcoming cards + scheduled-viewer show a Remind toggle (live-remind-<id> / live-remind-btn) on web + mobile. Real device push needs a native build.
+- **Bar Wheel Skins** (`bar_games.py`): per-bar theme in `bar_game_skins` (accent, accent2, logo_url, custom weighted segments); config returns `theme`; `spin` draws from the skin's segments; owner/admin-gated `PUT /api/bar-games/{id}/skin` (403 for non-owner). Demo bar `biz_demo_bar` seeded with a neon skin + signature drink prizes; web/mobile BarGameCard renders the accent, logo (header + wheel hub) and custom segments.
+- Known non-blocking: mobile password login is disabled (demo-login only), so the fan-side reminder ping is validated via backend + web (not mobile UI). Test artifacts reset post-run — preview is clean.
+
 
 
 ## 🌙 DREAMS & GUIDANCE — FOLLOW-UP WAVE (2026-09 fork, backend + web + mobile, testing agent PASS iter158 — 15/15 backend + web/mobile smoke)

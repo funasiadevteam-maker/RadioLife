@@ -36,6 +36,13 @@ export function LiveTab() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const toggleRemind = async (s: any) => {
+    try {
+      const { data } = await api.post(`/social/liveshows/${s.show_id}/remind`, { on: !s.reminded });
+      setUpcoming((list) => list.map((x) => x.show_id === s.show_id ? { ...x, reminded: data.reminded } : x));
+    } catch (_) {}
+  };
+
   if (open) return <LiveViewer showId={open} onClose={() => { setOpen(null); load(); }} />;
 
   return (
@@ -63,6 +70,10 @@ export function LiveTab() {
                 <Text style={st.showTitle} numberOfLines={1}>{s.title}</Text>
                 <Text style={[st.showMeta, { color: TUBE.electric }]} numberOfLines={1}>{whenText(s.scheduled_at)}</Text>
                 <Text style={st.showMeta} numberOfLines={1}>{s.business_name} · {s.pinned_products?.length || 0} products</Text>
+                <Pressable onPress={() => toggleRemind(s)} testID={`live-remind-${s.show_id}`} style={[st.remindBtn, s.reminded && st.remindOn]}>
+                  <Ionicons name="notifications" size={12} color={s.reminded ? '#67e8f9' : '#cbd5e1'} />
+                  <Text style={[st.remindTxt, s.reminded && { color: '#67e8f9' }]}>{s.reminded ? 'Reminding' : 'Remind me'}</Text>
+                </Pressable>
               </View>
             </Pressable>
           ))}
@@ -196,6 +207,9 @@ function LiveViewer({ showId, onClose }: any) {
   };
   const endShow = async () => { try { await api.post(`/social/liveshows/${showId}/end`); onClose(); } catch (_) {} };
   const startShow = async () => { try { await api.post(`/social/liveshows/${showId}/start`); loadShow(); } catch (_) {} };
+  const toggleRemind = async () => {
+    try { const { data } = await api.post(`/social/liveshows/${showId}/remind`, { on: !show.reminded }); setShow((s: any) => ({ ...s, reminded: data.reminded })); } catch (_) {}
+  };
   const unpin = async (pid: string) => { try { await api.delete(`/social/liveshows/${showId}/products/${pid}`); loadShow(); } catch (_) {} };
   const saveHighlight = async () => { setSavingClip(true); try { await api.post(`/social/liveshows/${showId}/clips`, { note: '' }); await loadClips(); } catch (_) {} finally { setSavingClip(false); } };
   const buyClip = async (clip: any, p: any) => {
@@ -231,6 +245,11 @@ function LiveViewer({ showId, onClose }: any) {
         {show.status === 'scheduled' && show.can_manage && (
           <Pressable onPress={startShow} testID="live-start-now" style={{ marginTop: 14 }}>
             <LinearGradient colors={['#a855f7', '#ec4899']} style={st.stageBtn}><Ionicons name="videocam" size={14} color="#fff" /><Text style={st.stageBtnTxt}>Go live now</Text></LinearGradient>
+          </Pressable>
+        )}
+        {show.status === 'scheduled' && !show.can_manage && (
+          <Pressable onPress={toggleRemind} testID="live-remind-btn" style={{ marginTop: 14 }}>
+            <LinearGradient colors={show.reminded ? ['#0891b2', '#0e7490'] : ['#a855f7', '#ec4899']} style={st.stageBtn}><Ionicons name="notifications" size={14} color="#fff" /><Text style={st.stageBtnTxt}>{show.reminded ? 'Reminding you' : 'Remind me'}</Text></LinearGradient>
           </Pressable>
         )}
         {show.can_manage && show.status !== 'scheduled' && (
@@ -394,6 +413,9 @@ const st = StyleSheet.create({
   viewerTxt: { color: '#fff', fontSize: 9, fontWeight: '900' },
   showTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '900' },
   showMeta: { color: TUBE.textMuted, fontSize: TFONT.xs, marginTop: 2 },
+  remindBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)' },
+  remindOn: { backgroundColor: 'rgba(34,211,238,0.2)' },
+  remindTxt: { color: '#cbd5e1', fontSize: TFONT.xs, fontWeight: '800' },
   stage: { borderRadius: TRADIUS.lg, alignItems: 'center', padding: 24, borderWidth: 1, borderColor: 'rgba(244,114,182,0.25)' },
   stageBiz: { color: '#fff', fontSize: TFONT.lg, fontWeight: '900', marginTop: 12 },
   stageTitle: { color: '#ddd6fe', fontSize: TFONT.sm, marginTop: 2 },
