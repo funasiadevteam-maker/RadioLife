@@ -32,7 +32,7 @@ DEMO_PASSWORD = "DemoPass123!"
 FREE_EMAIL = "freeuser@bigfm.dubai"
 FREE_PASSWORD = "FreePass123!"
 
-RAIL_KINDS = {"live", "event", "follow", "station"}
+RAIL_KINDS = {"live", "event", "follow", "station", "sponsored"}
 RAIL_FIELDS = {"id", "kind", "title", "subtitle", "image", "badge", "cta"}
 
 

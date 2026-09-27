@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 192 — FUUSIC Social V2 Right-Rail V2 Sponsor + Analytics + Smart Suggestions. Backend: 19/19 new pytest pass in /app/backend/tests/test_iter192_social_rail_v2_sponsor.py (tiers 24h/3d/7d, eligible-shows with 403 for non-owner, sponsor create with 403/404 auth checks, checkout mock auto-activates, list, cancel, rail_event batch with cap-50 & invalid-action filter & sponsorship stats increment, sponsored card injected at index 0 on every page_route, Marco Rossi surfaces with '4 mutual' hint and outranks 0-mutual suggestions, still 5–7 cards). Regression iter190 (8/8) + iter191 (14/14) all pass. Web: /merchant/rail-sponsor (test@) renders full page with data-testid=merchant-rail-sponsor, 2 eligible shows (lsw_sponsor_live + lsw_sponsor_evt) with Feature this buttons, tier modal with 4 tier buttons opens, picking 3d fires create+checkout, success toast 'Sponsorship is live! …' appears, sponsorship item, stats & status testIDs all render, Cancel works. Left-nav shows merchant-nav-merchant-rail-sponsor. Global right-rail (demo@ /social, xl 1440x900): first card [nlv2-railside-card-0] = SPONSORED 'Weekend Brunch Launch — Karak Cafe — Karama Branch' with View CTA, Marco Rossi follow card shows [nlv2-railside-hint-] = '4 mutual', 6 total cards, /api/social/rail/event POST fires on CTA click (verified via network intercept: 2 POSTs, both 200).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/merchant/rail-sponsor cancel button", "issues": ["Cancel triggers no confirm dialog; a one-tap destructive cancel is a mild UX risk (single click removes an active paid sponsorship). Consider a Confirm-cancel modal or optimistic undo."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter192_social_rail_v2_sponsor.py",
+    "/app/test_reports/pytest/iter192_social_rail_v2_sponsor.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/social_v2.py:_owned_merchant_or_403 correctly resolves both business_id and _id and both owner_user_id/owner_user_ids — good defensive impl.",
+    "routes/social_v2.py:rail_sponsor_checkout falls back to instant-activate on ANY Stripe exception (broad `except Exception`). In production this masks real Stripe outages behind free activation. For preview/test this is acceptable, but a live guard (env STRIPE_MODE=='live' → do not auto-activate) would prevent free comping. Recommend narrowing to `except stripe.error.*` and only auto-activating when STRIPE_MODE!='live'.",
+    "routes/social_v2.py:rail_event does not authenticate the sponsorship_id against the current user — any authenticated user can inflate a merchant's impressions/clicks by POSTing forged events. Consider validating that the sponsorship exists and is active before counting it, or at least dedup by (user_id, sponsorship_id, action, minute-bucket) to prevent trivial CTR gaming.",
+    "MerchantRailSponsor.jsx:cancel() shows no confirmation and immediately calls the API — see design_issues above.",
+    "MerchantRailSponsor.jsx error toast only maps 'not_your_business'; other codes ('wrong_status','bad_tier','show_not_found_or_not_host') fall through to a generic error. Consider mapping them for clearer merchant feedback."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter192_social_rail_v2_sponsor.py (new)",
+    "/app/test_reports/pytest/iter192_social_rail_v2_sponsor.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (19/19 new + 22/22 iter190+191 regression)", "frontend": "100%"},
+  "test_credentials": "test@bigfm.dubai/TestUser123! (merchant owner biz_karak_cafe_karama), demo@bigfm.dubai/DemoPass123! (rail viewer, 4 mutual with Marco Rossi), freeuser@bigfm.dubai/FreePass123! (non-owner 403 checks)",
+  "seed_data_creation": "Existing seed_social_v2_demo already creates lsw_sponsor_live & lsw_sponsor_evt (Karak Cafe shows), usr_rail_c1..c4 (with usr_rail_c2 Marco Rossi = 4 mutual with demo@ via 4 advisor→Marco follow edges). Testing consumed one active sponsorship (rsp_… on lsw_sponsor_evt via mock checkout); a second Feature-this UI test on lsw_sponsor_live created another 3d sponsorship. These persist in db.rail_sponsorships; call POST /api/social/rail/sponsor/{sid}/cancel or re-seed to reset.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend contract for /api/social/rail sponsored injection is FIRST-CARD-ALWAYS when any active sponsorship exists in db.rail_sponsorships (kind='sponsored', badge='SPONSORED', sponsorship_id, cta='Watch' for live / 'View' for event). Rail returns 5..7 cards (1..7 per API but seed gives ≥5). Rail event batch caps at 50 and only counts action ∈ {impression,click}; sponsorship stats (impressions/clicks/ctr) come from db.rail_events filtered by sponsorship_id — see security note in critical_code_review_comments about lack of auth check on the event stream. Marco Rossi id = usr_rail_c2 and gets hint='4 mutual' when viewed by demo@. The MerchantRailSponsor page lives at web /merchant/rail-sponsor and uses testIDs: merchant-rail-sponsor (root), merchant-nav-merchant-rail-sponsor (nav), rail-sponsor-show-<id>, rail-sponsor-feature-<id>, rail-sponsor-tier-modal, rail-sponsor-tier-<24h|3d|7d>, rail-sponsor-item-<id>, rail-sponsor-status-<id>, rail-sponsor-stats-<id>, rail-sponsor-cancel-<id>. Global right-rail testIDs: nlv2-right-rail (container), nlv2-railside-card-<i>, nlv2-railside-cta-<i>, nlv2-railside-hint-<i>. Only mounts at xl viewport ≥1280 (use 1440x900).",
+  "rca of the issue": ""
+}

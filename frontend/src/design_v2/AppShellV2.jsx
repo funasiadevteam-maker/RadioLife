@@ -2,7 +2,7 @@
 // sticky player dock). Reuses the existing audio engine (MiniPlayer +
 // GlobalAudio), companion, notifications and variant switcher. Only the
 // visual composition is new. Bare/marketing/admin routes render untouched.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -202,21 +202,46 @@ function ShellV2Header() {
 }
 
 const RAIL_BADGE_TONE = {
-  LIVE: "#ef4444", SOON: "#22d3ee", SUGGESTED: "#a855f7", "TUNE IN": "#38bdf8",
+  LIVE: "#ef4444", SOON: "#22d3ee", SUGGESTED: "#a855f7",
+  "TUNE IN": "#38bdf8", SPONSORED: "#f5c563",
 };
 
-function RailCompactCard({ card, idx }) {
+function RailCompactCard({ card, idx, track }) {
   const navigate = useNavigate();
   const [followed, setFollowed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const ref = useRef(null);
+  const seen = useRef(false);
   const tone = RAIL_BADGE_TONE[card.badge] || "#a855f7";
   const isFollow = card.kind === "follow";
   const isLive = card.kind === "live";
+  const isSponsored = card.kind === "sponsored";
 
-  const open = () => { if (card.to) navigate(card.to); };
+  // Fire one impression when the card first scrolls into view.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !track || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (en.isIntersecting && !seen.current) {
+          seen.current = true;
+          track({ card_id: card.id, kind: card.kind, action: "impression",
+                  sponsorship_id: card.sponsorship_id });
+          obs.disconnect();
+        }
+      });
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [card.id, card.kind, card.sponsorship_id, track]);
+
+  const fireClick = () => track && track({ card_id: card.id, kind: card.kind,
+    action: "click", sponsorship_id: card.sponsorship_id });
+  const open = () => { fireClick(); if (card.to) navigate(card.to); };
   const onFollow = async (e) => {
     e.stopPropagation();
     if (busy || followed) return;
+    fireClick();
     setBusy(true);
     try {
       await axios.post(`${API}/social/follow/${card.follow_id}`, {}, { withCredentials: true });
@@ -225,9 +250,10 @@ function RailCompactCard({ card, idx }) {
   };
 
   return (
-    <div data-testid={`nlv2-railside-card-${idx}`} data-rail-kind={card.kind}
+    <div ref={ref} data-testid={`nlv2-railside-card-${idx}`} data-rail-kind={card.kind}
       onClick={isFollow ? undefined : open}
-      className={`nlv2-glass rounded-2xl p-2.5 flex items-center gap-2.5 transition ${isFollow ? "" : "cursor-pointer hover:brightness-110"}`}>
+      className={`nlv2-glass rounded-2xl p-2.5 flex items-center gap-2.5 transition ${isFollow ? "" : "cursor-pointer hover:brightness-110"}`}
+      style={isSponsored ? { boxShadow: "inset 0 0 0 1.5px rgba(245,197,99,0.55)" } : undefined}>
       <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 grid place-items-center"
         style={{ background: "rgba(255,255,255,0.05)" }}>
         {card.image
@@ -242,6 +268,10 @@ function RailCompactCard({ card, idx }) {
           style={{ background: `${tone}22`, color: tone }}>{card.badge}</span>
         <div className="text-[13px] font-bold truncate mt-0.5">{card.title}</div>
         <div className="text-[10.5px] truncate" style={{ color: "#8b96b8" }}>{card.subtitle}</div>
+        {card.hint && (
+          <div className="text-[9.5px] font-bold mt-0.5" style={{ color: "#a855f7" }}
+            data-testid={`nlv2-railside-hint-${idx}`}>{card.hint}</div>
+        )}
       </div>
       {isFollow ? (
         <button type="button" data-testid={`nlv2-railside-follow-${idx}`}
@@ -253,7 +283,9 @@ function RailCompactCard({ card, idx }) {
       ) : (
         <button type="button" data-testid={`nlv2-railside-cta-${idx}`} onClick={open}
           className="text-[11px] font-black px-3 h-8 rounded-full text-white shrink-0"
-          style={{ background: "rgba(255,255,255,0.08)" }}>{card.cta}</button>
+          style={isSponsored
+            ? { background: "linear-gradient(135deg,#f5c563,#f59e0b)", color: "#1a1200" }
+            : { background: "rgba(255,255,255,0.08)" }}>{card.cta}</button>
       )}
     </div>
   );
@@ -265,6 +297,7 @@ function RightRailV2() {
   const isPremium = !!summary?.is_premium;
   const pageRoute = railPageRoute(pathname);
   const [cards, setCards] = useState([]);
+  const queue = useRef([]);
 
   useEffect(() => {
     let cancel = false;
@@ -273,6 +306,23 @@ function RightRailV2() {
       .catch(() => { if (!cancel) setCards([]); });
     return () => { cancel = true; };
   }, [pageRoute]);
+
+  const track = useCallback((ev) => {
+    queue.current.push({ ...ev, page_route: pageRoute });
+  }, [pageRoute]);
+
+  const flush = useCallback(() => {
+    if (!queue.current.length) return;
+    const events = queue.current.splice(0, queue.current.length);
+    axios.post(`${API}/social/rail/event`, { events }, { withCredentials: true })
+      .catch(() => {});
+  }, []);
+
+  // Batch-flush analytics every 5s and on unmount / route change.
+  useEffect(() => {
+    const id = setInterval(flush, 5000);
+    return () => { clearInterval(id); flush(); };
+  }, [flush, pageRoute]);
 
   const shown = cards.slice(0, isPremium ? 6 : 5);
 
@@ -295,7 +345,7 @@ function RightRailV2() {
           <div className="text-[10px] font-mono uppercase tracking-widest px-1" style={{ color: "#6b7392" }}>
             For You
           </div>
-          {shown.map((c, i) => <RailCompactCard key={c.id} card={c} idx={i} />)}
+          {shown.map((c, i) => <RailCompactCard key={c.id} card={c} idx={i} track={track} />)}
         </>
       )}
 

@@ -1450,3 +1450,19 @@ Continuation of the Social V2 Phase 1+2 overhaul (combined Social Wall feed, uni
 - P2 — Secure AI Cover-Art endpoint (`/api/social/liveshows/cover-art/generate`) to event hosts/owners only.
 - P2 — Production Google OAuth redirect_uri_mismatch (user must add prod domain in GCP); Apple Sign-In awaiting user `.p8`.
 - P1 — Push Notifications (needs native build via Publish).
+
+---
+
+## 2026-06 (fork) — RAIL SPONSORSHIP + ANALYTICS + SMART SUGGESTIONS (iter192 PASS 42/42 backend + web)
+Three features on top of the Web Right-Rail V2.
+
+**1. Rail Analytics** — `POST /api/social/rail/event` batches impression/click events per card into `rail_events`. Sponsored-attributed events are validated (must reference a real sponsorship) and DEDUPED to one impression + one click per user (anti-inflation, both in-batch and cross-request). Web rail fires impressions via IntersectionObserver and clicks on CTA/follow, flushing every 5s + on unmount. Per-merchant impressions/clicks/CTR shown on the Sponsor page.
+
+**2. Sponsored Slots** — merchant-portal page `/merchant/rail-sponsor` (`MerchantRailSponsor.jsx`, nav item added). A business owner features one of THEIR OWN live shows / upcoming events as the pinned TOP rail card (gold SPONSORED badge). Tiers 24h=$9, 3d=$19, 7d=$49. Endpoints: `/api/social/rail/sponsor/tiers`, `/eligible-shows`, `POST /rail/sponsor`, `/rail/sponsor/{sid}/checkout`, `/rail/sponsor/list`, `/rail/sponsor/{sid}/cancel`. Ownership enforced (non-owner→403, not-your-show→404). `build_rail` injects one active sponsorship (rotated) at the top. Cancel has a two-step confirm. Collections: `rail_sponsorships`.
+   - **Payment is MOCKED / TEST MODE**: rail sponsorship is a one-time charge but the shared `stripe_client` only exposes subscription checkout, so checkout activates immediately without a real charge (explicit, matches self-serve banner campaigns). When a one-time Stripe price is wired, branch on `is_live()` in `rail_sponsor_checkout`.
+
+**3. Smart Suggestions** — `build_rail` follow suggestions ranked by MUTUAL CONNECTIONS (people you follow who also follow the candidate) + advisor-category affinity, surfaced with an "N mutual" hint. Boost folds into the rail score so well-connected suggestions rank higher.
+
+**Seed additions (preview):** 2 sponsor-eligible shows hosted by test@ (`lsw_sponsor_live`, `lsw_sponsor_evt`); mutual-follow edges so `usr_rail_c2` (Marco Rossi) has 4 mutual for demo@.
+
+**Test users:** merchant/owner test@bigfm.dubai / TestUser123! (owns biz_karak_cafe_karama); demo@ (Premium, 4 mutual w/ Marco); freeuser@ (non-owner → 403). Tests: `tests/test_iter192_social_rail_v2_sponsor.py`.

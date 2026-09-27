@@ -15,7 +15,7 @@ import {
   Store, Zap, Settings, LogOut, Menu, X, ChevronRight,
   ExternalLink, AlertTriangle, ScanLine, Users,
   Gift, UtensilsCrossed, Trophy, MapPin,
-  Rocket, Eye, LayoutGrid, ArrowRight, Sparkles, Megaphone,
+  Rocket, Eye, LayoutGrid, ArrowRight, Sparkles, Megaphone, Radio,
 } from "lucide-react";
 import { useAuth } from "@/AuthContext";
 import { useDesignVariant } from "@/hooks/useDesignVariant";
@@ -37,6 +37,7 @@ const NAV_ITEMS = [
   { path: "/merchant/games",              label: "Games",                    Icon: Trophy,                  perm: "can_create_links" },
   { path: "/merchant/sponsor-games",  label: "Sponsor Games",  Icon: Sparkles,              perm: "can_create_links" },
   { path: "/merchant/advertise",        label: "Advertise",            Icon: Megaphone,          perm: "can_create_links" },
+  { path: "/merchant/rail-sponsor",  label: "Rail Sponsor",      Icon: Radio,                    perm: "can_create_links" },
   { path: "/payouts",                          label: "Payments & Payouts", Icon: Wallet,          perm: null },
   { path: "/merchant/transactions",    label: "Transactions",      Icon: ArrowLeftRight,  perm: "can_view_transactions" },
   { path: "/merchant/insights",          label: "Insights",              Icon: MapPin,                  perm: null },

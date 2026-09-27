@@ -101,6 +101,7 @@ import MeSaved from "@/pages/MeSaved";
 import MerchantGames from "@/pages/merchant/MerchantGames";
 import MerchantSponsorGames from "@/pages/merchant/MerchantSponsorGames";
 import MerchantAdvertise from "@/pages/merchant/MerchantAdvertise";
+import MerchantRailSponsor from "@/pages/merchant/MerchantRailSponsor";
 import GamePlay from "@/pages/play/GamePlay";
 import PlayDiscover from "@/pages/play/PlayDiscover";
 
@@ -852,6 +853,7 @@ function AppRouter() {
         <Route path="games"                element={<MerchantGames />} />
         <Route path="sponsor-games"    element={<MerchantSponsorGames />} />
         <Route path="advertise"          element={<MerchantAdvertise />} />
+        <Route path="rail-sponsor"      element={<MerchantRailSponsor />} />
         <Route path="profile"              element={<MerchantProfile />} />
         <Route path="stripe"                element={<MerchantStripe />} />
         <Route path="settings"            element={<MerchantSettings />} />

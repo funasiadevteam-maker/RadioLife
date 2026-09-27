@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import random
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -591,27 +592,49 @@ async def build_rail(db, user: dict, *, page_route: str = "/home",
             "_dt": _dt(s.get("scheduled_at")),
         })
 
-    # ── Suggested advisors/creators to follow (not yet followed) ──
+    # ── Smart follow suggestions — ranked by MUTUAL CONNECTIONS + interest
+    #    (advisor category) AFFINITY, not just availability ──────────────
     exclude = elig["following"] | elig["friends"] | elig["blocked"] | {uid}
-    adv_map: dict[str, Optional[str]] = {}
+    cand: dict[str, dict] = {}
     async for a in db.advisor_profiles.find(
             {"status": {"$in": [None, "approved", "active"]}},
-            {"user_id": 1, "headline": 1}).limit(40):
+            {"user_id": 1, "headline": 1, "category": 1}).limit(60):
         aid = a.get("user_id")
-        if aid and aid not in exclude and aid not in adv_map:
-            adv_map[aid] = a.get("headline")
-        if len(adv_map) >= 8:
-            break
-    if adv_map:
-        async for u in db.users.find({"user_id": {"$in": list(adv_map)}}):
-            cards.append({
-                "id": f"FOLLOW:{u['user_id']}", "kind": "follow",
+        if aid and aid not in exclude and aid not in cand:
+            cand[aid] = {"headline": a.get("headline"), "category": a.get("category")}
+    if cand:
+        # interest affinity: categories of advisors the user already follows
+        my_cats: set[str] = set()
+        if elig["following"]:
+            async for a in db.advisor_profiles.find(
+                    {"user_id": {"$in": list(elig["following"])}}, {"category": 1}):
+                if a.get("category"):
+                    my_cats.add(a["category"])
+        # mutual connections: people the user follows who also follow candidate
+        mutual: dict[str, int] = {}
+        if elig["following"]:
+            async for f in db.social_follows.find(
+                    {"follower": {"$in": list(elig["following"])},
+                     "target": {"$in": list(cand)}}, {"target": 1}):
+                mutual[f["target"]] = mutual.get(f["target"], 0) + 1
+        sugg: list[dict] = []
+        async for u in db.users.find({"user_id": {"$in": list(cand)}}):
+            cu = u["user_id"]
+            meta = cand[cu]
+            mc = mutual.get(cu, 0)
+            aff = 1 if (meta.get("category") and meta["category"] in my_cats) else 0
+            hint = f"{mc} mutual" if mc else ("Shared interest" if aff else None)
+            sugg.append({
+                "id": f"FOLLOW:{cu}", "kind": "follow",
                 "title": u.get("name") or "Advisor",
-                "subtitle": adv_map.get(u["user_id"]) or "Advisor · Tarot & Dreams",
+                "subtitle": meta.get("headline") or "Advisor · Tarot & Dreams",
                 "image": u.get("picture") or u.get("avatar_url"),
-                "badge": "SUGGESTED", "cta": "Follow",
-                "follow_id": u["user_id"], "sponsored": False, "rel": "discovery",
+                "badge": "SUGGESTED", "cta": "Follow", "follow_id": cu,
+                "sponsored": False, "rel": "discovery",
+                "hint": hint, "mutual": mc, "boost": mc * 12.0 + aff * 8.0,
             })
+        sugg.sort(key=lambda x: x["boost"], reverse=True)
+        cards.extend(sugg[:6])
 
     # ── Suggested stations to tune into (not yet followed) ──
     st_n = 0
@@ -631,7 +654,7 @@ async def build_rail(db, user: dict, *, page_route: str = "/home",
         if st_n >= 4:
             break
 
-    # ── Contextual + relationship + recency scoring ──
+    # ── Contextual + relationship + recency + smart-boost scoring ──
     now = _now()
     for c in cards:
         base = _RAIL_BASE.get(c["kind"], 30.0) * ctx.get(c["kind"], 1.0)
@@ -640,16 +663,42 @@ async def build_rail(db, user: dict, *, page_route: str = "/home",
         if c.get("_dt"):
             age_h = max(0.0, (now - c["_dt"]).total_seconds() / 3600.0)
             rec = max(0.0, 20.0 - age_h)
-        c["score"] = base * rb + rec
+        c["score"] = base * rb + rec + c.get("boost", 0.0)
     cards.sort(key=lambda c: c["score"], reverse=True)
     cards = _diversify_rail(cards)
+
+    # ── Paid Sponsored slot pinned to the TOP (max 1, rotated) ──
+    sponsored = await _rail_sponsored_card(db, now)
+    if sponsored:
+        cards = [sponsored] + [c for c in cards if c["kind"] != "sponsored"]
 
     out = cards[:max(1, min(int(limit or 7), 7))]
     for c in out:
         c.pop("_dt", None)
         c.pop("score", None)
         c.pop("rel", None)
+        c.pop("boost", None)
     return {"cards": out, "page_route": page_route}
+
+
+async def _rail_sponsored_card(db, now: datetime) -> Optional[dict]:
+    """One currently-active paid sponsorship, rendered as a pinned rail card."""
+    active: list[dict] = []
+    async for s in db.rail_sponsorships.find(
+            {"status": "active", "starts_at": {"$lte": now},
+             "ends_at": {"$gte": now}}):
+        active.append(s)
+    if not active:
+        return None
+    s = random.choice(active)
+    return {
+        "id": f"SPONSORED:{s['_id']}", "kind": "sponsored",
+        "title": s.get("title") or "Featured",
+        "subtitle": s.get("subtitle") or s.get("business_name") or "Sponsored",
+        "image": s.get("image"), "badge": "SPONSORED",
+        "cta": s.get("cta") or "View", "to": s.get("to"),
+        "sponsored": True, "sponsorship_id": str(s["_id"]),
+    }
 
 
 __all__ = ["build_feed", "build_rail", "refresh_ai_order", "latest_feed_ts",

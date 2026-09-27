@@ -19,6 +19,7 @@ No new auth, no new ledger, no per-design logic.  All routes are /api/social/*.
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -30,6 +31,8 @@ from auth import current_user
 from services.points_service import PointsService
 from services.social_following import resolve_following, following_summary
 from services.social_feed import build_feed, build_rail, WALL_TYPES
+
+log = logging.getLogger("social_v2")
 
 router = APIRouter(prefix="/api/social", tags=["social_v2"])
 
@@ -192,6 +195,19 @@ async def seed_social_v2_demo(db) -> None:
                               "created_at": _now()}},
             upsert=True)
 
+    # Mutual connections so smart suggestions surface "N mutual" hints:
+    # some advisors the demo follows also follow the sample creators.
+    mutual_pairs: list[tuple] = []
+    for i, adv in enumerate(advisor_ids[:4]):
+        mutual_pairs.append((adv, "usr_rail_c2"))        # Marco → up to 4 mutual
+        if i < 2:
+            mutual_pairs.append((adv, "usr_rail_c1"))    # Layla → 2 mutual
+    for follower, target in mutual_pairs:
+        await db.social_follows.update_one(
+            {"follower": follower, "target": target},
+            {"$setOnInsert": {"follower": follower, "target": target,
+                              "created_at": _now()}}, upsert=True)
+
     rail_stations = [
         ("stn_rail_1", "rail-midnight-fm", "Midnight FM", "Late-night lounge",
          "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?crop=entropy&cs=srgb&fm=jpg&q=80&w=600",
@@ -218,6 +234,25 @@ async def seed_social_v2_demo(db) -> None:
             "description": "Deep house & lounge, streaming live from the marina.",
             "cover_url": "https://images.unsplash.com/photo-1563841930606-67e2bce48b78?crop=entropy&cs=srgb&fm=jpg&q=80&w=800",
             "status": "live", "started_at": _now(), "created_at": _now()})
+
+    # ── Sponsor-eligible demo shows hosted by the test merchant owner ──
+    # (so /merchant/rail-sponsor has real live + upcoming shows to feature)
+    merch = await db.users.find_one({"email": "test@bigfm.dubai"}, {"user_id": 1})
+    if merch:
+        mo = merch["user_id"]
+        sponsor_shows = [
+            {"_id": "lsw_sponsor_live", "host_id": mo, "business_name": "Karak Cafe",
+             "title": "Karak & Chill — Live Tasting", "status": "live",
+             "started_at": _now(),
+             "cover_url": "https://images.unsplash.com/photo-1495774856032-8b90bbb32b32?crop=entropy&cs=srgb&fm=jpg&q=80&w=800"},
+            {"_id": "lsw_sponsor_evt", "host_id": mo, "business_name": "Karak Cafe",
+             "title": "Weekend Brunch Launch", "status": "scheduled",
+             "scheduled_at": _now() + timedelta(days=2),
+             "cover_url": "https://images.unsplash.com/photo-1621523132966-19f711d565d1?crop=entropy&cs=srgb&fm=jpg&q=80&w=800"},
+        ]
+        for s in sponsor_shows:
+            if not await db.live_shows.find_one({"_id": s["_id"]}):
+                await db.live_shows.insert_one({**s, "description": "", "created_at": _now()})
 
 
 # ───────────────────────── Serialization ───────────────────────────
@@ -873,6 +908,223 @@ async def social_rail(request: Request, page_route: str = "/home",
     events, suggested people to follow and stations to tune into."""
     return await build_rail(request.app.state.db, user,
                             page_route=page_route, limit=limit)
+
+
+# ───────────────────── Rail Sponsorship (paid featured cards) ──────
+RAIL_SPONSOR_TIERS = {
+    "24h": {"hours": 24,  "amount_cents": 900,  "label": "24 hours"},
+    "3d":  {"hours": 72,  "amount_cents": 1900, "label": "3 days"},
+    "7d":  {"hours": 168, "amount_cents": 4900, "label": "7 days"},
+}
+
+
+async def _owned_merchant_or_403(db, merchant_id: str, uid: str) -> dict:
+    if not merchant_id:
+        raise HTTPException(400, {"code": "merchant_id_required"})
+    biz = await db.businesses.find_one({
+        "$and": [
+            {"$or": [{"business_id": merchant_id}, {"_id": merchant_id}]},
+            {"$or": [{"owner_user_id": uid}, {"owner_user_ids": uid}]}]})
+    if not biz:
+        raise HTTPException(403, {"code": "not_your_business"})
+    return biz
+
+
+async def _eligible_shows_for(db, uid: str) -> list[dict]:
+    """Live + upcoming shows hosted by this user, sponsorable on the rail."""
+    out: list[dict] = []
+    async for s in db.live_shows.find(
+            {"host_id": uid, "status": {"$in": ["live", "scheduled"]}}
+            ).sort("created_at", -1).limit(30):
+        st = s.get("status")
+        if st == "scheduled":
+            sa = s.get("scheduled_at")
+            if isinstance(sa, datetime):
+                sa_aware = sa if sa.tzinfo else sa.replace(tzinfo=timezone.utc)
+                if sa_aware < _now() - timedelta(hours=6):
+                    continue
+        out.append({
+            "id": str(s["_id"]), "title": s.get("title") or "Untitled show",
+            "kind": "live" if st == "live" else "event", "status": st,
+            "image": s.get("cover_url"), "business_name": s.get("business_name"),
+            "scheduled_at": _iso(s.get("scheduled_at"))})
+    return out
+
+
+@router.get("/rail/sponsor/tiers")
+async def rail_sponsor_tiers(user: dict = Depends(current_user)):
+    return {"tiers": [{"id": k, **v} for k, v in RAIL_SPONSOR_TIERS.items()]}
+
+
+@router.get("/rail/sponsor/eligible-shows")
+async def rail_sponsor_eligible(request: Request, merchant_id: str,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_merchant_or_403(db, merchant_id, user["user_id"])
+    return {"shows": await _eligible_shows_for(db, user["user_id"])}
+
+
+class RailSponsorCreate(BaseModel):
+    merchant_id: str
+    target_id: str
+    tier: str
+
+
+@router.post("/rail/sponsor")
+async def rail_sponsor_create(body: RailSponsorCreate, request: Request,
+                              user: dict = Depends(current_user)):
+    db = request.app.state.db
+    biz = await _owned_merchant_or_403(db, body.merchant_id, user["user_id"])
+    tier = RAIL_SPONSOR_TIERS.get(body.tier)
+    if not tier:
+        raise HTTPException(400, {"code": "bad_tier"})
+    show = await db.live_shows.find_one({"_id": body.target_id,
+                                         "host_id": user["user_id"]})
+    if not show:
+        raise HTTPException(404, {"code": "show_not_found_or_not_host"})
+    target_kind = "live" if show.get("status") == "live" else "event"
+    sid = "rsp_" + uuid.uuid4().hex[:12]
+    await db.rail_sponsorships.insert_one({
+        "_id": sid, "merchant_id": body.merchant_id,
+        "business_name": biz.get("name") or show.get("business_name"),
+        "sponsor_user_id": user["user_id"],
+        "target_kind": target_kind, "target_id": body.target_id,
+        "title": show.get("title") or "Featured show",
+        "subtitle": biz.get("name") or show.get("business_name") or "Sponsored",
+        "image": show.get("cover_url"),
+        "cta": "Watch" if target_kind == "live" else "View",
+        "to": "/social?tab=live", "tier": body.tier,
+        "duration_hours": tier["hours"], "amount_cents": tier["amount_cents"],
+        "status": "pending_payment", "starts_at": None, "ends_at": None,
+        "stripe_session_id": None, "paid_at": None, "created_at": _now()})
+    return {"ok": True, "sponsorship_id": sid,
+            "amount_cents": tier["amount_cents"], "tier": body.tier}
+
+
+@router.post("/rail/sponsor/{sid}/checkout")
+async def rail_sponsor_checkout(sid: str, request: Request,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    sp = await db.rail_sponsorships.find_one(
+        {"_id": sid, "sponsor_user_id": user["user_id"]})
+    if not sp:
+        raise HTTPException(404, {"code": "not_found"})
+    if sp["status"] != "pending_payment":
+        raise HTTPException(400, {"code": "wrong_status", "current": sp["status"]})
+    # NOTE: rail sponsorship is a one-time charge; the shared stripe_client
+    # only exposes subscription checkout today, so (like the self-serve banner
+    # campaigns) this build activates immediately in TEST MODE — no real charge.
+    # When a one-time Stripe price is wired, branch here on is_live().
+    now = _now()
+    ends = now + timedelta(hours=int(sp["duration_hours"]))
+    await db.rail_sponsorships.update_one(
+        {"_id": sid}, {"$set": {
+            "status": "active", "starts_at": now, "ends_at": ends,
+            "paid_at": now,
+            "stripe_session_id": "cs_mock_" + uuid.uuid4().hex[:10]}})
+    log.info("[rail_sponsor] %s activated (test mode, %s)", sid, sp["tier"])
+    return {"ok": True, "mock": True, "status": "active",
+            "checkout_url": f"/merchant/rail-sponsor?sid={sid}&paid=1&mock=1",
+            "ends_at": _iso(ends)}
+
+
+@router.get("/rail/sponsor/list")
+async def rail_sponsor_list(request: Request, merchant_id: str,
+                            user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_merchant_or_403(db, merchant_id, user["user_id"])
+    now = _now()
+    out: list[dict] = []
+    async for sp in db.rail_sponsorships.find(
+            {"merchant_id": merchant_id}).sort("created_at", -1).limit(50):
+        imp = await db.rail_events.count_documents(
+            {"sponsorship_id": sp["_id"], "action": "impression"})
+        clk = await db.rail_events.count_documents(
+            {"sponsorship_id": sp["_id"], "action": "click"})
+        status = sp["status"]
+        ends = sp.get("ends_at")
+        if status == "active" and isinstance(ends, datetime):
+            ea = ends if ends.tzinfo else ends.replace(tzinfo=timezone.utc)
+            if ea < now:
+                status = "expired"
+        out.append({
+            "id": sp["_id"], "title": sp.get("title"),
+            "business_name": sp.get("business_name"), "image": sp.get("image"),
+            "target_kind": sp.get("target_kind"), "tier": sp.get("tier"),
+            "amount_cents": sp.get("amount_cents"), "status": status,
+            "starts_at": _iso(sp.get("starts_at")), "ends_at": _iso(sp.get("ends_at")),
+            "created_at": _iso(sp.get("created_at")),
+            "impressions": imp, "clicks": clk,
+            "ctr": round(clk / imp * 100, 1) if imp else 0.0})
+    return {"sponsorships": out}
+
+
+@router.post("/rail/sponsor/{sid}/cancel")
+async def rail_sponsor_cancel(sid: str, request: Request,
+                              user: dict = Depends(current_user)):
+    db = request.app.state.db
+    r = await db.rail_sponsorships.update_one(
+        {"_id": sid, "sponsor_user_id": user["user_id"]},
+        {"$set": {"status": "cancelled", "cancelled_at": _now()}})
+    if not r.matched_count:
+        raise HTTPException(404, {"code": "not_found"})
+    return {"ok": True}
+
+
+class RailEvent(BaseModel):
+    card_id: str
+    kind: str
+    action: str
+    page_route: Optional[str] = None
+    sponsorship_id: Optional[str] = None
+
+
+class RailEventBatch(BaseModel):
+    events: list[RailEvent]
+
+
+@router.post("/rail/event")
+async def rail_event(body: RailEventBatch, request: Request,
+                     user: dict = Depends(current_user)):
+    """Fire-and-forget rail impression / click analytics (batched).
+
+    Card-level events are recorded freely, but events attributed to a paid
+    `sponsorship_id` are validated (must reference a real sponsorship) and
+    deduped to ONE impression + ONE click per user, so merchant stats /CTR
+    can't be inflated by replays."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    now = _now()
+    # Resolve which referenced sponsorships actually exist.
+    ref = {e.sponsorship_id for e in (body.events or []) if e.sponsorship_id}
+    valid: set[str] = set()
+    if ref:
+        async for s in db.rail_sponsorships.find(
+                {"_id": {"$in": list(ref)}}, {"_id": 1}):
+            valid.add(s["_id"])
+    docs = []
+    seen: set[tuple] = set()
+    for e in (body.events or [])[:50]:
+        if e.action not in ("impression", "click"):
+            continue
+        sp = e.sponsorship_id if e.sponsorship_id in valid else None
+        if sp:
+            key = (sp, e.action)
+            if key in seen:
+                continue
+            dup = await db.rail_events.count_documents(
+                {"user_id": uid, "sponsorship_id": sp, "action": e.action},
+                limit=1)
+            if dup:
+                continue
+            seen.add(key)
+        docs.append({
+            "user_id": uid, "card_id": e.card_id, "kind": e.kind,
+            "action": e.action, "page_route": e.page_route,
+            "sponsorship_id": sp, "created_at": now})
+    if docs:
+        await db.rail_events.insert_many(docs)
+    return {"ok": True, "recorded": len(docs)}
 
 
 class FeedEventBody(BaseModel):
