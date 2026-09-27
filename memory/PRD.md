@@ -1466,3 +1466,23 @@ Three features on top of the Web Right-Rail V2.
 **Seed additions (preview):** 2 sponsor-eligible shows hosted by test@ (`lsw_sponsor_live`, `lsw_sponsor_evt`); mutual-follow edges so `usr_rail_c2` (Marco Rossi) has 4 mutual for demo@.
 
 **Test users:** merchant/owner test@bigfm.dubai / TestUser123! (owns biz_karak_cafe_karama); demo@ (Premium, 4 mutual w/ Marco); freeuser@ (non-owner → 403). Tests: `tests/test_iter192_social_rail_v2_sponsor.py`.
+
+---
+
+## 2026-06 (fork) — RAIL: INTEREST PICKER + EXCLUSIVE AUCTION + INSIGHTS + REAL STRIPE (iter193 PASS 28/28 backend + web)
+Four features on the Web Right-Rail V2.
+
+**1. Interest Picker** — `GET/PUT /api/social/interests` (10 canonical topics). Social wall has a "Tune suggestions" button → topics modal (saved to `users.interests`). `build_rail` smart suggestions now boost creators whose advisor `topics`/category match the user's chosen interests, on top of mutual-connection ranking; hint shows "N mutual" or "Matches your interests".
+
+**2. Auction Pricing (EXCLUSIVE)** — sponsorships carry a `bid_cents` (floor = tier price). `_rail_sponsored_card` pins the single ACTIVE sponsorship with the HIGHEST bid to the top slot; others are "Outbid". `/rail/sponsor/list` returns `current_top_bid_cents`, `active_total`, and per-item `bid_cents`/`rank`/`featured`. Merchants can `POST /rail/sponsor/{sid}/raise` (charges only the delta).
+
+**3. Sponsor Insights** — `GET /rail/sponsor/{sid}/insights?days=` returns a daily impressions/clicks series + totals. Merchant page rows expand to a 14-day recharts bar chart.
+
+**4. Real one-time Stripe** — replaced the mock activation. `POST /rail/sponsor/{sid}/checkout` and `/raise` create REAL Stripe Checkout Sessions (`mode=payment`, `price_data`) via the app's EXISTING Stripe test key + raw SDK (mirrors `marketplace_category_bids`; no new sandbox). Frontend opens Stripe in a new tab; `GET /rail/sponsor/{sid}/status` polls Stripe and activates on confirmed payment (idempotent, also fulfils a pending bid-raise). Preview = Stripe TEST mode (card 4242…); becomes live charges once the account is claimed & deployed.
+   - Stripe hosted checkout can't be completed by automation → activation-by-payment not E2E-tested; SEEDED active sponsorships (rsp_seed_hi $49 featured / rsp_seed_lo $19 outbid) + 7 days of rail_events drive rail/auction/insights coverage.
+
+**Seed:** advisor `topics` on the 4 sample creators; demo interests ASTROLOGY+DJ_SETS; 2 active seeded sponsorships + daily events. Test users unchanged (test@ owns biz_karak_cafe_karama).
+Tests: `tests/test_iter192_social_rail_v2_sponsor.py` (now covers auction/insights/interests/real-checkout contract).
+
+### Stripe tax mode
+Payments go through the app's existing Stripe integration (unchanged). No new tax configuration was introduced for rail sponsorships.

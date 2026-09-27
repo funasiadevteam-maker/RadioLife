@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
   Headphones, Moon, Gamepad2, MapPin, Loader2, Heart, MessageCircle, Share2,
   ChevronRight, Radio, Video, Sparkles, Store, Users, Play, ArrowUp, Image as ImageIcon,
-  X,
+  X, SlidersHorizontal, Check,
 } from "lucide-react";
 import { Avatar } from "./SocialV2";
 
@@ -288,6 +288,67 @@ function WallCard({ item, mode, onFollow }) {
   );
 }
 
+// ───────────────────────── Interest picker ─────────────────────────
+function InterestPickerModal({ onClose, onSaved }) {
+  const [topics, setTopics] = useState([]);
+  const [sel, setSel] = useState([]);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    social.get("/interests")
+      .then((r) => { setTopics(r.data?.topics || []); setSel(r.data?.selected || []); })
+      .catch(() => {});
+  }, []);
+  const toggle = (id) =>
+    setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const save = async () => {
+    setBusy(true);
+    try {
+      await social.put("/interests", { interests: sel });
+      toast.success("Suggestions tuned to your interests");
+      onSaved?.(); onClose();
+    } catch (_) { toast.error("Couldn't save interests"); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+         onClick={onClose} data-testid="interest-picker">
+      <div className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl border border-white/10 p-5"
+           style={{ background: "linear-gradient(180deg,#12102b,#0b0918)" }}
+           onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2 text-purple-300 text-[10px] font-black uppercase tracking-widest">
+            <SlidersHorizontal size={13} /> Tune your suggestions
+          </div>
+          <button type="button" onClick={onClose} data-testid="interest-close"
+                  className="w-9 h-9 grid place-items-center rounded-full bg-white/10"><X size={18} /></button>
+        </div>
+        <p className="text-sm text-slate-400 mb-4">
+          Pick a few topics you love — we'll surface creators who match, on top of your mutual friends.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {topics.map((t) => {
+            const on = sel.includes(t.id);
+            return (
+              <button key={t.id} type="button" onClick={() => toggle(t.id)}
+                      data-testid={`interest-chip-${t.id}`}
+                      className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-sm font-bold border transition ${
+                        on ? "text-white border-transparent" : "text-slate-300 border-white/15 bg-white/[0.04]"}`}
+                      style={on ? { background: "linear-gradient(135deg,#a855f7,#ec4899)" } : undefined}>
+                {on && <Check size={14} />} {t.label}
+              </button>
+            );
+          })}
+        </div>
+        <button type="button" onClick={save} disabled={busy} data-testid="interest-save"
+                className="mt-5 w-full h-11 rounded-full font-bold text-white disabled:opacity-60"
+                style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+          {busy ? <Loader2 className="animate-spin mx-auto" size={18} /> : "Save interests"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ───────────────────────── Wall ────────────────────────────────────
 export default function SocialWall({ actions, onOpenFollowing }) {
   const navigate = useNavigate();
@@ -298,6 +359,7 @@ export default function SocialWall({ actions, onOpenFollowing }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [interestsOpen, setInterestsOpen] = useState(false);
   const [newCount, setNewCount] = useState(0);
   const latestRef = useRef(null);
 
@@ -367,6 +429,10 @@ export default function SocialWall({ actions, onOpenFollowing }) {
           );
         })}
         <div className="flex-1" />
+        <button type="button" onClick={() => setInterestsOpen(true)} data-testid="wall-tune-suggestions"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-white">
+          <SlidersHorizontal size={13} /> Tune suggestions
+        </button>
         <button type="button" onClick={onOpenFollowing} data-testid="wall-open-following"
                 className="text-xs font-bold text-slate-400 hover:text-white">Manage following</button>
       </div>
@@ -404,6 +470,10 @@ export default function SocialWall({ actions, onOpenFollowing }) {
       {composerOpen && (
         <MomentComposerModal onClose={() => setComposerOpen(false)}
                              onPosted={() => fetchFeed(mode, false)} />
+      )}
+      {interestsOpen && (
+        <InterestPickerModal onClose={() => setInterestsOpen(false)}
+                             onSaved={() => fetchFeed(mode, false)} />
       )}
     </div>
   );

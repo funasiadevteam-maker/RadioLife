@@ -129,34 +129,31 @@ class TestSponsorCreateAuth:
         assert r.status_code == 400, r.text
 
 
-class TestSponsorCheckoutMock:
-    def test_checkout_auto_activates(self, merchant_client, created_sponsorship):
+class TestSponsorCheckout:
+    def test_checkout_returns_stripe_session(self, merchant_client, created_sponsorship):
         sid = created_sponsorship
         r = merchant_client.post(f"{BASE_URL}/api/social/rail/sponsor/{sid}/checkout",
-                                 json={}, timeout=30)
+                                 json={"origin_url": "https://example.com"}, timeout=30)
         assert r.status_code == 200, r.text
         d = r.json()
-        # Auto-activation in mock/test mode.
-        if d.get("mock"):
-            assert d.get("status") == "active"
-            assert d.get("ends_at")
-        # Verify in list
+        assert d.get("checkout_url") and d.get("session_id"), d
+        # Stays pending until Stripe confirms payment (no auto-activation).
         rl = merchant_client.get(f"{BASE_URL}/api/social/rail/sponsor/list",
                                  params={"merchant_id": MERCHANT_ID}, timeout=30)
-        assert rl.status_code == 200
-        items = rl.json().get("sponsorships") or []
-        found = next((it for it in items if it["id"] == sid), None)
-        assert found, f"created sponsorship missing from list: {sid}"
-        # If checkout returned mock=True, it must now be active.
-        if d.get("mock"):
-            assert found["status"] == "active", found
+        found = next((it for it in rl.json()["sponsorships"] if it["id"] == sid), None)
+        assert found and found["status"] == "pending_payment", found
 
-    def test_checkout_wrong_status(self, merchant_client, created_sponsorship):
-        # Second checkout on an already-active sponsorship must 400.
-        sid = created_sponsorship
-        r = merchant_client.post(f"{BASE_URL}/api/social/rail/sponsor/{sid}/checkout",
-                                 json={}, timeout=30)
+    def test_checkout_wrong_status_on_active(self, merchant_client):
+        # Checkout on an already-active (seeded) sponsorship must 400.
+        r = merchant_client.post(f"{BASE_URL}/api/social/rail/sponsor/rsp_seed_hi/checkout",
+                                 json={"origin_url": "https://example.com"}, timeout=30)
         assert r.status_code == 400, r.text
+
+    def test_status_endpoint(self, merchant_client, created_sponsorship):
+        sid = created_sponsorship
+        r = merchant_client.get(f"{BASE_URL}/api/social/rail/sponsor/{sid}/status", timeout=30)
+        assert r.status_code == 200, r.text
+        assert r.json()["payment_status"] in ("pending", "paid")
 
 
 class TestSponsorList:
@@ -182,11 +179,8 @@ class TestSponsorCancel:
 
 # ── Sponsored card injection in /api/social/rail ─────────────────────
 class TestSponsoredInjection:
-    def test_first_card_is_sponsored_when_active(self, merchant_client, demo_client,
-                                                 created_sponsorship):
-        # Ensure active (idempotent).
-        merchant_client.post(f"{BASE_URL}/api/social/rail/sponsor/{created_sponsorship}/checkout",
-                             json={}, timeout=30)
+    def test_first_card_is_sponsored_when_active(self, demo_client):
+        # Seeded active sponsorships exist → the rail pins a sponsored card first.
         for route in ("/social", "/channels", "/shop"):
             r = demo_client.get(f"{BASE_URL}/api/social/rail",
                                 params={"page_route": route, "limit": 7}, timeout=30)
@@ -199,6 +193,71 @@ class TestSponsoredInjection:
             assert (first.get("badge") or "").upper() == "SPONSORED", first
             assert first.get("sponsorship_id"), first
             assert 1 <= len(cards) <= 7
+
+    def test_highest_bid_wins_exclusive_slot(self, demo_client):
+        # rsp_seed_hi ($49) must beat rsp_seed_lo ($19) for the single slot.
+        r = demo_client.get(f"{BASE_URL}/api/social/rail",
+                            params={"page_route": "/social", "limit": 7}, timeout=30)
+        cards = r.json().get("cards") or []
+        sponsored = [c for c in cards if c["kind"] == "sponsored"]
+        assert len(sponsored) == 1, "exactly one sponsored slot"
+        assert sponsored[0]["sponsorship_id"] == "rsp_seed_hi", sponsored[0]
+
+
+class TestAuctionAndInsights:
+    def test_list_has_auction_fields(self, merchant_client):
+        r = merchant_client.get(f"{BASE_URL}/api/social/rail/sponsor/list",
+                                params={"merchant_id": MERCHANT_ID}, timeout=30)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert "current_top_bid_cents" in d and "active_total" in d
+        hi = next((it for it in d["sponsorships"] if it["id"] == "rsp_seed_hi"), None)
+        lo = next((it for it in d["sponsorships"] if it["id"] == "rsp_seed_lo"), None)
+        assert hi and lo, "seeded sponsorships present"
+        assert hi["featured"] is True and hi["rank"] == 1, hi
+        assert lo["featured"] is False and lo["rank"] == 2, lo
+        assert hi["bid_cents"] > lo["bid_cents"]
+
+    def test_raise_bid_returns_delta_checkout(self, merchant_client):
+        r = merchant_client.post(f"{BASE_URL}/api/social/rail/sponsor/rsp_seed_lo/raise",
+                                 json={"bid_cents": 6000, "origin_url": "https://example.com"},
+                                 timeout=30)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d.get("checkout_url") and d.get("delta_cents") == 6000 - 1900, d
+
+    def test_raise_bid_too_low_400(self, merchant_client):
+        r = merchant_client.post(f"{BASE_URL}/api/social/rail/sponsor/rsp_seed_hi/raise",
+                                 json={"bid_cents": 100, "origin_url": "https://example.com"},
+                                 timeout=30)
+        assert r.status_code == 400, r.text
+
+    def test_insights_returns_daily_series(self, merchant_client):
+        r = merchant_client.get(f"{BASE_URL}/api/social/rail/sponsor/rsp_seed_hi/insights",
+                                params={"days": 7}, timeout=30)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert len(d["series"]) == 7
+        assert all("date" in x and "impressions" in x and "clicks" in x for x in d["series"])
+        assert d["totals"]["impressions"] > 0
+
+    def test_insights_non_owner_404(self, free_client):
+        r = free_client.get(f"{BASE_URL}/api/social/rail/sponsor/rsp_seed_hi/insights",
+                            timeout=30)
+        assert r.status_code == 404
+
+
+class TestInterests:
+    def test_get_and_put_interests(self, demo_client):
+        r = demo_client.get(f"{BASE_URL}/api/social/interests", timeout=30)
+        assert r.status_code == 200, r.text
+        assert len(r.json()["topics"]) >= 8
+        r2 = demo_client.put(f"{BASE_URL}/api/social/interests",
+                             json={"interests": ["ASTROLOGY", "DJ_SETS", "NOT_A_TOPIC"]},
+                             timeout=30)
+        assert r2.status_code == 200, r2.text
+        # Invalid topic filtered out.
+        assert set(r2.json()["selected"]) == {"ASTROLOGY", "DJ_SETS"}
 
 
 # ── Rail Analytics: POST /api/social/rail/event ──────────────────────

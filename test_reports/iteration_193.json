@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 193 — FUUSIC Social V2 Right-Rail V2 with FOUR features (Interest Picker, Exclusive Auction, Sponsor Insights, Real Stripe one-time). Backend: 28/28 pytest pass in test_iter192_social_rail_v2_sponsor.py (tiers/eligible-shows/create-auth/checkout-pending/status/list/cancel + auction fields current_top_bid_cents+active_total, rsp_seed_hi featured rank1, rsp_seed_lo outbid rank2, raise returns delta_cents=4100 for lo→$60, raise-too-low 400, 7-day insights series+totals, non-owner insights 404, interests GET topics>=8 + PUT filters invalid + demo has ASTROLOGY+DJ_SETS, rail events cap50 + invalid-action filter + dedup, sponsored injection FIRST-CARD with highest bid winning single slot, Marco Rossi '4 mutual' outranks 0-mutual, still 5–7 cards). feed-v2 following/for_you regression fine, new-count works. Web (verified with browser automation @1440x900): /merchant/rail-sponsor (test@) shows [data-testid=merchant-rail-sponsor] + top-bid banner 'Current top bid to beat: $49', rsp_seed_hi FEATURED+#1 badge, rsp_seed_lo OUTBID+#2 badge + Raise-bid button; insights toggle expands recharts chart (data-testid=rail-sponsor-chart-rsp_seed_hi). Feature-this → tier modal with 4 tier chips + bid input + Pay btn → Pay opens NEW TAB with REAL Stripe URL (cs_test_...) and posts BOTH /api/social/rail/sponsor (create) + /api/social/rail/sponsor/{sid}/checkout, sponsorship stays pending_payment. Raise-modal opens with 'Raise your bid' + delta info + Pay-difference button. Global right-rail on demo@ /social: card-0 = gold SPONSORED 'Karak & Chill — Live Tasting / Karak Cafe / Watch' pinned first, Marco Rossi follow card shows '4 mutual' hint, Interest picker button [wall-tune-suggestions] opens [interest-picker] modal with 10 chips + save, save persists + closes modal.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/merchant/rail-sponsor Insights chart", "issues": ["Recharts warns 'The width(-1) and height(-1) of chart should be greater than 0' momentarily on first mount of ResponsiveContainer before layout settles. Chart still renders correctly. Consider setting a fixed minHeight/minWidth or explicit width prop on the parent to silence the warning and avoid a flash of empty space."]}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter192_social_rail_v2_sponsor.py",
+    "/app/test_reports/pytest/iter193_social_rail_v2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/social_v2.py:rail_sponsor_checkout now correctly leaves status='pending_payment' after creating a real Stripe Checkout Session (no more instant auto-activation) — matches the review contract; the 400 on checkout-of-active guard also works for the seeded rsp_seed_hi.",
+    "Auction is enforced at read-time (rail selects the highest active bid for the single sponsored slot) rather than by mutating losers to 'outbid' — the /sponsor/list endpoint injects featured/rank/outbid flags derived from bid_cents ranking. Cleaner than mutating rows; keep it this way.",
+    "Insights uses db.rail_events aggregated per-day with UTC date buckets. Verified 14-day and 7-day series return len==days with 0-fills for empty days. Good. Non-owner returns 404 (not 403) — spec says 404, matches.",
+    "Interest PUT correctly filters invalid topics and caps at 12; PUT returns {selected}. Good. Web SocialWall renders 'Matches your interests' / 'Shared interest' hint only for zero-mutual creators whose advisor topics intersect the viewer's interests — verified in social_feed.py:635. Not visible in this run because Marco (4-mutual) crowds out interest-only cards at limit=7; consider surfacing at least one interest-boost card even when mutual suggestions fill the rail.",
+    "Real Stripe integration: /sponsor/{sid}/checkout returns cs_test_... hosted URL that opens in a new tab; automation cannot complete Stripe's hosted page — expected per review notes. Payment activation-by-polling path was NOT end-to-end verified (would require webhook or paid card).",
+    "rail_event still lacks per-user server-side impression rate limiting; anti-inflation dedup by (user_id, sponsorship_id, action) is in place per the sponsorship_stats test — good, retained from iter192.",
+    "MerchantRailSponsor.jsx cancel is still a one-tap destructive action (no confirm dialog) — carried over from iter192, mild UX risk on a paid feature."
+  ],
+  "updated_files": [
+    "/app/test_reports/pytest/iter193_social_rail_v2.xml (new)",
+    "/app/test_reports/iteration_193.json (new)"
+  ],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "100%"},
+  "test_credentials": "test@bigfm.dubai/TestUser123! (merchant owner biz_karak_cafe_karama; sponsor of rsp_seed_hi/lo), demo@bigfm.dubai/DemoPass123! (Premium, interests ASTROLOGY+DJ_SETS, 4 mutual w/ Marco Rossi usr_rail_c2), freeuser@bigfm.dubai/FreePass123! (non-owner 403 / 404 checks)",
+  "seed_data_creation": "Existing startup seed provides: rsp_seed_hi (bid $49, featured rank1) + rsp_seed_lo (bid $19, outbid rank2) both ACTIVE on biz_karak_cafe_karama; 7 days of rail_events for insights chart. Testing also created one new pending_payment sponsorship via merchant UI Feature-this flow (rsp_ed8d8b69ea4d) — harmless leftover. Demo user interests seeded ASTROLOGY+DJ_SETS.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Right-rail exclusive sponsored slot contract: exactly ONE kind='sponsored' card, pinned at index 0, sponsorship_id points to the sponsorship with highest bid_cents among status='active' (rsp_seed_hi wins over rsp_seed_lo). GET /api/social/rail/sponsor/list returns {sponsorships:[{id, bid_cents, featured, rank, outbid, impressions, clicks, ctr, ...}], current_top_bid_cents, active_total}. POST /api/social/rail/sponsor creates pending_payment sponsorship; /{sid}/checkout returns real Stripe URL cs_test_... and leaves status=pending_payment (no auto-activation). Attempting /checkout on an already-active seeded sponsorship → 400. /{sid}/raise {bid_cents, origin_url} → checkout_url + delta_cents=bid_cents-current; too-low → 400. /{sid}/insights?days=N → {series:[{date,impressions,clicks}]*N, totals}. Interests: GET /api/social/interests → {topics(>=8), selected}; PUT filters invalid to canonical RAIL_TOPICS. Merchant page /merchant/rail-sponsor testIDs: merchant-rail-sponsor, rail-sponsor-top-bid, rail-sponsor-featured-<sid>, rail-sponsor-outbid-<sid>, rail-sponsor-raise-<sid>, rail-sponsor-insights-toggle-<sid>, rail-sponsor-chart-<sid>, rail-sponsor-feature-<showId>, rail-sponsor-tier-modal, rail-sponsor-tier-<24h|3d|7d>, rail-sponsor-bid-input, rail-sponsor-pay-btn, rail-sponsor-raise-modal. Rail testIDs: nlv2-right-rail, nlv2-railside-card-<i>, nlv2-railside-cta-<i>, nlv2-railside-hint-<i>. Rail only mounts at xl viewport ≥1280 (used 1440x900). Wall interest picker: wall-tune-suggestions, interest-picker, interest-chip-<topic>, interest-save.",
+  "rca of the issue": ""
+}
