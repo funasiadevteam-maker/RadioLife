@@ -1429,3 +1429,24 @@ Marketplace commission + payouts layer. Platform charges customers, keeps a % fe
 - Mobile payout onboarding entry point (Phase 1 onboarding UI is web-only; the split applies server-side to bookings made from any client).
 - Advisor entry-point link to /payouts from the web Dreams advisor area (advisors currently reach /payouts directly).
 - Full Stripe KYC + real split-charge settlement validation (needs interactive onboarding; can't be done headlessly).
+
+---
+
+## 2026-06 (fork) — SOCIAL V2 WALL FIXES + WEB RIGHT-RAIL V2 (iter191 PASS 14/14 + 8/8 regression)
+Continuation of the Social V2 Phase 1+2 overhaul (combined Social Wall feed, unified `/api/social/following`, `/api/social/feed-v2`).
+
+**Backend bug fixes (from iter190):**
+- P0 — `GET /api/social/feed-v2/new-count` always returned 0. Root cause: naive-vs-aware datetime comparison silently swallowed. Fix: `services/social_feed.py::_iso()` now always emits tz-aware UTC ISO; the new-count endpoint (`routes/social_v2.py`) coerces naive→aware and also recovers a `+` offset that clients decode as a space.
+- P1 — anonymous dreams leaked into FOLLOWING mode with `follow_relationship='discovery'` (privacy + invariant break). Fix: `services/social_feed.py::_dreams` excludes anonymous dreams entirely when `mode=following`.
+
+**Web Right-Rail V2 (CompactRightRailV2):** the global desktop app-shell rail (`frontend/src/design_v2/AppShellV2.jsx::RightRailV2`) now shows 5–7 COMPACT contextual cards mixing live-now + upcoming events + suggested creators to follow + suggested stations, plus (non-premium) a sponsored ad slot and the premium promo.
+- New backend: `services/social_feed.py::build_rail()` + `GET /api/social/rail?page_route=&limit=` — real DB data, contextually weighted per page route (stations rank higher on /channels; live/event on /shop), relationship + recency boosted, kind-diversified.
+- Premium users: no ad slot, up to 6 contextual cards + promo. Free users: ad slot + up to 5 cards + "Go Ad-Free" promo.
+- Follow cards call `POST /api/social/follow/{id}`; other cards navigate via `to`.
+
+**Sample seed (preview only, in `seed_social_v2_demo`):** 4 unfollowed "suggested" creators (`advisor_profiles.demo_rail_suggested=true`, unique `advisor_id`), 2 unlisted stations (`is_demo_sample=true`), 1 live show `lsw_rail_live_1`. Demo auto-follow loop now skips `demo_rail_suggested` advisors so the rail always has suggestions.
+
+### Remaining backlog (unchanged)
+- P2 — Secure AI Cover-Art endpoint (`/api/social/liveshows/cover-art/generate`) to event hosts/owners only.
+- P2 — Production Google OAuth redirect_uri_mismatch (user must add prod domain in GCP); Apple Sign-In awaiting user `.p8`.
+- P1 — Push Notifications (needs native build via Publish).

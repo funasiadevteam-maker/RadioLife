@@ -17,6 +17,8 @@ import AdminHome from "@/pages/admin/AdminHome";  // Phase T — Admin Home dash
 import AdminAppearance from "@/Admin/AdminAppearance";  // admin-only design switch
 import AdminSoftLaunch from "@/Admin/AdminSoftLaunch";  // V2 soft-launch admin
 import SocialV2 from "@/pages/social/SocialV2";  // Social V2 — Phase 1
+import SocialTarot from "@/pages/social/SocialTarot";  // Social V2 — Tarot category
+import SocialFollowingRoute from "@/pages/social/SocialFollowingRoute";  // Following management
 import ListenRoom from "@/pages/social/ListenRoom";  // Listen Together room
 import DreamsGuidance from "@/pages/social/DreamsGuidance";  // Dreams & Guidance
 import DreamMatchCard from "@/pages/social/DreamMatchCard";  // Public match card
@@ -1105,6 +1107,8 @@ function AppRouter() {
 
       {/* Social V2 — Phase 1 (design-independent; premium V2 presentation). */}
       <Route path="/social" element={<ProtectedRoute><SocialV2 /></ProtectedRoute>} />
+      <Route path="/social/following" element={<ProtectedRoute><SocialFollowingRoute /></ProtectedRoute>} />
+      <Route path="/social/tarot" element={<ProtectedRoute><SocialTarot /></ProtectedRoute>} />
       <Route path="/social/room/:id" element={<ProtectedRoute><ListenRoom /></ProtectedRoute>} />
       <Route path="/social/dreams" element={<ProtectedRoute><DreamsGuidance /></ProtectedRoute>} />
       <Route path="/dreams/match/:cardId" element={<DreamMatchCard />} />

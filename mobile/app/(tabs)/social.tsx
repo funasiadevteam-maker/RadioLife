@@ -12,15 +12,17 @@ import api from '../../src/api/client';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { MomentsTab, PulseTab, GoTogetherSheet, PlayTogetherSheet, ShopTogetherSheet, DiscoverSection } from '../../src/social/together';
 import { LiveTab } from '../../src/social/live';
+import SocialWall from '../../src/social/wall';
 import { playImportedStation } from '../../src/services/playStation';
 
 const TABS = [
-  { key: 'together', label: 'Together', icon: 'sparkles' },
+  { key: 'together', label: 'Home', icon: 'sparkles' },
   { key: 'live', label: 'Live', icon: 'videocam' },
   { key: 'moments', label: 'Moments', icon: 'camera' },
   { key: 'pulse', label: 'Nearby', icon: 'location' },
   { key: 'friends', label: 'Friends', icon: 'people' },
-  { key: 'sharedreams', label: 'Share Dreams', icon: 'moon' },
+  { key: 'dreams', label: 'Dreams', icon: 'moon' },
+  { key: 'tarot', label: 'Tarot', icon: 'sparkles' },
 ];
 
 export default function SocialScreen() {
@@ -55,14 +57,21 @@ export default function SocialScreen() {
           <Stat icon="radio" n={h.live_experiences || 0} label="Live" tint={TUBE.pink} />
           <Stat icon="headset" n={h.friends_listening || 0} label="Listening" tint={TUBE.electric} />
           <Stat icon="people" n={counts.friends || 0} label="Friends" tint={TUBE.magenta} />
+          <Stat icon="person-add" n={counts.following || 0} label="Following" tint="#38bdf8"
+            onPress={() => router.push('/social/following' as any)} testID="social-stat-following" />
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 8, paddingVertical: 12 }} testID="social-tabs">
           {TABS.map((t) => {
             const active = tab === t.key;
             const badge = t.key === 'friends' ? (counts.friend_requests || 0) : 0;
+            const onPress = () => {
+              if (t.key === 'dreams') router.push('/social/dreams' as any);
+              else if (t.key === 'tarot') router.push('/social/tarot' as any);
+              else setTab(t.key);
+            };
             return (
-              <Pressable key={t.key} testID={`social-tab-${t.key}`} onPress={() => (t.key === 'sharedreams' ? router.push('/social/dreams' as any) : setTab(t.key))}
+              <Pressable key={t.key} testID={`social-tab-${t.key}`} onPress={onPress}
                 style={[s.chip, active && s.chipActive]}>
                 <Ionicons name={t.icon as any} size={15} color={active ? '#fff' : TUBE.textMuted} />
                 <Text style={[s.chipTxt, active && { color: '#fff' }]}>{t.label}</Text>
@@ -76,8 +85,7 @@ export default function SocialScreen() {
       {loading ? (
         <View style={s.center}><ActivityIndicator color={TUBE.magenta} /></View>
       ) : tab === 'together' ? (
-        <TogetherTab home={home} refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); loadHome(); }} />
+        <TogetherTab home={home} onNavigateTab={setTab} />
       ) : tab === 'friends' ? (
         <FriendsTab />
       ) : tab === 'moments' ? (
@@ -93,9 +101,10 @@ export default function SocialScreen() {
   );
 }
 
-function Stat({ icon, n, label, tint }: any) {
+function Stat({ icon, n, label, tint, onPress, testID }: any) {
+  const Wrap: any = onPress ? Pressable : View;
   return (
-    <View style={s.stat}>
+    <Wrap style={s.stat} onPress={onPress} testID={testID}>
       <View style={[s.statIcon, { backgroundColor: `${tint}22` }]}>
         <Ionicons name={icon} size={15} color={tint} />
       </View>
@@ -103,11 +112,11 @@ function Stat({ icon, n, label, tint }: any) {
         <Text style={s.statN}>{n}</Text>
         <Text style={s.statLbl}>{label}</Text>
       </View>
-    </View>
+    </Wrap>
   );
 }
 
-function TogetherTab({ home, refreshing, onRefresh }: any) {
+function TogetherTab({ home, onNavigateTab }: any) {
   const router = useRouter();
   const activeChannelName = usePlayerStore((st) => st.activeChannelName);
   const activeChannelThumb = usePlayerStore((st) => st.activeChannelThumb);
@@ -144,104 +153,29 @@ function TogetherTab({ home, refreshing, onRefresh }: any) {
     createRoom({ id: st.id, name: st.name, favicon: st.favicon || st.logo_url || '' });
   };
 
-  const doItems = [
-    { key: 'listen', label: 'Listen Together', icon: 'headset', on: startRoom },
-    { key: 'play', label: 'Play Together', icon: 'game-controller', on: () => setPlayOpen(true) },
-    { key: 'go', label: 'Go Together', icon: 'location', on: () => setGoOpen(true) },
-    { key: 'shop', label: 'Shop Together', icon: 'bag-handle', on: () => setShopOpen(true) },
+  const actions = [
+    { key: 'listen', label: 'Listen Together', blurb: 'Tune in with friends', icon: 'headset', grad: ['#a855f7', '#ec4899'], on: startRoom },
+    { key: 'dreams', label: 'Dreams', blurb: 'Share or explore', icon: 'moon', grad: ['#7c3aed', '#c026d3'], on: () => router.push('/social/dreams' as any) },
+    { key: 'tarot', label: 'Tarot', blurb: 'Draw a card', emoji: '🃏', grad: ['#6d28d9', '#db2777'], on: () => router.push('/social/tarot' as any) },
+    { key: 'play', label: 'Play Together', blurb: 'Games with friends', icon: 'game-controller', grad: ['#2563eb', '#7c3aed'], on: () => setPlayOpen(true) },
+    { key: 'go', label: 'Go Together', blurb: 'Plan an outing', icon: 'location', grad: ['#0891b2', '#2563eb'], on: () => setGoOpen(true) },
+    { key: 'shop', label: 'Shop Together', blurb: 'Share a cart', icon: 'bag-handle', grad: ['#db2777', '#f59e0b'], on: () => setShopOpen(true) },
   ];
-  const rooms = home?.suggested_rooms || [];
-  const friendsNow = home?.friends_now || [];
 
   return (
     <>
-    <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 120, gap: 20 }}
-      showsVerticalScrollIndicator={false} testID="social-together"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TUBE.magenta} />}>
-      <Pressable testID="social-start-room" onPress={startRoom} disabled={starting}>
-        <LinearGradient colors={['#2a1148', '#3a0f52']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-          <View style={s.heroIcon}>
-            {starting ? <ActivityIndicator color="#fff" /> : <Ionicons name="headset" size={24} color="#fff" />}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.heroTitle}>Listen Together</Text>
-            <Text style={s.heroSub} numberOfLines={1}>
-              {activeChannelName ? `Invite friends to ${activeChannelName}` : 'Start a room and invite friends'}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />
-        </LinearGradient>
-      </Pressable>
-
-      <Pressable testID="social-open-dreams" onPress={() => router.push('/social/dreams' as any)}>
-        <LinearGradient colors={['#1e1b4b', '#6d28d9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-          <View style={s.heroIcon}><Ionicons name="moon" size={24} color="#fff" /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.heroTitle}>Dreams & Guidance</Text>
-            <Text style={s.heroSub} numberOfLines={2}>
-              Share a dream, discover what it means, connect with verified advisors
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />
-        </LinearGradient>
-      </Pressable>
-
-      <View>
-        <Text style={s.sectionTitle}>DO SOMETHING TOGETHER</Text>
-        <View style={s.grid}>
-          {doItems.map((d) => (
-            <Pressable key={d.key} testID={`social-do-${d.key}`} onPress={d.on} style={s.gridItem}>
-              <View style={s.gridIcon}><Ionicons name={d.icon as any} size={20} color={TUBE.magenta} /></View>
-              <Text style={s.gridLabel}>{d.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      {friendsNow.length > 0 && (
-        <View>
-          <Text style={s.sectionTitle}>FRIENDS RIGHT NOW</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}
-            testID="social-friends-now">
-            {friendsNow.map((f: any) => (
-              <Pressable key={f.user_id} style={s.friendNow} onPress={() => router.push(`/social/room/${f.room_id}` as any)}>
-                <AvatarM name={f.name} url={f.avatar_url} size={44} />
-                <Text style={s.friendNowName} numberOfLines={1}>{(f.name || '').split(' ')[0]}</Text>
-                <Text style={s.friendNowCtx} numberOfLines={1}>{f.context || 'Listening'}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+      <SocialWall actions={actions} onNavigateTab={onNavigateTab}
+        onOpenFollowing={() => router.push('/social/following' as any)} />
+      {starting && (
+        <View style={s.startingPill}>
+          <ActivityIndicator color="#fff" size="small" />
+          <Text style={s.startingTxt}>Starting room…</Text>
         </View>
       )}
-
-      <View>
-        <Text style={s.sectionTitle}>LIVE LISTENING ROOMS</Text>
-        {rooms.length === 0 ? (
-          <View style={s.empty}><Text style={s.emptyTxt}>No rooms live right now — start one above 🎧</Text></View>
-        ) : rooms.map((r: any) => (
-          <Pressable key={r.room_id} testID={`social-room-${r.room_id}`} style={s.roomCard}
-            onPress={() => router.push(`/social/room/${r.room_id}` as any)}>
-            <View style={s.roomArt}>
-              {r.content?.favicon ? <Image source={{ uri: r.content.favicon }} style={{ width: '100%', height: '100%' }} />
-                : <Ionicons name="radio" size={22} color={TUBE.magenta} />}
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 3 }}>
-                <View style={s.liveBadge}><Text style={s.liveBadgeTxt}>● LIVE</Text></View>
-                {r.has_friend && <View style={s.friendBadge}><Text style={s.friendBadgeTxt}>FRIEND</Text></View>}
-              </View>
-              <Text style={s.roomName} numberOfLines={1}>{r.content?.name || r.title}</Text>
-              <Text style={s.roomMeta}>{r.participant_count} listening · {r.host_name}</Text>
-            </View>
-            <Ionicons name="play" size={18} color={TUBE.text} />
-          </Pressable>
-        ))}
-      </View>
-    </ScrollView>
-    <GoTogetherSheet visible={goOpen} onClose={() => setGoOpen(false)} />
-    <PlayTogetherSheet visible={playOpen} onClose={() => setPlayOpen(false)} />
-    <ShopTogetherSheet visible={shopOpen} onClose={() => setShopOpen(false)} />
-    <StationPickSheet visible={pickOpen} onClose={() => setPickOpen(false)} onPick={pickAndStart} />
+      <GoTogetherSheet visible={goOpen} onClose={() => setGoOpen(false)} />
+      <PlayTogetherSheet visible={playOpen} onClose={() => setPlayOpen(false)} />
+      <ShopTogetherSheet visible={shopOpen} onClose={() => setShopOpen(false)} />
+      <StationPickSheet visible={pickOpen} onClose={() => setPickOpen(false)} onPick={pickAndStart} />
     </>
   );
 }
@@ -437,7 +371,7 @@ const s = StyleSheet.create({
   header: { paddingHorizontal: TSPACE.md, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: TUBE.line, backgroundColor: TUBE.bg },
   title: { color: TUBE.text, fontSize: TFONT.xxl, fontWeight: '900', letterSpacing: -0.5 },
   sub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 2, marginTop: 2 },
-  statRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  statRow: { flexDirection: 'row', gap: 10, marginTop: 12, flexWrap: 'wrap' },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.md, paddingHorizontal: 12, paddingVertical: 8 },
   statIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   statN: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '900' },
@@ -485,4 +419,6 @@ const s = StyleSheet.create({
   csBlurb: { color: TUBE.textMuted, fontSize: TFONT.sm, textAlign: 'center', maxWidth: 280 },
   csBadge: { backgroundColor: 'rgba(168,85,247,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginTop: 8 },
   csBadgeTxt: { color: '#d8b4fe', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  startingPill: { position: 'absolute', bottom: 96, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(0,0,0,0.85)', borderColor: TUBE.line, borderWidth: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10 },
+  startingTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '700' },
 });

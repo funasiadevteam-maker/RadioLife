@@ -8,7 +8,7 @@ import axios from "axios";
 import {
   Home, Headphones, ShoppingBag, Gamepad2, Users, Coins, ChevronDown,
   CreditCard, Move, PanelTop, PanelBottom, PanelLeft, PanelRight,
-  PictureInPicture2,
+  PictureInPicture2, Radio,
 } from "lucide-react";
 import { API, useAuth } from "@/AuthContext";
 import { usePlayerDock, DOCK_OPTIONS } from "@/shell/usePlayerDock";
@@ -35,6 +35,7 @@ const CONTAINER = "max-w-[1440px] mx-auto w-full px-4 sm:px-6 xl:px-10";
 
 function railPageRoute(pathname) {
   if (pathname === "/") return "/home";
+  if (pathname.startsWith("/social")) return "/social";
   if (pathname.startsWith("/listen")) return "/channels";
   if (pathname.startsWith("/shop")) return "/shop";
   if (pathname.startsWith("/play")) return "/play";
@@ -200,24 +201,104 @@ function ShellV2Header() {
   );
 }
 
+const RAIL_BADGE_TONE = {
+  LIVE: "#ef4444", SOON: "#22d3ee", SUGGESTED: "#a855f7", "TUNE IN": "#38bdf8",
+};
+
+function RailCompactCard({ card, idx }) {
+  const navigate = useNavigate();
+  const [followed, setFollowed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const tone = RAIL_BADGE_TONE[card.badge] || "#a855f7";
+  const isFollow = card.kind === "follow";
+  const isLive = card.kind === "live";
+
+  const open = () => { if (card.to) navigate(card.to); };
+  const onFollow = async (e) => {
+    e.stopPropagation();
+    if (busy || followed) return;
+    setBusy(true);
+    try {
+      await axios.post(`${API}/social/follow/${card.follow_id}`, {}, { withCredentials: true });
+      setFollowed(true);
+    } catch (_) { /* silent */ } finally { setBusy(false); }
+  };
+
+  return (
+    <div data-testid={`nlv2-railside-card-${idx}`} data-rail-kind={card.kind}
+      onClick={isFollow ? undefined : open}
+      className={`nlv2-glass rounded-2xl p-2.5 flex items-center gap-2.5 transition ${isFollow ? "" : "cursor-pointer hover:brightness-110"}`}>
+      <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 grid place-items-center"
+        style={{ background: "rgba(255,255,255,0.05)" }}>
+        {card.image
+          ? <img src={card.image} alt="" className="w-full h-full object-cover" />
+          : <Radio size={16} className="text-[#8b96b8]" />}
+        {isLive && (
+          <span className="absolute inset-0 ring-2 ring-red-500/70 rounded-xl pointer-events-none" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <span className="inline-block text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
+          style={{ background: `${tone}22`, color: tone }}>{card.badge}</span>
+        <div className="text-[13px] font-bold truncate mt-0.5">{card.title}</div>
+        <div className="text-[10.5px] truncate" style={{ color: "#8b96b8" }}>{card.subtitle}</div>
+      </div>
+      {isFollow ? (
+        <button type="button" data-testid={`nlv2-railside-follow-${idx}`}
+          onClick={onFollow} disabled={busy || followed}
+          className="text-[11px] font-black px-3 h-8 rounded-full text-white shrink-0 disabled:opacity-70"
+          style={{ background: followed ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+          {followed ? "Following" : "Follow"}
+        </button>
+      ) : (
+        <button type="button" data-testid={`nlv2-railside-cta-${idx}`} onClick={open}
+          className="text-[11px] font-black px-3 h-8 rounded-full text-white shrink-0"
+          style={{ background: "rgba(255,255,255,0.08)" }}>{card.cta}</button>
+      )}
+    </div>
+  );
+}
+
 function RightRailV2() {
   const { pathname } = useLocation();
   const summary = useShellSummary();
   const isPremium = !!summary?.is_premium;
   const pageRoute = railPageRoute(pathname);
-  const RAIL_SLOTS = ["right_rail_mpu_1", "right_rail_mpu_2", "right_rail_mpu_3"];
+  const [cards, setCards] = useState([]);
+
+  useEffect(() => {
+    let cancel = false;
+    axios.get(`${API}/social/rail`, { params: { page_route: pageRoute, limit: 7 }, withCredentials: true })
+      .then((r) => { if (!cancel) setCards(r.data?.cards || []); })
+      .catch(() => { if (!cancel) setCards([]); });
+    return () => { cancel = true; };
+  }, [pageRoute]);
+
+  const shown = cards.slice(0, isPremium ? 6 : 5);
+
   return (
     <aside data-testid="nlv2-right-rail"
-      className="hidden xl:flex flex-col gap-4 w-[300px] shrink-0 sticky top-[84px]">
-      <div className="text-[10px] font-mono uppercase tracking-widest px-1" style={{ color: "#6b7392" }}>
-        Sponsored
-      </div>
-      {!isPremium && RAIL_SLOTS.map((k, i) => (
-        <div key={k} data-testid={`nlv2-rail-ad-${i + 1}`}
-          className="nlv2-glass rounded-2xl p-2 flex justify-center">
-          <BannerAdSlot slotKey={k} pageRoute={pageRoute} />
-        </div>
-      ))}
+      className="hidden xl:flex flex-col gap-3 w-[300px] shrink-0 sticky top-[84px]">
+      {!isPremium && (
+        <>
+          <div className="text-[10px] font-mono uppercase tracking-widest px-1" style={{ color: "#6b7392" }}>
+            Sponsored
+          </div>
+          <div data-testid="nlv2-rail-ad-1" className="nlv2-glass rounded-2xl p-2 flex justify-center">
+            <BannerAdSlot slotKey="right_rail_mpu_1" pageRoute={pageRoute} />
+          </div>
+        </>
+      )}
+
+      {shown.length > 0 && (
+        <>
+          <div className="text-[10px] font-mono uppercase tracking-widest px-1" style={{ color: "#6b7392" }}>
+            For You
+          </div>
+          {shown.map((c, i) => <RailCompactCard key={c.id} card={c} idx={i} />)}
+        </>
+      )}
+
       <Link to="/premium" data-testid="nlv2-rail-promo"
         className="nlv2-glass rounded-2xl p-4 block transition hover:brightness-110">
         <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: "#8b96b8" }}>

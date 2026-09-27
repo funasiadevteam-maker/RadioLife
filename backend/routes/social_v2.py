@@ -23,11 +23,13 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from auth import current_user
 from services.points_service import PointsService
+from services.social_following import resolve_following, following_summary
+from services.social_feed import build_feed, build_rail, WALL_TYPES
 
 router = APIRouter(prefix="/api/social", tags=["social_v2"])
 
@@ -69,6 +71,8 @@ async def ensure_social_v2(db) -> None:
     await db.listen_room_reactions.create_index([("room_id", 1), ("created_at", 1)],
                                                                                           name="lrr_room_time")
     await db.social_listen_progress.create_index("user_id", name="slp_user")
+    await db.social_feed_events.create_index(
+        [("user_id", 1), ("created_at", -1)], name="sfe_user_time")
     # Economics live in the admin-editable rules table (not hardcoded here).
     await db.points_earn_rules.update_one(
         {"rule_id": LISTEN_TOGETHER_SOURCE},
@@ -81,6 +85,139 @@ async def ensure_social_v2(db) -> None:
         }},
         upsert=True,
     )
+    try:
+        await seed_social_v2_demo(db)
+    except Exception:
+        pass
+
+
+async def seed_social_v2_demo(db) -> None:
+    """Idempotent — give the demo account a rich Following graph + wall so the
+    combined feed isn't empty in preview: follow the seeded advisors, one
+    community station, and seed a public moment + shared tarot + station post
+    from a followed advisor."""
+    demo = await db.users.find_one({"email": "demo@bigfm.dubai"}, {"user_id": 1})
+    if not demo:
+        return
+    uid = demo["user_id"]
+
+    # Follow every approved advisor (they carry public dreams) — but NOT the
+    # sample "suggested" creators seeded below (those stay unfollowed so the
+    # Right Rail always has follow suggestions to show).
+    advisor_ids: list[str] = []
+    async for a in db.advisor_profiles.find(
+            {"demo_rail_suggested": {"$ne": True}}, {"user_id": 1}):
+        aid = a.get("user_id")
+        if aid and aid != uid:
+            advisor_ids.append(aid)
+            await db.social_follows.update_one(
+                {"follower": uid, "target": aid},
+                {"$setOnInsert": {"follower": uid, "target": aid, "created_at": _now()}},
+                upsert=True)
+
+    # Follow the top public community station.
+    st = await db.community_radio_stations.find_one(
+        {"status": "published", "privacy": "public"},
+        sort=[("follower_count", -1)])
+    if st and st.get("station_id"):
+        await db.station_followers.update_one(
+            {"user_id": uid, "station_id": st["station_id"]},
+            {"$setOnInsert": {"followed_at": _now().isoformat()}}, upsert=True)
+        # A followed-station post → STATION_ACTIVITY card.
+        if not await db.social_posts.find_one({"_id": "post_demo_social_1"}):
+            await db.social_posts.insert_one({
+                "_id": "post_demo_social_1", "post_id": "post_demo_social_1",
+                "page_id": st["station_id"], "author_user_id": st.get("owner_user_id"),
+                "post_type": "text", "text": "New mix dropping tonight — tune in! 🎧",
+                "media_urls": [], "visibility": "public",
+                "approval_status": "approved", "status": "approved",
+                "reaction_counts": {}, "comment_count": 0, "share_count": 0,
+                "created_at": _now().isoformat()})
+
+    if not advisor_ids:
+        return
+    a0 = advisor_ids[0]
+
+    # A public moment from a followed advisor → MOMENT card.
+    if not await db.social_moments.find_one({"_id": "mom_demo_social_1"}):
+        await db.social_moments.insert_one({
+            "_id": "mom_demo_social_1", "user_id": a0,
+            "media_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000",
+            "media_type": "photo",
+            "caption": "Golden hour on the marina 🌇 good energy tonight ✨",
+            "context": None, "visibility": "public",
+            "city": "Dubai", "like_count": 12, "comment_count": 3,
+            "created_at": _now(),
+            "expires_at": _now() + timedelta(days=7)})
+
+    # A shared tarot reading from a followed advisor → TAROT_SHARE card.
+    if not await db.ai_readings.find_one({"_id": "rd_demo_social_tarot_1"}):
+        await db.ai_readings.insert_one({
+            "_id": "rd_demo_social_tarot_1", "reading_id": "rd_demo_social_tarot_1",
+            "user_id": a0, "type": "tarot", "subject": "What's the energy for this week?",
+            "title": "Tarot — 3-card spread",
+            "result": "A week of gentle momentum — trust the pull toward something new.",
+            "cards": [{"name": "The Star", "orientation": "upright", "position": "Past"},
+                      {"name": "The Sun", "orientation": "upright", "position": "Present"},
+                      {"name": "The World", "orientation": "upright", "position": "Future"}],
+            "public": True, "created_at": _now()})
+
+    # ── Right-Rail sample suggestions (NOT followed by demo) ──────────
+    # A small set of creators / stations / a live show so the compact Right
+    # Rail always has 5–7 contextual cards to surface in preview.
+    _P = ("https://images.unsplash.com/photo-{id}?crop=entropy&cs=srgb"
+          "&fm=jpg&q=80&w=400")
+    rail_creators = [
+        ("usr_rail_c1", "Layla Haddad", "Astrologer & Sound Healer", "Dubai",
+         _P.format(id="1506863530036-1efeddceb993")),
+        ("usr_rail_c2", "Marco Rossi", "Live DJ · House & Lounge", "Abu Dhabi",
+         _P.format(id="1507003211169-0a1dd7228f2d")),
+        ("usr_rail_c3", "Daniel Weber", "Podcast Host · Late Nights", "Sharjah",
+         _P.format(id="1560250097-0b93528c311a")),
+        ("usr_rail_c4", "Omar Nasser", "Dream Interpreter & Guide", "Dubai",
+         _P.format(id="1500648767791-00dcc994a43e")),
+    ]
+    for cid, cname, tagline, city, pic in rail_creators:
+        await db.users.update_one(
+            {"user_id": cid},
+            {"$setOnInsert": {"user_id": cid, "email": f"{cid}@bigfm.dubai",
+                              "name": cname, "picture": pic, "city": city,
+                              "is_demo_sample": True, "created_at": _now()}},
+            upsert=True)
+        await db.advisor_profiles.update_one(
+            {"user_id": cid},
+            {"$setOnInsert": {"user_id": cid, "advisor_id": f"adv_rail_{cid}",
+                              "status": "approved",
+                              "headline": tagline, "demo_rail_suggested": True,
+                              "created_at": _now()}},
+            upsert=True)
+
+    rail_stations = [
+        ("stn_rail_1", "rail-midnight-fm", "Midnight FM", "Late-night lounge",
+         "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?crop=entropy&cs=srgb&fm=jpg&q=80&w=600",
+         "usr_rail_c2"),
+        ("stn_rail_2", "rail-desert-waves", "Desert Waves Radio", "Chillout & world",
+         "https://images.unsplash.com/photo-1531651008558-ed1740375b39?crop=entropy&cs=srgb&fm=jpg&q=80&w=600",
+         "usr_rail_c3"),
+    ]
+    for sid, slug, sname, ptype, cover, owner in rail_stations:
+        await db.community_radio_stations.update_one(
+            {"station_id": sid},
+            {"$setOnInsert": {"station_id": sid, "slug": slug, "name": sname,
+                              "page_type": ptype, "cover_image_url": cover,
+                              "owner_user_id": owner, "status": "published",
+                              "privacy": "unlisted", "follower_count": 0,
+                              "is_demo_sample": True, "created_at": _now()}},
+            upsert=True)
+
+    # One live-now show hosted by a followed advisor → high-rank LIVE card.
+    if not await db.live_shows.find_one({"_id": "lsw_rail_live_1"}):
+        await db.live_shows.insert_one({
+            "_id": "lsw_rail_live_1", "show_id": "lsw_rail_live_1",
+            "host_id": a0, "title": "Sunset Sessions — live now",
+            "description": "Deep house & lounge, streaming live from the marina.",
+            "cover_url": "https://images.unsplash.com/photo-1563841930606-67e2bce48b78?crop=entropy&cs=srgb&fm=jpg&q=80&w=800",
+            "status": "live", "started_at": _now(), "created_at": _now()})
 
 
 # ───────────────────────── Serialization ───────────────────────────
@@ -636,16 +773,19 @@ async def social_home(request: Request, user: dict = Depends(current_user)):
     incoming = await db.social_friendships.count_documents(
         {"status": "pending", "requested_by": {"$ne": uid},
           "$or": [{"user_a": uid}, {"user_b": uid}]})
+    follow_stats = await following_summary(db, uid)
 
     return {
         "happening_now": {
             "live_experiences": len(suggested),
             "friends_listening": len(friends_now),
             "friends_online": len(friends_now),
+            "following": follow_stats["count"],
         },
         "friends_now": friends_now,
         "suggested_rooms": suggested,
-        "counts": {"friends": friend_count, "friend_requests": incoming},
+        "counts": {"friends": friend_count, "friend_requests": incoming,
+                   "following": follow_stats["count"]},
         "do_together": [
             {"key": "listen", "label": "Listen Together"},
             {"key": "play", "label": "Play Together"},
@@ -653,6 +793,110 @@ async def social_home(request: Request, user: dict = Depends(current_user)):
             {"key": "shop", "label": "Shop Together"},
         ],
     }
+
+
+# ───────────────────────── Following graph ─────────────────────────
+@router.get("/following")
+async def get_following(request: Request, user: dict = Depends(current_user)):
+    """Unified 'who/what you follow' — people, creators, advisors, businesses,
+    stations & clubs, aggregated from the existing follow sources."""
+    return await resolve_following(request.app.state.db, user["user_id"])
+
+
+# ───────────────────────── Combined social wall ────────────────────
+FEED_EVENTS = {
+    "social_feed_view", "social_feed_mode_following", "social_feed_mode_for_you",
+    "feed_item_impression", "feed_item_open", "feed_follow_click",
+    "feed_unfollow", "feed_join_room", "feed_watch_live", "feed_comment",
+    "feed_share", "feed_dream_similar", "feed_tarot_open",
+    "following_page_view", "following_filter", "following_profile_open",
+    "following_unfollow",
+}
+
+
+@router.get("/feed-v2")
+async def feed_v2(request: Request, background_tasks: BackgroundTasks,
+                  mode: str = "following", cursor: Optional[str] = None,
+                  limit: int = 20, types: Optional[str] = None,
+                  user: dict = Depends(current_user)):
+    """The combined Social wall — real DB activity from followed people,
+    friends, businesses, stations & clubs, layered-ranked (deterministic +
+    cached AI rerank). `mode=following|for_you`."""
+    type_list = [t for t in (types or "").split(",") if t.strip()] or None
+    return await build_feed(request.app.state.db, user, mode=mode,
+                            cursor=cursor, limit=limit, types=type_list,
+                            background_tasks=background_tasks)
+
+
+@router.get("/feed-v2/new-count")
+async def feed_v2_new_count(request: Request, since: Optional[str] = None,
+                            mode: str = "following",
+                            user: dict = Depends(current_user)):
+    """How many wall items are newer than `since` — powers the
+    'N new posts' banner without disturbing the reader's scroll."""
+    db = request.app.state.db
+    res = await build_feed(db, user, mode=mode, limit=40)
+    items = res.get("items") or []
+    if not since:
+        return {"new_count": 0, "latest": items[0]["created_at"] if items else None}
+    from datetime import datetime as _d, timezone as _tz
+    # A '+' in the tz offset is decoded as a space by some clients
+    # (e.g. "…T00:00:00+00:00" → "…T00:00:00 00:00"); recover it when a
+    # 'T' separator is present so the offset parses correctly.
+    raw = (since or "").strip()
+    if "T" in raw:
+        raw = raw.replace(" ", "+")
+    raw = raw.replace("Z", "+00:00")
+    try:
+        cutoff = _d.fromisoformat(raw)
+    except ValueError:
+        return {"new_count": 0, "latest": items[0]["created_at"] if items else None}
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=_tz.utc)
+    n = 0
+    for it in items:
+        try:
+            ts = _d.fromisoformat((it["created_at"] or "").replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=_tz.utc)
+        if ts > cutoff:
+            n += 1
+    return {"new_count": n, "latest": items[0]["created_at"] if items else None}
+
+
+@router.get("/rail")
+async def social_rail(request: Request, page_route: str = "/home",
+                      limit: int = 7, user: dict = Depends(current_user)):
+    """Compact Right-Rail: 5–7 contextual cards mixing live shows, upcoming
+    events, suggested people to follow and stations to tune into."""
+    return await build_rail(request.app.state.db, user,
+                            page_route=page_route, limit=limit)
+
+
+class FeedEventBody(BaseModel):
+    event: str
+    item_id: Optional[str] = None
+    item_type: Optional[str] = None
+    mode: Optional[str] = None
+    position: Optional[int] = None
+    meta: Optional[dict] = None
+
+
+@router.post("/feed-events")
+async def feed_event(body: FeedEventBody, request: Request,
+                     user: dict = Depends(current_user)):
+    """Allowlisted, fire-and-forget social feed analytics."""
+    if body.event not in FEED_EVENTS:
+        return {"ok": False, "reason": "event_not_allowed"}
+    db = request.app.state.db
+    await db.social_feed_events.insert_one({
+        "user_id": user["user_id"], "event": body.event,
+        "item_id": body.item_id, "item_type": body.item_type,
+        "mode": body.mode, "position": body.position,
+        "meta": body.meta or {}, "created_at": _now()})
+    return {"ok": True}
 
 
 @router.get("/activity")

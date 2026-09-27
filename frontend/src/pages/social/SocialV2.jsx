@@ -1,18 +1,21 @@
-// FUUSIC Social V2 — Phase 1 web shell.
-// "Do things together": Together (default) · Live · Moments · Clubs · Friends.
-// Design-independent functionality; premium New Look V2 presentation.
+// FUUSIC Social V2 — web shell.
+// Social HOME wall (what people & things you follow are doing) + Live · Moments ·
+// Nearby · Friends · Dreams · Tarot. Design-independent; premium New Look V2.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import {
   Radio, Users, Gamepad2, MapPin, ShoppingBag, Sparkles, Loader2,
-  UserPlus, Check, X, Search, Headphones, Video, Camera, Users2,
-  Play, Dot, ChevronRight, Clock, Moon,
+  UserPlus, Check, X, Search, Headphones, Video, Camera,
+  Play, Moon, UserCheck,
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
-import { MomentsTab, PulseTab, GoTogetherModal, PlayTogetherModal, ShopTogetherModal, DiscoverSection } from "./SocialTogether";
+import { PulseTab, GoTogetherModal, PlayTogetherModal, ShopTogetherModal, DiscoverSection } from "./SocialTogether";
+import { MomentsTab } from "./SocialTogether";
 import { LiveTab } from "./SocialLive";
+import SocialWall from "./SocialWall";
+import { FollowingPanel } from "./FollowingPanel";
 
 const api = axios.create({
   baseURL: `${process.env.REACT_APP_BACKEND_URL || ""}/api/social`,
@@ -21,12 +24,13 @@ const api = axios.create({
 const RADIO_API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
 const TABS = [
-  { key: "together", label: "Together", icon: Sparkles },
+  { key: "together", label: "Home", icon: Sparkles },
   { key: "live", label: "Live", icon: Video },
   { key: "moments", label: "Moments", icon: Camera },
   { key: "pulse", label: "Nearby", icon: MapPin },
   { key: "friends", label: "Friends", icon: Users },
-  { key: "sharedreams", label: "Share Dreams", icon: Moon },
+  { key: "dreams", label: "Dreams", icon: Moon },
+  { key: "tarot", label: "Tarot", icon: Sparkles },
 ];
 
 export default function SocialV2() {
@@ -40,6 +44,7 @@ export default function SocialV2() {
   const navigate = useNavigate();
   const [home, setHome] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [followingOpen, setFollowingOpen] = useState(false);
 
   const loadHome = useCallback(async () => {
     try {
@@ -50,14 +55,19 @@ export default function SocialV2() {
 
   useEffect(() => { loadHome(); }, [loadHome]);
 
+  const onSelectTab = (k) => {
+    if (k === "dreams") navigate("/social/dreams");
+    else if (k === "tarot") navigate("/social/tarot");
+    else setTab(k);
+  };
+
   return (
     <div className="min-h-screen text-white"
               style={{ background: "linear-gradient(180deg,#080a16 0%,#0b0f1e 40%,#0a0a14 100%)" }}
               data-testid="social-v2">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 pb-32">
-        <Header home={home} />
-        <TabBar tab={tab} counts={home?.counts}
-                onSelect={(k) => (k === "sharedreams" ? navigate("/social/dreams") : setTab(k))} />
+        <Header home={home} onOpenFollowing={() => setFollowingOpen(true)} />
+        <TabBar tab={tab} counts={home?.counts} onSelect={onSelectTab} />
         <div className="mt-6">
           {loading && (
             <div className="flex justify-center py-20" data-testid="social-loading">
@@ -65,7 +75,8 @@ export default function SocialV2() {
             </div>
           )}
           {!loading && tab === "together" && (
-            <TogetherTab home={home} reload={loadHome} initialAction={qAction} playSession={qSession} playRef={qRef} />
+            <HomeTab initialAction={qAction} playSession={qSession} playRef={qRef}
+                     onOpenFollowing={() => setFollowingOpen(true)} />
           )}
           {!loading && tab === "friends" && <FriendsTab />}
           {!loading && tab === "live" && <LiveTab />}
@@ -73,16 +84,19 @@ export default function SocialV2() {
           {!loading && tab === "pulse" && <PulseTab />}
         </div>
       </div>
+      {followingOpen && <FollowingPanel onClose={() => setFollowingOpen(false)} />}
     </div>
   );
 }
 
-function Header({ home }) {
+function Header({ home, onOpenFollowing }) {
   const h = home?.happening_now || {};
   const stats = [
     { icon: Radio, n: h.live_experiences || 0, label: "Live now", tone: "#f472b6" },
     { icon: Headphones, n: h.friends_listening || 0, label: "Friends listening", tone: "#22d3ee" },
     { icon: Users, n: home?.counts?.friends || 0, label: "Friends", tone: "#a855f7" },
+    { icon: UserCheck, n: home?.counts?.following || 0, label: "Following", tone: "#38bdf8",
+      onClick: onOpenFollowing, tid: "social-stat-following" },
   ];
   return (
     <div>
@@ -95,19 +109,23 @@ function Header({ home }) {
         </div>
       </div>
       <div className="mt-5 flex gap-3 flex-wrap" data-testid="social-happening-now">
-        {stats.map((s) => (
-          <div key={s.label}
-                    className="flex items-center gap-2.5 rounded-2xl px-4 py-2.5 bg-white/[0.04] border border-white/10 backdrop-blur">
-            <span className="grid place-items-center w-9 h-9 rounded-xl"
-                      style={{ background: `${s.tone}22`, color: s.tone }}>
-              <s.icon size={16} />
-            </span>
-            <div className="leading-none">
-              <div className="text-lg font-black tabular-nums">{s.n}</div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider">{s.label}</div>
-            </div>
-          </div>
-        ))}
+        {stats.map((s) => {
+          const Tag = s.onClick ? "button" : "div";
+          return (
+            <Tag key={s.label} type={s.onClick ? "button" : undefined} onClick={s.onClick}
+                 data-testid={s.tid}
+                 className={`flex items-center gap-2.5 rounded-2xl px-4 py-2.5 bg-white/[0.04] border border-white/10 backdrop-blur ${s.onClick ? "hover:bg-white/[0.08] transition cursor-pointer" : ""}`}>
+              <span className="grid place-items-center w-9 h-9 rounded-xl"
+                        style={{ background: `${s.tone}22`, color: s.tone }}>
+                <s.icon size={16} />
+              </span>
+              <div className="leading-none text-left">
+                <div className="text-lg font-black tabular-nums">{s.n}</div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider">{s.label}</div>
+              </div>
+            </Tag>
+          );
+        })}
       </div>
     </div>
   );
@@ -138,8 +156,8 @@ function TabBar({ tab, counts, onSelect }) {
   );
 }
 
-// ───────────────────────── Together ────────────────────────────────
-function TogetherTab({ home, reload, initialAction, playSession, playRef }) {
+// ───────────────────────── Home (combined wall) ────────────────────
+function HomeTab({ initialAction, playSession, playRef, onOpenFollowing }) {
   const navigate = useNavigate();
   const importedStation = usePlayerStore((s) => s.importedStation);
   const podcastEpisode = usePlayerStore((s) => s.podcastEpisode);
@@ -199,17 +217,21 @@ function TogetherTab({ home, reload, initialAction, playSession, playRef }) {
     } finally { setStarting(false); }
   };
 
-  const doTogether = [
-    { key: "listen", label: "Listen Together", icon: Headphones, on: startRoom },
-    { key: "play", label: "Play Together", icon: Gamepad2, on: () => setPlayOpen(true) },
-    { key: "go", label: "Go Together", icon: MapPin, on: () => setGoOpen(true) },
-    { key: "shop", label: "Shop Together", icon: ShoppingBag, on: () => setShopOpen(true) },
+  const actions = [
+    { key: "listen", label: "Listen Together", blurb: "Tune in with friends",
+      icon: Headphones, grad: "linear-gradient(135deg,#a855f7,#ec4899)", on: startRoom },
+    { key: "dreams", label: "Dreams", blurb: "Share or explore dreams",
+      icon: Moon, grad: "linear-gradient(135deg,#7c3aed,#c026d3)", on: () => navigate("/social/dreams") },
+    { key: "tarot", label: "Tarot", blurb: "Draw a card", emoji: "🃏",
+      grad: "linear-gradient(135deg,#6d28d9,#db2777)", on: () => navigate("/social/tarot") },
+    { key: "play", label: "Play Together", blurb: "Games with friends",
+      icon: Gamepad2, grad: "linear-gradient(135deg,#2563eb,#7c3aed)", on: () => setPlayOpen(true) },
+    { key: "go", label: "Go Together", blurb: "Plan an outing",
+      icon: MapPin, grad: "linear-gradient(135deg,#0891b2,#2563eb)", on: () => setGoOpen(true) },
+    { key: "shop", label: "Shop Together", blurb: "Share a cart",
+      icon: ShoppingBag, grad: "linear-gradient(135deg,#db2777,#f59e0b)", on: () => setShopOpen(true) },
   ];
 
-  const rooms = home?.suggested_rooms || [];
-  const friendsNow = home?.friends_now || [];
-
-  // Deep-link: open the matching flow directly from Home's Together cards.
   useEffect(() => {
     if (didAction.current || !initialAction) return;
     didAction.current = true;
@@ -221,128 +243,18 @@ function TogetherTab({ home, reload, initialAction, playSession, playRef }) {
   }, [initialAction]);
 
   return (
-    <div className="space-y-8" data-testid="social-together">
-      {/* Start / continue a listening room */}
-      <button type="button" onClick={startRoom} disabled={starting}
-                    data-testid="social-start-room"
-                    className="w-full text-left rounded-3xl p-5 flex items-center gap-4 border border-white/10 disabled:opacity-70"
-                    style={{ background: "linear-gradient(120deg,#1a1038,#2a1148 60%,#3a0f52)" }}>
-        <span className="grid place-items-center w-14 h-14 rounded-2xl text-white shrink-0"
-                  style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
-          {starting ? <Loader2 className="animate-spin" /> : <Headphones size={24} />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-lg font-black">Listen Together</div>
-          <div className="text-sm text-slate-300 truncate">
-            {nowPlaying ? `Invite friends to "${nowPlaying.name}"` : "Play a station, then invite friends to tune in with you"}
-          </div>
-        </div>
-        <ChevronRight className="text-slate-400" />
-      </button>
-
-      {/* Dreams & Guidance */}
-      <button type="button" onClick={() => navigate("/social/dreams")}
-                    data-testid="social-open-dreams"
-                    className="w-full text-left rounded-3xl p-5 flex items-center gap-4 border border-violet-500/25"
-                    style={{ background: "linear-gradient(120deg,#1e1b4b,#4c1d95 65%,#6d28d9)" }}>
-        <span className="grid place-items-center w-14 h-14 rounded-2xl text-white shrink-0"
-                  style={{ background: "linear-gradient(135deg,#7c3aed,#c026d3)" }}>
-          <Moon size={24} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-lg font-black">Dreams & Guidance</div>
-          <div className="text-sm text-violet-200/80 truncate">
-            Share a dream, discover what it means, and connect with verified advisors
-          </div>
-        </div>
-        <ChevronRight className="text-slate-400" />
-      </button>
-      <div>
-        <SectionTitle>Do something together</SectionTitle>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {doTogether.map((d) => (
-            <button key={d.key} type="button" onClick={d.on}
-                          data-testid={`social-do-${d.key}`}
-                          className="rounded-2xl p-4 bg-white/[0.04] border border-white/10 hover:bg-white/[0.07] transition flex flex-col items-center gap-2 text-center">
-              <span className="grid place-items-center w-11 h-11 rounded-xl bg-purple-500/15 text-purple-300">
-                <d.icon size={20} />
-              </span>
-              <span className="text-xs font-bold">{d.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Friends right now */}
-      {friendsNow.length > 0 && (
-        <div>
-          <SectionTitle>Friends right now</SectionTitle>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1" data-testid="social-friends-now">
-            {friendsNow.map((f) => (
-              <button key={f.user_id} type="button" onClick={() => navigate(`/social/room/${f.room_id}`)}
-                            className="flex-shrink-0 w-40 rounded-2xl p-3 bg-white/[0.04] border border-white/10 text-left hover:bg-white/[0.07]">
-                <Avatar name={f.name} url={f.avatar_url} size={40} />
-                <div className="mt-2 text-sm font-bold truncate">{f.name}</div>
-                <div className="text-[11px] text-cyan-300 flex items-center gap-1 truncate">
-                  <Dot className="animate-pulse" size={16} /> {f.context || "Listening"}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Live now — listening rooms */}
-      <div>
-        <SectionTitle>Live listening rooms</SectionTitle>
-        {rooms.length === 0 ? (
-          <EmptyCard>No rooms live right now — start one above and invite your friends. 🎧</EmptyCard>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-3" data-testid="social-rooms">
-            {rooms.map((r) => (
-              <RoomCard key={r.room_id} room={r} onJoin={() => navigate(`/social/room/${r.room_id}`)} />
-            ))}
-          </div>
-        )}
-      </div>
+    <div data-testid="social-home">
+      <SocialWall actions={actions} onOpenFollowing={onOpenFollowing} />
       {pickOpen && <StationPickModal onClose={() => setPickOpen(false)} onPick={pickAndStart} />}
       {goOpen && <GoTogetherModal onClose={() => setGoOpen(false)} />}
       {playOpen && <PlayTogetherModal onClose={() => setPlayOpen(false)} sessionId={playSession} refId={playRef} />}
       {shopOpen && <ShopTogetherModal onClose={() => setShopOpen(false)} />}
-    </div>
-  );
-}
-
-function RoomCard({ room, onJoin }) {
-  return (
-    <button type="button" onClick={onJoin}
-                  data-testid={`social-room-${room.room_id}`}
-                  className="text-left rounded-2xl overflow-hidden bg-white/[0.04] border border-white/10 hover:bg-white/[0.07] transition">
-      <div className="flex items-center gap-3 p-3">
-        <span className="grid place-items-center w-14 h-14 rounded-xl shrink-0 overflow-hidden bg-purple-500/20 text-purple-200">
-          {(room.content?.favicon) ? (
-            <img src={room.content.favicon} alt="" className="w-full h-full object-cover" />
-          ) : <Radio size={22} />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 inline-flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" /> Live
-            </span>
-            {room.has_friend && (
-              <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">
-                Friend here
-              </span>
-            )}
-          </div>
-          <div className="text-sm font-black truncate mt-1">{room.content?.name || room.title}</div>
-          <div className="text-[11px] text-slate-400">
-            {room.participant_count} listening · hosted by {room.host_name}
-          </div>
+      {starting && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-full px-4 py-2 bg-black/80 border border-white/10 text-sm flex items-center gap-2">
+          <Loader2 className="animate-spin" size={15} /> Starting room…
         </div>
-        <Play className="text-white/70" size={18} />
-      </div>
-    </button>
+      )}
+    </div>
   );
 }
 
@@ -517,20 +429,5 @@ export function Avatar({ name, url, size = 40 }) {
                             background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
       {initials}
     </span>
-  );
-}
-function ComingSoon({ icon: Icon, title, blurb }) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center" data-testid="social-coming-soon">
-      <span className="inline-grid place-items-center w-16 h-16 rounded-2xl mb-4"
-                style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
-        <Icon size={28} className="text-white" />
-      </span>
-      <h3 className="text-2xl font-black">{title}</h3>
-      <p className="text-slate-400 mt-2 max-w-sm mx-auto text-sm">{blurb}</p>
-      <span className="inline-flex items-center gap-1.5 mt-4 text-[11px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full bg-purple-500/20 text-purple-200">
-        <Clock size={12} /> Coming soon
-      </span>
-    </div>
   );
 }

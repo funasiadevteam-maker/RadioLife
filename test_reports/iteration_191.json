@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 191 — Social V2 Web Right-Rail V2 (CompactRightRailV2) + iter190 bugfix verification. Backend: 14/14 pytest pass in /app/backend/tests/test_iter191_social_rail_v2.py (P0 new-count fix, P1 following-mode no-discovery fix, and new /api/social/rail contract + contextual ordering). iter190 regression: 8/8 still pass. Web UI: right rail renders on desktop xl (data-testid=nlv2-right-rail), 6 compact cards for Premium (demo@, no ad slot) / 5 cards + ad slot [nlv2-rail-ad-1] for Free (freeuser@). Follow button flips Follow→Following and posts /api/social/follow/{id}. CTA navigates. Promo present. Contextual ordering confirmed: station index 2 on /listen(channels) vs index 3 on /shop.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter191_social_rail_v2.py",
+    "/app/test_reports/pytest/iter191_social_rail_v2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AppShellV2.jsx railPageRoute() maps /listen -> '/channels' (backend key), which is correct. Verified via /listen contextual ordering (station rises).",
+    "build_rail (services/social_feed.py:545) unconditionally sets rel='discovery' on suggested follow/station cards — that's fine because the score model treats discovery as base 1.0, and cards get stripped of 'rel' before returning to client. No leakage.",
+    "Rail response cards limit is hard-capped at 7 server-side (min(int(limit or 7), 7)) — matches spec.",
+    "Frontend RightRailV2 slices to isPremium ? 6 : 5 — meets Premium (up to 6 contextual + promo) and Free (up to 5 + ad slot + promo) requirements."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter191_social_rail_v2.py (new)"
+  ],
+  "success_rate": {"backend": "100% (14/14 new + 8/8 iter190 regression)", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (Premium); freeuser@bigfm.dubai / FreePass123!",
+  "seed_data_creation": "Used existing seed_social_v2_demo (advisor_profiles.demo_rail_suggested, is_demo_sample stations, lsw_rail_live_1). Follow test on Premium consumed 1 suggested follow (usr_rail_c1); re-run reduces suggested cards by 1 until seed refreshed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both iter190 fixes verified via new pytest + old regression. /api/social/rail returns 5-7 cards with id/kind/title/subtitle/image/badge/cta (+follow_id for kind=follow). RightRailV2 lives inside AppShellV2.jsx and only mounts at xl viewport (>=1280px, use 1440x900). Note: railPageRoute in AppShellV2.jsx maps `/listen*` -> `/channels`, so to test /channels route pass `/listen` on the frontend or `/channels` directly to the API. Follow POST test uses the 1st suggested creator; subsequent runs need seed re-run or use another suggested id.",
+  "rca of the issue": ""
+}

@@ -1,0 +1,57 @@
+{
+  "summary": "Social V2 Phase 1+2 tested on shared backend, web (/social, /social/following, /social/tarot) and mobile Expo preview. Backend 6/8 pytest passing; web + mobile UI all testIDs present, wall renders (8 following / 10 for_you cards), composer/panel/tarot flows work end-to-end. Two backend bugs found in feed-v2 endpoints — see backend_issues.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/social/feed-v2/new-count",
+        "issue": "Always returns new_count=0 even when many items are newer than `since`. Root cause: many DB records (e.g. dreams) store naive datetimes; the endpoint (routes/social_v2.py:788-793) parses `since` as tz-aware and compares against `it['created_at']` which is a naive ISO string → TypeError 'can't compare offset-naive and offset-aware'; the bare `except Exception: continue` silently swallows every item. Effect: 'N new posts' banner will never appear. Fix: coerce naive parsed datetimes to UTC before comparing (or in _iso emit aware ISO strings).",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/social/feed-v2?mode=following",
+        "issue": "Anonymous dreams from followed users surface in FOLLOWING mode with follow_relationship='discovery' (services/social_feed.py:_dreams). Two concerns: (1) inconsistent with promised invariant that following-mode items are followed/friend (test flagged discovery leak); (2) potential deanonymisation — if a user follows only one advisor and that advisor posts an anonymous public dream, the surfaced 'Anonymous Dreamer' card in FOLLOWING is trivially attributable. Recommend either: exclude anonymous dreams from following mode entirely, or drop the actor's user_id filter for anonymous rows and only show them in for_you."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter190_social_v2_wall.py",
+    "/app/test_reports/pytest/iter190_social_v2_wall.xml"
+  ],
+  "action_items": [
+    "Fix new-count naive-datetime comparison in /app/backend/routes/social_v2.py (feed_v2_new_count) — normalize `it['created_at']` to tz-aware UTC or make _iso() always emit +00:00.",
+    "Decide + implement the anonymous-dream policy in social_feed._dreams (following mode) to remove the discovery-leak/deanon path.",
+    "(Nice-to-have) Add an explicit test for anonymous dream visibility policy once decided."
+  ],
+  "critical_code_review_comments": [
+    "routes/social_v2.py new-count endpoint uses a broad `except Exception: continue` that hides real datetime comparison bugs — narrow the except and coerce naive datetimes.",
+    "services/social_feed.py hard-codes follow_relationship='discovery' for anonymous dreams even when the underlying record is scoped by followed user_ids — same field is used both for eligibility invariants and UI badging; conflating them causes the leak found above.",
+    "services/social_feed._score / _diversify: score is computed then diversify() re-orders by round-robin per type using the first bucket's top score for ordering, but each bucket only reads buckets[t][0]['score'] once (the top item), which is fine — no functional bug, just noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter190_social_v2_wall.py"
+  ],
+  "success_rate": {"backend": "75%", "frontend": "100%"},
+  "test_credentials": "Web: demo@bigfm.dubai / DemoPass123! (cookie login). Mobile: [data-testid=demo-login-btn] on /login. Both hit the same shared backend.",
+  "seed_data_creation": "Used the existing ensure_social_v2 seed (demo follows 6 advisors + top station + shared moment/tarot from a followed advisor). No new seed created.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite lives at /app/backend/tests/test_iter190_social_v2_wall.py. It reads REACT_APP_BACKEND_URL from env or /app/frontend/.env. Two known failures until main fixes them: TestFeedV2Following::test_following_mode_shape (asserts no discovery leaks — will fail while anonymous dreams get follow_relationship='discovery' in following mode) and TestFeedV2NewCount::test_new_count_with_past_since (asserts new_count>=1 with past `since` — fails because of the naive datetime bug in the new-count endpoint). Web + mobile testIDs all render as specified in the review request; the only click that felt slow (social-stat-following opening the panel) works within ~2.5s. AI rerank is best-effort/cached and did not block any feed request during testing.",
+  "rca of the issue": "new-count bug RCA: feed_v2_new_count iterates items returned by build_feed and parses each item['created_at'] with datetime.fromisoformat. build_feed's _iso() returns the raw stored datetime (or str) — some Motor documents (e.g. dreams inserted elsewhere) have tz-naive `created_at`, so the ISO string carries no offset. Parsing a naive ISO yields a naive datetime; comparing it to the tz-aware `cutoff` raises TypeError. The `except Exception: continue` swallows the error and n stays 0. Reproduction: `GET /api/social/feed-v2/new-count?since=2000-01-01T00:00:00%2B00:00&mode=following` as demo → {'new_count':0}. Fix: replace bare except with tz-normalisation (`if parsed.tzinfo is None: parsed = parsed.replace(tzinfo=timezone.utc)`)."
+}
