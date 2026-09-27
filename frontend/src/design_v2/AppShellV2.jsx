@@ -24,6 +24,7 @@ import NewCityPrompt from "@/components/NewCityPrompt";
 import WorkspaceSwitcher from "@/components/portal/WorkspaceSwitcher";
 // VariantSwitcher moved to the admin backend (/admin/appearance).
 import BannerAdSlot from "@/components/BannerAdSlot";
+import InterestOnboarding from "./InterestOnboarding";
 import { isMarketingPath } from "@/shell/AppShellB";
 import { useLaunchBlocked } from "@/hooks/useLaunchStatus";
 import "./newlookv2.css";
@@ -115,6 +116,7 @@ export default function AppShellV2({ children }) {
       </main>
       <PlayerDockV2 dock={dock} />
       <BottomNavV2 />
+      {user && <InterestOnboarding />}
     </div>
   );
 }

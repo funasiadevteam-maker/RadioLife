@@ -280,31 +280,53 @@ async def seed_social_v2_demo(db) -> None:
             await db.users.update_one({"_id": demo_u["_id"]},
                 {"$set": {"interests": ["ASTROLOGY", "DJ_SETS"]}})
 
-        # ── Two ACTIVE sample sponsorships (different bids) so the exclusive
-        #    auction, the pinned rail card, and the insights chart all have
-        #    real data. Higher bid ($49) wins the top slot; the $19 is Outbid.
+        # ── Sample standing bids + funded ad-wallet so the per-area second-
+        #    price auction, the pinned rail card, alerts and the insights chart
+        #    all have real data. Two bidders compete on the SOCIAL slot.
         now = _now()
+        await db.rail_wallets.update_one(
+            {"_id": "biz_karak_cafe_karama"},
+            {"$setOnInsert": {"_id": "biz_karak_cafe_karama",
+                              "merchant_id": "biz_karak_cafe_karama",
+                              "balance_cents": 50000, "updated_at": now}},
+            upsert=True)
+        # sample creator #2 (Marco) as a competing sponsor on a demo business
+        await db.rail_wallets.update_one(
+            {"_id": "biz_8484f6f985d5"},
+            {"$setOnInsert": {"_id": "biz_8484f6f985d5",
+                              "merchant_id": "biz_8484f6f985d5",
+                              "balance_cents": 30000, "updated_at": now}},
+            upsert=True)
+        demo_owner = await db.users.find_one({"email": "demo@bigfm.dubai"}, {"user_id": 1})
         sample_sponsors = [
-            ("rsp_seed_hi", "lsw_sponsor_live", "Karak & Chill — Live Tasting",
-             "live", "Watch", "7d", 168, 4900),
-            ("rsp_seed_lo", "lsw_sponsor_evt", "Weekend Brunch Launch",
-             "event", "View", "3d", 72, 1900),
+            # id, merchant, owner, show, title, kind, cta, tier, days, daily_bid, areas
+            ("rsp_seed_hi", "biz_karak_cafe_karama", mo, "lsw_sponsor_live",
+             "Karak & Chill — Live Tasting", "live", "Watch", "7d", 7, 2500,
+             ["social", "listen"]),
+            ("rsp_seed_lo", "biz_karak_cafe_karama", mo, "lsw_sponsor_evt",
+             "Weekend Brunch Launch", "event", "View", "3d", 3, 900, ["social", "shop"]),
         ]
-        for rid, tgt, title, tkind, cta, tier, hours, bid in sample_sponsors:
+        if demo_owner:
+            sample_sponsors.append(
+                ("rsp_seed_mid", "biz_8484f6f985d5", demo_owner["user_id"],
+                 "ls_demo_scheduled_01", "Friday Night Live Shopping", "event", "View",
+                 "7d", 7, 1500, ["social"]))
+        for rid, mid, owner, tgt, title, tkind, cta, tier, days, dbid, areas in sample_sponsors:
             if await db.rail_sponsorships.find_one({"_id": rid}):
                 continue
-            sh = await db.live_shows.find_one({"_id": tgt}, {"cover_url": 1})
+            sh = await db.live_shows.find_one({"_id": tgt}, {"cover_url": 1, "business_name": 1})
+            if not sh:
+                continue
             await db.rail_sponsorships.insert_one({
-                "_id": rid, "merchant_id": "biz_karak_cafe_karama",
-                "business_name": "Karak Cafe", "sponsor_user_id": mo,
-                "target_kind": tkind, "target_id": tgt, "title": title,
-                "subtitle": "Karak Cafe", "image": (sh or {}).get("cover_url"),
-                "cta": cta, "to": "/social?tab=live", "tier": tier,
-                "duration_hours": hours, "amount_cents": bid, "bid_cents": bid,
-                "status": "active", "payment_status": "paid",
-                "starts_at": now - timedelta(days=1), "ends_at": now + timedelta(days=5),
-                "stripe_session_id": "cs_seed_" + rid, "paid_at": now - timedelta(days=1),
-                "created_at": now - timedelta(days=6)})
+                "_id": rid, "merchant_id": mid,
+                "business_name": sh.get("business_name") or "Sponsor",
+                "sponsor_user_id": owner, "target_kind": tkind, "target_id": tgt,
+                "target_pages": areas, "title": title,
+                "subtitle": sh.get("business_name") or "Sponsored",
+                "image": sh.get("cover_url"), "cta": cta, "to": "/social?tab=live",
+                "duration_tier": tier, "daily_bid_cents": dbid, "status": "active",
+                "starts_at": now - timedelta(days=1),
+                "ends_at": now + timedelta(days=days), "created_at": now - timedelta(days=6)})
             # 7 days of impression/click events for the insights chart.
             evs = []
             for d in range(7):
@@ -980,12 +1002,12 @@ async def social_rail(request: Request, page_route: str = "/home",
                             page_route=page_route, limit=limit)
 
 
-# ───────────────────── Rail Sponsorship (paid featured cards) ──────
-RAIL_SPONSOR_TIERS = {
-    "24h": {"hours": 24,  "amount_cents": 900,  "label": "24 hours"},
-    "3d":  {"hours": 72,  "amount_cents": 1900, "label": "3 days"},
-    "7d":  {"hours": 168, "amount_cents": 4900, "label": "7 days"},
-}
+# ──────────── Rail Sponsorship — ad-wallet + daily 2nd-price auction ────
+from services.rail_auction import (
+    RAIL_AREAS, RAIL_AREA_LABELS, RAIL_DAILY_FLOOR_CENTS, RAIL_INCREMENT_CENTS,
+    RAIL_DURATIONS, RAIL_TOPUP_PRESETS, get_wallet, credit_wallet,
+    settle_area_day, resettle_today, today_status_for,
+)
 
 
 async def _owned_merchant_or_403(db, merchant_id: str, uid: str) -> dict:
@@ -1021,16 +1043,25 @@ async def _eligible_shows_for(db, uid: str) -> list[dict]:
     return out
 
 
-@router.get("/rail/sponsor/tiers")
-async def rail_sponsor_tiers(user: dict = Depends(current_user)):
-    return {"tiers": [{"id": k, **v} for k, v in RAIL_SPONSOR_TIERS.items()]}
+@router.get("/rail/sponsor/config")
+async def rail_sponsor_config(user: dict = Depends(current_user)):
+    return {
+        "durations": [{"id": k, **v} for k, v in RAIL_DURATIONS.items()],
+        "areas": [{"id": a, "label": RAIL_AREA_LABELS[a]} for a in RAIL_AREAS],
+        "daily_floor_cents": RAIL_DAILY_FLOOR_CENTS,
+        "increment_cents": RAIL_INCREMENT_CENTS,
+        "topup_presets_cents": RAIL_TOPUP_PRESETS,
+    }
 
 
+# ── Interests + first-run onboarding ──
 @router.get("/interests")
 async def get_interests(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
-    u = await db.users.find_one({"user_id": user["user_id"]}, {"interests": 1})
-    return {"topics": RAIL_TOPICS, "selected": (u or {}).get("interests") or []}
+    u = await db.users.find_one({"user_id": user["user_id"]},
+                                {"interests": 1, "onboarded_interests": 1})
+    return {"topics": RAIL_TOPICS, "selected": (u or {}).get("interests") or [],
+            "needs_onboarding": not bool((u or {}).get("onboarded_interests"))}
 
 
 class InterestsBody(BaseModel):
@@ -1042,9 +1073,18 @@ async def put_interests(body: InterestsBody, request: Request,
                         user: dict = Depends(current_user)):
     db = request.app.state.db
     sel = [t for t in (body.interests or []) if t in RAIL_TOPIC_IDS][:12]
-    await db.users.update_one({"user_id": user["user_id"]},
-                              {"$set": {"interests": sel}})
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"interests": sel, "onboarded_interests": True}})
     return {"ok": True, "selected": sel}
+
+
+@router.post("/interests/skip")
+async def skip_interests(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await db.users.update_one({"user_id": user["user_id"]},
+                              {"$set": {"onboarded_interests": True}})
+    return {"ok": True}
 
 
 @router.get("/rail/sponsor/eligible-shows")
@@ -1055,11 +1095,97 @@ async def rail_sponsor_eligible(request: Request, merchant_id: str,
     return {"shows": await _eligible_shows_for(db, user["user_id"])}
 
 
+# ── Ad wallet ──
+class OriginBody(BaseModel):
+    origin_url: Optional[str] = None
+
+
+class TopupBody(BaseModel):
+    merchant_id: str
+    amount_cents: int = Field(..., ge=500, le=5000000)
+    origin_url: Optional[str] = None
+
+
+@router.get("/rail/wallet")
+async def rail_wallet(request: Request, merchant_id: str,
+                      user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_merchant_or_403(db, merchant_id, user["user_id"])
+    w = await get_wallet(db, merchant_id)
+    txns = []
+    async for t in db.rail_wallet_txns.find({"merchant_id": merchant_id}
+                                            ).sort("created_at", -1).limit(20):
+        txns.append({"kind": t.get("kind"), "amount_cents": t.get("amount_cents"),
+                     "ref": t.get("ref"), "created_at": _iso(t.get("created_at"))})
+    return {"balance_cents": int(w.get("balance_cents") or 0), "txns": txns}
+
+
+@router.post("/rail/wallet/topup")
+async def rail_wallet_topup(body: TopupBody, request: Request,
+                            user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_merchant_or_403(db, body.merchant_id, user["user_id"])
+    if not stripe.api_key:
+        raise HTTPException(503, {"code": "stripe_unconfigured"})
+    origin = resolve_origin(request, body.origin_url)
+    if not origin:
+        raise HTTPException(400, {"code": "origin_required"})
+    tid = "rtp_" + uuid.uuid4().hex[:12]
+    session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[{"price_data": {"currency": "usd",
+            "product_data": {"name": "FUUSIC Rail ad-wallet top-up"},
+            "unit_amount": int(body.amount_cents)}, "quantity": 1}],
+        success_url=f"{origin}/merchant/rail-sponsor?topup={tid}&session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{origin}/merchant/rail-sponsor?topup_cancel=1",
+        metadata={"kind": "rail_wallet_topup", "topup_id": tid,
+                  "merchant_id": body.merchant_id})
+    await db.rail_topups.insert_one({
+        "_id": tid, "merchant_id": body.merchant_id,
+        "sponsor_user_id": user["user_id"], "amount_cents": int(body.amount_cents),
+        "session_id": session.id, "status": "pending", "created_at": _now()})
+    return {"ok": True, "topup_id": tid, "checkout_url": session.url,
+            "session_id": session.id}
+
+
+@router.get("/rail/wallet/topup/{topup_id}/status")
+async def rail_topup_status(topup_id: str, request: Request,
+                            session_id: Optional[str] = None,
+                            user: dict = Depends(current_user)):
+    db = request.app.state.db
+    tp = await db.rail_topups.find_one(
+        {"_id": topup_id, "sponsor_user_id": user["user_id"]})
+    if not tp:
+        raise HTTPException(404, {"code": "not_found"})
+    if tp["status"] != "credited":
+        sid = session_id or tp.get("session_id")
+        paid = False
+        if stripe.api_key and sid:
+            try:
+                s = stripe.checkout.Session.retrieve(sid)
+                paid = bool(s and s.get("payment_status") == "paid")
+            except Exception:
+                paid = False
+        if paid:
+            # idempotent credit
+            r = await db.rail_topups.update_one(
+                {"_id": topup_id, "status": {"$ne": "credited"}},
+                {"$set": {"status": "credited", "credited_at": _now()}})
+            if r.modified_count:
+                await credit_wallet(db, tp["merchant_id"], int(tp["amount_cents"]),
+                                    kind="topup", ref=f"topup:{topup_id}")
+            tp = await db.rail_topups.find_one({"_id": topup_id})
+    w = await get_wallet(db, tp["merchant_id"])
+    return {"status": tp["status"], "balance_cents": int(w.get("balance_cents") or 0)}
+
+
+# ── Standing bids ──
 class RailSponsorCreate(BaseModel):
     merchant_id: str
     target_id: str
-    tier: str
-    bid_cents: Optional[int] = Field(None, ge=100, le=1000000)
+    duration_tier: str
+    daily_bid_cents: int = Field(..., ge=100, le=1000000)
+    target_pages: list[str] = []
 
 
 @router.post("/rail/sponsor")
@@ -1067,132 +1193,47 @@ async def rail_sponsor_create(body: RailSponsorCreate, request: Request,
                               user: dict = Depends(current_user)):
     db = request.app.state.db
     biz = await _owned_merchant_or_403(db, body.merchant_id, user["user_id"])
-    tier = RAIL_SPONSOR_TIERS.get(body.tier)
-    if not tier:
-        raise HTTPException(400, {"code": "bad_tier"})
+    dur = RAIL_DURATIONS.get(body.duration_tier)
+    if not dur:
+        raise HTTPException(400, {"code": "bad_duration"})
+    areas = [a for a in (body.target_pages or []) if a in RAIL_AREAS]
+    if not areas:
+        raise HTTPException(400, {"code": "no_target_areas"})
+    if body.daily_bid_cents < RAIL_DAILY_FLOOR_CENTS:
+        raise HTTPException(400, {"code": "bid_below_floor",
+                                  "floor": RAIL_DAILY_FLOOR_CENTS})
     show = await db.live_shows.find_one({"_id": body.target_id,
                                          "host_id": user["user_id"]})
     if not show:
         raise HTTPException(404, {"code": "show_not_found_or_not_host"})
-    floor = int(tier["amount_cents"])
-    bid = max(int(body.bid_cents or floor), floor)  # bid can't dip below the tier floor
-    target_kind = "live" if show.get("status") == "live" else "event"
+    now = _now()
+    kind = "live" if show.get("status") == "live" else "event"
     sid = "rsp_" + uuid.uuid4().hex[:12]
     await db.rail_sponsorships.insert_one({
         "_id": sid, "merchant_id": body.merchant_id,
         "business_name": biz.get("name") or show.get("business_name"),
-        "sponsor_user_id": user["user_id"],
-        "target_kind": target_kind, "target_id": body.target_id,
+        "sponsor_user_id": user["user_id"], "target_kind": kind,
+        "target_id": body.target_id, "target_pages": areas,
         "title": show.get("title") or "Featured show",
         "subtitle": biz.get("name") or show.get("business_name") or "Sponsored",
         "image": show.get("cover_url"),
-        "cta": "Watch" if target_kind == "live" else "View",
-        "to": "/social?tab=live", "tier": body.tier,
-        "duration_hours": tier["hours"], "amount_cents": bid, "bid_cents": bid,
-        "status": "pending_payment", "payment_status": "pending",
-        "starts_at": None, "ends_at": None,
-        "stripe_session_id": None, "paid_at": None, "created_at": _now()})
-    return {"ok": True, "sponsorship_id": sid, "amount_cents": bid,
-            "bid_cents": bid, "tier": body.tier}
+        "cta": "Watch" if kind == "live" else "View", "to": "/social?tab=live",
+        "duration_tier": body.duration_tier, "daily_bid_cents": int(body.daily_bid_cents),
+        "status": "active", "starts_at": now,
+        "ends_at": now + timedelta(days=int(dur["days"])), "created_at": now})
+    for a in areas:  # reflect immediately in today's auction
+        await resettle_today(db, a)
+    return {"ok": True, "sponsorship_id": sid, "target_pages": areas,
+            "daily_bid_cents": int(body.daily_bid_cents)}
 
 
-async def _activate_sponsorship(db, sp: dict) -> None:
-    if sp.get("status") == "active":
-        return
-    now = _now()
-    ends = now + timedelta(hours=int(sp["duration_hours"]))
-    await db.rail_sponsorships.update_one(
-        {"_id": sp["_id"], "status": {"$ne": "active"}},
-        {"$set": {"status": "active", "starts_at": now, "ends_at": ends,
-                  "paid_at": now, "payment_status": "paid"}})
-
-
-class OriginBody(BaseModel):
-    origin_url: Optional[str] = None
-
-
-@router.post("/rail/sponsor/{sid}/checkout")
-async def rail_sponsor_checkout(sid: str, request: Request,
-                                body: OriginBody = OriginBody(),
-                                user: dict = Depends(current_user)):
-    """Create a REAL one-time Stripe Checkout Session (mode=payment) for the
-    merchant's bid. In preview the key is a Stripe TEST key (card 4242…);
-    it becomes a live charge automatically once the account is claimed."""
-    db = request.app.state.db
-    sp = await db.rail_sponsorships.find_one(
-        {"_id": sid, "sponsor_user_id": user["user_id"]})
-    if not sp:
-        raise HTTPException(404, {"code": "not_found"})
-    if sp["status"] != "pending_payment":
-        raise HTTPException(400, {"code": "wrong_status", "current": sp["status"]})
-    if not stripe.api_key:
-        raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = resolve_origin(request, body.origin_url)
-    if not origin:
-        raise HTTPException(400, {"code": "origin_required"})
-    amount = int(sp.get("bid_cents") or sp.get("amount_cents"))
-    session = stripe.checkout.Session.create(
-        mode="payment",
-        line_items=[{"price_data": {"currency": "usd",
-            "product_data": {"name": f"Rail Sponsorship — {sp.get('title')}"},
-            "unit_amount": amount}, "quantity": 1}],
-        success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{origin}/payment/cancel",
-        metadata={"kind": "rail_sponsorship", "sponsorship_id": sid,
-                  "merchant_id": sp["merchant_id"]})
-    await db.rail_sponsorships.update_one(
-        {"_id": sid}, {"$set": {"stripe_session_id": session.id,
-                                "payment_status": "pending"}})
-    return {"ok": True, "checkout_url": session.url, "session_id": session.id}
-
-
-@router.get("/rail/sponsor/{sid}/status")
-async def rail_sponsor_status(sid: str, request: Request,
-                              session_id: Optional[str] = None,
-                              user: dict = Depends(current_user)):
-    """Poll Stripe for payment and activate on confirmed payment (idempotent).
-    Also fulfills a pending bid-raise checkout."""
-    db = request.app.state.db
-    sp = await db.rail_sponsorships.find_one(
-        {"_id": sid, "sponsor_user_id": user["user_id"]})
-    if not sp:
-        raise HTTPException(404, {"code": "not_found"})
-
-    def _paid(sess_id: Optional[str]) -> bool:
-        if not (stripe.api_key and sess_id) or str(sess_id).startswith("cs_mock"):
-            return False
-        try:
-            s = stripe.checkout.Session.retrieve(sess_id)
-        except Exception:
-            return False
-        return bool(s and s.get("payment_status") == "paid")
-
-    # Primary purchase.
-    if sp["status"] == "pending_payment" and _paid(session_id or sp.get("stripe_session_id")):
-        await _activate_sponsorship(db, sp)
-        sp = await db.rail_sponsorships.find_one({"_id": sid})
-    # Pending bid raise.
-    if sp.get("raise_session_id") and sp.get("pending_raise_to") and _paid(sp["raise_session_id"]):
-        await db.rail_sponsorships.update_one(
-            {"_id": sid}, {"$set": {"bid_cents": int(sp["pending_raise_to"]),
-                                    "amount_cents": int(sp["pending_raise_to"])},
-                           "$unset": {"pending_raise_to": "", "raise_session_id": ""}})
-        sp = await db.rail_sponsorships.find_one({"_id": sid})
-    return {"status": sp["status"],
-            "payment_status": sp.get("payment_status") or "pending",
-            "bid_cents": sp.get("bid_cents"), "ends_at": _iso(sp.get("ends_at"))}
-
-
-async def _active_ranked(db, now: datetime) -> list[dict]:
-    """All currently-active sponsorships, ranked by bid (auction order)."""
-    active: list[dict] = []
-    async for a in db.rail_sponsorships.find(
-            {"status": "active", "starts_at": {"$lte": now},
-             "ends_at": {"$gte": now}}):
-        active.append(a)
-    active.sort(key=lambda x: (-(int(x.get("bid_cents") or x.get("amount_cents") or 0)),
-                               x.get("created_at") or now))
-    return active
+async def _spend_cents(db, sid: str) -> int:
+    total = 0
+    async for t in db.rail_wallet_txns.find(
+            {"sponsorship_id": sid, "kind": {"$in": ["charge", "refund"]}},
+            {"amount_cents": 1}):
+        total += int(t.get("amount_cents") or 0)
+    return -total  # charges are negative, refunds positive → net spend
 
 
 @router.get("/rail/sponsor/list")
@@ -1201,10 +1242,7 @@ async def rail_sponsor_list(request: Request, merchant_id: str,
     db = request.app.state.db
     await _owned_merchant_or_403(db, merchant_id, user["user_id"])
     now = _now()
-    active = await _active_ranked(db, now)
-    rank_map = {a["_id"]: i + 1 for i, a in enumerate(active)}
-    top_id = active[0]["_id"] if active else None
-    top_bid = int(active[0].get("bid_cents") or active[0].get("amount_cents") or 0) if active else 0
+    wallet = await get_wallet(db, merchant_id)
     out: list[dict] = []
     async for sp in db.rail_sponsorships.find(
             {"merchant_id": merchant_id}).sort("created_at", -1).limit(50):
@@ -1217,37 +1255,39 @@ async def rail_sponsor_list(request: Request, merchant_id: str,
         if status == "active" and isinstance(ends, datetime):
             ea = ends if ends.tzinfo else ends.replace(tzinfo=timezone.utc)
             if ea < now:
-                status = "expired"
-        is_active = sp["_id"] in rank_map
+                status = "ended"
+        area_status = {"areas": {}, "featured_any": False}
+        if status == "active":
+            area_status = await today_status_for(db, sp)
         out.append({
             "id": sp["_id"], "title": sp.get("title"),
             "business_name": sp.get("business_name"), "image": sp.get("image"),
-            "target_kind": sp.get("target_kind"), "tier": sp.get("tier"),
-            "amount_cents": sp.get("amount_cents"),
-            "bid_cents": sp.get("bid_cents") or sp.get("amount_cents"),
-            "status": status, "payment_status": sp.get("payment_status") or "pending",
+            "target_kind": sp.get("target_kind"),
+            "target_pages": sp.get("target_pages") or [],
+            "duration_tier": sp.get("duration_tier"),
+            "daily_bid_cents": int(sp.get("daily_bid_cents") or 0),
+            "status": status,
             "starts_at": _iso(sp.get("starts_at")), "ends_at": _iso(sp.get("ends_at")),
             "created_at": _iso(sp.get("created_at")),
             "impressions": imp, "clicks": clk,
             "ctr": round(clk / imp * 100, 1) if imp else 0.0,
-            "rank": rank_map.get(sp["_id"]),
-            "featured": sp["_id"] == top_id,
-            "active_total": len(active),
-            "top_bid_cents": top_bid,
-            "pending_raise_to": sp.get("pending_raise_to")})
-    return {"sponsorships": out, "current_top_bid_cents": top_bid,
-            "active_total": len(active)}
+            "spend_cents": await _spend_cents(db, sp["_id"]),
+            "featured_any": area_status["featured_any"],
+            "area_status": area_status["areas"]})
+    return {"sponsorships": out,
+            "wallet_balance_cents": int(wallet.get("balance_cents") or 0),
+            "daily_floor_cents": RAIL_DAILY_FLOOR_CENTS}
 
 
-class RaiseBidBody(BaseModel):
-    bid_cents: int = Field(..., ge=100, le=1000000)
-    origin_url: Optional[str] = None
+class BidBody(BaseModel):
+    daily_bid_cents: int = Field(..., ge=100, le=1000000)
 
 
-@router.post("/rail/sponsor/{sid}/raise")
-async def rail_sponsor_raise(sid: str, body: RaiseBidBody, request: Request,
-                             user: dict = Depends(current_user)):
-    """Raise the bid on an active sponsorship — charges only the delta."""
+@router.post("/rail/sponsor/{sid}/bid")
+async def rail_sponsor_bid(sid: str, body: BidBody, request: Request,
+                           user: dict = Depends(current_user)):
+    """Update the standing daily max bid; re-settles today immediately so an
+    outbid competitor is alerted right away."""
     db = request.app.state.db
     sp = await db.rail_sponsorships.find_one(
         {"_id": sid, "sponsor_user_id": user["user_id"]})
@@ -1255,29 +1295,14 @@ async def rail_sponsor_raise(sid: str, body: RaiseBidBody, request: Request,
         raise HTTPException(404, {"code": "not_found"})
     if sp["status"] != "active":
         raise HTTPException(400, {"code": "not_active"})
-    cur = int(sp.get("bid_cents") or sp.get("amount_cents") or 0)
-    if body.bid_cents <= cur:
-        raise HTTPException(400, {"code": "bid_too_low", "current": cur})
-    if not stripe.api_key:
-        raise HTTPException(503, {"code": "stripe_unconfigured"})
-    origin = resolve_origin(request, body.origin_url)
-    if not origin:
-        raise HTTPException(400, {"code": "origin_required"})
-    delta = body.bid_cents - cur
-    session = stripe.checkout.Session.create(
-        mode="payment",
-        line_items=[{"price_data": {"currency": "usd",
-            "product_data": {"name": f"Rail bid raise — {sp.get('title')}"},
-            "unit_amount": delta}, "quantity": 1}],
-        success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{origin}/payment/cancel",
-        metadata={"kind": "rail_sponsor_raise", "sponsorship_id": sid,
-                  "raise_to_cents": str(body.bid_cents)})
+    if body.daily_bid_cents < RAIL_DAILY_FLOOR_CENTS:
+        raise HTTPException(400, {"code": "bid_below_floor",
+                                  "floor": RAIL_DAILY_FLOOR_CENTS})
     await db.rail_sponsorships.update_one(
-        {"_id": sid}, {"$set": {"pending_raise_to": body.bid_cents,
-                                "raise_session_id": session.id}})
-    return {"ok": True, "checkout_url": session.url, "session_id": session.id,
-            "delta_cents": delta}
+        {"_id": sid}, {"$set": {"daily_bid_cents": int(body.daily_bid_cents)}})
+    for a in (sp.get("target_pages") or []):
+        await resettle_today(db, a)
+    return {"ok": True, "daily_bid_cents": int(body.daily_bid_cents)}
 
 
 @router.get("/rail/sponsor/{sid}/insights")
@@ -1319,12 +1344,42 @@ async def rail_sponsor_insights(sid: str, request: Request, days: int = 14,
 async def rail_sponsor_cancel(sid: str, request: Request,
                               user: dict = Depends(current_user)):
     db = request.app.state.db
-    r = await db.rail_sponsorships.update_one(
+    sp = await db.rail_sponsorships.find_one_and_update(
         {"_id": sid, "sponsor_user_id": user["user_id"]},
-        {"$set": {"status": "cancelled", "cancelled_at": _now()}})
-    if not r.matched_count:
+        {"$set": {"status": "ended", "cancelled_at": _now()}})
+    if not sp:
         raise HTTPException(404, {"code": "not_found"})
+    for a in (sp.get("target_pages") or []):  # re-settle so the slot frees up
+        await resettle_today(db, a)
     return {"ok": True}
+
+
+# ── Bid alerts (in-app inbox) ──
+@router.get("/rail/alerts")
+async def rail_alerts(request: Request, merchant_id: str,
+                      user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_merchant_or_403(db, merchant_id, user["user_id"])
+    out = []
+    async for a in db.rail_alerts.find({"merchant_id": merchant_id}
+                                       ).sort("created_at", -1).limit(20):
+        out.append({"id": a["_id"], "title": a.get("title"), "body": a.get("body"),
+                    "area": a.get("area"), "kind": a.get("kind"),
+                    "read": bool(a.get("read")), "created_at": _iso(a.get("created_at"))})
+    unread = await db.rail_alerts.count_documents(
+        {"merchant_id": merchant_id, "read": False})
+    return {"alerts": out, "unread": unread}
+
+
+@router.post("/rail/alerts/read")
+async def rail_alerts_read(request: Request, merchant_id: str,
+                           user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await _owned_merchant_or_403(db, merchant_id, user["user_id"])
+    await db.rail_alerts.update_many(
+        {"merchant_id": merchant_id, "read": False}, {"$set": {"read": True}})
+    return {"ok": True}
+
 
 
 class RailEvent(BaseModel):

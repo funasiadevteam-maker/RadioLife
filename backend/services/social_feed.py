@@ -680,8 +680,9 @@ async def build_rail(db, user: dict, *, page_route: str = "/home",
     cards.sort(key=lambda c: c["score"], reverse=True)
     cards = _diversify_rail(cards)
 
-    # ── Paid Sponsored slot pinned to the TOP (exclusive: highest bid wins) ──
-    sponsored = await _rail_sponsored_card(db, now)
+    # ── Paid Sponsored slot pinned to the TOP (per-area second-price auction) ──
+    from services.rail_auction import sponsored_card_for_area
+    sponsored = await sponsored_card_for_area(db, page_route)
     if sponsored:
         cards = [sponsored] + [c for c in cards if c["kind"] != "sponsored"]
 
@@ -692,29 +693,6 @@ async def build_rail(db, user: dict, *, page_route: str = "/home",
         c.pop("rel", None)
         c.pop("boost", None)
     return {"cards": out, "page_route": page_route}
-
-
-async def _rail_sponsored_card(db, now: datetime) -> Optional[dict]:
-    """Exclusive auction: the single ACTIVE sponsorship with the highest bid
-    wins the pinned top slot (ties → earliest created)."""
-    active: list[dict] = []
-    async for s in db.rail_sponsorships.find(
-            {"status": "active", "starts_at": {"$lte": now},
-             "ends_at": {"$gte": now}}):
-        active.append(s)
-    if not active:
-        return None
-    active.sort(key=lambda x: (-(int(x.get("bid_cents") or x.get("amount_cents") or 0)),
-                               x.get("created_at") or now))
-    s = active[0]
-    return {
-        "id": f"SPONSORED:{s['_id']}", "kind": "sponsored",
-        "title": s.get("title") or "Featured",
-        "subtitle": s.get("subtitle") or s.get("business_name") or "Sponsored",
-        "image": s.get("image"), "badge": "SPONSORED",
-        "cta": s.get("cta") or "View", "to": s.get("to"),
-        "sponsored": True, "sponsorship_id": str(s["_id"]),
-    }
 
 
 __all__ = ["build_feed", "build_rail", "refresh_ai_order", "latest_feed_ts",

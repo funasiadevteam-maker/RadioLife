@@ -13,6 +13,7 @@ import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { MomentsTab, PulseTab, GoTogetherSheet, PlayTogetherSheet, ShopTogetherSheet, DiscoverSection } from '../../src/social/together';
 import { LiveTab } from '../../src/social/live';
 import SocialWall from '../../src/social/wall';
+import InterestOnboarding from '../../src/social/InterestOnboarding';
 import { playImportedStation } from '../../src/services/playStation';
 
 const TABS = [
@@ -50,6 +51,7 @@ export default function SocialScreen() {
 
   return (
     <View style={s.screen} testID="social-screen">
+      <InterestOnboarding />
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
         <Text style={s.title}>Social</Text>
         <Text style={s.sub}>DO THINGS TOGETHER</Text>

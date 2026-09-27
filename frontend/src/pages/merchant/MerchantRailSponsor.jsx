@@ -1,13 +1,16 @@
-// Merchant → Rail Sponsor. Bid to feature one of your live shows / upcoming
-// events as the pinned card in the site-wide compact Right Rail. Exclusive
-// auction: the highest active bid wins the single top slot. Real one-time
-// Stripe checkout (test card 4242… in preview; live card once claimed).
+// Merchant → Rail Sponsor. Fund an Ad-Wallet, then place STANDING BIDS to
+// feature your live shows / upcoming events in the site-wide compact Right
+// Rail. Each targeted area (Social / Shop / Listen) runs a DAILY SECOND-PRICE
+// (Vickrey) auction: the highest bid wins the single slot and is charged only
+// the clearing price (runner-up + $0.01, floored), debited from your wallet.
+// Raise your bid to win a slot back; you're alerted the moment you're outbid.
 import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
 import {
   Radio, Megaphone, Loader2, X, Sparkles, Eye, MousePointerClick,
-  TrendingUp, Clock, Calendar, Crown, ArrowUpCircle, BarChart3, ExternalLink,
+  TrendingUp, Crown, ArrowUpCircle, BarChart3, Wallet,
+  Plus, Bell, CircleDollarSign, Layers,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -15,163 +18,157 @@ import {
 import { useMerchant } from "@/pages/merchant/MerchantShell";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
-const usd = (c) => `$${((c || 0) / 100).toFixed(0)}`;
+const usd = (c) => `$${((c || 0) / 100).toFixed(2)}`;
+const usd0 = (c) => `$${Math.round((c || 0) / 100)}`;
+
+const AREA_TONE = {
+  social: { bg: "bg-purple-500/15", fg: "text-purple-300", dot: "#a855f7" },
+  shop: { bg: "bg-amber-500/15", fg: "text-amber-300", dot: "#f59e0b" },
+  listen: { bg: "bg-cyan-500/15", fg: "text-cyan-300", dot: "#22d3ee" },
+};
+const AREA_LABEL = { social: "Social", shop: "Shop", listen: "Listen" };
 
 const STATUS_TONE = {
   active: { bg: "bg-emerald-500/15", fg: "text-emerald-300", label: "Active" },
-  pending_payment: { bg: "bg-amber-500/15", fg: "text-amber-300", label: "Unpaid" },
-  expired: { bg: "bg-slate-500/15", fg: "text-slate-400", label: "Ended" },
-  cancelled: { bg: "bg-rose-500/15", fg: "text-rose-300", label: "Cancelled" },
+  ended: { bg: "bg-slate-500/15", fg: "text-slate-400", label: "Ended" },
 };
 
 export default function MerchantRailSponsor() {
   const ctx = useMerchant();
   const merchant = ctx?.merchant;
   const merchantId = merchant?.merchant_id;
-  const [tiers, setTiers] = useState([]);
+
+  const [config, setConfig] = useState(null);
   const [shows, setShows] = useState([]);
   const [items, setItems] = useState([]);
-  const [topBid, setTopBid] = useState(0);
+  const [wallet, setWallet] = useState({ balance_cents: 0, txns: [] });
+  const [floor, setFloor] = useState(500);
+  const [alerts, setAlerts] = useState({ alerts: [], unread: 0 });
   const [loading, setLoading] = useState(true);
-  const [picking, setPicking] = useState(null);   // show being sponsored
-  const [raising, setRaising] = useState(null);    // item being raised
-  const [tier, setTier] = useState(null);
-  const [bid, setBid] = useState(0);               // dollars
-  const [busy, setBusy] = useState(false);
+
+  const [picking, setPicking] = useState(null);      // show being featured
+  const [raising, setRaising] = useState(null);       // item being raised
+  const [funding, setFunding] = useState(false);      // top-up modal open
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(null);
   const polls = useRef([]);
 
-  const load = useCallback(async () => {
+  const loadCore = useCallback(async () => {
     if (!merchantId) return;
     try {
-      const [t, s, l] = await Promise.all([
-        axios.get(`${API}/social/rail/sponsor/tiers`, { withCredentials: true })
-          .then((r) => r.data?.tiers || []).catch(() => []),
+      const [cfg, s, l, w, a] = await Promise.all([
+        axios.get(`${API}/social/rail/sponsor/config`, { withCredentials: true })
+          .then((r) => r.data).catch(() => null),
         axios.get(`${API}/social/rail/sponsor/eligible-shows`,
           { params: { merchant_id: merchantId }, withCredentials: true })
           .then((r) => r.data?.shows || []).catch(() => []),
         axios.get(`${API}/social/rail/sponsor/list`,
           { params: { merchant_id: merchantId }, withCredentials: true })
           .then((r) => r.data).catch(() => ({})),
+        axios.get(`${API}/social/rail/wallet`,
+          { params: { merchant_id: merchantId }, withCredentials: true })
+          .then((r) => r.data).catch(() => ({ balance_cents: 0, txns: [] })),
+        axios.get(`${API}/social/rail/alerts`,
+          { params: { merchant_id: merchantId }, withCredentials: true })
+          .then((r) => r.data).catch(() => ({ alerts: [], unread: 0 })),
       ]);
-      setTiers(t); setShows(s);
+      if (cfg) { setConfig(cfg); setFloor(cfg.daily_floor_cents || 500); }
+      setShows(s);
       setItems(l?.sponsorships || []);
-      setTopBid(l?.current_top_bid_cents || 0);
+      setFloor(l?.daily_floor_cents || cfg?.daily_floor_cents || 500);
+      setWallet(w || { balance_cents: 0, txns: [] });
+      setAlerts(a || { alerts: [], unread: 0 });
     } finally { setLoading(false); }
   }, [merchantId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadCore(); }, [loadCore]);
   useEffect(() => () => polls.current.forEach(clearInterval), []);
 
-  const openSponsor = (show) => {
-    const first = tiers[0];
-    setTier(first?.id || "3d");
-    setBid(Math.max((first?.amount_cents || 1900) / 100, (topBid || 0) / 100 + 1));
-    setPicking(show);
-  };
-
-  const floorFor = (id) => (tiers.find((t) => t.id === id)?.amount_cents || 0) / 100;
-
-  // Poll payment status in the background until the sponsorship activates.
-  const pollUntilActive = (sid, sessionId, label) => {
+  const pollTopup = useCallback((topupId, sessionId) => {
     let ticks = 0;
     const iv = setInterval(async () => {
       ticks += 1;
       try {
-        const { data } = await axios.get(`${API}/social/rail/sponsor/${sid}/status`,
+        const { data } = await axios.get(
+          `${API}/social/rail/wallet/topup/${topupId}/status`,
           { params: { session_id: sessionId }, withCredentials: true });
-        if (data.status === "active" && data.payment_status === "paid") {
+        if (data.status === "credited") {
           clearInterval(iv);
-          toast.success(label || "Payment confirmed — you're featured!");
-          load();
+          toast.success("Wallet funded — you're ready to bid!");
+          setWallet((w) => ({ ...w, balance_cents: data.balance_cents }));
+          loadCore();
         }
       } catch (_) { /* keep polling */ }
-      if (ticks > 80) clearInterval(iv); // ~4 min cap
+      if (ticks > 80) clearInterval(iv);
     }, 3000);
     polls.current.push(iv);
-  };
+  }, [loadCore]);
 
-  const payAndFeature = async () => {
-    if (!picking || !tier) return;
-    const floor = floorFor(tier);
-    if (bid < floor) { toast.error(`Minimum for this duration is $${floor}.`); return; }
-    setBusy(true);
-    try {
-      const { data } = await axios.post(`${API}/social/rail/sponsor`,
-        { merchant_id: merchantId, target_id: picking.id, tier, bid_cents: Math.round(bid * 100) },
-        { withCredentials: true });
-      const sid = data.sponsorship_id;
-      const { data: co } = await axios.post(`${API}/social/rail/sponsor/${sid}/checkout`,
-        { origin_url: window.location.origin }, { withCredentials: true });
-      if (co.checkout_url) {
-        window.open(co.checkout_url, "_blank", "noopener");
-        pollUntilActive(sid, co.session_id, "Payment confirmed — your card is featured!");
-        toast.message("Complete payment in the new tab", {
-          description: "Use test card 4242 4242 4242 4242. This page updates automatically.",
-        });
-      }
-      setPicking(null);
-      await load();
-    } catch (e) {
-      const code = e?.response?.data?.detail?.code;
-      toast.error(code === "not_your_business" ? "This isn't your business."
-        : code === "stripe_unconfigured" ? "Payments aren't configured yet."
-        : "Couldn't start checkout.");
-    } finally { setBusy(false); }
-  };
+  // Return-from-Stripe top-up → poll to credit the wallet.
+  useEffect(() => {
+    if (!merchantId) return;
+    const q = new URLSearchParams(window.location.search);
+    const tid = q.get("topup");
+    const sid = q.get("session_id");
+    if (tid) {
+      pollTopup(tid, sid);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [merchantId, pollTopup]);
 
-  const submitRaise = async () => {
-    if (!raising) return;
-    const cur = (raising.bid_cents || 0) / 100;
-    if (bid <= cur) { toast.error(`Enter more than your current $${cur} bid.`); return; }
-    setBusy(true);
-    try {
-      const { data: co } = await axios.post(`${API}/social/rail/sponsor/${raising.id}/raise`,
-        { bid_cents: Math.round(bid * 100), origin_url: window.location.origin },
-        { withCredentials: true });
-      if (co.checkout_url) {
-        window.open(co.checkout_url, "_blank", "noopener");
-        pollUntilActive(raising.id, co.session_id, "Bid raised — you're now bidding higher!");
-        toast.message("Pay the difference in the new tab", {
-          description: `You're topping up by ${usd(co.delta_cents)}. Test card 4242…`,
-        });
-      }
-      setRaising(null);
-    } catch (e) {
-      toast.error(e?.response?.data?.detail?.code === "bid_too_low"
-        ? "Bid must be higher than the current one." : "Couldn't raise bid.");
-    } finally { setBusy(false); }
+  const openAlerts = async () => {
+    setAlertsOpen(true);
+    if (alerts.unread > 0) {
+      try {
+        await axios.post(`${API}/social/rail/alerts/read`, null,
+          { params: { merchant_id: merchantId }, withCredentials: true });
+        setAlerts((a) => ({ ...a, unread: 0 }));
+      } catch (_) { /* soft */ }
+    }
   };
 
   const cancel = async (sid) => {
     try {
-      await axios.post(`${API}/social/rail/sponsor/${sid}/cancel`, {}, { withCredentials: true });
-      toast.success("Sponsorship cancelled.");
+      await axios.post(`${API}/social/rail/sponsor/${sid}/cancel`, {},
+        { withCredentials: true });
+      toast.success("Campaign cancelled.");
       setConfirmCancel(null);
-      await load();
+      await loadCore();
     } catch (_) { toast.error("Couldn't cancel."); }
   };
+
+  const lowBalance = (wallet.balance_cents || 0) < floor;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white" data-testid="merchant-rail-sponsor">
       <Toaster position="top-center" richColors />
+
+      {/* Hero */}
       <div className="relative overflow-hidden border-b border-white/10"
         style={{ background: "linear-gradient(120deg,#0b0f1e 0%,#241041 60%,#3a1652 100%)" }}>
         <div className="absolute -top-16 -right-10 w-64 h-64 rounded-full blur-3xl opacity-30"
           style={{ background: "radial-gradient(circle,#f5c563,transparent 70%)" }} />
-        <div className="relative px-6 lg:px-10 py-6">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">
-            <Megaphone size={12} /> Rail Sponsor
+        <div className="relative px-6 lg:px-10 py-6 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">
+              <Megaphone size={12} /> Rail Sponsor
+            </div>
+            <h1 className="mt-1 text-2xl lg:text-3xl font-black">Bid to feature your shows across the rail</h1>
+            <p className="mt-1 text-sm text-slate-300 max-w-xl">
+              Fund your ad-wallet, then set a max daily bid per area. Each area runs a
+              daily <b>second-price auction</b> — you win the slot and pay only the clearing price.
+            </p>
           </div>
-          <h1 className="mt-1 text-2xl lg:text-3xl font-black">Bid to feature a show in the Right Rail</h1>
-          <p className="mt-1 text-sm text-slate-300 max-w-xl">
-            The highest active bid wins the single "Sponsored" slot at the top of
-            the site-wide rail. Track impressions, clicks and CTR in real time.
-          </p>
-          <div className="mt-3 inline-flex items-center gap-2 text-[11px] font-bold px-3 py-1.5 rounded-full bg-amber-500/15 text-amber-200"
-            data-testid="rail-sponsor-top-bid">
-            <Crown size={13} /> Current top bid to beat: {usd(topBid)}
-          </div>
+          <button type="button" onClick={openAlerts} data-testid="rail-sponsor-alerts-btn"
+            className="relative w-11 h-11 grid place-items-center rounded-2xl bg-white/10 border border-white/10 hover:bg-white/15">
+            <Bell size={18} />
+            {alerts.unread > 0 && (
+              <span data-testid="rail-sponsor-alerts-unread"
+                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-[10px] font-black grid place-items-center">
+                {alerts.unread}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -182,6 +179,52 @@ export default function MerchantRailSponsor() {
           </div>
         ) : (
           <>
+            {/* Ad Wallet */}
+            <section data-testid="rail-wallet">
+              <div className="rounded-3xl border border-white/10 p-5 flex items-center justify-between gap-4 flex-wrap"
+                style={{ background: "linear-gradient(135deg,#12102b,#0b0918)" }}>
+                <div className="flex items-center gap-4">
+                  <span className="w-12 h-12 rounded-2xl grid place-items-center"
+                    style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
+                    <Wallet size={22} className="text-slate-950" />
+                  </span>
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Ad-Wallet balance</div>
+                    <div className="text-3xl font-black tabular-nums" data-testid="rail-wallet-balance">
+                      {usd(wallet.balance_cents)}
+                    </div>
+                    {lowBalance && (
+                      <div className="text-[11px] text-amber-300 font-bold mt-0.5">
+                        Add at least {usd0(floor)} to cover a day's minimum bid.
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setFunding(true)} data-testid="rail-wallet-topup-btn"
+                  className="inline-flex items-center gap-2 h-11 px-5 rounded-2xl font-black text-slate-950"
+                  style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
+                  <Plus size={16} /> Add funds
+                </button>
+              </div>
+              {wallet.txns?.length > 0 && (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-slate-900/60 divide-y divide-white/5"
+                  data-testid="rail-wallet-txns">
+                  {wallet.txns.slice(0, 5).map((t, i) => (
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <span className="text-slate-300 capitalize flex items-center gap-2">
+                        <CircleDollarSign size={13} className="text-slate-500" />
+                        {t.kind}{t.ref ? ` · ${t.ref}` : ""}
+                      </span>
+                      <span className={`font-black tabular-nums ${t.amount_cents < 0 ? "text-rose-300" : "text-emerald-300"}`}>
+                        {t.amount_cents < 0 ? "-" : "+"}{usd(Math.abs(t.amount_cents))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Eligible shows */}
             <section data-testid="rail-sponsor-eligible">
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">
                 Your shows to feature
@@ -213,7 +256,7 @@ export default function MerchantRailSponsor() {
                           {s.business_name || "Your show"}
                         </div>
                         <button type="button" data-testid={`rail-sponsor-feature-${s.id}`}
-                          onClick={() => openSponsor(s)}
+                          onClick={() => setPicking(s)}
                           className="mt-3 h-10 rounded-xl font-black text-sm text-slate-950"
                           style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
                           Feature this
@@ -225,22 +268,23 @@ export default function MerchantRailSponsor() {
               )}
             </section>
 
+            {/* Campaigns */}
             <section data-testid="rail-sponsor-list">
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">
-                Your sponsorships
+                Your campaigns
               </h2>
               {items.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-8 text-center text-slate-400"
                   data-testid="rail-sponsor-empty-list">
-                  No sponsorships yet. Feature a show above to get started.
+                  No campaigns yet. Feature a show above to start bidding.
                 </div>
               ) : (
                 <div className="space-y-3">
                   {items.map((it) => (
-                    <SponsorRow key={it.id} it={it} topBid={topBid}
+                    <SponsorRow key={it.id} it={it} floor={floor}
                       confirmCancel={confirmCancel} setConfirmCancel={setConfirmCancel}
                       onCancel={cancel}
-                      onRaise={() => { setRaising(it); setBid((it.bid_cents || 0) / 100 + 1); }} />
+                      onRaise={() => setRaising(it)} />
                   ))}
                 </div>
               )}
@@ -249,99 +293,337 @@ export default function MerchantRailSponsor() {
         )}
       </div>
 
-      {/* Bid + duration modal */}
-      {picking && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4"
-          onClick={() => !busy && setPicking(null)} data-testid="rail-sponsor-tier-modal">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2 text-amber-300 text-[10px] font-black uppercase tracking-widest">
-                <Sparkles size={12} /> Feature "{picking.title}"
-              </div>
-              <button type="button" onClick={() => !busy && setPicking(null)}
-                data-testid="rail-sponsor-modal-close" className="text-slate-400 hover:text-white">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="text-xs text-slate-400 mb-3">Choose a duration, then set your bid.</div>
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {tiers.map((t) => (
-                <button key={t.id} type="button" disabled={busy}
-                  data-testid={`rail-sponsor-tier-${t.id}`}
-                  onClick={() => { setTier(t.id); if (bid < t.amount_cents / 100) setBid(t.amount_cents / 100); }}
-                  className={`px-2 py-3 rounded-2xl border text-center transition ${
-                    tier === t.id ? "border-amber-400 bg-amber-500/10" : "border-white/10 bg-slate-800/60"}`}>
-                  <div className="font-black text-sm">{t.label}</div>
-                  <div className="text-[11px] text-amber-300 font-bold mt-0.5">from {usd(t.amount_cents)}</div>
-                </button>
-              ))}
-            </div>
-            <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-              Your bid (USD)
-            </label>
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-800/60 px-3 h-12">
-              <span className="text-slate-400 font-black">$</span>
-              <input type="number" min={floorFor(tier)} step="1" value={bid}
-                data-testid="rail-sponsor-bid-input"
-                onChange={(e) => setBid(Number(e.target.value))}
-                className="flex-1 bg-transparent outline-none font-black text-lg" />
-            </div>
-            <div className="mt-1.5 text-[11px] text-slate-400 flex items-center gap-1">
-              <Crown size={12} className="text-amber-300" />
-              Beat the current top bid ({usd(topBid)}) to win the slot now. Floor: ${floorFor(tier)}.
-            </div>
-            <button type="button" data-testid="rail-sponsor-pay-btn" disabled={busy}
-              onClick={payAndFeature}
-              className="mt-4 w-full h-12 rounded-2xl font-black text-slate-950 flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
-              {busy ? <Loader2 className="animate-spin" size={18} /> : <ExternalLink size={16} />}
-              Pay {usd(Math.round(bid * 100))} & feature
-            </button>
-            <div className="mt-3 text-[11px] text-slate-500 text-center">
-              Opens Stripe Checkout · test card 4242 4242 4242 4242 in preview.
-            </div>
-          </div>
-        </div>
+      {picking && config && (
+        <FeatureModal show={picking} config={config} floor={floor}
+          merchantId={merchantId} balance={wallet.balance_cents}
+          onClose={() => setPicking(null)}
+          onDone={() => { setPicking(null); loadCore(); }}
+          onNeedFunds={() => { setPicking(null); setFunding(true); }} />
       )}
 
-      {/* Raise-bid modal */}
       {raising && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4"
-          onClick={() => !busy && setRaising(null)} data-testid="rail-sponsor-raise-modal">
-          <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-white/10 p-5"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 text-amber-300 text-[10px] font-black uppercase tracking-widest mb-1">
-              <ArrowUpCircle size={12} /> Raise your bid
-            </div>
-            <div className="text-xs text-slate-400 mb-3">
-              Current bid {usd(raising.bid_cents)} · top bid {usd(topBid)}. You'll only pay the difference.
-            </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-800/60 px-3 h-12">
-              <span className="text-slate-400 font-black">$</span>
-              <input type="number" min={(raising.bid_cents || 0) / 100 + 1} step="1" value={bid}
-                data-testid="rail-sponsor-raise-input"
-                onChange={(e) => setBid(Number(e.target.value))}
-                className="flex-1 bg-transparent outline-none font-black text-lg" />
-            </div>
-            <button type="button" data-testid="rail-sponsor-raise-submit" disabled={busy}
-              onClick={submitRaise}
-              className="mt-4 w-full h-12 rounded-2xl font-black text-slate-950 flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
-              {busy ? <Loader2 className="animate-spin" size={18} /> : <ArrowUpCircle size={16} />}
-              Pay difference & raise
-            </button>
-          </div>
-        </div>
+        <RaiseModal item={raising} floor={floor}
+          onClose={() => setRaising(null)}
+          onDone={() => { setRaising(null); loadCore(); }} />
+      )}
+
+      {funding && config && (
+        <TopupModal config={config} merchantId={merchantId}
+          onClose={() => setFunding(false)}
+          onStarted={(tid, sid) => { setFunding(false); pollTopup(tid, sid); }} />
+      )}
+
+      {alertsOpen && (
+        <AlertsModal alerts={alerts.alerts} onClose={() => setAlertsOpen(false)} />
       )}
     </div>
   );
 }
 
-function SponsorRow({ it, topBid, confirmCancel, setConfirmCancel, onCancel, onRaise }) {
-  const tone = STATUS_TONE[it.status] || STATUS_TONE.expired;
+// ── Feature (place a standing bid) ──────────────────────────────────
+function FeatureModal({ show, config, floor, merchantId, balance, onClose, onDone, onNeedFunds }) {
+  const durations = config.durations || [];
+  const areas = config.areas || [];
+  const [tier, setTier] = useState(durations[durations.length - 1]?.id || "7d");
+  const [sel, setSel] = useState(["social"]);
+  const [bid, setBid] = useState(Math.max(Math.round(floor / 100), 10));
+  const [busy, setBusy] = useState(false);
+  const floorUsd = `$${(floor / 100).toFixed(2)}`;
+
+  const toggleArea = (id) =>
+    setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+
+  const submit = async () => {
+    if (sel.length === 0) { toast.error("Pick at least one area."); return; }
+    if (bid < floor / 100) { toast.error(`Minimum daily bid is ${floorUsd}.`); return; }
+    setBusy(true);
+    try {
+      await axios.post(`${API}/social/rail/sponsor`, {
+        merchant_id: merchantId, target_id: show.id, duration_tier: tier,
+        daily_bid_cents: Math.round(bid * 100), target_pages: sel,
+      }, { withCredentials: true });
+      toast.success("Bid placed — you're in the auction!");
+      if ((balance || 0) < Math.round(bid * 100)) {
+        toast.message("Heads up: fund your wallet to keep winning", {
+          description: "Slots are charged daily from your ad-wallet.",
+        });
+      }
+      onDone();
+    } catch (e) {
+      const code = e?.response?.data?.detail?.code;
+      toast.error(
+        code === "no_target_areas" ? "Pick at least one area."
+          : code === "bid_below_floor" ? `Bid is below the ${floorUsd} floor.`
+          : code === "bad_duration" ? "Pick a valid duration."
+          : code === "show_not_found_or_not_host" ? "That show isn't yours."
+          : "Couldn't place the bid.");
+    } finally { setBusy(false); }
+  };
+
+  const perDay = Math.round(bid * 100) * sel.length;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4"
+      onClick={() => !busy && onClose()} data-testid="rail-sponsor-feature-modal">
+      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2 text-amber-300 text-[10px] font-black uppercase tracking-widest">
+            <Sparkles size={12} /> Feature "{show.title}"
+          </div>
+          <button type="button" onClick={() => !busy && onClose()}
+            data-testid="rail-sponsor-modal-close" className="text-slate-400 hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Duration */}
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1.5">Run for</div>
+        <div className="grid grid-cols-3 gap-2">
+          {durations.map((d) => (
+            <button key={d.id} type="button" disabled={busy}
+              data-testid={`rail-sponsor-duration-${d.id}`}
+              onClick={() => setTier(d.id)}
+              className={`px-2 py-3 rounded-2xl border text-center transition ${
+                tier === d.id ? "border-amber-400 bg-amber-500/10" : "border-white/10 bg-slate-800/60"}`}>
+              <div className="font-black text-sm">{d.label}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Areas */}
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1.5 flex items-center gap-1.5">
+          <Layers size={12} /> Show it in
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {areas.map((a) => {
+            const on = sel.includes(a.id);
+            const tone = AREA_TONE[a.id] || AREA_TONE.social;
+            return (
+              <button key={a.id} type="button" disabled={busy}
+                data-testid={`rail-sponsor-area-${a.id}`}
+                onClick={() => toggleArea(a.id)}
+                className={`inline-flex items-center gap-2 h-10 px-4 rounded-full text-sm font-bold border transition ${
+                  on ? `${tone.bg} ${tone.fg} border-transparent` : "text-slate-300 border-white/15 bg-white/[0.04]"}`}>
+                <span className="w-2 h-2 rounded-full" style={{ background: tone.dot }} />
+                {a.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="text-[11px] text-slate-500 mt-1.5">Bids compete separately in each area.</div>
+
+        {/* Bid */}
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1.5">
+          Max daily bid (per area)
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-800/60 px-3 h-12">
+          <span className="text-slate-400 font-black">$</span>
+          <input type="number" min={floor / 100} step="1" value={bid}
+            data-testid="rail-sponsor-bid-input"
+            onChange={(e) => setBid(Number(e.target.value))}
+            className="flex-1 bg-transparent outline-none font-black text-lg" />
+          <span className="text-slate-500 text-xs">/ area / day</span>
+        </div>
+        <div className="mt-1.5 text-[11px] text-slate-400">
+          Floor {floorUsd}. You pay only the second-price clearing rate.
+          Across {sel.length || 0} area{sel.length === 1 ? "" : "s"} you'll spend up to
+          {" "}<b className="text-amber-300">{usd(perDay)}/day</b>.
+        </div>
+
+        <button type="button" data-testid="rail-sponsor-place-bid-btn" disabled={busy}
+          onClick={submit}
+          className="mt-4 w-full h-12 rounded-2xl font-black text-slate-950 flex items-center justify-center gap-2 disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
+          {busy ? <Loader2 className="animate-spin" size={18} /> : <Crown size={16} />}
+          Place bid
+        </button>
+        {(balance || 0) < floor && (
+          <button type="button" onClick={onNeedFunds} data-testid="rail-sponsor-feature-fund-link"
+            className="mt-2 w-full text-[11px] font-bold text-amber-300 hover:text-amber-200">
+            Wallet is low — add funds first →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Raise standing bid ──────────────────────────────────────────────
+function RaiseModal({ item, floor, onClose, onDone }) {
+  const [bid, setBid] = useState((item.daily_bid_cents || floor) / 100 + 1);
+  const [busy, setBusy] = useState(false);
+  const floorUsd = `$${(floor / 100).toFixed(2)}`;
+
+  const submit = async () => {
+    if (bid < floor / 100) { toast.error(`Minimum daily bid is ${floorUsd}.`); return; }
+    setBusy(true);
+    try {
+      await axios.post(`${API}/social/rail/sponsor/${item.id}/bid`,
+        { daily_bid_cents: Math.round(bid * 100) }, { withCredentials: true });
+      toast.success("Bid updated — auctions re-run instantly.");
+      onDone();
+    } catch (e) {
+      const code = e?.response?.data?.detail?.code;
+      toast.error(code === "bid_below_floor" ? `Bid is below the ${floorUsd} floor.`
+        : code === "not_active" ? "This campaign has ended." : "Couldn't update the bid.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4"
+      onClick={() => !busy && onClose()} data-testid="rail-sponsor-raise-modal">
+      <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-white/10 p-5"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 text-amber-300 text-[10px] font-black uppercase tracking-widest mb-1">
+          <ArrowUpCircle size={12} /> Update your daily bid
+        </div>
+        <div className="text-xs text-slate-400 mb-3">
+          Current max bid {usd(item.daily_bid_cents)} / area / day. You're only charged the clearing price on days you win.
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-800/60 px-3 h-12">
+          <span className="text-slate-400 font-black">$</span>
+          <input type="number" min={floor / 100} step="1" value={bid}
+            data-testid="rail-sponsor-raise-input"
+            onChange={(e) => setBid(Number(e.target.value))}
+            className="flex-1 bg-transparent outline-none font-black text-lg" />
+        </div>
+        <button type="button" data-testid="rail-sponsor-raise-submit" disabled={busy}
+          onClick={submit}
+          className="mt-4 w-full h-12 rounded-2xl font-black text-slate-950 flex items-center justify-center gap-2 disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
+          {busy ? <Loader2 className="animate-spin" size={18} /> : <ArrowUpCircle size={16} />}
+          Update bid
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Fund the ad-wallet ──────────────────────────────────────────────
+function TopupModal({ config, merchantId, onClose, onStarted }) {
+  const presets = config.topup_presets_cents || [2000, 5000, 10000, 25000];
+  const [amount, setAmount] = useState(presets[1] || 5000);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const { data } = await axios.post(`${API}/social/rail/wallet/topup`, {
+        merchant_id: merchantId, amount_cents: amount,
+        origin_url: window.location.origin,
+      }, { withCredentials: true });
+      if (data.checkout_url) {
+        window.open(data.checkout_url, "_blank", "noopener");
+        toast.message("Complete payment in the new tab", {
+          description: "Use test card 4242 4242 4242 4242. This updates automatically.",
+        });
+        onStarted(data.topup_id, data.session_id);
+      }
+    } catch (e) {
+      const code = e?.response?.data?.detail?.code;
+      toast.error(code === "stripe_unconfigured" ? "Payments aren't configured yet."
+        : code === "not_your_business" ? "This isn't your business." : "Couldn't start top-up.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4"
+      onClick={() => !busy && onClose()} data-testid="rail-topup-modal">
+      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2 text-amber-300 text-[10px] font-black uppercase tracking-widest">
+            <Wallet size={12} /> Add funds to your ad-wallet
+          </div>
+          <button type="button" onClick={() => !busy && onClose()}
+            data-testid="rail-topup-close" className="text-slate-400 hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="text-xs text-slate-400 mb-4">
+          Your wallet is charged the daily clearing price only while you're winning a slot.
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {presets.map((c) => (
+            <button key={c} type="button" disabled={busy}
+              data-testid={`rail-topup-preset-${c}`}
+              onClick={() => setAmount(c)}
+              className={`h-14 rounded-2xl border font-black text-lg transition ${
+                amount === c ? "border-amber-400 bg-amber-500/10 text-amber-200" : "border-white/10 bg-slate-800/60"}`}>
+              {usd0(c)}
+            </button>
+          ))}
+        </div>
+        <button type="button" data-testid="rail-topup-submit" disabled={busy}
+          onClick={submit}
+          className="mt-4 w-full h-12 rounded-2xl font-black text-slate-950 flex items-center justify-center gap-2 disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg,#f5c563,#f59e0b)" }}>
+          {busy ? <Loader2 className="animate-spin" size={18} /> : <Plus size={16} />}
+          Fund {usd0(amount)}
+        </button>
+        <div className="mt-3 text-[11px] text-slate-500 text-center">
+          Opens Stripe Checkout · test card 4242 4242 4242 4242 in preview.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Bid alerts inbox ────────────────────────────────────────────────
+function AlertsModal({ alerts, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4"
+      onClick={onClose} data-testid="rail-alerts-modal">
+      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5 max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-amber-300 text-[10px] font-black uppercase tracking-widest">
+            <Bell size={12} /> Bid alerts
+          </div>
+          <button type="button" onClick={onClose} data-testid="rail-alerts-close"
+            className="text-slate-400 hover:text-white"><X size={18} /></button>
+        </div>
+        {alerts.length === 0 ? (
+          <div className="py-10 text-center text-slate-400 text-sm" data-testid="rail-alerts-empty">
+            No alerts yet. We'll ping you here (and by email) if you're outbid.
+          </div>
+        ) : (
+          <div className="space-y-2 overflow-y-auto">
+            {alerts.map((a) => {
+              const tone = AREA_TONE[a.area] || AREA_TONE.social;
+              return (
+                <div key={a.id} data-testid={`rail-alert-${a.id}`}
+                  className="rounded-2xl border border-white/10 bg-slate-800/50 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${tone.bg} ${tone.fg}`}>
+                      {AREA_LABEL[a.area] || a.area}
+                    </span>
+                    <span className="font-bold text-sm">{a.title}</span>
+                    {!a.read && <span className="w-2 h-2 rounded-full bg-rose-400 ml-auto" />}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">{a.body}</div>
+                  {a.created_at && (
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      {new Date(a.created_at).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Campaign row ────────────────────────────────────────────────────
+function SponsorRow({ it, floor, confirmCancel, setConfirmCancel, onCancel, onRaise }) {
+  const tone = STATUS_TONE[it.status] || STATUS_TONE.ended;
   const [open, setOpen] = useState(false);
   const [series, setSeries] = useState(null);
+  const areaStatus = it.area_status || {};
 
   const toggleInsights = async () => {
     const next = !open;
@@ -367,69 +649,77 @@ function SponsorRow({ it, topBid, confirmCancel, setConfirmCancel, onCancel, onR
             <span className="font-bold truncate">{it.title}</span>
             <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${tone.bg} ${tone.fg}`}
               data-testid={`rail-sponsor-status-${it.id}`}>{tone.label}</span>
-            {it.status === "active" && (it.featured ? (
+            {it.status === "active" && it.featured_any && (
               <span data-testid={`rail-sponsor-featured-${it.id}`}
                 className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
-                <Crown size={10} /> Featured · #1
-              </span>
-            ) : (
-              <span data-testid={`rail-sponsor-outbid-${it.id}`}
-                className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-300">
-                Outbid · #{it.rank}
-              </span>
-            ))}
-          </div>
-          <div className="text-xs text-slate-400 flex items-center gap-3 mt-0.5 flex-wrap">
-            <span className="inline-flex items-center gap-1">
-              <Clock size={11} /> {it.tier} · bid {usd(it.bid_cents)}
-            </span>
-            {it.ends_at && (
-              <span className="inline-flex items-center gap-1">
-                <Calendar size={11} /> ends {new Date(it.ends_at).toLocaleDateString()}
+                <Crown size={10} /> Featured
               </span>
             )}
+          </div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            Max bid {usd(it.daily_bid_cents)} / area / day{it.ends_at ? ` · ends ${new Date(it.ends_at).toLocaleDateString()}` : ""}
+          </div>
+          {/* Per-area status chips */}
+          <div className="flex flex-wrap gap-1.5 mt-2" data-testid={`rail-sponsor-areas-${it.id}`}>
+            {(it.target_pages || []).map((a) => {
+              const t = AREA_TONE[a] || AREA_TONE.social;
+              const st = areaStatus[a] || {};
+              const win = st.featured;
+              return (
+                <span key={a} data-testid={`rail-sponsor-area-status-${it.id}-${a}`}
+                  className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-lg ${t.bg} ${t.fg}`}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: t.dot }} />
+                  {AREA_LABEL[a] || a}
+                  {it.status === "active" && (win
+                    ? ` · #1 · pays ${usd(st.clearing_cents)}`
+                    : st.rank ? ` · #${st.rank}${st.active_total ? ` of ${st.active_total}` : ""}` : "")}
+                </span>
+              );
+            })}
           </div>
         </div>
         <div className="flex items-center gap-4" data-testid={`rail-sponsor-stats-${it.id}`}>
           <Stat icon={Eye} label="Views" value={it.impressions} />
           <Stat icon={MousePointerClick} label="Clicks" value={it.clicks} />
           <Stat icon={TrendingUp} label="CTR" value={`${it.ctr}%`} accent />
+          <Stat icon={CircleDollarSign} label="Spent" value={usd(it.spend_cents)} />
         </div>
-        <div className="flex items-center gap-1.5">
-          <button type="button" data-testid={`rail-sponsor-insights-toggle-${it.id}`}
-            onClick={toggleInsights}
-            className="inline-flex items-center gap-1 text-xs font-bold text-indigo-300 hover:text-indigo-200 px-3 h-9 rounded-lg border border-indigo-500/30">
-            <BarChart3 size={13} /> {open ? "Hide" : "Trend"}
+      </div>
+
+      <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+        <button type="button" data-testid={`rail-sponsor-insights-toggle-${it.id}`}
+          onClick={toggleInsights}
+          className="inline-flex items-center gap-1 text-xs font-bold text-indigo-300 hover:text-indigo-200 px-3 h-9 rounded-lg border border-indigo-500/30">
+          <BarChart3 size={13} /> {open ? "Hide" : "Trend"}
+        </button>
+        {it.status === "active" && (
+          <button type="button" data-testid={`rail-sponsor-raise-${it.id}`} onClick={onRaise}
+            className="inline-flex items-center gap-1 text-xs font-black text-amber-300 hover:text-amber-200 px-3 h-9 rounded-lg border border-amber-500/40">
+            <ArrowUpCircle size={13} /> Adjust bid
           </button>
-          {it.status === "active" && !it.featured && (
-            <button type="button" data-testid={`rail-sponsor-raise-${it.id}`} onClick={onRaise}
-              className="inline-flex items-center gap-1 text-xs font-black text-amber-300 hover:text-amber-200 px-3 h-9 rounded-lg border border-amber-500/40">
-              <ArrowUpCircle size={13} /> Raise bid
-            </button>
-          )}
-          {it.status === "active" && (
-            confirmCancel === it.id ? (
-              <>
-                <button type="button" data-testid={`rail-sponsor-cancel-confirm-${it.id}`}
-                  onClick={() => onCancel(it.id)}
-                  className="text-xs font-black text-white px-3 h-9 rounded-lg bg-rose-600 hover:bg-rose-500">
-                  Confirm
-                </button>
-                <button type="button" data-testid={`rail-sponsor-cancel-abort-${it.id}`}
-                  onClick={() => setConfirmCancel(null)}
-                  className="text-xs font-bold text-slate-300 px-3 h-9 rounded-lg border border-white/10">
-                  Keep
-                </button>
-              </>
-            ) : (
-              <button type="button" data-testid={`rail-sponsor-cancel-${it.id}`}
-                onClick={() => setConfirmCancel(it.id)}
-                className="text-xs font-bold text-rose-300 hover:text-rose-200 px-3 h-9 rounded-lg border border-rose-500/30">
-                Cancel
+        )}
+        {it.status === "active" && (
+          confirmCancel === it.id ? (
+            <>
+              <button type="button" data-testid={`rail-sponsor-cancel-confirm-${it.id}`}
+                onClick={() => onCancel(it.id)}
+                className="text-xs font-black text-white px-3 h-9 rounded-lg bg-rose-600 hover:bg-rose-500">
+                Confirm
               </button>
-            )
-          )}
-        </div>
+              <button type="button" data-testid={`rail-sponsor-cancel-abort-${it.id}`}
+                onClick={() => setConfirmCancel(null)}
+                className="text-xs font-bold text-slate-300 px-3 h-9 rounded-lg border border-white/10">
+                Keep
+              </button>
+            </>
+          ) : (
+            <button type="button" data-testid={`rail-sponsor-cancel-${it.id}`}
+              onClick={() => setConfirmCancel(it.id)}
+              className="text-xs font-bold text-rose-300 hover:text-rose-200 px-3 h-9 rounded-lg border border-rose-500/30">
+              Cancel
+            </button>
+          )
+        )}
       </div>
 
       {open && (
