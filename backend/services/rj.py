@@ -14,12 +14,13 @@ from core.config import (
     DEFAULT_ENERGY, ELEVEN_FALLBACK_MODEL, ELEVEN_MODEL_ID, ELEVEN_OUTPUT_FORMAT,
     ELEVENLABS_API_KEY, MAX_RJ_SECONDS, OPENAI_API_KEY, RJ_DIR,
     RJ_RESHORTEN_THRESHOLD, SPEECH_WORDS_PER_SEC, VOICE_SETTINGS_BY_ENERGY,
+    make_openai_client,
 )
 from services.voices import DEFAULT_VOICE_KEY, RJ_VOICES
 
 logger = logging.getLogger("bigfm.rj")
 
-openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+openai_client = make_openai_client()
 
 
 HINGLISH_SYSTEM_PROMPT = """You are writing scripts for an ElevenLabs eleven_v3 voice on FUUSIC. The voice can render emotion ONLY if you tag it. Untagged text = monotone. ALWAYS tag your output.

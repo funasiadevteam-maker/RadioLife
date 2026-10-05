@@ -33,7 +33,8 @@ from openai import OpenAI
 log = logging.getLogger("bigfm.news_rj_script")
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+from core.config import make_openai_client
+_client = make_openai_client()
 
 NEWS_RJ_MAX_HEADLINES = 3
 NEWS_RJ_FRESH_HOURS    = 48   # fall back gracefully if no <2h articles

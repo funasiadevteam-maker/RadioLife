@@ -319,7 +319,10 @@ DEFAULT_ENERGY = "medium"
 ENERGY_LEVELS = ("chill", "medium", "high", "party")
 MOOD_TAGS = ("romantic", "energetic", "melancholy", "uplifting", "dance", "groove", "intense")
 
-openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+from core.config import make_openai_client as _make_openai_client
+# RJ/script OpenAI chat client — routed through the Emergent Universal key
+# when available (falls back to BYOK OPENAI_API_KEY). See core.config.
+openai_client = _make_openai_client()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -3619,6 +3622,117 @@ def _ctx_for_now(market: str = "dubai", city: str | None = None,
     )
 
 
+# ── RJ health (quota-guard) ─────────────────────────────────────────
+_RJ_OK_THROTTLE = {"t": 0.0}
+
+
+async def _rj_health_mark_degraded(reason: str):
+    """Record that the AI DJ just degraded to music-only (RJ/LLM/TTS failed)."""
+    try:
+        await db.rj_health.update_one(
+            {"_id": "singleton"},
+            {"$set": {"last_degrade_at": _now_iso(),
+                      "last_error": (reason or "")[:200]},
+             "$inc": {"degrade_count": 1}}, upsert=True)
+    except Exception:
+        pass
+
+
+async def _rj_health_mark_ok():
+    """Record a successful RJ build (throttled to ~once/min to avoid write storms)."""
+    import time as _t
+    now = _t.time()
+    if now - _RJ_OK_THROTTLE["t"] < 60:
+        return
+    _RJ_OK_THROTTLE["t"] = now
+    try:
+        await db.rj_health.update_one(
+            {"_id": "singleton"}, {"$set": {"last_ok_at": _now_iso()}}, upsert=True)
+    except Exception:
+        pass
+
+
+@api.get("/admin/radio/rj-health", dependencies=[Depends(require_admin)])
+async def admin_rj_health():
+    """Quota-guard — tells the admin UI whether the AI DJ is currently
+    degrading to music-only (e.g. the LLM provider is out of credits)."""
+    from datetime import datetime, timezone, timedelta
+    doc = await db.rj_health.find_one({"_id": "singleton"}) or {}
+    last_degrade = doc.get("last_degrade_at")
+    last_ok = doc.get("last_ok_at")
+    degraded = False
+    if last_degrade:
+        try:
+            ld = datetime.fromisoformat(str(last_degrade))
+            if ld.tzinfo is None:
+                ld = ld.replace(tzinfo=timezone.utc)
+            recent = (datetime.now(timezone.utc) - ld) < timedelta(minutes=15)
+        except Exception:
+            recent = True
+        later_ok = bool(last_ok and str(last_ok) > str(last_degrade))
+        degraded = recent and not later_ok
+    return {
+        "degraded": degraded,
+        "last_degrade_at": last_degrade,
+        "last_ok_at": last_ok,
+        "last_error": doc.get("last_error"),
+        "degrade_count": int(doc.get("degrade_count", 0)),
+        "message": ("AI DJ paused — voiceovers are being skipped and only "
+                    "music is playing. The LLM provider rejected script "
+                    "generation (likely out of credits). Add LLM credits to "
+                    "restore the DJ voiceovers.") if degraded else None,
+    }
+
+
+@api.post("/admin/tracks/retag-missing", dependencies=[Depends(require_admin)])
+async def admin_retag_missing(limit: int = 500):
+    """Backfill genre (+ mood/energy) on tracks MISSING a genre, using the LLM
+    classifier on the stored title/artist/duration — so user uploads without an
+    ID3 genre still land on the right AI stations. Runs in the BACKGROUND (no
+    audio file needed → works for Tigris-stored tracks). Poll GET /admin/tracks
+    to watch genres fill in."""
+    from auto_tagger import openai_classify
+    q = {"$or": [{"genre": None}, {"genre": ""}, {"genre": {"$exists": False}}]}
+    ids = [t["_id"] async for t in db.tracks.find(q, {"_id": 1}).limit(int(limit))]
+
+    async def _worker():
+        sem = asyncio.Semaphore(6)
+
+        async def _one(tid):
+            async with sem:
+                t = await db.tracks.find_one({"_id": tid})
+                if not t:
+                    return
+                title = t.get("title") or "Unknown"
+                artist = t.get("artist") or "Unknown Artist"
+                dur = float(t.get("duration_sec") or 0)
+                try:
+                    cls = await asyncio.to_thread(
+                        openai_classify, openai_client, title, artist, dur, None)
+                except Exception:
+                    return
+                set_doc = {}
+                if cls.get("genre"):
+                    set_doc["genre"] = cls["genre"]
+                if not t.get("mood") and cls.get("mood"):
+                    set_doc["mood"] = cls["mood"]
+                if not t.get("energy_level") and cls.get("energy_level"):
+                    set_doc["energy_level"] = cls["energy_level"]
+                if set_doc:
+                    set_doc["auto_tagged_at"] = _now_iso()
+                    await db.tracks.update_one({"_id": tid}, {"$set": set_doc})
+
+        try:
+            await asyncio.gather(*[_one(i) for i in ids])
+            logger.info("[retag-missing] completed for %d tracks", len(ids))
+        except Exception as e:
+            logger.warning("[retag-missing] worker error: %s", e)
+
+    asyncio.create_task(_worker())
+    return {"ok": True, "queued": len(ids),
+            "message": f"Re-tagging {len(ids)} track(s) in the background."}
+
+
 async def _build_one_segment(session_id, track, prev_track, channel, ctx,
                               force_format=None, skip_rj=False):
     """Phase Bug-1 — `skip_rj=True` produces a fast no-RJ segment for
@@ -3637,8 +3751,10 @@ async def _build_one_segment(session_id, track, prev_track, channel, ctx,
         return await _build_one_segment_no_rj(
             session_id, track, channel, ctx)
     try:
-        return await _build_one_segment_with_rj(
+        seg = await _build_one_segment_with_rj(
             session_id, track, prev_track, channel, ctx, force_format=force_format)
+        await _rj_health_mark_ok()
+        return seg
     except HTTPException as he:
         # Any RJ / LLM / TTS UPSTREAM failure (ElevenLabs quota, OpenAI
         # 429 / insufficient_quota / no-credits, rj_upstream_error, etc.)
@@ -3659,6 +3775,7 @@ async def _build_one_segment(session_id, track, prev_track, channel, ctx,
             logger.warning("[rj-degrade] RJ upstream failed (%s: %s) — serving "
                            "no-RJ segment for session=%s track=%s",
                            he.status_code, _ds[:80], session_id, track.get("_id"))
+            await _rj_health_mark_degraded(f"{he.status_code}: {_ds[:120]}")
             return await _build_one_segment_no_rj(session_id, track, channel, ctx)
         raise
     except Exception as e:
@@ -3669,6 +3786,7 @@ async def _build_one_segment(session_id, track, prev_track, channel, ctx,
         logger.error("[rj-degrade] unexpected RJ build error (%s) — serving "
                      "no-RJ segment for session=%s track=%s",
                      repr(e)[:140], session_id, track.get("_id"))
+        await _rj_health_mark_degraded(repr(e)[:140])
         return await _build_one_segment_no_rj(session_id, track, channel, ctx)
 
 

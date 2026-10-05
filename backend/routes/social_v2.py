@@ -1006,7 +1006,7 @@ async def social_rail(request: Request, page_route: str = "/home",
 from services.rail_auction import (
     RAIL_AREAS, RAIL_AREA_LABELS, RAIL_DAILY_FLOOR_CENTS, RAIL_INCREMENT_CENTS,
     RAIL_DURATIONS, RAIL_TOPUP_PRESETS, get_wallet, credit_wallet,
-    settle_area_day, resettle_today, today_status_for,
+    settle_area_day, resettle_today, today_status_for, market_snapshot,
 )
 
 
@@ -1186,6 +1186,7 @@ class RailSponsorCreate(BaseModel):
     duration_tier: str
     daily_bid_cents: int = Field(..., ge=100, le=1000000)
     target_pages: list[str] = []
+    daily_cap_cents: int = Field(0, ge=0, le=100000000)
 
 
 @router.post("/rail/sponsor")
@@ -1219,6 +1220,7 @@ async def rail_sponsor_create(body: RailSponsorCreate, request: Request,
         "image": show.get("cover_url"),
         "cta": "Watch" if kind == "live" else "View", "to": "/social?tab=live",
         "duration_tier": body.duration_tier, "daily_bid_cents": int(body.daily_bid_cents),
+        "daily_cap_cents": int(body.daily_cap_cents or 0),
         "status": "active", "starts_at": now,
         "ends_at": now + timedelta(days=int(dur["days"])), "created_at": now})
     for a in areas:  # reflect immediately in today's auction
@@ -1266,7 +1268,9 @@ async def rail_sponsor_list(request: Request, merchant_id: str,
             "target_pages": sp.get("target_pages") or [],
             "duration_tier": sp.get("duration_tier"),
             "daily_bid_cents": int(sp.get("daily_bid_cents") or 0),
+            "daily_cap_cents": int(sp.get("daily_cap_cents") or 0),
             "status": status,
+            "paused_reason": sp.get("paused_reason"),
             "starts_at": _iso(sp.get("starts_at")), "ends_at": _iso(sp.get("ends_at")),
             "created_at": _iso(sp.get("created_at")),
             "impressions": imp, "clicks": clk,
@@ -1274,13 +1278,16 @@ async def rail_sponsor_list(request: Request, merchant_id: str,
             "spend_cents": await _spend_cents(db, sp["_id"]),
             "featured_any": area_status["featured_any"],
             "area_status": area_status["areas"]})
+    bal = int(wallet.get("balance_cents") or 0)
     return {"sponsorships": out,
-            "wallet_balance_cents": int(wallet.get("balance_cents") or 0),
+            "wallet_balance_cents": bal,
+            "low_balance": bal < RAIL_DAILY_FLOOR_CENTS,
             "daily_floor_cents": RAIL_DAILY_FLOOR_CENTS}
 
 
 class BidBody(BaseModel):
     daily_bid_cents: int = Field(..., ge=100, le=1000000)
+    daily_cap_cents: Optional[int] = Field(None, ge=0, le=100000000)
 
 
 @router.post("/rail/sponsor/{sid}/bid")
@@ -1298,8 +1305,10 @@ async def rail_sponsor_bid(sid: str, body: BidBody, request: Request,
     if body.daily_bid_cents < RAIL_DAILY_FLOOR_CENTS:
         raise HTTPException(400, {"code": "bid_below_floor",
                                   "floor": RAIL_DAILY_FLOOR_CENTS})
-    await db.rail_sponsorships.update_one(
-        {"_id": sid}, {"$set": {"daily_bid_cents": int(body.daily_bid_cents)}})
+    upd = {"daily_bid_cents": int(body.daily_bid_cents)}
+    if body.daily_cap_cents is not None:
+        upd["daily_cap_cents"] = int(body.daily_cap_cents)
+    await db.rail_sponsorships.update_one({"_id": sid}, {"$set": upd})
     for a in (sp.get("target_pages") or []):
         await resettle_today(db, a)
     return {"ok": True, "daily_bid_cents": int(body.daily_bid_cents)}
@@ -1352,6 +1361,57 @@ async def rail_sponsor_cancel(sid: str, request: Request,
     for a in (sp.get("target_pages") or []):  # re-settle so the slot frees up
         await resettle_today(db, a)
     return {"ok": True}
+
+
+@router.get("/rail/sponsor/market")
+async def rail_sponsor_market(request: Request, merchant_id: str,
+                              exclude_sid: Optional[str] = None,
+                              user: dict = Depends(current_user)):
+    """Per-area suggested bid + competition snapshot for the Feature / Adjust
+    UI ('Bid $X to win Social today · N advertisers, top $Y')."""
+    db = request.app.state.db
+    await _owned_merchant_or_403(db, merchant_id, user["user_id"])
+    snap = await market_snapshot(db, exclude_sid=exclude_sid)
+    return {"areas": snap, "daily_floor_cents": RAIL_DAILY_FLOOR_CENTS,
+            "increment_cents": RAIL_INCREMENT_CENTS}
+
+
+@router.post("/rail/sponsor/{sid}/pause")
+async def rail_sponsor_pause(sid: str, request: Request,
+                             user: dict = Depends(current_user)):
+    db = request.app.state.db
+    sp = await db.rail_sponsorships.find_one_and_update(
+        {"_id": sid, "sponsor_user_id": user["user_id"], "status": "active"},
+        {"$set": {"status": "paused", "paused_reason": "manual",
+                  "paused_at": _now()}})
+    if not sp:
+        raise HTTPException(404, {"code": "not_found_or_not_active"})
+    for a in (sp.get("target_pages") or []):
+        await resettle_today(db, a)
+    return {"ok": True, "status": "paused"}
+
+
+@router.post("/rail/sponsor/{sid}/resume")
+async def rail_sponsor_resume(sid: str, request: Request,
+                              user: dict = Depends(current_user)):
+    db = request.app.state.db
+    sp = await db.rail_sponsorships.find_one(
+        {"_id": sid, "sponsor_user_id": user["user_id"]})
+    if not sp:
+        raise HTTPException(404, {"code": "not_found"})
+    if sp.get("status") != "paused":
+        raise HTTPException(400, {"code": "not_paused"})
+    ends = sp.get("ends_at")
+    if isinstance(ends, datetime):
+        ea = ends if ends.tzinfo else ends.replace(tzinfo=timezone.utc)
+        if ea < _now():
+            raise HTTPException(400, {"code": "campaign_ended"})
+    await db.rail_sponsorships.update_one(
+        {"_id": sid}, {"$set": {"status": "active"},
+                       "$unset": {"paused_reason": "", "paused_at": ""}})
+    for a in (sp.get("target_pages") or []):
+        await resettle_today(db, a)
+    return {"ok": True, "status": "active"}
 
 
 # ── Bid alerts (in-app inbox) ──

@@ -10,6 +10,7 @@ import {
   Search, ShieldCheck, TrendingUp, Wallet, Zap,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
+import RjHealthBanner from "@/components/RjHealthBanner";
 import VariantSwitcher from "@/shell/VariantSwitcher";  // admin-only design switch
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
@@ -101,6 +102,8 @@ export default function AdminHome() {
               </button>
             </>
           } />
+
+        <RjHealthBanner />
 
         {err && (
           <div className="mb-4 rounded-2xl bg-red-500/10 border border-red-500/30 p-3 text-sm text-red-400"

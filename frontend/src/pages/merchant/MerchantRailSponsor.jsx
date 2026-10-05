@@ -10,7 +10,7 @@ import { Toaster, toast } from "sonner";
 import {
   Radio, Megaphone, Loader2, X, Sparkles, Eye, MousePointerClick,
   TrendingUp, Crown, ArrowUpCircle, BarChart3, Wallet,
-  Plus, Bell, CircleDollarSign, Layers,
+  Plus, Bell, CircleDollarSign, Layers, PauseCircle, PlayCircle, Zap, Gauge,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -30,6 +30,7 @@ const AREA_LABEL = { social: "Social", shop: "Shop", listen: "Listen" };
 
 const STATUS_TONE = {
   active: { bg: "bg-emerald-500/15", fg: "text-emerald-300", label: "Active" },
+  paused: { bg: "bg-amber-500/15", fg: "text-amber-300", label: "Paused" },
   ended: { bg: "bg-slate-500/15", fg: "text-slate-400", label: "Ended" },
 };
 
@@ -135,6 +136,21 @@ export default function MerchantRailSponsor() {
       setConfirmCancel(null);
       await loadCore();
     } catch (_) { toast.error("Couldn't cancel."); }
+  };
+
+  const pauseResume = async (sid, action) => {
+    try {
+      await axios.post(`${API}/social/rail/sponsor/${sid}/${action}`, {},
+        { withCredentials: true });
+      toast.success(action === "pause" ? "Campaign paused." : "Campaign resumed — back in the auction.");
+      await loadCore();
+    } catch (e) {
+      const code = e?.response?.data?.detail?.code;
+      toast.error(code === "campaign_ended" ? "This campaign has already ended."
+        : code === "not_paused" ? "Campaign isn't paused."
+        : code === "not_found_or_not_active" ? "Campaign isn't active."
+        : "Couldn't update the campaign.");
+    }
   };
 
   const lowBalance = (wallet.balance_cents || 0) < floor;
@@ -284,6 +300,8 @@ export default function MerchantRailSponsor() {
                     <SponsorRow key={it.id} it={it} floor={floor}
                       confirmCancel={confirmCancel} setConfirmCancel={setConfirmCancel}
                       onCancel={cancel}
+                      onPause={() => pauseResume(it.id, "pause")}
+                      onResume={() => pauseResume(it.id, "resume")}
                       onRaise={() => setRaising(it)} />
                   ))}
                 </div>
@@ -302,7 +320,7 @@ export default function MerchantRailSponsor() {
       )}
 
       {raising && (
-        <RaiseModal item={raising} floor={floor}
+        <RaiseModal item={raising} floor={floor} merchantId={merchantId}
           onClose={() => setRaising(null)}
           onDone={() => { setRaising(null); loadCore(); }} />
       )}
@@ -327,20 +345,38 @@ function FeatureModal({ show, config, floor, merchantId, balance, onClose, onDon
   const [tier, setTier] = useState(durations[durations.length - 1]?.id || "7d");
   const [sel, setSel] = useState(["social"]);
   const [bid, setBid] = useState(Math.max(Math.round(floor / 100), 10));
+  const [cap, setCap] = useState("");          // optional daily spend cap ($)
+  const [market, setMarket] = useState(null);
   const [busy, setBusy] = useState(false);
   const floorUsd = `$${(floor / 100).toFixed(2)}`;
+
+  useEffect(() => {
+    axios.get(`${API}/social/rail/sponsor/market`,
+      { params: { merchant_id: merchantId }, withCredentials: true })
+      .then((r) => setMarket(r.data)).catch(() => setMarket(null));
+  }, [merchantId]);
 
   const toggleArea = (id) =>
     setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
+  // Bid needed to win EVERY selected area today (max suggested across them).
+  const suggestedCents = market?.areas && sel.length
+    ? Math.max(...sel.map((a) => market.areas[a]?.suggested_cents || floor))
+    : null;
+
   const submit = async () => {
     if (sel.length === 0) { toast.error("Pick at least one area."); return; }
     if (bid < floor / 100) { toast.error(`Minimum daily bid is ${floorUsd}.`); return; }
+    const capCents = cap && Number(cap) > 0 ? Math.round(Number(cap) * 100) : 0;
+    if (capCents > 0 && capCents < Math.round(bid * 100)) {
+      toast.error("Daily cap can't be below your per-area bid."); return;
+    }
     setBusy(true);
     try {
       await axios.post(`${API}/social/rail/sponsor`, {
         merchant_id: merchantId, target_id: show.id, duration_tier: tier,
         daily_bid_cents: Math.round(bid * 100), target_pages: sel,
+        daily_cap_cents: capCents,
       }, { withCredentials: true });
       toast.success("Bid placed — you're in the auction!");
       if ((balance || 0) < Math.round(bid * 100)) {
@@ -365,7 +401,7 @@ function FeatureModal({ show, config, floor, merchantId, balance, onClose, onDon
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4"
       onClick={() => !busy && onClose()} data-testid="rail-sponsor-feature-modal">
-      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5"
+      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2 text-amber-300 text-[10px] font-black uppercase tracking-widest">
@@ -413,6 +449,31 @@ function FeatureModal({ show, config, floor, merchantId, balance, onClose, onDon
         </div>
         <div className="text-[11px] text-slate-500 mt-1.5">Bids compete separately in each area.</div>
 
+        {/* Live competition + suggested bid */}
+        {market?.areas && sel.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.06] p-3 space-y-1.5"
+            data-testid="rail-sponsor-market">
+            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-300">
+              <Zap size={12} /> Live competition
+            </div>
+            {sel.map((a) => {
+              const m = market.areas[a] || {};
+              const tone = AREA_TONE[a] || AREA_TONE.social;
+              return (
+                <div key={a} className="flex items-center justify-between gap-2 text-xs"
+                  data-testid={`rail-sponsor-market-${a}`}>
+                  <span className={`font-bold ${tone.fg}`}>{AREA_LABEL[a] || a}</span>
+                  <span className="text-slate-400 text-right">
+                    {m.active_total || 0} advertiser{m.active_total === 1 ? "" : "s"}
+                    {m.top_other_cents ? ` · top ${usd(m.top_other_cents)}` : " · open slot"}
+                    {" · "}<b className="text-amber-300">bid {usd(m.suggested_cents)} to win</b>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Bid */}
         <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1.5">
           Max daily bid (per area)
@@ -425,10 +486,38 @@ function FeatureModal({ show, config, floor, merchantId, balance, onClose, onDon
             className="flex-1 bg-transparent outline-none font-black text-lg" />
           <span className="text-slate-500 text-xs">/ area / day</span>
         </div>
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <div className="text-[11px] text-slate-400">
+            Floor {floorUsd}. You pay only the second-price clearing rate.
+          </div>
+          {suggestedCents != null && (
+            <button type="button" data-testid="rail-sponsor-use-suggested"
+              onClick={() => setBid(Math.ceil(suggestedCents / 100))}
+              className="shrink-0 inline-flex items-center gap-1 text-[11px] font-black text-amber-300 hover:text-amber-200 px-2.5 h-7 rounded-lg border border-amber-500/40">
+              <Zap size={11} /> Win all · ${Math.ceil(suggestedCents / 100)}
+            </button>
+          )}
+        </div>
         <div className="mt-1.5 text-[11px] text-slate-400">
-          Floor {floorUsd}. You pay only the second-price clearing rate.
           Across {sel.length || 0} area{sel.length === 1 ? "" : "s"} you'll spend up to
           {" "}<b className="text-amber-300">{usd(perDay)}/day</b>.
+        </div>
+
+        {/* Daily spend cap (budget guardrail) */}
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1.5 flex items-center gap-1.5">
+          <Gauge size={12} /> Daily spend cap
+          <span className="text-slate-600 normal-case tracking-normal font-normal">(optional)</span>
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-800/60 px-3 h-12">
+          <span className="text-slate-400 font-black">$</span>
+          <input type="number" min={0} step="1" value={cap} placeholder="No cap"
+            data-testid="rail-sponsor-cap-input"
+            onChange={(e) => setCap(e.target.value)}
+            className="flex-1 bg-transparent outline-none font-black text-lg" />
+          <span className="text-slate-500 text-xs">/ day total</span>
+        </div>
+        <div className="mt-1.5 text-[11px] text-slate-400">
+          We auto-pause this campaign for the day once total spend across all areas hits your cap.
         </div>
 
         <button type="button" data-testid="rail-sponsor-place-bid-btn" disabled={busy}
@@ -450,17 +539,35 @@ function FeatureModal({ show, config, floor, merchantId, balance, onClose, onDon
 }
 
 // ── Raise standing bid ──────────────────────────────────────────────
-function RaiseModal({ item, floor, onClose, onDone }) {
+function RaiseModal({ item, floor, merchantId, onClose, onDone }) {
   const [bid, setBid] = useState((item.daily_bid_cents || floor) / 100 + 1);
+  const [cap, setCap] = useState(item.daily_cap_cents ? Math.round(item.daily_cap_cents / 100) : "");
+  const [market, setMarket] = useState(null);
   const [busy, setBusy] = useState(false);
   const floorUsd = `$${(floor / 100).toFixed(2)}`;
+  const sel = item.target_pages || [];
+
+  useEffect(() => {
+    axios.get(`${API}/social/rail/sponsor/market`,
+      { params: { merchant_id: merchantId, exclude_sid: item.id }, withCredentials: true })
+      .then((r) => setMarket(r.data)).catch(() => setMarket(null));
+  }, [merchantId, item.id]);
+
+  const suggestedCents = market?.areas && sel.length
+    ? Math.max(...sel.map((a) => market.areas[a]?.suggested_cents || floor))
+    : null;
 
   const submit = async () => {
     if (bid < floor / 100) { toast.error(`Minimum daily bid is ${floorUsd}.`); return; }
+    const capCents = cap && Number(cap) > 0 ? Math.round(Number(cap) * 100) : 0;
+    if (capCents > 0 && capCents < Math.round(bid * 100)) {
+      toast.error("Daily cap can't be below your per-area bid."); return;
+    }
     setBusy(true);
     try {
       await axios.post(`${API}/social/rail/sponsor/${item.id}/bid`,
-        { daily_bid_cents: Math.round(bid * 100) }, { withCredentials: true });
+        { daily_bid_cents: Math.round(bid * 100), daily_cap_cents: capCents },
+        { withCredentials: true });
       toast.success("Bid updated — auctions re-run instantly.");
       onDone();
     } catch (e) {
@@ -473,7 +580,7 @@ function RaiseModal({ item, floor, onClose, onDone }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4"
       onClick={() => !busy && onClose()} data-testid="rail-sponsor-raise-modal">
-      <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-white/10 p-5"
+      <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-white/10 p-5 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 text-amber-300 text-[10px] font-black uppercase tracking-widest mb-1">
           <ArrowUpCircle size={12} /> Update your daily bid
@@ -481,13 +588,65 @@ function RaiseModal({ item, floor, onClose, onDone }) {
         <div className="text-xs text-slate-400 mb-3">
           Current max bid {usd(item.daily_bid_cents)} / area / day. You're only charged the clearing price on days you win.
         </div>
+
+        {/* Live competition + suggested bid */}
+        {market?.areas && sel.length > 0 && (
+          <div className="mb-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.06] p-3 space-y-1.5"
+            data-testid="rail-sponsor-raise-market">
+            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-300">
+              <Zap size={12} /> Live competition
+            </div>
+            {sel.map((a) => {
+              const m = market.areas[a] || {};
+              const tone = AREA_TONE[a] || AREA_TONE.social;
+              return (
+                <div key={a} className="flex items-center justify-between gap-2 text-xs"
+                  data-testid={`rail-sponsor-raise-market-${a}`}>
+                  <span className={`font-bold ${tone.fg}`}>{AREA_LABEL[a] || a}</span>
+                  <span className="text-slate-400 text-right">
+                    {m.active_total || 0} rival{m.active_total === 1 ? "" : "s"}
+                    {m.top_other_cents ? ` · top ${usd(m.top_other_cents)}` : " · open slot"}
+                    {" · "}<b className="text-amber-300">bid {usd(m.suggested_cents)} to win</b>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-800/60 px-3 h-12">
           <span className="text-slate-400 font-black">$</span>
           <input type="number" min={floor / 100} step="1" value={bid}
             data-testid="rail-sponsor-raise-input"
             onChange={(e) => setBid(Number(e.target.value))}
             className="flex-1 bg-transparent outline-none font-black text-lg" />
+          <span className="text-slate-500 text-xs">/ area / day</span>
         </div>
+        {suggestedCents != null && (
+          <button type="button" data-testid="rail-sponsor-raise-use-suggested"
+            onClick={() => setBid(Math.ceil(suggestedCents / 100))}
+            className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-amber-300 hover:text-amber-200 px-2.5 h-7 rounded-lg border border-amber-500/40">
+            <Zap size={11} /> Win all · ${Math.ceil(suggestedCents / 100)}
+          </button>
+        )}
+
+        {/* Daily spend cap */}
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1.5 flex items-center gap-1.5">
+          <Gauge size={12} /> Daily spend cap
+          <span className="text-slate-600 normal-case tracking-normal font-normal">(optional)</span>
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-800/60 px-3 h-12">
+          <span className="text-slate-400 font-black">$</span>
+          <input type="number" min={0} step="1" value={cap} placeholder="No cap"
+            data-testid="rail-sponsor-raise-cap-input"
+            onChange={(e) => setCap(e.target.value)}
+            className="flex-1 bg-transparent outline-none font-black text-lg" />
+          <span className="text-slate-500 text-xs">/ day total</span>
+        </div>
+        <div className="mt-1.5 text-[11px] text-slate-400">
+          Clear this to remove the cap. We auto-pause for the day once total spend hits it.
+        </div>
+
         <button type="button" data-testid="rail-sponsor-raise-submit" disabled={busy}
           onClick={submit}
           className="mt-4 w-full h-12 rounded-2xl font-black text-slate-950 flex items-center justify-center gap-2 disabled:opacity-60"
@@ -619,7 +778,7 @@ function AlertsModal({ alerts, onClose }) {
 }
 
 // ── Campaign row ────────────────────────────────────────────────────
-function SponsorRow({ it, floor, confirmCancel, setConfirmCancel, onCancel, onRaise }) {
+function SponsorRow({ it, floor, confirmCancel, setConfirmCancel, onCancel, onPause, onResume, onRaise }) {
   const tone = STATUS_TONE[it.status] || STATUS_TONE.ended;
   const [open, setOpen] = useState(false);
   const [series, setSeries] = useState(null);
@@ -657,8 +816,19 @@ function SponsorRow({ it, floor, confirmCancel, setConfirmCancel, onCancel, onRa
             )}
           </div>
           <div className="text-xs text-slate-400 mt-0.5">
-            Max bid {usd(it.daily_bid_cents)} / area / day{it.ends_at ? ` · ends ${new Date(it.ends_at).toLocaleDateString()}` : ""}
+            Max bid {usd(it.daily_bid_cents)} / area / day
+            {it.daily_cap_cents > 0 ? ` · cap ${usd(it.daily_cap_cents)}/day` : ""}
+            {it.ends_at ? ` · ends ${new Date(it.ends_at).toLocaleDateString()}` : ""}
           </div>
+          {it.status === "paused" && (
+            <div className="text-[11px] text-amber-300 font-bold mt-1 flex items-center gap-1"
+              data-testid={`rail-sponsor-paused-${it.id}`}>
+              <PauseCircle size={12} />
+              {it.paused_reason === "wallet_empty"
+                ? "Paused — ad-wallet empty. Top up, then resume."
+                : "Paused — resume to re-enter the auction."}
+            </div>
+          )}
           {/* Per-area status chips */}
           <div className="flex flex-wrap gap-1.5 mt-2" data-testid={`rail-sponsor-areas-${it.id}`}>
             {(it.target_pages || []).map((a) => {
@@ -699,6 +869,18 @@ function SponsorRow({ it, floor, confirmCancel, setConfirmCancel, onCancel, onRa
           </button>
         )}
         {it.status === "active" && (
+          <button type="button" data-testid={`rail-sponsor-pause-${it.id}`} onClick={onPause}
+            className="inline-flex items-center gap-1 text-xs font-bold text-slate-300 hover:text-white px-3 h-9 rounded-lg border border-white/15">
+            <PauseCircle size={13} /> Pause
+          </button>
+        )}
+        {it.status === "paused" && (
+          <button type="button" data-testid={`rail-sponsor-resume-${it.id}`} onClick={onResume}
+            className="inline-flex items-center gap-1 text-xs font-black text-emerald-300 hover:text-emerald-200 px-3 h-9 rounded-lg border border-emerald-500/40">
+            <PlayCircle size={13} /> Resume
+          </button>
+        )}
+        {(it.status === "active" || it.status === "paused") && (
           confirmCancel === it.id ? (
             <>
               <button type="button" data-testid={`rail-sponsor-cancel-confirm-${it.id}`}

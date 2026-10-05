@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Tuple
 
 from openai import OpenAI
 
-from core.config import OPENAI_API_KEY
+from core.config import OPENAI_API_KEY, LLM_TEXT_AVAILABLE, make_openai_client
 
 logger = logging.getLogger("bigfm.script_pipeline")
 
@@ -54,7 +54,7 @@ def _market_language(market: str | None) -> str:
 def _client() -> OpenAI:
     global _OPENAI_CLIENT
     if _OPENAI_CLIENT is None:
-        _OPENAI_CLIENT = OpenAI(api_key=OPENAI_API_KEY)
+        _OPENAI_CLIENT = make_openai_client()
     return _OPENAI_CLIENT
 
 
@@ -193,7 +193,7 @@ async def draft_script(
     milestone_shoutout: Optional[int] = None,
     commute_arrival: Optional[dict] = None,
 ) -> str:
-    if not OPENAI_API_KEY:
+    if not LLM_TEXT_AVAILABLE:
         raise RuntimeError("OPENAI_API_KEY not configured")
 
     target = profile.get("default_script_length_sec", 22)
@@ -259,7 +259,7 @@ async def draft_script(
 async def radio_naturalness_rewrite(
     draft: str, *, profile: dict, market: str, phrase_inspiration: List[str],
 ) -> str:
-    if not OPENAI_API_KEY:
+    if not LLM_TEXT_AVAILABLE:
         return draft
     market_label = _market_display(market)
     target = profile.get("default_script_length_sec", 22)
@@ -461,7 +461,7 @@ async def radio_naturalness_rewrite_duo(
 ) -> str:
     """Stage 2 rewrite for duo dialogs. Returns rewritten dialog preserving
     [LABEL_A] / [LABEL_B] structure. On any error, returns the draft unchanged."""
-    if not OPENAI_API_KEY:
+    if not LLM_TEXT_AVAILABLE:
         return draft_dialog
     if not draft_dialog or not draft_dialog.strip():
         return draft_dialog

@@ -31,6 +31,29 @@ for d in (TRACKS_DIR, RJ_DIR, STREAMS_DIR, SEGMENTS_DIR,
 MONGO_URL = os.environ.get("MONGO_URL") or "mongodb://localhost:27017"
 DB_NAME    = os.environ.get("DB_NAME")      or "bigfm"
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+# Emergent Universal LLM key — routes OpenAI CHAT/TEXT generation through the
+# Emergent LiteLLM proxy so RJ / script generation keeps working without a
+# BYOK OpenAI balance. (Chat-completions ONLY — not OpenAI TTS/image, which
+# are not proxied here.)
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
+EMERGENT_LLM_BASE_URL = (os.environ.get("EMERGENT_LLM_BASE_URL")
+                         or "https://integrations.emergentagent.com/llm")
+LLM_VIA_EMERGENT = bool(EMERGENT_LLM_KEY)
+LLM_TEXT_AVAILABLE = bool(EMERGENT_LLM_KEY or OPENAI_API_KEY)
+
+
+def make_openai_client():
+    """OpenAI client for chat/text generation. Prefers the Emergent Universal
+    key (via the proxy base_url); falls back to the BYOK OPENAI_API_KEY; else
+    None. Chat-completions only."""
+    from openai import OpenAI
+    if EMERGENT_LLM_KEY:
+        return OpenAI(api_key=EMERGENT_LLM_KEY, base_url=EMERGENT_LLM_BASE_URL)
+    if OPENAI_API_KEY:
+        return OpenAI(api_key=OPENAI_API_KEY)
+    return None
+
+
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "sk_test_emergent")
 STRIPE_MODE = os.environ.get("STRIPE_MODE", "test").lower()

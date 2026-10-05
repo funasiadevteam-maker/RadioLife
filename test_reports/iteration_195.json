@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 195 — FUUSIC Rail Sponsor NEW surface (Suggested Bid market + Budget Guardrails + manual Pause/Resume). Backend: 11/11 pytest PASS on test_iter195_rail_sponsor_market_cap_pause.py covering GET /api/social/rail/sponsor/market (per-area {active_total, top_other_cents, suggested_cents>=floor} across social/shop/listen + daily_floor_cents=500 + increment_cents), market exclude_sid lowers suggested_cents on social when rsp_seed_hi is excluded, non-owner 403, POST /api/social/rail/sponsor persists daily_cap_cents and surfaces it on /list, POST /api/social/rail/sponsor/{sid}/bid updates both daily_bid_cents + daily_cap_cents, POST /{sid}/pause active→paused + list shows status='paused' and paused_reason='manual', pause unknown → 404 not_found_or_not_active, pause-already-paused → 404, resume paused→active, resume not-paused → 400/404 with not_paused, resume unknown → 400/404. Web /merchant/rail-sponsor (test@) verified via Playwright: Feature-a-show modal renders Live-competition block (rail-sponsor-market + per-area rail-sponsor-market-{social,shop,listen} when each area is selected) with '0 rivals · open slot · bid $5.00 to win' and 'top $X.XX · bid $Y.YY to win' lines; rail-sponsor-use-suggested 'Win all · $N' changes the bid input from 10→13; rail-sponsor-cap-input accepts $/day total cap. Campaign rows display 'cap $15.00/day' inline next to max bid. Pause button rail-sponsor-pause-<sid> flips the row to a paused badge rail-sponsor-paused-<sid> ('Paused — resume to re-enter the auction.') with Resume CTA; rail-sponsor-resume-<sid> flips it back to active and toasts 'Campaign resumed — back in the auction.' Adjust-bid (Raise) modal renders rail-sponsor-raise-market with per-area rail-sponsor-raise-market-<area>, rail-sponsor-raise-use-suggested fills input, and rail-sponsor-raise-cap-input is prefilled from the campaign's existing daily_cap_cents (observed '20' for a cap_cents=2000 row). No regression on wallet/alerts/featured chips/Insights. 1 stale/known iter194 minor (TestRailEvents dedup on reruns) already uuid4-fixed in test_iter192_social_rail_v2_sponsor.py (recorded==3 PASS now).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter195_rail_sponsor_market_cap_pause.py",
+    "/app/test_reports/pytest/iter195.xml"
+  ],
+  "action_items": [
+    "Optional UX: cap-input placeholder 'No cap' is good but when editing an existing cap via Raise modal, allow clearing to a blank string (empty) to actually drop the cap — current flow sends daily_cap_cents=0 when cap is empty, which already removes the cap server-side; verify this is intentional for the product.",
+    "MerchantRailSponsor.jsx is now 950 lines (grew ~190 lines with the market+cap+pause/resume additions). Consider splitting FeatureModal / RaiseModal / TopupModal / AlertsModal / SponsorRow into their own files — current size is well past the 700-line soft cap.",
+    "No regressions found. Full rail-sponsor surface (wallet, second-price auction, area targeting, alerts, interests, market+cap+pause/resume) is production-ready for web."
+  ],
+  "critical_code_review_comments": [
+    "market_snapshot correctly scopes 'top_other_cents' to OTHER advertisers and defaults suggested_cents to the floor when the slot is open — single-bidder clears at $5 and competitive areas suggest top_other+increment. Clean.",
+    "daily_cap_cents is a Pydantic ge=0 field persisted on the sponsorship doc; _compute_and_charge honors it by comparing projected total daily spend across all areas, and _auto_pause flips status→paused with paused_reason='budget_exceeded' when hit (vs manual pause reason). Good separation.",
+    "Pause/Resume endpoints correctly reject invalid state transitions with structured codes (not_found_or_not_active / not_paused / campaign_ended) — matches the UI's e.response.data.detail.code switch.",
+    "FeatureModal/RaiseModal both validate cap >= bid client-side before POST ('Daily cap can't be below your per-area bid.') — prevents the backend auto-pausing immediately on day 1. Good guardrail.",
+    "RaiseModal pre-fills cap from item.daily_cap_cents (verified: 2000 cents → '20') and passes exclude_sid=<item.id> to /market so the merchant sees competition WITHOUT their own bid skewing the suggested. Nice detail.",
+    "SponsorRow renders Pause/Resume conditional on status and shows a distinct paused_reason copy for 'wallet_empty' vs other — but there's no copy variant for the NEW 'budget_exceeded' reason (falls back to generic 'Paused — resume to re-enter the auction.'). Consider a dedicated line like 'Paused — daily cap reached. Raise cap or resume to continue.'",
+    "Cancel still single-tap on paid campaigns on the row (confirmCancel inline Confirm/Keep UX added since iter194) — now safe.",
+    "Market/cap/pause/resume use the same cookie auth session as the rest of rail — no leaks."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter195_rail_sponsor_market_cap_pause.py (new, 11 tests)",
+    "/app/test_reports/pytest/iter195.xml (new)",
+    "/app/test_reports/iteration_195.json (new)"
+  ],
+  "success_rate": {"backend": "100% (11/11 new iter195 + regression on iter192 clean)", "frontend": "100% (web rail-sponsor NEW surface verified)"},
+  "test_credentials": "test@bigfm.dubai / TestUser123! (owns biz_karak_cafe_karama with rsp_seed_hi / rsp_seed_lo / rsp_seed_mid + 9 campaigns including one with cap $15/day). freeuser@bigfm.dubai / FreePass123! for non-owner 403 checks.",
+  "seed_data_creation": "Tests create+cancel ephemeral sponsorships (cleaned up via /cancel in session-scoped fixtures). The web Playwright run paused and immediately resumed rsp_efea72d945d2 — final state restored to active.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The NEW rail-sponsor surface is fully testIDd: rail-sponsor-market, rail-sponsor-market-<area>, rail-sponsor-use-suggested, rail-sponsor-cap-input, rail-sponsor-raise-market, rail-sponsor-raise-market-<area>, rail-sponsor-raise-use-suggested, rail-sponsor-raise-cap-input, rail-sponsor-pause-<sid>, rail-sponsor-resume-<sid>, rail-sponsor-paused-<sid>. Backend routes: GET /api/social/rail/sponsor/market (+exclude_sid), POST /api/social/rail/sponsor (+ daily_cap_cents), POST /api/social/rail/sponsor/{sid}/bid (+ daily_cap_cents), POST /api/social/rail/sponsor/{sid}/{pause|resume}. Market suggested_cents is max(top_other+increment, floor); single-bidder → suggested=floor. Pause reason='manual' from the UI, 'budget_exceeded' from the auto-pause path.",
+  "rca of the issue": "No bugs found in this iteration — all 11 backend assertions and all UI selector checks passed on first run."
+}

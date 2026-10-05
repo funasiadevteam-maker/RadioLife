@@ -27,6 +27,41 @@ TOD_VALUES = ("morning", "afternoon", "evening", "late_night")
 LANG_VALUES = ("hindi", "punjabi", "english", "arabic", "mixed", "bollywood", "tamil", "telugu", "other")
 ERA_VALUES = ("pre_2000", "2000s", "2010s", "2020s")
 
+# Canonical station-genre vocabulary (must match channels' allowed_genres so
+# a tagged track actually lands on a station). The LLM classifier infers one
+# of these when the file's ID3 genre is missing/unmappable.
+GENRE_VALUES = (
+    "bollywood", "pop", "indie", "retro", "electronic", "hip_hop",
+    "punjabi_pop", "bhangra", "devotional", "sufi", "ghazal", "regional",
+)
+_GENRE_SYNONYMS = {
+    "hip hop": "hip_hop", "hip-hop": "hip_hop", "rap": "hip_hop",
+    "edm": "electronic", "dance": "electronic", "house": "electronic",
+    "techno": "electronic", "electronica": "electronic", "trap": "electronic",
+    "punjabi": "punjabi_pop", "punjabi pop": "punjabi_pop", "bhangra": "bhangra",
+    "bhajan": "devotional", "bhajans": "devotional", "devotional": "devotional",
+    "qawwali": "sufi", "sufi": "sufi", "ghazal": "ghazal", "ghazals": "ghazal",
+    "filmi": "bollywood", "hindi": "bollywood", "bollywood": "bollywood",
+    "folk": "regional", "classical": "regional", "regional": "regional",
+    "rock": "indie", "alternative": "indie", "indie": "indie",
+    "oldies": "retro", "classic": "retro", "retro": "retro", "pop": "pop",
+}
+
+
+def _normalize_genre(raw: Any) -> Optional[str]:
+    """Map a free-form ID3 / LLM genre string to the station vocabulary."""
+    if not raw or not isinstance(raw, str):
+        return None
+    g = raw.strip().lower()
+    if g in GENRE_VALUES:
+        return g
+    if g in _GENRE_SYNONYMS:
+        return _GENRE_SYNONYMS[g]
+    for key, val in _GENRE_SYNONYMS.items():
+        if key in g:
+            return val
+    return None
+
 
 def read_id3(path: str | Path) -> Dict[str, Any]:
     """Pull title/artist/album/genre/year/language from ID3 via mutagen."""
@@ -82,6 +117,7 @@ def openai_classify(openai_client, title: str, artist: str, duration_sec: float,
     fallback = {
         "mood": "uplifting",
         "energy_level": "medium",
+        "genre": None,
         "vibe_tags": [],
         "recommended_time_of_day": [],
         "language_confidence": "other",
@@ -100,6 +136,7 @@ def openai_classify(openai_client, title: str, artist: str, duration_sec: float,
         f"Duration: {duration_sec:.0f}s\n\n"
         "Return JSON with exactly these fields:\n"
         "{\n"
+        f"  \"genre\": the single best-fit one of {list(GENRE_VALUES)} (infer from title/artist if unsure),\n"
         f"  \"mood\": one of {list(MOOD_VALUES)},\n"
         f"  \"energy_level\": one of {list(ENERGY_LEVELS)},\n"
         "  \"vibe_tags\": array of 3-5 lowercase short tags like \"late-night\",\"monsoon\",\"road-trip\",\"workout\",\"cafe\",\"heartbreak\",\"celebration\",\"drive\",\"study\",\"wedding\",\n"
@@ -124,9 +161,11 @@ def openai_classify(openai_client, title: str, artist: str, duration_sec: float,
         logger.warning(f"OpenAI classify failed for '{title}': {e}")
         return fallback
 
+    _g = (data.get("genre") or "").strip().lower()
     normalized = {
         "mood": _coerce_enum(data.get("mood"), MOOD_VALUES, "uplifting"),
         "energy_level": _coerce_enum(data.get("energy_level"), ENERGY_LEVELS, "medium"),
+        "genre": _g if _g in GENRE_VALUES else _normalize_genre(_g),
         "vibe_tags": [t.lower().strip() for t in (data.get("vibe_tags") or []) if isinstance(t, str)][:5],
         "recommended_time_of_day": _coerce_enum_list(data.get("recommended_time_of_day"), TOD_VALUES),
         "language_confidence": _coerce_enum(data.get("language_confidence"), LANG_VALUES, "other"),
@@ -170,6 +209,9 @@ def auto_tag(
 
     # OpenAI classifier
     cls = openai_classify(openai_client, title, artist, duration_sec, genre)
+
+    # Genre: prefer a mappable ID3 genre, else the LLM-inferred station genre.
+    genre = _normalize_genre(genre) or cls.get("genre")
 
     language = id3_language or cls["language_confidence"]
 

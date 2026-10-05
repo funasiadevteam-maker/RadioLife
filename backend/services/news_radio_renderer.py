@@ -36,7 +36,8 @@ from openai import OpenAI
 log = logging.getLogger("bigfm.news_radio")
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-_openai = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+from core.config import make_openai_client
+_openai = make_openai_client()
 
 NEWS_SUMMARY_SYS = (
     "You write SHORT (80-120 words, ~30-45 seconds spoken) news radio "

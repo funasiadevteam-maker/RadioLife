@@ -103,6 +103,18 @@ async def _fire_outbid_alert(db, sp: dict, area: str,
         "sponsorship_id": sp["_id"], "area": area, "kind": "outbid",
         "title": "Outbid on the rail", "body": body, "read": False,
         "created_at": _now()})
+    # Device push to the merchant's phone (best-effort; never blocks settlement).
+    uid = sp.get("sponsor_user_id")
+    if uid:
+        try:
+            from services.push_service import send_push
+            await send_push(
+                recipients=[uid],
+                data={"title": "📣 You've been outbid on the rail",
+                      "message": body},
+                idempotency_key=f"outbid:{sp['_id']}:{area}:{_day_str()}")
+        except Exception as e:  # never block settlement on push
+            log.debug("outbid push skipped: %s", e)
     try:
         u = await db.users.find_one({"user_id": sp.get("sponsor_user_id")},
                                     {"email": 1, "name": 1})
@@ -122,6 +134,61 @@ async def _fire_outbid_alert(db, sp: dict, area: str,
 
 
 # ── Settlement ──────────────────────────────────────────────────────
+# ── Budget guardrails + market helpers ──────────────────────────────
+async def _spent_today(db, sid: str, day: str) -> int:
+    """Net cents charged to a sponsorship across ALL areas today (charges −
+    refunds). Used to enforce the per-campaign daily spend cap."""
+    total = 0
+    async for t in db.rail_wallet_txns.find(
+            {"sponsorship_id": sid, "kind": {"$in": ["charge", "refund"]},
+             "ref": {"$regex": f":{day}$"}}, {"amount_cents": 1}):
+        total += int(t.get("amount_cents") or 0)
+    return -total  # charges are negative → positive net spend
+
+
+async def _auto_pause(db, sp: dict, area: str) -> None:
+    """Auto-pause a campaign whose ad-wallet can no longer cover a day's
+    clearing price, and alert the merchant to top up."""
+    r = await db.rail_sponsorships.update_one(
+        {"_id": sp["_id"], "status": "active"},
+        {"$set": {"status": "paused", "paused_reason": "wallet_empty",
+                  "paused_at": _now()}})
+    if not r.modified_count:
+        return
+    await db.rail_alerts.insert_one({
+        "_id": "ral_" + uuid.uuid4().hex[:12], "merchant_id": sp["merchant_id"],
+        "sponsorship_id": sp["_id"], "area": area, "kind": "paused",
+        "title": "Campaign paused — wallet empty",
+        "body": ("Your ad-wallet ran dry, so this campaign was auto-paused. "
+                 "Top up your wallet and resume to keep featuring."),
+        "read": False, "created_at": _now()})
+
+
+async def market_snapshot(db, exclude_sid: Optional[str] = None) -> dict:
+    """Per-area competitive snapshot for the bid UI: how many active
+    advertisers, the current top competing bid, and the suggested bid to win
+    today (top-other + increment, floored)."""
+    now = _now()
+    out: dict = {}
+    for area in RAIL_AREAS:
+        bids: list[int] = []
+        async for s in db.rail_sponsorships.find({
+                "status": "active", "target_pages": area,
+                "starts_at": {"$lte": now}, "ends_at": {"$gte": now}}):
+            if exclude_sid and s["_id"] == exclude_sid:
+                continue
+            bids.append(int(s.get("daily_bid_cents") or 0))
+        bids.sort(reverse=True)
+        top_other = bids[0] if bids else None
+        suggested = max(RAIL_DAILY_FLOOR_CENTS,
+                        (top_other + RAIL_INCREMENT_CENTS) if top_other
+                        else RAIL_DAILY_FLOOR_CENTS)
+        out[area] = {"active_total": len(bids),
+                     "top_other_cents": top_other,
+                     "suggested_cents": suggested}
+    return out
+
+
 async def _compute_and_charge(db, area: str, day: str) -> dict:
     """Second-price settlement for (area, day). Charges the affordable winner."""
     now = _now()
@@ -139,10 +206,19 @@ async def _compute_and_charge(db, area: str, day: str) -> dict:
         runner = int(cands[i + 1]["daily_bid_cents"]) if i + 1 < len(cands) else None
         price = (runner + RAIL_INCREMENT_CENTS) if runner is not None else RAIL_DAILY_FLOOR_CENTS
         price = max(RAIL_DAILY_FLOOR_CENTS, min(price, int(c.get("daily_bid_cents") or 0)))
+        # Budget guardrail — per-campaign daily spend cap across all areas.
+        cap = int(c.get("daily_cap_cents") or 0)
+        if cap > 0 and (await _spent_today(db, c["_id"], day)) + price > cap:
+            continue  # cap reached → this campaign sits out; next candidate wins
         if await debit_wallet(db, c["merchant_id"], price,
                               ref=f"rail:{area}:{day}", sponsorship_id=c["_id"]):
             winner, clearing = c, price
-            break  # else: can't afford → next candidate wins at its own clearing
+            break
+        # Couldn't afford: if the wallet can't even cover the floor, it's truly
+        # dry → auto-pause the campaign and alert. Otherwise just skip this area.
+        w = await get_wallet(db, c["merchant_id"])
+        if int(w.get("balance_cents") or 0) < RAIL_DAILY_FLOOR_CENTS:
+            await _auto_pause(db, c, area)
     return {"_id": f"{area}:{day}", "area": area, "day": day,
             "winner_id": (winner or {}).get("_id"),
             "winner_merchant": (winner or {}).get("merchant_id"),
