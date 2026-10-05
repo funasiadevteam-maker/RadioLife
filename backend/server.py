@@ -3640,14 +3640,36 @@ async def _build_one_segment(session_id, track, prev_track, channel, ctx,
         return await _build_one_segment_with_rj(
             session_id, track, prev_track, channel, ctx, force_format=force_format)
     except HTTPException as he:
-        # 503 + rj_quota_exhausted → silent skip (music keeps playing).
-        if he.status_code == 503 and (he.detail == "rj_quota_exhausted"
-                                                            or (isinstance(he.detail, dict)
-                                                                  and he.detail.get("error") == "rj_quota_exhausted")):
-            logger.warning("[rj-degrade] quota exhausted — serving no-RJ segment "
-                                  "for session=%s track=%s", session_id, track.get("_id"))
+        # Any RJ / LLM / TTS UPSTREAM failure (ElevenLabs quota, OpenAI
+        # 429 / insufficient_quota / no-credits, rj_upstream_error, etc.)
+        # must NOT break playback — the listener should hear the music
+        # UNINTERRUPTED. Transparently degrade to a music-only segment.
+        # Genuine track-asset errors (e.g. "signed URL failed") are NOT RJ
+        # failures and still propagate so the caller's retry loop can flag
+        # the track as unplayable.
+        _d = he.detail
+        _ds = (_d if isinstance(_d, str)
+               else (_d.get("error") or _d.get("code") or _d.get("message") or "")
+               if isinstance(_d, dict) else "")
+        _ds = str(_ds).lower()
+        _rj_upstream = he.status_code in (502, 503) and any(
+            k in _ds for k in ("rj_quota_exhausted", "openai", "elevenlabs",
+                               "rj_upstream", "quota", "insufficient", "credit"))
+        if _rj_upstream:
+            logger.warning("[rj-degrade] RJ upstream failed (%s: %s) — serving "
+                           "no-RJ segment for session=%s track=%s",
+                           he.status_code, _ds[:80], session_id, track.get("_id"))
             return await _build_one_segment_no_rj(session_id, track, channel, ctx)
         raise
+    except Exception as e:
+        # Defensive: an unwrapped RJ/LLM SDK error (e.g. an OpenAI client
+        # timeout that isn't re-raised as HTTPException) should also degrade
+        # to music-only rather than 502 the whole stream. If the no-RJ path
+        # also fails (true asset problem) it will raise and propagate.
+        logger.error("[rj-degrade] unexpected RJ build error (%s) — serving "
+                     "no-RJ segment for session=%s track=%s",
+                     repr(e)[:140], session_id, track.get("_id"))
+        return await _build_one_segment_no_rj(session_id, track, channel, ctx)
 
 
 async def _build_one_segment_with_rj(session_id, track, prev_track, channel, ctx,

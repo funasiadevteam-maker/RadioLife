@@ -4,6 +4,15 @@
 
 
 
+## 🛠️ BUGFIX: AI radio stations "not playing" (502 on /radio/next) — 2026-06 fork (backend, verified via curl)
+- **Symptom (user, on fuusic.com, web+mobile, ALL AI stations):** a station plays a few seconds then stops / buffers forever / never advances to uploaded songs.
+- **Root cause:** `GET /api/radio/next` (and `/radio/skip` + the background prefetch) build a FULL segment WITH an AI-DJ (RJ) voiceover. The RJ **script** is generated via **OpenAI**, whose key is **out of credits** → OpenAI returns `429 insufficient_quota` ("no credits remaining"). The RJ code raises `HTTPException(502, "OpenAI error: …")`, and `_build_one_segment`'s degrade path ONLY caught `503 rj_quota_exhausted` (ElevenLabs), so the 502 propagated → `/radio/next` returned **502 Bad Gateway** and playback never advanced. (`/radio/start` uses `skip_rj=True`, so the FIRST track always played — hence "plays a few seconds then stops".) Reproduced in BOTH preview and prod.
+- **Fix:** `server.py _build_one_segment` now degrades to a **music-only segment** (`_build_one_segment_no_rj`) on ANY RJ/LLM/TTS upstream failure (OpenAI 429/insufficient_quota/credit, ElevenLabs, rj_upstream_error, quota) plus a defensive broad `except`. Genuine track-asset errors still propagate so the retry loop can flag unplayable tracks. One chokepoint → fixes `/radio/next`, `/radio/skip`, and prefetch.
+- **Verified (preview, curl):** start→next→next→skip all 200 with `rj_format=no_rj`; segment audio serves (HTTP 206, audio/mpeg, valid MP3). Previously 502.
+- **ACTION REQUIRED BY USER:** (1) **Publish/redeploy** — fuusic.com runs the previously-published build; the fix only reaches production after a new deploy. (2) The AI-DJ **voiceovers between songs stay silent** until OpenAI credits are added OR the RJ script generation is switched to the **Emergent Universal LLM key** (offered). Music plays uninterrupted regardless.
+- **Note:** The 91 genre-less uploads I saw were in the PREVIEW fork DB only; production's catalog is richly tagged (real songs played on every station), so metadata was NOT the cause here.
+
+
 ## 📣 RIGHT-RAIL AD-WALLET + PER-AREA 2ND-PRICE AUCTION + INTEREST ONBOARDING (2026-06 fork, web + backend + mobile, testing agent PASS iter194 — backend 33/33 + web + mobile)
 Ad-tech overhaul of the FUUSIC Right-Rail sponsorships. Migrated OFF the old one-time-Stripe-checkout model TO a continuous Ad-Wallet + daily Vickrey (second-price) settlement. Backend engine `services/rail_auction.py` + routes in `routes/social_v2.py` pre-existed; this session shipped the WEB UI + BOTH-surface onboarding + rewrote the broken pytest suite.
 - **Second-price + Category Targeting** (`rail_auction.py`): a sponsorship is a STANDING bid — a max `daily_bid_cents` per targeted area per day, targeting any subset of `social`/`shop`/`listen`. Each area settles once/day (lazily on first rail render): highest bid wins the single slot, charged the Vickrey clearing price (runner-up + $0.01, floored at $5, capped at its own bid), debited from `rail_wallets`. Raising a bid re-settles today immediately. Floor $5/area/day; durations 1d/3d/7d.
