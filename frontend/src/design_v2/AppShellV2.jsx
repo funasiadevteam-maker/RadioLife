@@ -25,6 +25,7 @@ import WorkspaceSwitcher from "@/components/portal/WorkspaceSwitcher";
 // VariantSwitcher moved to the admin backend (/admin/appearance).
 import BannerAdSlot from "@/components/BannerAdSlot";
 import PlayerSwitchToast from "@/components/PlayerSwitchToast";
+import SleepTimerEngine from "@/components/SleepTimerEngine";
 import InterestOnboarding from "./InterestOnboarding";
 import { isMarketingPath } from "@/shell/AppShellB";
 import { useLaunchBlocked } from "@/hooks/useLaunchStatus";
@@ -119,6 +120,7 @@ export default function AppShellV2({ children }) {
       <BottomNavV2 />
       {user && <InterestOnboarding />}
       <PlayerSwitchToast />
+      <SleepTimerEngine />
     </div>
   );
 }

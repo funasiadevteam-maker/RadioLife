@@ -3,12 +3,76 @@
 // GlobalAudio), just a larger, richer presentation: big artwork, transport,
 // a live progress bar, city, BigPoints and favorites.
 import React from "react";
-import { Play, Pause, Users } from "lucide-react";
+import { Play, Pause, Users, Moon } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useGeoStore } from "@/store/useGeoStore";
 import { useStationFavoritesStore } from "@/store/useStationFavoritesStore";
+import { useSleepTimer } from "@/store/useSleepTimer";
+import { toast } from "sonner";
 import { FavoritesFlyout, FavoritesFlyoutToggle } from "@/components/FavoriteControls";
 import PointsHeaderWidget from "@/components/PointsHeaderWidget";
+
+// Sleep timer control — "stop after N min" so a station winds down on its own.
+function SleepTimerButton() {
+  const endsAt = useSleepTimer((s) => s.endsAt);
+  const start = useSleepTimer((s) => s.start);
+  const cancel = useSleepTimer((s) => s.cancel);
+  const [open, setOpen] = React.useState(false);
+  const [now, setNow] = React.useState(Date.now());
+
+  React.useEffect(() => {
+    if (!endsAt) return;
+    const i = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(i);
+  }, [endsAt]);
+
+  const active = !!endsAt;
+  const remainMin = active ? Math.max(0, Math.ceil((endsAt - now) / 60000)) : 0;
+
+  return (
+    <div className="relative flex-shrink-0">
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        data-testid="sleep-timer-toggle" aria-label="Sleep timer"
+        title={active ? `Sleep timer — ${remainMin} min left` : "Sleep timer"}
+        className="relative grid place-items-center w-9 h-9 rounded-full transition-transform hover:scale-105"
+        style={{ background: active ? "rgba(34,211,238,0.22)" : "rgba(255,255,255,0.05)",
+                        color: active ? "#67e8f9" : "#9aa6c8",
+                        border: "1px solid rgba(255,255,255,0.10)" }}>
+        <Moon size={16} />
+        {active && (
+          <span data-testid="sleep-timer-remaining"
+            className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black grid place-items-center text-slate-950"
+            style={{ background: "#67e8f9" }}>{remainMin}</span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div data-testid="sleep-timer-menu"
+            className="absolute bottom-full right-0 mb-2 z-50 w-44 rounded-2xl border border-white/10 bg-slate-900 shadow-2xl p-1.5">
+            <div className="px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-widest text-white/40">
+              {active ? `Stops in ${remainMin} min` : "Sleep timer"}
+            </div>
+            {[15, 30, 45, 60].map((m) => (
+              <button key={m} type="button" data-testid={`sleep-timer-${m}`}
+                onClick={() => { start(m); setOpen(false); toast(`Sleep timer set — ${m} min 🌙`); }}
+                className="w-full text-left px-2.5 h-9 rounded-xl text-sm font-bold text-white/85 hover:bg-white/[0.06] transition-colors">
+                {m} minutes
+              </button>
+            ))}
+            {active && (
+              <button type="button" data-testid="sleep-timer-off"
+                onClick={() => { cancel(); setOpen(false); toast("Sleep timer off"); }}
+                className="w-full text-left px-2.5 h-9 rounded-xl text-sm font-bold text-rose-300 hover:bg-white/[0.06] transition-colors">
+                Turn off
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function PlayerBarV2() {
   const currentSeg    = usePlayerStore((s) => s.currentSeg);
@@ -195,6 +259,7 @@ export default function PlayerBarV2() {
         </button>
       )}
       <PointsHeaderWidget />
+      <SleepTimerButton />
       <FavoritesFlyoutToggle open={favOpen} onToggle={() => setFavOpen((v) => !v)} />
     </div>
     <FavoritesFlyout open={favOpen} onClose={() => setFavOpen(false)} />

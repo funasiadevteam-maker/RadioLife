@@ -22,7 +22,8 @@ import { API } from "@/AuthContext";
 import { useGeoStore } from "@/store/useGeoStore";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useStationFavoritesStore } from "@/store/useStationFavoritesStore";
-import { getLastAiStation } from "@/utils/lastStation";
+import { getLastAiStation, getRecentAiStations } from "@/utils/lastStation";
+import PinnedAiRow from "@/components/PinnedAiRow";
 // Phase 42-D3 — heart toggle.  Skips community sources (only bigfm/imported supported by the API).
 import { FavoriteHeart } from "@/components/FavoriteControls";
 // Phase FUN.1-v2 — flagship stations pinned above all discover rails.
@@ -199,6 +200,10 @@ export default function RadioDiscover() {
   const favLoaded = useStationFavoritesStore((s) => s.loaded);
   const bootstrapFavs = useStationFavoritesStore((s) => s.bootstrap);
   const resume = useMemo(() => getLastAiStation(), []);
+  const recents = useMemo(() => {
+    const last = getLastAiStation();
+    return getRecentAiStations().filter((r) => !last || r.slug !== last.slug);
+  }, []);
 
   useEffect(() => { if (!favLoaded) bootstrapFavs(); }, [favLoaded, bootstrapFavs]);
 
@@ -361,6 +366,36 @@ export default function RadioDiscover() {
         </button>
       )}
 
+      {/* Jump back in — your last few AI stations. */}
+      {view !== "live" && recents.length > 0 && (
+        <div className="mb-6" data-testid="radio-discover-recents">
+          <div className="flex items-center gap-2 mb-3">
+            <RadioIcon size={15} className="text-cyan-300" />
+            <h3 className="text-base font-bold text-white">Jump back in</h3>
+          </div>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+            {recents.slice(0, 8).map((r) => (
+              <button type="button" key={r.slug}
+                data-testid={`radio-discover-recent-${r.slug}`}
+                onClick={() => navigate(`/radio?ch=${encodeURIComponent(r.slug)}&autoplay=1`)}
+                className="group shrink-0 w-[132px] rounded-2xl overflow-hidden border border-white/[0.08] bg-white/[0.04] text-left hover:border-cyan-400/40 transition-colors">
+                <div className="relative aspect-square bg-black/30 overflow-hidden">
+                  {r.thumb
+                    ? <img src={resolveImg(r.thumb)} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    : <div className="w-full h-full grid place-items-center"><Sparkles size={24} className="text-cyan-300" /></div>}
+                  <span className="absolute inset-0 grid place-items-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
+                    <Play size={22} className="text-white translate-x-0.5" fill="currentColor" />
+                  </span>
+                </div>
+                <div className="p-2">
+                  <div className="text-[13px] font-semibold truncate text-white">{r.name || r.slug}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Source filter — All · AI Radio · Live */}
       <div className="flex items-center gap-1.5 mb-6 p-1 rounded-full bg-white/[0.04]
                             border border-white/[0.08] w-fit" data-testid="radio-discover-view-toggle">
@@ -396,8 +431,7 @@ export default function RadioDiscover() {
               </span>
             </div>
             {pinnedStations.length > 0 && (
-              <StationRail rail={{ id: "pinned", title: "Pinned", stations: pinnedStations }}
-                onActivate={onActivate} />
+              <PinnedAiRow className="mb-6" testId="radio-discover-pinned-ai-row" />
             )}
             {aiRailsFiltered.map((r) => (
               <StationRail key={r.id} rail={r} onActivate={onActivate} />

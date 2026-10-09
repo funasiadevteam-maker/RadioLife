@@ -11,6 +11,7 @@ import ContinueListeningRowV2 from "./ContinueListeningRowV2";
 import RailV2 from "./RailV2";
 import TogetherActionsV2 from "./TogetherActionsV2";
 import PremiumBannerRowV2 from "./PremiumBannerRowV2";
+import PinnedAiRow from "@/components/PinnedAiRow";
 
 function greetingFor(d = new Date()) {
   const h = d.getHours();
@@ -95,6 +96,8 @@ export default function HomeNewLookV2() {
     <div data-testid="home-new-look-v2" className="w-full space-y-10 pb-10">
       <HeroNewLookV2 greeting={greetingFor()} name={name} topGenre={home?.top_genre}
         onSeeHappening={scrollToHappening} />
+
+      <PinnedAiRow testId="home-pinned-ai-row" />
 
       {show("fuusic_world") && (
         <FuusicWorldGridV2 title={heading("fuusic_world", "Your FUUSIC World")}

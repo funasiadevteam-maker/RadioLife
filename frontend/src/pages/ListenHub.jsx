@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useShellSummary, fmtCount } from "@/shell/useShellData";
+import PinnedAiRow from "@/components/PinnedAiRow";
 import axios from "axios";
 import { API } from "@/AuthContext";
 
@@ -110,6 +111,8 @@ export default function ListenHub() {
           </div>
         )}
       </section>
+
+      <PinnedAiRow testId="listen-pinned-ai-row" />
 
       {/* Quick links — the other listening surfaces */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="listen-hub-quicklinks">
