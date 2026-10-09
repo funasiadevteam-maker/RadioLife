@@ -248,6 +248,12 @@ export default function Radio() {
   const startRadio = useCallback(async (channelSlug = null) => {
     if (starting || sessionId) return;
     setStarting(true);
+    // Mutual exclusivity — stop any live-flagship / podcast stream the
+    // instant the user goes ON AIR, BEFORE /radio/start resolves (which
+    // can take seconds).  Otherwise the previous stream keeps playing
+    // over the tuning sequence ("two stations at once").
+    usePlayerStore.getState().clearImported();
+    usePlayerStore.getState().clearPodcast();
     // Phase 15d.3 fix — push channel name + thumb to the store
     // optimistically (synchronously, before /radio/start resolves) so
     // Media Session + MiniPlayer reflect the chosen channel within

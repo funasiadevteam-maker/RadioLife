@@ -77,7 +77,21 @@ export const usePlayerStore = create((set, get) => ({
   ...initialState,
 
   // ─── Setters ──────────────────────────────────────────────────────────
-  setSession: (sessionId) => set({ sessionId }),
+  // Starting (or clearing) an AI session is MUTUALLY EXCLUSIVE with the
+  // imported live-stream and podcast modes.  Setting a truthy sessionId
+  // clears both of those slots so only ONE audio source is ever live —
+  // the ImportedStreamBridge / PodcastPlayerBridge pause their <audio>
+  // the moment their slot goes null.  (Previously setSession only wrote
+  // sessionId, so going ON AIR left a flagship/imported stream playing
+  // alongside the AI audio — the "two stations at once" bug.)
+  setSession: (sessionId) => set((s) => (sessionId ? {
+    sessionId,
+    importedStation: null,
+    importedPlaying: false,
+    podcastEpisode: null,
+    podcastPlaying: false,
+    podcastResumePosition: 0,
+  } : { sessionId })),
   setChannels: (channels) => set({ channels }),
   setActiveChannel: (slug, name = null, thumb = null) =>
     set({

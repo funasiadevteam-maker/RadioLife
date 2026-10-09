@@ -1,0 +1,42 @@
+{
+  "summary": "Web frontend-only test of the AI-vs-LIVE mutual-exclusivity fix + /radio/discover ordering. DOM-ordering requirement VERIFIED (AI highlight above Flagship strip). Flagship click correctly flips player bar data-source to 'LIVE' and mounts imported-stream-audio. Full end-to-end 'LIVE → AI stops LIVE' click-through could not be completed headlessly because the demo login landed as a Free (non-premium / possibly non-onboarded) session, and Radio.js's auth gate prevented the on-air-button from rendering at /radio. However, static code review confirms the fix is correct at all three layers (store setSession, Radio.startRadio synchronous clear, ImportedStreamBridge teardown).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "code_review_verifications": [
+    "usePlayerStore.setSession(sessionId) with truthy sessionId now resets importedStation/importedPlaying/podcastEpisode/podcastPlaying/podcastResumePosition in a single set() — guarantees no stale LIVE/podcast slot can coexist with an AI session (/app/frontend/src/store/usePlayerStore.js:87-94).",
+    "Radio.startRadio() calls usePlayerStore.getState().clearImported() + clearPodcast() SYNCHRONOUSLY before awaiting POST /radio/start — closes the previous 'two stations playing while /radio/start resolves' window (/app/frontend/src/Radio.js:255-256).",
+    "ImportedStreamBridge: when importedStation becomes null, the useEffect pauses the <audio>, removeAttribute('src'), and calls load() (/app/frontend/src/components/ImportedStreamBridge.jsx:182-186). Additionally the <audio> element is only mounted when importedStation is truthy (line 327), so DOM-wise there is NOTHING left to emit audio.",
+    "PlayerBarV2 derives activeSource via precedence currentRjSegment > podcastEpisode > importedStation > sessionId. With the store-level fix those slots are mutually exclusive, so data-source reflects the single active source (/app/frontend/src/design_v2/PlayerBarV2.jsx:32-48).",
+    "/radio/discover DOM order verified live: aiBeforeFlagship = true. radio-discover-ai-highlight precedes radio-discover-flagship-strip; otherStationRails + chip rails follow (/app/frontend/src/RadioDiscover.jsx:313-359)."
+  ],
+  "manual_runtime_verifications": [
+    "GET /radio/discover: both testids present. compareDocumentPosition says ai-highlight comes BEFORE flagship-strip in DOM. (expected)",
+    "Click flagship-card-big-1062-uae: data-source on nlv2-player-bar becomes 'LIVE', title='Big 106.2 UAE', imported-stream-audio mounted. (expected)",
+    "Preroll overlay surfaced immediately after flagship click (chain=1), skipping it keeps data-source='LIVE'. (expected)",
+    "Navigate to /radio while LIVE: on-air-button not rendered because the session landed as non-premium/non-onboarded Free user — Radio.js auth/onboarding gate kicked in. The full ON-AIR click→LIVE-clears assertion therefore could not be executed in headless. Store/code review documents the behaviour is correct."
+  ],
+  "critical_code_review_comments": [
+    "Pre-existing hydration warning (NOT a regression from this fix): RadioDiscover.jsx UnifiedCard renders FavoriteHeart (a <button>) inside the outer card <button data-testid='radio-card-*'>. React logs: '<button> cannot be a descendant of <button>'. Fix: convert the outer UnifiedCard to a <div role=\"button\" tabIndex=0 onClick/onKeyDown> OR hoist the FavoriteHeart out of the card button into an absolute-positioned sibling.",
+    "Mixed Content warnings on /radio/discover: multiple http:// favicon URLs on imported-station tiles. Browsers auto-upgrade but ideally rewrite via resolveImg or a secure CDN proxy to avoid noise.",
+    "Minor: PlayerBarV2 defensively puts importedStation above sessionId in the activeSource precedence. With the new store-level invariant they can't co-exist, so order is moot — but if the invariant ever regresses the bar would show LIVE while AI plays. Consider adding a dev-mode console.warn when both slots are truthy, to catch future regressions."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Main agent to self-verify the end-to-end LIVE→AI→LIVE-cleared flow in a logged-in Premium browser session (demo@bigfm.dubai should be premium per /app/memory/test_credentials.md but the preview env returned a Free avatar after login — worth checking the demo seed state).",
+    "Optional: fix nested-button hydration warning in RadioDiscover UnifiedCard (unrelated to this iteration).",
+    "Optional: add dev-mode assertion in usePlayerStore to warn if importedStation && sessionId are ever both set after a transition."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "partial — 2/4 live checks executed; 2/4 verified via static code review only"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The store-level mutual-exclusivity fix in usePlayerStore.setSession and the synchronous clearImported()+clearPodcast() in Radio.startRadio are both correct per code review. Live DOM-order check and LIVE flagship click both pass. The only unverified live assertion is the AI-start-while-LIVE-plays teardown — attempted but blocked because demo login in the preview environment landed as a Free/non-onboarded user, so on-air-button never rendered. Next testing agent should (a) ensure demo@ user is seeded as premium + onboarding_complete before testing, or (b) use the Radio-aware testing hook to force sessionId in the store and verify ImportedStreamBridge pauses + unmounts the <audio>."
+}

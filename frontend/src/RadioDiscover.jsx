@@ -46,6 +46,9 @@ const RAIL_ICON = {
   genres: Music2, countries: Globe2,
 };
 
+// FUUSIC AI-curated rails — highlighted + pinned above the flagship strip.
+const AI_RAIL_IDS = ["for_you", "ai_curated"];
+
 function UnifiedCard({ station, onActivate }) {
   const src = station.source || "imported";
   const badge = SOURCE_BADGE[src] || SOURCE_BADGE.imported;
@@ -244,6 +247,12 @@ export default function RadioDiscover() {
   const stationRails = useMemo(
     () => (data?.rails || []).filter((r) => "stations" in r),
     [data]);
+  const aiRails = useMemo(
+    () => stationRails.filter((r) => AI_RAIL_IDS.includes(r.id)),
+    [stationRails]);
+  const otherStationRails = useMemo(
+    () => stationRails.filter((r) => !AI_RAIL_IDS.includes(r.id)),
+    [stationRails]);
   const chipRails = useMemo(
     () => (data?.rails || []).filter((r) => "facet_chips" in r),
     [data]);
@@ -301,7 +310,31 @@ export default function RadioDiscover() {
         </Link>
       </div>
 
-      {/* Phase FUN.1-v2 — Flagship strip pinned above all discover rails.
+      {/* FUUSIC AI radio — highlighted and pinned ABOVE the flagship strip. */}
+      {aiRails.length > 0 && (
+        <section data-testid="radio-discover-ai-highlight"
+          className="relative mb-8 rounded-3xl p-[1.5px]
+                              bg-gradient-to-br from-cyan-400/70 via-fuchsia-500/50 to-purple-500/70
+                              shadow-[0_0_44px_-12px_rgba(34,211,238,0.5)]">
+          <div className="rounded-[22px] bg-[#0b0f1a]/95 backdrop-blur px-4 sm:px-6 pt-5 pb-1">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full
+                                          text-[11px] font-mono uppercase tracking-widest
+                                          bg-cyan-400/15 text-cyan-300 border border-cyan-400/30">
+                <Sparkles size={13} /> FUUSIC AI Radio
+              </span>
+              <span className="text-xs text-white/50 hidden sm:inline">
+                Personalised, AI-curated stations made for you
+              </span>
+            </div>
+            {aiRails.map((r) => (
+              <StationRail key={r.id} rail={r} onActivate={onActivate} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Phase FUN.1-v2 — Flagship strip now sits BELOW the AI highlight.
               Geo-aware: backend sorts region-matched flagships first. */}
       <div className="mb-8">
         <FlagshipStrip
@@ -310,8 +343,8 @@ export default function RadioDiscover() {
           limit={12} />
       </div>
 
-      {/* Station rails */}
-      {stationRails.map((r) => (
+      {/* Remaining station rails (community, local, trending, …) */}
+      {otherStationRails.map((r) => (
         <StationRail key={r.id} rail={r} onActivate={onActivate} />
       ))}
 
