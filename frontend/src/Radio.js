@@ -22,6 +22,7 @@ import { useViewport } from "@/shell/useViewport";
 // Phase 15d — dynamic city/market for the /radio brand header.
 import { useGeoStore } from "@/store/useGeoStore";
 import BigFmBrand from "@/components/BigFmBrand";
+import { setLastAiStation } from "@/utils/lastStation";
 // Phase 15d.3 — global audio mount lives in GlobalAudio.  Radio.js no
 // longer owns the <audio> nodes or the ended/timeupdate handlers; it
 // drives the singleton audio elements + mirrors session/transport state
@@ -287,6 +288,12 @@ export default function Radio() {
           seg.channel_name || ch?.name || null,
           ch?.thumbnail_url || null,
         );
+        // Remember this AI station for the "Continue where you left off" card.
+        setLastAiStation({
+          slug: seg.channel_slug,
+          name: seg.channel_name || ch?.name || null,
+          thumb: ch?.thumbnail_url || null,
+        });
       }
       setTimeout(() => {
         const a = audioRefs[0].current;

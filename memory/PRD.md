@@ -4,6 +4,14 @@
 
 
 
+## ✨ RADIO UX BATCH: Switch Toast · AI-Only Toggle · Pin AI Stations · Resume (2026-10 fork, WEB, self-verified via Playwright DOM assertions + screenshots)
+Four requested enhancements on top of the player/Discover fixes. All WEB, all client-side (no backend changes — pins reuse the existing `/api/me/favorite-stations`).
+- **Switch Toast** `components/PlayerSwitchToast.jsx` (headless, mounted in `AppShellV2`): subscribes to the player store's active source (AI `sessionId`+`activeChannel`, `importedStation`, `podcastEpisode`); on any source/channel change (after first mount) fires a sonner toast `Now playing — switched to <name>` with a kind sub-label. First-mount guard prevents announcing what's already playing. Verified: "Now playing — switched to Big 106.2 UAE · Live".
+- **AI-Only Toggle** `RadioDiscover.jsx`: segmented control (`radio-discover-view-toggle`: All · AI Radio · Live). `view!=='live'` shows the AI highlight box; `view!=='ai'` shows Flagship strip + other station rails + chip rails. Verified: Live hides AI box + resume; AI hides flagship.
+- **Pin AI Stations**: the AI highlight box now shows ONLY genuine AI stations (`aiRailsFiltered` = for_you/ai_curated filtered to `source==='bigfm_ai'`, dropping stray imported stations the personalized rail mixed in — also fixes the old "AI card opened an imported page" issue). A **Pinned** rail (`radio-rail-pinned`, Pin icon) renders at the top of the box, built from the listener's favourited AI stations (`favorites` where `station_type==='bigfm'` via `useStationFavoritesStore`). The existing heart on each AI card is the pin/unpin control. Verified: favouriting VIP Lounge surfaced it under "Pinned".
+- **Resume Listening** `utils/lastStation.js` (localStorage `fuusic:lastAiStation`): `Radio.js startRadio()` persists {slug,name,thumb} on every successful AI tune-in; Discover shows a gradient "Continue where you left off → Resume" card (`radio-discover-resume`) that one-taps `/radio?ch=<slug>&autoplay=1` (hidden in Live view). Verified: card showed "Premium Mehfil" + resumed.
+- Files: NEW `components/PlayerSwitchToast.jsx`, `utils/lastStation.js`; edited `RadioDiscover.jsx`, `Radio.js`, `design_v2/AppShellV2.jsx`. No mobile impact. Self-tested (testing agent not used — low-risk client-side UI, each feature DOM-verified).
+
 ## 🔊 PLAYER FIX: "two stations playing at once" + AI radio prominence (2026-10 fork, WEB, self-verified via Playwright DOM assertions)
 User report: starting a live Flagship (Big 106.2) then an AI radio station played BOTH simultaneously; wanted one control surface + AI stations highlighted above flagship.
 - **Root cause**: `usePlayerStore.setSession()` only wrote `sessionId` and never cleared `importedStation`/`podcast`. Mutual exclusivity was one-directional (flagship→stops AI worked; AI→stops flagship did NOT). `ImportedStreamBridge` keeps its `<audio>` alive while `importedStation` is set, so the flagship kept streaming under the AI audio.

@@ -16,11 +16,13 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Radio as RadioIcon, Sparkles, Users, MapPin, Flame, Music2,
-  Languages, Globe2, Search, ChevronRight, Heart,
+  Languages, Globe2, Search, ChevronRight, Heart, Pin, Play,
 } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useGeoStore } from "@/store/useGeoStore";
 import { usePlayerStore } from "@/store/usePlayerStore";
+import { useStationFavoritesStore } from "@/store/useStationFavoritesStore";
+import { getLastAiStation } from "@/utils/lastStation";
 // Phase 42-D3 — heart toggle.  Skips community sources (only bigfm/imported supported by the API).
 import { FavoriteHeart } from "@/components/FavoriteControls";
 // Phase FUN.1-v2 — flagship stations pinned above all discover rails.
@@ -43,7 +45,7 @@ const SOURCE_BADGE = {
 const RAIL_ICON = {
   for_you: Heart, ai_curated: Sparkles, community: Users,
   local: MapPin, trending: Flame, languages: Languages,
-  genres: Music2, countries: Globe2,
+  genres: Music2, countries: Globe2, pinned: Pin,
 };
 
 // FUUSIC AI-curated rails — highlighted + pinned above the flagship strip.
@@ -192,6 +194,13 @@ export default function RadioDiscover() {
   const setImportedStation = usePlayerStore((s) => s.setImportedStation);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("all");   // all | ai | live
+  const favorites = useStationFavoritesStore((s) => s.favorites);
+  const favLoaded = useStationFavoritesStore((s) => s.loaded);
+  const bootstrapFavs = useStationFavoritesStore((s) => s.bootstrap);
+  const resume = useMemo(() => getLastAiStation(), []);
+
+  useEffect(() => { if (!favLoaded) bootstrapFavs(); }, [favLoaded, bootstrapFavs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -256,6 +265,20 @@ export default function RadioDiscover() {
   const chipRails = useMemo(
     () => (data?.rails || []).filter((r) => "facet_chips" in r),
     [data]);
+  // The highlighted box shows ONLY genuine AI stations (filter out any
+  // imported stations the personalized "For You" rail may mix in).
+  const aiRailsFiltered = useMemo(() => aiRails
+    .map((r) => ({ ...r, stations: (r.stations || []).filter((s) => (s.source || "imported") === "bigfm_ai") }))
+    .filter((r) => r.stations.length > 0), [aiRails]);
+  // Pinned AI channels = the listener's favourited FUUSIC AI stations.
+  const pinnedStations = useMemo(() => favorites
+    .filter((f) => f.station_type === "bigfm")
+    .map((f) => ({
+      id: f.station_id,
+      name: (f.station && f.station.name) || f.station_id,
+      source: "bigfm_ai",
+      favicon: (f.station && (f.station.favicon || f.station.thumbnail_url)) || null,
+    })), [favorites]);
 
   if (loading) {
     return (
@@ -310,8 +333,53 @@ export default function RadioDiscover() {
         </Link>
       </div>
 
+      {/* Continue where you left off — one-tap resume of your last AI station. */}
+      {resume && resume.slug && view !== "live" && (
+        <button type="button" data-testid="radio-discover-resume"
+          onClick={() => navigate(`/radio?ch=${encodeURIComponent(resume.slug)}&autoplay=1`)}
+          className="group w-full mb-6 flex items-center gap-4 text-left
+                              rounded-2xl p-3 sm:p-4 bg-gradient-to-r from-cyan-500/10 to-fuchsia-500/10
+                              border border-cyan-400/20 hover:border-cyan-400/50 transition-colors">
+          <span className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 grid place-items-center bg-white/[0.06]">
+            {resume.thumb
+              ? <img src={resolveImg(resume.thumb)} alt="" className="w-full h-full object-cover" />
+              : <Sparkles size={22} className="text-cyan-300" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-cyan-300">
+              Continue where you left off
+            </div>
+            <div className="text-base font-bold text-white truncate">
+              {resume.name || "Your last AI station"}
+            </div>
+          </div>
+          <span className="shrink-0 inline-flex items-center gap-1.5 h-10 px-4 rounded-full
+                                      font-black text-sm text-slate-950 group-hover:brightness-110"
+                style={{ background: "linear-gradient(135deg,#22d3ee,#a855f7)" }}>
+            <Play size={15} fill="currentColor" /> Resume
+          </span>
+        </button>
+      )}
+
+      {/* Source filter — All · AI Radio · Live */}
+      <div className="flex items-center gap-1.5 mb-6 p-1 rounded-full bg-white/[0.04]
+                            border border-white/[0.08] w-fit" data-testid="radio-discover-view-toggle">
+        {[
+          { id: "all", label: "All" },
+          { id: "ai", label: "AI Radio" },
+          { id: "live", label: "Live" },
+        ].map((t) => (
+          <button key={t.id} type="button" data-testid={`radio-discover-view-${t.id}`}
+            onClick={() => setView(t.id)}
+            className={`px-4 h-9 rounded-full text-sm font-bold transition-colors ${
+              view === t.id ? "bg-white text-slate-950" : "text-white/60 hover:text-white"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* FUUSIC AI radio — highlighted and pinned ABOVE the flagship strip. */}
-      {aiRails.length > 0 && (
+      {view !== "live" && (pinnedStations.length > 0 || aiRailsFiltered.length > 0) && (
         <section data-testid="radio-discover-ai-highlight"
           className="relative mb-8 rounded-3xl p-[1.5px]
                               bg-gradient-to-br from-cyan-400/70 via-fuchsia-500/50 to-purple-500/70
@@ -327,36 +395,50 @@ export default function RadioDiscover() {
                 Personalised, AI-curated stations made for you
               </span>
             </div>
-            {aiRails.map((r) => (
+            {pinnedStations.length > 0 && (
+              <StationRail rail={{ id: "pinned", title: "Pinned", stations: pinnedStations }}
+                onActivate={onActivate} />
+            )}
+            {aiRailsFiltered.map((r) => (
               <StationRail key={r.id} rail={r} onActivate={onActivate} />
             ))}
           </div>
         </section>
       )}
 
-      {/* Phase FUN.1-v2 — Flagship strip now sits BELOW the AI highlight.
-              Geo-aware: backend sorts region-matched flagships first. */}
-      <div className="mb-8">
-        <FlagshipStrip
-          title="Flagship Stations"
-          testId="radio-discover-flagship-strip"
-          limit={12} />
-      </div>
+      {view === "ai" && pinnedStations.length === 0 && aiRailsFiltered.length === 0 && (
+        <div className="text-sm text-white/40 py-10 text-center"
+          data-testid="radio-discover-ai-empty">
+          No AI stations available right now — check back soon.
+        </div>
+      )}
 
-      {/* Remaining station rails (community, local, trending, …) */}
-      {otherStationRails.map((r) => (
-        <StationRail key={r.id} rail={r} onActivate={onActivate} />
-      ))}
+      {view !== "ai" && (
+        <>
+          {/* Flagship strip (live) — sits BELOW the AI highlight. */}
+          <div className="mb-8">
+            <FlagshipStrip
+              title="Flagship Stations"
+              testId="radio-discover-flagship-strip"
+              limit={12} />
+          </div>
 
-      {/* Chip rails */}
-      {chipRails.map((r) => (
-        <ChipRail
-          key={r.id} rail={r}
-          paramKey={r.id === "languages" ? "language"
-                              : r.id === "genres" ? "category"
-                              : r.id === "countries" ? "country" : "category"}
-        />
-      ))}
+          {/* Remaining station rails (community, local, trending, …) */}
+          {otherStationRails.map((r) => (
+            <StationRail key={r.id} rail={r} onActivate={onActivate} />
+          ))}
+
+          {/* Chip rails */}
+          {chipRails.map((r) => (
+            <ChipRail
+              key={r.id} rail={r}
+              paramKey={r.id === "languages" ? "language"
+                                  : r.id === "genres" ? "category"
+                                  : r.id === "countries" ? "country" : "category"}
+            />
+          ))}
+        </>
+      )}
 
       <div className="text-xs text-white/30 pt-8 border-t border-white/[0.06]"
                 data-testid="radio-discover-attribution">
