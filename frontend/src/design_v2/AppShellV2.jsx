@@ -27,6 +27,8 @@ import BannerAdSlot from "@/components/BannerAdSlot";
 import PlayerSwitchToast from "@/components/PlayerSwitchToast";
 import SleepTimerEngine from "@/components/SleepTimerEngine";
 import InterestOnboarding from "./InterestOnboarding";
+import FeatureOnboarding from "@/components/FeatureOnboarding";
+import { useFeaturePrefs } from "@/store/useFeaturePrefs";
 import { isMarketingPath } from "@/shell/AppShellB";
 import { useLaunchBlocked } from "@/hooks/useLaunchStatus";
 import "./newlookv2.css";
@@ -85,8 +87,12 @@ export default function AppShellV2({ children }) {
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const bootstrapGeo = useGeoStore((s) => s.bootstrap);
   const geoReady = useGeoStore((s) => s.ready);
+  const bootstrapFeatures = useFeaturePrefs((s) => s.bootstrap);
+  const featLoaded = useFeaturePrefs((s) => s.loaded);
   useEffect(() => { hydrateTheme(); }, [hydrateTheme]);
   useEffect(() => { if (!geoReady) bootstrapGeo(); }, [geoReady, bootstrapGeo]);
+  useEffect(() => { if (user && !featLoaded) bootstrapFeatures(); },
+    [user, featLoaded, bootstrapFeatures]);
 
   // Admin routes render their own content but must clear the fixed
   // AdminSidebar (220px). Offset only on lg+ where the rail is visible.
@@ -119,6 +125,7 @@ export default function AppShellV2({ children }) {
       <PlayerDockV2 dock={dock} />
       <BottomNavV2 />
       {user && <InterestOnboarding />}
+      {user && <FeatureOnboarding />}
       <PlayerSwitchToast />
       <SleepTimerEngine />
     </div>
@@ -129,6 +136,8 @@ function ShellV2Header() {
   const { pathname } = useLocation();
   const { user } = useAuth();
   const summary = useShellSummary();
+  const enabledFeatures = useFeaturePrefs((s) => s.enabled);
+  const navShow = (k) => k === "home" || !enabledFeatures || enabledFeatures.includes(k);
   const [points, setPoints] = useState(null);
 
   useEffect(() => {
@@ -160,7 +169,7 @@ function ShellV2Header() {
 
       {/* Center nav — desktop only. Mobile uses the bottom tab bar. */}
       <nav className="hidden lg:flex flex-1 items-center justify-center gap-1 sm:gap-2 overflow-x-auto nlv2-scroll">
-        {NAV.map(({ key, label, icon: Icon, path }) => {
+        {NAV.filter(({ key }) => navShow(key)).map(({ key, label, icon: Icon, path }) => {
           const active = isActive(path);
           return (
             <Link key={key} to={path} data-testid={`nlv2-nav-${key}`}
@@ -385,13 +394,15 @@ function RightRailV2() {
 
 function BottomNavV2() {
   const { pathname } = useLocation();
+  const enabledFeatures = useFeaturePrefs((s) => s.enabled);
+  const navShow = (k) => k === "home" || k === "pay" || !enabledFeatures || enabledFeatures.includes(k);
   const isActive = (path) => (path === "/" ? pathname === "/" : pathname.startsWith(path));
   return (
     <nav data-testid="nlv2-bottom-nav"
       className="lg:hidden fixed bottom-0 inset-x-0 z-40 nlv2-glass-strong border-t border-white/5"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex items-stretch justify-around h-16 px-2">
-        {MOBILE_NAV.map(({ key, label, icon: Icon, path, center }) => {
+        {MOBILE_NAV.filter(({ key }) => navShow(key)).map(({ key, label, icon: Icon, path, center }) => {
           const active = isActive(path);
           if (center) {
             return (

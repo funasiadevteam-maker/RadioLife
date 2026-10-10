@@ -30,6 +30,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user
+from core.features import (
+    FEATURE_CATALOG, FEATURE_KEYS, MANDATORY_FEATURES, DEFAULT_FEATURES,
+    normalize_features,
+)
 from core.origins import resolve_origin
 from services.points_service import PointsService
 from services.social_following import resolve_following, following_summary
@@ -1085,6 +1089,51 @@ async def skip_interests(request: Request, user: dict = Depends(current_user)):
     await db.users.update_one({"user_id": user["user_id"]},
                               {"$set": {"onboarded_interests": True}})
     return {"ok": True}
+
+
+# ── Feature personalization (which features power Home + the nav) ──
+async def _admin_default_features(db) -> list[str]:
+    doc = await db.app_settings.find_one({"_id": "feature_defaults"})
+    base = (doc or {}).get("features")
+    return normalize_features(base if base is not None else DEFAULT_FEATURES)
+
+
+@router.get("/features")
+async def get_features(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    u = await db.users.find_one(
+        {"user_id": user["user_id"]},
+        {"enabled_features": 1, "onboarded_features": 1}) or {}
+    default = await _admin_default_features(db)
+    saved = u.get("enabled_features")
+    effective = normalize_features(saved) if saved is not None else default
+    return {"catalog": FEATURE_CATALOG, "mandatory": MANDATORY_FEATURES,
+            "enabled": effective, "default": default,
+            "needs_onboarding": not bool(u.get("onboarded_features"))}
+
+
+class FeaturesBody(BaseModel):
+    features: list[str] = []
+
+
+@router.put("/features")
+async def put_features(body: FeaturesBody, request: Request,
+                       user: dict = Depends(current_user)):
+    db = request.app.state.db
+    sel = normalize_features(body.features)
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"enabled_features": sel, "onboarded_features": True}})
+    return {"ok": True, "enabled": sel}
+
+
+@router.post("/features/skip")
+async def skip_features(request: Request, user: dict = Depends(current_user)):
+    """Keep the default feature set (all / admin default) and move on."""
+    db = request.app.state.db
+    await db.users.update_one({"user_id": user["user_id"]},
+                              {"$set": {"onboarded_features": True}})
+    return {"ok": True, "enabled": await _admin_default_features(db)}
 
 
 @router.get("/rail/sponsor/eligible-shows")

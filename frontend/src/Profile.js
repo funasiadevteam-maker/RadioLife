@@ -5,7 +5,7 @@ import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import {
   ArrowLeft, LogOut, RefreshCw, Save, Loader2, Check, Shield, Crown, ExternalLink,
-  Gamepad2, BarChart3, BadgeCheck, Newspaper, Share2, ChevronRight,
+  Gamepad2, BarChart3, BadgeCheck, Newspaper, Share2, ChevronRight, Sparkles,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { API, useAuth } from "./AuthContext";
@@ -162,6 +162,24 @@ export default function Profile() {
           </button>
         </div>
       </section>
+
+      <Link to="/settings/features" className="personalize-home-link" data-testid="profile-personalize-home"
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
+                 margin: "0 0 4px", borderRadius: 16, textDecoration: "none",
+                 border: "1px solid rgba(34,211,238,0.25)",
+                 background: "linear-gradient(135deg, rgba(34,211,238,0.10), rgba(168,85,247,0.10))" }}>
+        <span style={{ width: 40, height: 40, borderRadius: 12, display: "grid", placeItems: "center",
+                       background: "linear-gradient(135deg,#22d3ee,#a855f7)" }}>
+          <Sparkles size={18} color="#fff" />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontWeight: 800, color: "#fff" }}>Personalize Home</span>
+          <span style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+            Choose which features show on your Home &amp; menu
+          </span>
+        </span>
+        <ChevronRight size={18} color="rgba(255,255,255,0.5)" />
+      </Link>
 
       <section className="pref-block" data-testid="pref-languages-block">
         <h2 className="pref-title">Languages</h2>

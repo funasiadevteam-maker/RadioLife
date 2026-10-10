@@ -41,7 +41,10 @@ export default function InterestOnboarding() {
       await axios.put(`${API}/social/interests`, { interests: sel },
         { withCredentials: true });
     } catch (_) { /* soft — still flags onboarded */ }
-    finally { setBusy(false); setOpen(false); }
+    finally {
+      setBusy(false); setOpen(false);
+      window.dispatchEvent(new CustomEvent("bigfm:interests:done"));
+    }
   };
 
   const skip = async () => {
@@ -49,7 +52,10 @@ export default function InterestOnboarding() {
     try {
       await axios.post(`${API}/social/interests/skip`, {}, { withCredentials: true });
     } catch (_) { /* soft */ }
-    finally { setBusy(false); setOpen(false); }
+    finally {
+      setBusy(false); setOpen(false);
+      window.dispatchEvent(new CustomEvent("bigfm:interests:done"));
+    }
   };
 
   return (

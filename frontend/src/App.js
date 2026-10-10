@@ -206,6 +206,7 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import Onboarding from "@/Onboarding";
 import Profile from "@/Profile";
+import PersonalizeHome from "@/pages/PersonalizeHome";
 import AuthCallback from "@/AuthCallback";
 import AppleAuthReturn from "@/AppleAuthReturn";
 import ProtectedRoute from "@/ProtectedRoute";
@@ -749,6 +750,9 @@ function AppRouter() {
       } />
       <Route path="/profile" element={
         <ProtectedRoute><Profile /></ProtectedRoute>
+      } />
+      <Route path="/settings/features" element={
+        <ProtectedRoute><PersonalizeHome /></ProtectedRoute>
       } />
       {/* Phase T — Admin Home dashboard replaces legacy stub. */}
       <Route path="/admin" element={

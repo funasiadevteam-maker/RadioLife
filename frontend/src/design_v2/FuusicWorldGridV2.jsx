@@ -5,6 +5,7 @@ import {
   Sparkles, Compass, MapPin, ChevronRight,
 } from "lucide-react";
 import { fireV2Event } from "./analytics";
+import { useFeaturePrefs } from "@/store/useFeaturePrefs";
 
 const ICONS = {
   users: Users, headphones: Headphones, radio: Radio, "shopping-bag": ShoppingBag,
@@ -29,7 +30,11 @@ const FALLBACK = [
 export default function FuusicWorldGridV2({ title = "Your FUUSIC World", pillars, social }) {
   const navigate = useNavigate();
   const seen = useRef(false);
-  const items = (pillars && pillars.length ? pillars : FALLBACK);
+  const enabledFeatures = useFeaturePrefs((s) => s.enabled);
+  const base = (pillars && pillars.length ? pillars : FALLBACK);
+  const items = enabledFeatures
+    ? base.filter((p) => enabledFeatures.includes(p.key))
+    : base;
 
   useEffect(() => {
     if (seen.current) return;

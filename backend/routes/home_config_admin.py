@@ -10,6 +10,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Body, Depends, Request
 
 from auth import require_admin
+from core.features import (
+    FEATURE_CATALOG, MANDATORY_FEATURES, DEFAULT_FEATURES, normalize_features,
+)
 from core.home_config import get_home_config, save_home_config, pillar_labels
 from services.demo_library import (
     rebuild_demo_track_library, track_specs, STATUS_DOC_ID,
@@ -31,6 +34,32 @@ async def admin_put_home_config(request: Request, body: dict = Body(default={}),
                                 admin: dict = Depends(require_admin)):
     cfg = await save_home_config(request.app.state.db, body or {})
     return {**cfg, "pillars": pillar_labels()}
+
+
+@router.get("/feature-defaults")
+async def admin_get_feature_defaults(request: Request,
+                                     admin: dict = Depends(require_admin)):
+    """Global default feature set new users start with (before they personalize)."""
+    db = request.app.state.db
+    doc = await db.app_settings.find_one({"_id": "feature_defaults"})
+    base = (doc or {}).get("features")
+    feats = normalize_features(base if base is not None else DEFAULT_FEATURES)
+    return {"catalog": FEATURE_CATALOG, "mandatory": MANDATORY_FEATURES,
+            "features": feats}
+
+
+@router.put("/feature-defaults")
+async def admin_put_feature_defaults(request: Request, body: dict = Body(default={}),
+                                     admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    feats = normalize_features((body or {}).get("features"))
+    await db.app_settings.update_one(
+        {"_id": "feature_defaults"},
+        {"$set": {"features": feats,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True)
+    return {"catalog": FEATURE_CATALOG, "mandatory": MANDATORY_FEATURES,
+            "features": feats}
 
 
 def _rebuild_status_public(doc: dict) -> dict:

@@ -27,6 +27,10 @@ export default function HomeConfig() {
   const [pillars, setPillars] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fCatalog, setFCatalog] = useState([]);
+  const [fMandatory, setFMandatory] = useState([]);
+  const [fDefaults, setFDefaults] = useState([]);
+  const [fSaving, setFSaving] = useState(false);
 
   const apply = (d) => {
     setOrder(d.pillar_order || []);
@@ -36,14 +40,36 @@ export default function HomeConfig() {
 
   const load = useCallback(async () => {
     try {
-      const r = await axios.get(`${API}/admin/home-config`, { withCredentials: true });
+      const [r, fr] = await Promise.all([
+        axios.get(`${API}/admin/home-config`, { withCredentials: true }),
+        axios.get(`${API}/admin/feature-defaults`, { withCredentials: true }),
+      ]);
       apply(r.data || {});
+      setFCatalog(fr.data?.catalog || []);
+      setFMandatory(fr.data?.mandatory || []);
+      setFDefaults(fr.data?.features || []);
     } catch {
       toast.error("Failed to load — admin only.");
     } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const toggleFeature = (k) => {
+    if (fMandatory.includes(k)) return;
+    setFDefaults((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
+  };
+
+  const saveFeatures = async () => {
+    setFSaving(true);
+    try {
+      const r = await axios.put(`${API}/admin/feature-defaults`,
+        { features: fDefaults }, { withCredentials: true });
+      setFDefaults(r.data?.features || []);
+      toast.success("Default features saved");
+    } catch { toast.error("Save failed"); }
+    finally { setFSaving(false); }
+  };
 
   const move = (idx, dir) => {
     setOrder((prev) => {
@@ -146,6 +172,32 @@ export default function HomeConfig() {
           ))}
         </div>
       </Card>
+      <Card className="p-4 mt-5">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs uppercase tracking-wide text-neutral-500 font-bold">Default features for new users</div>
+          <Button size="sm" onClick={saveFeatures} disabled={fSaving} data-testid="feature-defaults-save">
+            {fSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" /> Save</>}
+          </Button>
+        </div>
+        <p className="text-[11px] text-neutral-400 mb-3">
+          New users start with these features enabled; each person can then personalize from Settings. “Listen” is always on.
+        </p>
+        <div className="grid grid-cols-2 gap-2" data-testid="feature-defaults">
+          {fCatalog.map((f) => {
+            const on = fDefaults.includes(f.key) || fMandatory.includes(f.key);
+            return (
+              <label key={f.key} data-testid={`feature-default-${f.key}`}
+                className="flex items-center gap-2 border border-neutral-200/60 rounded-lg px-3 py-2 cursor-pointer">
+                <input type="checkbox" checked={on} disabled={fMandatory.includes(f.key)}
+                  onChange={() => toggleFeature(f.key)} data-testid={`feature-default-cb-${f.key}`} />
+                <span className="font-semibold text-sm">{f.label}</span>
+                {fMandatory.includes(f.key) && <span className="text-[10px] text-neutral-400">(always)</span>}
+              </label>
+            );
+          })}
+        </div>
+      </Card>
+
       <p className="text-xs text-neutral-400 mt-3">
         Changes apply to the New Look V2 Home for all users. Default is Social-first.
       </p>

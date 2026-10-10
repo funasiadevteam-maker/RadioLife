@@ -12,6 +12,7 @@ import RailV2 from "./RailV2";
 import TogetherActionsV2 from "./TogetherActionsV2";
 import PremiumBannerRowV2 from "./PremiumBannerRowV2";
 import PinnedAiRow from "@/components/PinnedAiRow";
+import { useFeaturePrefs } from "@/store/useFeaturePrefs";
 
 function greetingFor(d = new Date()) {
   const h = d.getHours();
@@ -89,6 +90,10 @@ export default function HomeNewLookV2() {
   const show = (k) => sections?.[k]?.visible !== false;
   const heading = (k, dflt) => sections?.[k]?.title || dflt;
 
+  // Per-user feature personalization — hide feature-tied sections when off.
+  const enabledFeatures = useFeaturePrefs((s) => s.enabled);
+  const feat = (k) => !enabledFeatures || enabledFeatures.includes(k);
+
   const scrollToHappening = () =>
     happeningRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -104,7 +109,7 @@ export default function HomeNewLookV2() {
           pillars={home?.fuusic_world} social={social?.happening_now} />
       )}
 
-      {show("whats_happening") && (
+      {show("whats_happening") && feat("social") && (
         <div ref={happeningRef} className="scroll-mt-24">
           <WhatsHappeningNowV2 title={heading("whats_happening", "What's Happening Now")} data={social} />
         </div>
@@ -125,13 +130,13 @@ export default function HomeNewLookV2() {
           items={forYouItems} testId="nlv2-foryou" />
       )}
 
-      {show("live_now") && (
+      {show("live_now") && feat("live") && (
         <RailV2 title={heading("live_now", "Live Right Now")}
           subtitle="What's happening across FUUSIC"
           items={liveItems} testId="nlv2-live" />
       )}
 
-      {show("together") && (
+      {show("together") && feat("social") && (
         <TogetherActionsV2 title={heading("together", "Do Something Together")}
           actions={home?.together_actions} />
       )}
