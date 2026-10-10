@@ -13,6 +13,7 @@ import TogetherActionsV2 from "./TogetherActionsV2";
 import PremiumBannerRowV2 from "./PremiumBannerRowV2";
 import PinnedAiRow from "@/components/PinnedAiRow";
 import { useFeaturePrefs } from "@/store/useFeaturePrefs";
+import RadioStationsHomeV2 from "./RadioStationsHomeV2";
 
 function greetingFor(d = new Date()) {
   const h = d.getHours();
@@ -107,6 +108,10 @@ export default function HomeNewLookV2() {
       {show("fuusic_world") && (
         <FuusicWorldGridV2 title={heading("fuusic_world", "Your FUUSIC World")}
           pillars={home?.fuusic_world} social={social?.happening_now} />
+      )}
+
+      {show("radio_stations") && feat("listen") && (
+        <RadioStationsHomeV2 title={heading("radio_stations", "50,000+ Radio Stations")} />
       )}
 
       {show("whats_happening") && feat("social") && (

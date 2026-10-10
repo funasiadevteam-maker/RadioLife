@@ -4,6 +4,12 @@
 
 
 
+## 📻 HOME: "50,000+ Radio Stations" showcase (2026-10 fork, WEB, self-verified screenshot)
+Added a prominent live-radio catalog section to the Home page (`design_v2/RadioStationsHomeV2.jsx`), placed right below the FUUSIC World grid, tied to the always-on **Listen** feature (`feat('listen')`, section key `radio_stations`).
+- Gradient "LIVE RADIO WORLDWIDE · 50,000+ Radio Stations" banner + sub-copy + **Browse all** CTA (`nlv2-radio-stations-browse` → `/radio/discover`).
+- Beneath it reuses `FlagshipStrip` ("Popular right now", `nlv2-radio-stations-strip`, limit 12) for a real, tappable station rail. Verified: 22 station cards rendered (Big 106.2, Beat 97.8, Radio Caravan, Radio Sangam, …).
+- Files: NEW `design_v2/RadioStationsHomeV2.jsx`; edited `design_v2/HomeNewLookV2.jsx`. Web only.
+
 ## 🧩 PERSONALIZED PORTAL — pick-your-features onboarding + Home/nav filtering (2026-10 fork, WEB + backend, testing agent PASS iter197 12/12 backend; frontend self-verified via Playwright)
 Each user turns on only the features they want so Home stays simple. Confirmed scope: hide disabled features from Home grid + sections AND the nav; Listen always on (mandatory), rest optional; BOTH a user Settings page and an admin global-default; Food = existing Dining toggle; picker at signup after interests + re-openable.
 - **Canonical catalog** `core/features.py`: 8 features keyed to the FUUSIC World pillars + nav — listen(MANDATORY), social, live, shop, play, dining(Food & Dining), earn, explore. `normalize_features()` forces mandatory on + drops unknown keys (single source of truth).
