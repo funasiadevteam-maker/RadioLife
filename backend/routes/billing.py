@@ -15,7 +15,7 @@ from emergentintegrations.payments.stripe.checkout import (
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from auth import current_user
-from core.config import STRIPE_API_KEY, STRIPE_MODE
+from core.config import STRIPE_API_KEY, STRIPE_MODE, STRIPE_WEBHOOK_SECRET
 from models.billing import (
     CheckoutRequest, CheckoutResponse, CheckoutStatusResponse,
     PricingConfigOut, SubscriptionOut,
@@ -48,7 +48,8 @@ def _stripe_client(request: Request) -> StripeCheckout:
     headers (set by the ingress / Cloudflare)."""
     host_url = str(request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
-    return StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    return StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url,
+                          webhook_secret=STRIPE_WEBHOOK_SECRET or None)
 
 
 @billing_router.get("/config", response_model=PricingConfigOut)

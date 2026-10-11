@@ -1555,3 +1555,18 @@ Tests: `tests/test_iter192_social_rail_v2_sponsor.py` (now covers auction/insigh
 
 ### Stripe tax mode
 Payments go through the app's existing Stripe integration (unchanged). No new tax configuration was introduced for rail sponsorships.
+
+---
+
+## Stripe LIVE Go-Live — 2026-06 (BYOK live account)
+Switched the app's own (BYOK) Stripe account from TEST to LIVE at the user's request. Change was purely env + webhook verification; the `services/stripe_client.py` + `emergentintegrations` abstractions already route live when `STRIPE_MODE=live`.
+
+- **backend/.env**: `STRIPE_API_KEY`/`STRIPE_SECRET_KEY` → `rk_live_...` (Stripe **restricted** key — reads OK on all resources; write scopes are the account owner's responsibility), `STRIPE_PUBLISHABLE_KEY` → `pk_live_...`, `STRIPE_WEBHOOK_SECRET` → `whsec_...`, `STRIPE_WEBHOOK_VERIFY_SIGNATURE` 0→1 (signature verification now enforced), `STRIPE_MODE` already `live`.
+- **frontend/.env**: `REACT_APP_STRIPE_PUBLISHABLE_KEY` → `pk_live_...`.
+- **routes/billing.py**: `_stripe_client()` now passes `webhook_secret=STRIPE_WEBHOOK_SECRET` so the subscription webhook (`/api/webhook/stripe`) verifies signatures in live mode (previously unverified).
+- Webhook endpoints (register in Stripe Dashboard): `/api/webhook/stripe` (subscriptions/checkout) and `/api/webhooks/stripe/events` (campaigns/refunds/payment-intents). Both use the same `whsec_`.
+- Mobile has no Stripe key (uses backend-created checkout URLs) — no change.
+- User chose live keys in BOTH preview + production → preview payment clicks are now REAL charges.
+- NOT e2e-tested (live mode = real money). Validated via read-only `Balance.retrieve` (livemode=True) + resource list probes. User should run one small real txn + refund to confirm, and rotate the secret key (shared in chat).
+
+### Next (resume): 4 P0 personalization enhancements still pending — Live Preview, Reorder Features, Per-City Defaults, Feature Discovery.
