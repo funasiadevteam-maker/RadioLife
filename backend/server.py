@@ -1022,6 +1022,23 @@ def _synthesize_elevenlabs_raw(script, voice_id, energy):
     return out_path
 
 
+def _fallback_elevenlabs_voice_id(openai_voice_cfg: dict | None = None) -> Optional[str]:
+    """Pick an ElevenLabs voice_id to use when OpenAI TTS is unavailable
+    (e.g. the BYOK OpenAI key is out of credits). Gender-matched if we can
+    infer it, else the default/first available ElevenLabs voice."""
+    want_gender = (openai_voice_cfg or {}).get("gender")
+    default_v = RJ_VOICES.get(DEFAULT_VOICE_KEY) or {}
+    best = default_v.get("voice_id") if default_v.get("provider", "elevenlabs") == "elevenlabs" else None
+    for _vk, v in RJ_VOICES.items():
+        if v.get("provider", "elevenlabs") != "elevenlabs" or not v.get("voice_id"):
+            continue
+        if want_gender and v.get("gender") == want_gender:
+            return v["voice_id"]
+        if best is None:
+            best = v["voice_id"]
+    return best
+
+
 # Phase 3.6 — provider-aware synthesizer. Dispatches to ElevenLabs or
 # OpenAI TTS based on the voice_key's `provider` field. The rest of the
 # pipeline (duo banter, segment build) only calls this function.
@@ -1038,7 +1055,18 @@ def _synthesize_by_voice_key(script: str, voice_key: str, energy: str):
             extra = "High energy. Confident, hyped delivery."
         elif energy == "chill":
             extra = "Calm, warm, conversational. Low-key but present."
-        return synthesize_openai(script, voice_key, extra_instructions=extra)
+        try:
+            return synthesize_openai(script, voice_key, extra_instructions=extra)
+        except Exception as e:
+            # OpenAI TTS unavailable (e.g. no credits / 429). Fall back to an
+            # ElevenLabs voice so the station STILL gets a spoken RJ instead of
+            # degrading to music-only.
+            fb_id = _fallback_elevenlabs_voice_id(voice)
+            if fb_id:
+                logger.warning("[tts-fallback] OpenAI TTS failed for voice=%s (%s) "
+                               "— using ElevenLabs fallback", voice_key, repr(e)[:90])
+                return _synthesize_elevenlabs_raw(script, fb_id, energy)
+            raise
     # default: ElevenLabs
     vid = voice.get("voice_id")
     if not vid:
@@ -2333,6 +2361,14 @@ async def _deferred_bootstrap(app_: FastAPI):
     except Exception as e:
         logger.warning(f"phase reliability.p2 probe wiring: {e}")
 
+    # ─── Per-station DAILY warm cache (genre-locked, full-RJ) ─────────
+    try:
+        app_.state.station_warm_task = asyncio.create_task(
+            _station_warm_daily_loop(), name="bigfm_station_warm_daily")
+        logger.info("[station-warm] daily loop scheduled")
+    except Exception as e:
+        logger.warning(f"station-warm schedule: {e}")
+
     logger.info("[deferred-boot] completed")
 
 
@@ -2630,6 +2666,9 @@ async def channels_list(request: Request):
     except Exception:
         user_market = "dubai"
     docs = await list_active_channels(db)
+    # User request — hide stations that have NO playable tracks in their
+    # allowed_genres. A station with zero matching tracks is not shown.
+    _cat_genres = {g for g in await db.tracks.distinct("genre") if g}
     # Phase 10c — compute access for each channel using a single per-request
     # cache so we hit Mongo at most twice total (one user_ambassador_state
     # + one user_ambassador_unlocks read).
@@ -2641,6 +2680,8 @@ async def channels_list(request: Request):
         # Phase 15d.2 — "global" channels are visible in every market.
         # Market-specific channels (e.g. "dfw") only show for matching users.
         if ch_market not in ("global", user_market):
+            continue
+        if not channel_has_playable_tracks(ch, _cat_genres):
             continue
         clock = ch.get("music_clock") or {}
         access = await check_channel_access(
@@ -3233,67 +3274,53 @@ def _build_channel_pool_with_relaxation(
     lang_mix = [x.get("language") for x in (channel.get("language_mix") or [])
                   if x.get("language")]
 
-    def _apply(*, drop_energy: bool, drop_mood: bool, drop_genre: bool):
+    def _apply(*, drop_energy: bool, drop_mood: bool, drop_lang: bool):
         out = []
         for t in all_tracks:
             if not drop_energy and allowed_e and t.get("energy_level") not in allowed_e:
                 continue
-            if not drop_genre and allowed_g and t.get("genre") and t.get("genre") not in allowed_g:
+            # GENRE is a HARD floor and is NEVER dropped — a station must only
+            # ever play tracks within its allowed_genres (no cross-genre rescue
+            # to e.g. Bollywood on Devotional Hour).
+            if allowed_g and t.get("genre") not in allowed_g:
                 continue
             if not drop_mood and allowed_m and t.get("mood") and t.get("mood") not in allowed_m:
                 if not any(v in allowed_m for v in (t.get("vibe_tags") or [])):
                     continue
-            # language_mix is always applied above strict so we don't
-            # accidentally pull e.g. devotional tracks onto Punjabi Beats.
-            if lang_mix and t.get("language") not in lang_mix:
+            if not drop_lang and lang_mix and t.get("language") not in lang_mix:
                 continue
             out.append(t)
         return out
 
     steps: list[dict] = []
-    # 0 — strict
-    pool = _apply(drop_energy=False, drop_mood=False, drop_genre=False)
+    # 0 — strict (energy + genre + mood + language)
+    pool = _apply(drop_energy=False, drop_mood=False, drop_lang=False)
     steps.append({"step": "strict", "pool_size": len(pool),
                    "dropped": [], "language_mix": lang_mix})
     if len(pool) >= MIN_POOL_SIZE:
         return pool, steps
 
     # 1 — drop energy
-    pool = _apply(drop_energy=True, drop_mood=False, drop_genre=False)
+    pool = _apply(drop_energy=True, drop_mood=False, drop_lang=False)
     steps.append({"step": "drop_energy", "pool_size": len(pool),
                    "dropped": ["energy"], "language_mix": lang_mix})
     if len(pool) >= MIN_POOL_SIZE:
         return pool, steps
 
     # 2 — drop mood
-    pool = _apply(drop_energy=True, drop_mood=True, drop_genre=False)
+    pool = _apply(drop_energy=True, drop_mood=True, drop_lang=False)
     steps.append({"step": "drop_mood", "pool_size": len(pool),
                    "dropped": ["energy", "mood"], "language_mix": lang_mix})
     if len(pool) >= MIN_POOL_SIZE:
         return pool, steps
 
-    # 3 — drop genre (now language-mix only)
-    pool = _apply(drop_energy=True, drop_mood=True, drop_genre=True)
-    steps.append({"step": "drop_genre", "pool_size": len(pool),
-                   "dropped": ["energy", "mood", "genre"],
-                   "language_mix": lang_mix})
-    if len(pool) >= MIN_POOL_SIZE:
-        return pool, steps
-
-    # 4 — language-only (any of channel's language_mix; same set, kept for
-    #      symmetry / future when language_mix may have multiple langs)
-    if lang_mix:
-        pool = [t for t in all_tracks if t.get("language") in lang_mix]
-        steps.append({"step": "language_only", "pool_size": len(pool),
-                       "dropped": ["energy", "mood", "genre"],
-                       "language_mix": lang_mix})
-        if pool:
-            return pool, steps
-
-    # 5 — catalog-wide last resort
-    pool = list(all_tracks)
-    steps.append({"step": "catalog_wide", "pool_size": len(pool),
-                   "dropped": ["energy", "mood", "genre", "language"],
+    # 3 — genre-only floor (drop energy + mood + language, but KEEP genre).
+    # This is the LAST resort: we never serve a track outside the channel's
+    # allowed_genres. A station whose genre-only pool is empty is hidden from
+    # the channel list, so for a *visible* station this always yields tracks.
+    pool = _apply(drop_energy=True, drop_mood=True, drop_lang=True)
+    steps.append({"step": "genre_only", "pool_size": len(pool),
+                   "dropped": ["energy", "mood", "language"],
                    "language_mix": lang_mix})
     return pool, steps
 
@@ -4422,6 +4449,8 @@ async def _log_play(user, session, seg, channel_slug):
 # ON AIR click feels instant (<500ms claim vs ~21s cold build).
 WARM_START_TTL_SEC = 1800  # 30 minutes
 _warmstart_tasks: Dict[str, asyncio.Task] = {}
+# Per-station daily rebuild guard — prevents overlapping rebuilds (TTS cost).
+_station_warm_lock: Dict[str, bool] = {"running": False}
 
 
 async def _resolve_warm_start_channel(user: dict) -> Optional[dict]:
@@ -4629,6 +4658,135 @@ async def _claim_warm_start_segment(user_id: str, channel_slug: str) -> Optional
     return doc.get("segment_doc")
 
 
+# ─── Per-station DAILY warm cache (genre-locked, full-RJ) ─────────
+# Unlike per-user prewarm (one channel, built on login), this builds ONE
+# full-RJ segment per *visible* station once a day so that ANY station a
+# listener taps starts near-instantly AND already has the RJ on air. The
+# cached segment is shared across all listeners of that station for the day
+# (consistent "today's show"), matching the product requirement.
+STATION_WARM_TTL_SEC = 36 * 3600  # 1.5 days — survives a missed daily run
+
+
+def _catalog_genres(all_tracks) -> set:
+    return {t.get("genre") for t in all_tracks if t.get("genre")}
+
+
+def channel_has_playable_tracks(channel: dict, catalog_genres: set) -> bool:
+    """A station is 'playable' (and therefore visible) only when the catalog
+    has at least one track in its allowed_genres. News radio is RJ-only."""
+    if channel.get("_id") == "news_radio":
+        return True
+    allowed_g = set(channel.get("allowed_genres") or [])
+    if not allowed_g:
+        return True
+    return bool(allowed_g & catalog_genres)
+
+
+async def _build_station_warm_segment(slug: str) -> Optional[dict]:
+    channel = await get_channel(db, slug)
+    if not channel or not channel.get("active"):
+        return None
+    all_tracks = await db.tracks.find({}).to_list(2000)
+    pool, _steps = _build_channel_pool_with_relaxation(all_tracks, channel)
+    if not pool:
+        return None  # empty genre pool — nothing to cache
+    synth_session_id = f"station_warm_{slug}_{uuid.uuid4().hex[:10]}"
+    synth_session = {
+        "_id": synth_session_id, "user_id": f"_station_{slug}",
+        "channel_slug": slug, "channel_name": channel.get("name"),
+        "preference_vector": {},
+        "played_track_ids": [], "recent_artists": [],
+        "last_track_id": None, "current_segment_id": None,
+        "warm_start": True,
+    }
+    await db.radio_sessions.insert_one(synth_session)
+    try:
+        track = await _pick_next_track_personalized(synth_session, channel, None)
+        if not track:
+            return None
+        # skip_rj defaults to False → the cached segment INCLUDES the RJ break.
+        seg = await _build_one_segment(
+            synth_session_id, track, None, channel,
+            _ctx_for_now(session=synth_session), force_format="solo")
+    finally:
+        await db.radio_sessions.delete_one({"_id": synth_session_id})
+    await db.station_warm_segments.update_one(
+        {"_id": slug},
+        {"$set": {"_id": slug, "channel_slug": slug,
+                   "segment_doc": seg,
+                   "built_at": datetime.now(timezone.utc)}},
+        upsert=True)
+    return seg
+
+
+async def prebuild_all_station_warm_segments() -> dict:
+    """Build/refresh the daily per-station warm segment for every visible
+    station. Runs at startup (if empty) and once a day."""
+    if _station_warm_lock.get("running"):
+        logger.info("[station-warm] rebuild already running — skip")
+        return {"skipped_reason": "already_running"}
+    _station_warm_lock["running"] = True
+    try:
+        docs = await list_active_channels(db)
+        all_tracks = await db.tracks.find({}, {"genre": 1}).to_list(2000)
+        cat_genres = _catalog_genres(all_tracks)
+        built, skipped = [], []
+        for ch in docs:
+            if ch["_id"] == "news_radio" or not channel_has_playable_tracks(ch, cat_genres):
+                skipped.append(ch["_id"])
+                continue
+            try:
+                seg = await _build_station_warm_segment(ch["_id"])
+                (built if seg else skipped).append(ch["_id"])
+            except Exception as e:
+                logger.warning(f"[station-warm] build failed slug={ch['_id']}: {e}")
+                skipped.append(ch["_id"])
+        logger.info(f"[station-warm] daily prebuild built={built} skipped={skipped}")
+        return {"built": built, "skipped": skipped}
+    finally:
+        _station_warm_lock["running"] = False
+
+
+async def _claim_station_warm_segment(slug: str) -> Optional[dict]:
+    """Non-destructive read of the daily per-station segment (shared across
+    listeners). Returns a fresh copy stamped with a new segment _id, or None."""
+    doc = await db.station_warm_segments.find_one({"_id": slug})
+    if not doc:
+        return None
+    bt = doc.get("built_at")
+    if bt:
+        if bt.tzinfo is None:
+            bt = bt.replace(tzinfo=timezone.utc)
+        if (datetime.now(timezone.utc) - bt).total_seconds() > STATION_WARM_TTL_SEC:
+            return None
+    seg = doc.get("segment_doc")
+    if not seg:
+        return None
+    import copy as _copy
+    seg = _copy.deepcopy(seg)
+    seg["_id"] = f"seg_{uuid.uuid4().hex}"
+    return seg
+
+
+async def _station_warm_daily_loop():
+    """Forever loop — build on boot if empty, then refresh every 24h."""
+    try:
+        have = await db.station_warm_segments.count_documents({})
+        if have == 0:
+            await prebuild_all_station_warm_segments()
+    except Exception as e:
+        logger.warning(f"[station-warm] boot build: {e}")
+    while True:
+        try:
+            await asyncio.sleep(24 * 3600)
+            await prebuild_all_station_warm_segments()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning(f"[station-warm] daily loop: {e}")
+            await asyncio.sleep(3600)
+
+
 # Expose to auth.py via app.state for fire-and-forget scheduling on login.
 app.state.schedule_prebuild_warm_start = schedule_prebuild_warm_start
 
@@ -4673,7 +4831,9 @@ async def radio_start(req: RadioStartRequest, user: dict = Depends(current_user)
     # matching this channel's hard filter.
     try:
         all_tracks = await db.tracks.find({}).to_list(2000)
-        ch_tracks = channel_filter(all_tracks, channel)
+        # Genre-locked pool (same logic the picker uses) so a station isn't
+        # falsely flagged empty just because mood/energy don't match.
+        ch_tracks, _ = _build_channel_pool_with_relaxation(all_tracks, channel)
         # Phase 40 follow-up — News channel doesn't need music tracks.
         # The news_radio segment is RJ-only (headline read), so skip the
         # empty-tracks guard for it.
@@ -4705,6 +4865,20 @@ async def radio_start(req: RadioStartRequest, user: dict = Depends(current_user)
     await db.radio_sessions.insert_one(session)
     # Warm-start fast path — pre-built on login, claim atomically
     warm = await _claim_warm_start_segment(user["user_id"], channel["_id"])
+    if not warm:
+        # Per-station DAILY cache — a shared full-RJ segment so ANY station the
+        # listener taps starts fast AND already has the RJ on air (no skip_rj).
+        try:
+            station_seg = await _claim_station_warm_segment(channel["_id"])
+        except Exception as _e:
+            logger.warning(f"[radio_start] station-warm claim failed: {_e}")
+            station_seg = None
+        if station_seg:
+            station_seg["session_id"] = session_id
+            await db.segments.insert_one(station_seg)
+            logger.info("[radio_start] claimed STATION warm segment "
+                        f"channel={channel['_id']} seg={station_seg['_id']}")
+            warm = station_seg
     if warm:
         logger.info(f"[radio_start] claimed warm segment user={user['user_id']} "
                     f"channel={channel['_id']} seg={warm['_id']}")
@@ -5227,6 +5401,32 @@ async def get_segment(segment_id: str, request: Request):
     file_path = Path(doc["file_path"])
     if not file_path.exists(): raise HTTPException(404, "segment file missing")
     return _range_response(file_path, request)
+
+
+@api.post("/admin/radio/rebuild-station-cache",
+          dependencies=[Depends(require_admin)])
+async def admin_rebuild_station_cache():
+    """Rebuild the per-station DAILY warm cache (full-RJ, genre-locked) in the
+    background. Returns immediately; poll `/api/admin/radio/station-cache`."""
+    asyncio.create_task(prebuild_all_station_warm_segments())
+    return {"ok": True, "scheduled": True}
+
+
+@api.get("/admin/radio/station-cache",
+         dependencies=[Depends(require_admin)])
+async def admin_station_cache_status():
+    docs = await db.station_warm_segments.find(
+        {}, {"_id": 1, "built_at": 1, "segment_doc.rj_voice_key": 1,
+             "segment_doc.track_title": 1}).to_list(50)
+    out = []
+    for d in docs:
+        sd = d.get("segment_doc") or {}
+        out.append({"slug": d["_id"],
+                     "built_at": (d.get("built_at").isoformat()
+                                   if d.get("built_at") else None),
+                     "rj_voice_key": sd.get("rj_voice_key"),
+                     "track_title": sd.get("track_title")})
+    return {"count": len(out), "stations": out}
 
 
 # ---------- admin tune endpoint ----------

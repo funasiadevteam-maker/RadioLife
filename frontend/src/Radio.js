@@ -594,7 +594,9 @@ export default function Radio() {
     }
   };
 
-  const inRJ = currentSeg && currentTime >= currentSeg.rj_start_sec;
+  const hasRJ = !!currentSeg && currentSeg.rj_start_sec != null &&
+    (!!currentSeg.rj_voice_name || currentSeg?.rj_format === "duo");
+  const inRJ = hasRJ && currentTime >= currentSeg.rj_start_sec;
   const isDuo = currentSeg?.rj_format === "duo";
   const duoLabel = isDuo && currentSeg?.rj_hosts?.length >= 2
     ? `${currentSeg.rj_hosts[0].name} × ${currentSeg.rj_hosts[1].name}`

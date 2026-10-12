@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 198 — AI-radio bug fix verification on WEB. Backend: 10/10 pytest cases PASS covering (A) /api/channels visibility+market filter (12 channels, no DFW for dubai user, every visible non-news_radio station returns a track), (B) genre lock on devotional_hour (returned 'Paper Boats'/indie, NEVER bollywood — verified across 4 consecutive starts), (C) warm station cache + full RJ for devotional_hour / bollywood_mehfil / party_dubai / workout_wala (every start <1s, non-empty rj_voice_name, numeric rj_start_sec, non-empty rj_script, segment_url returns 200 audio/mpeg), (D) /api/admin/radio/station-cache returns count=13, every station has non-null rj_voice_key, endpoint rejects unauth. Frontend: logged in as admin, opened /radio?ch=devotional_hour, clicked Devotional Hour card + ON AIR — the player showed 'ON AIR · NOW PLAYING DEVOTIONAL HOUR', track 'Paper Boats' (indie), RJ bubble 'RJ PANDIT ANAND · HINGLISH BREAK' with the full 329-char devotional script, audio element actively playing (currentTime≈9s / duration 279s). The literal label 'RJ UNDEFINED' is NOT present on the page anywhere. Regression stations bollywood_mehfil and punjabi_beats also start and play with no RJ UNDEFINED. All four reported bugs are FIXED and verified end-to-end.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter198_radio_genre_station_cache.py",
+    "/app/test_reports/pytest/iter198.xml",
+    "/app/test_reports/.iter198_radio_dev_playing.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "channel_has_playable_tracks correctly exempts news_radio (RJ-only) and otherwise requires intersection(allowed_genres, catalog_genres) — clean genre-floor check in /api/channels.",
+    "_build_channel_pool_with_relaxation is now a hard genre floor (no drop_genre/language_only/catalog_wide relaxation steps) so devotional_hour can never cross into bollywood/electronic/pop even under relaxed matching — correct per product spec.",
+    "_claim_station_warm_segment does a non-destructive deepcopy + re-stamped segment _id so one cached segment is safely shareable across listeners (no race / no duplicate-key); TTL via STATION_WARM_TTL_SEC is respected.",
+    "Frontend Radio.js hasRJ now gates on `rj_start_sec != null && (rj_voice_name || rj_format==='duo')` — this correctly prevents the 'RJ UNDEFINED' label when a segment has no RJ break (rj_start_sec null) OR when the voice name is empty. Verified: zero occurrences of 'RJ UNDEFINED' on /radio.",
+    "Minor nit (not a bug): /api/channels count query reads up to 2000 tracks only for the `genre` field — fine today (~110 tracks) but if the catalog grows beyond 2000 tracks the visibility check could miss newer genres. Consider db.tracks.distinct('genre') for forward compatibility."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter198_radio_genre_station_cache.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (critical flow verified end-to-end)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!",
+  "seed_data_creation": "None (test only creates transient radio_sessions which are auto-cleaned by radio_start flow).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "AI-radio: /api/channels now hides empty-genre stations and filters by market; /api/radio/start claims a shared full-RJ warm segment from db.station_warm_segments → cache is pre-populated on boot + daily; devotional_hour / bollywood_mehfil / party_dubai / workout_wala all verified. For regression: hit /api/radio/start?channel=<slug> and assert rj_voice_name != null AND rj_start_sec is numeric AND segment_url returns audio/*. On the web /radio?ch=<slug> URL + click 'ON AIR' spins up the player; the literal string 'RJ UNDEFINED' must never appear.",
+  "rca of the issue": "RCA (confirmed by code review + green tests): (1) 'Bollywood on Devotional' root cause was _build_channel_pool_with_relaxation dropping the genre constraint under relaxation (drop_genre/language_only/catalog_wide steps) — fix: removed those steps so genre is a hard floor. (2) 'RJ UNDEFINED' label root cause was Radio.js computing hasRJ without checking rj_start_sec != null, so for no-RJ segments (rj_start_sec=null) the expression `currentTime >= null` coerced to true-ish and rendered 'RJ ' + undefined — fix: hasRJ now explicitly checks rj_start_sec != null. (3) 'No RJ voice' + (4) '30-45s hang' root causes were (a) cold builds using skip_rj=True for TTFB (no RJ at all) and (b) first-tune-in doing a full LLM+TTS synthesis — fix: a new per-STATION daily warm cache (station_warm_segments) built with skip_rj=False is pre-populated on boot and claimed non-destructively by radio_start, so first tune-in is near-instant AND already carries the RJ break. All four fixes verified via test_iter198_radio_genre_station_cache.py (10/10 PASS) and web /radio UI (RJ PANDIT ANAND label + 329-char script rendered, audio playing from cache)."
+}

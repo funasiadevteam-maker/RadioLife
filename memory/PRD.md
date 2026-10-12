@@ -1570,3 +1570,20 @@ Switched the app's own (BYOK) Stripe account from TEST to LIVE at the user's req
 - NOT e2e-tested (live mode = real money). Validated via read-only `Balance.retrieve` (livemode=True) + resource list probes. User should run one small real txn + refund to confirm, and rotate the secret key (shared in chat).
 
 ### Next (resume): 4 P0 personalization enhancements still pending — Live Preview, Reorder Features, Per-City Defaults, Feature Discovery.
+
+---
+
+## AI Radio fixes — 2026-06 (genre-lock, hide-empty stations, daily RJ cache)
+Fixed 4 user-reported /radio bugs (verified: iter198 pytest 10/10 + web e2e).
+- **Genre integrity** — `_build_channel_pool_with_relaxation` (server.py) now treats `allowed_genres` as a HARD floor: relaxation only drops energy→mood→language, NEVER genre. Removed the old drop_genre/language_only/catalog_wide steps that let Bollywood play on Devotional Hour.
+- **Hide empty stations** — `GET /api/channels` now hides any station with zero tracks in its allowed_genres (via `channel_has_playable_tracks`, uses `tracks.distinct('genre')`); news_radio exempt (RJ-only). radio_start empty-precheck now uses the genre-locked pool.
+- **Per-station DAILY warm cache** — new collection `station_warm_segments`; `prebuild_all_station_warm_segments()` builds ONE full-RJ segment per visible station (skip_rj=False), concurrency-guarded by `_station_warm_lock`. `_station_warm_daily_loop()` builds on boot (if empty) + every 24h. `radio_start` claims per-user warm → then per-STATION warm (non-destructive copy, new seg _id, shared audio file) → else cold build. Result: instant tune-in WITH RJ on any station. Admin ops: `POST /api/admin/radio/rebuild-station-cache`, `GET /api/admin/radio/station-cache`.
+- **RJ voice reliability** — `_synthesize_by_voice_key` now falls back to an ElevenLabs voice when OpenAI TTS fails. NOTE: the BYOK OPENAI_API_KEY is OUT OF CREDITS (OpenAI TTS → 429), so openai_tts voices (e.g. charlie_dj) currently use the ElevenLabs fallback. Text/GPT uses the Emergent key (works); ElevenLabs works.
+- **Frontend "RJ UNDEFINED" fix** — Radio.js: `inRJ` now requires `rj_start_sec != null` AND (rj_voice_name || duo), so no-RJ segments show "ON AIR · NOW PLAYING" instead of "RJ UNDEFINED · LIVE BREAK".
+- The daily rebuild also regenerates RJ scripts with current FUUSIC branding + market lexicon (build_market_clause → "FUUSIC {city}"), replacing old "BigFM"-branded cached clips.
+
+### Still pending (user-requested, not yet built)
+- P1: Social right-rail — after following a suggested person (e.g. Layla Haddad), rotate that slot to the next card (another suggestion / action / ad).
+- 4 personalization-portal enhancements (Live Preview, Reorder Features, Per-City Defaults, Feature Discovery).
+- Stripe checkout page business name/logo = user's Stripe Dashboard task (Settings → Business/Branding), no code change.
+- Catalog is tiny/skewed (110 tracks; devotional=1, ghazal=1, indie=2) — small genre pools are expected until more tracks are added.
