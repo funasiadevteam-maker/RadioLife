@@ -6,18 +6,24 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
-import { TUBE, TSPACE, TRADIUS, TFONT } from '../constants/tube';
+import { TSPACE, TRADIUS, TFONT } from '../constants/tube';
+import { activeTokens } from '../theme/ThemeProvider';
+import type { ThemeTokens } from '../theme/tokens';
 import api from '../api/client';
 
 const money = (c: number) => `$${((c || 0) / 100).toFixed(2)}`;
 
 function Avatar({ name, url, size = 40 }: any) {
+  const t = activeTokens;
+  const st = makeStyles(t);
   const initials = (name || '?').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
   if (url) return <ExpoImage source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
   return <LinearGradient colors={['#a855f7', '#ec4899']} style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontWeight: '900', fontSize: size * 0.36 }}>{initials}</Text></LinearGradient>;
 }
 
 export function LiveTab() {
+  const t = activeTokens;
+  const st = makeStyles(t);
   const [shows, setShows] = useState<any[]>([]);
   const [upcoming, setUpcoming] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +54,7 @@ export function LiveTab() {
   return (
     <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 120, gap: 14 }}
       showsVerticalScrollIndicator={false} testID="social-live"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={TUBE.magenta} />}>
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={t.magenta} />}>
       {upcoming[0] ? (
         <Pressable onPress={() => setOpen(upcoming[0].show_id)} testID="live-featured" style={st.featured}>
           {upcoming[0].cover_url
@@ -95,9 +101,9 @@ export function LiveTab() {
               <View style={{ padding: 12 }}>
                 <Text style={st.showTitle} numberOfLines={1}>{s.title}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Ionicons name="time-outline" size={11} color={TUBE.electric} />
+                  <Ionicons name="time-outline" size={11} color={t.electric} />
                   <Text style={st.showMeta}>starts in </Text>
-                  <CountdownText iso={s.scheduled_at} style={[st.showMeta, { color: TUBE.electric, fontWeight: '900' }]} />
+                  <CountdownText iso={s.scheduled_at} style={[st.showMeta, { color: t.electric, fontWeight: '900' }]} />
                 </View>
                 <Text style={st.showMeta} numberOfLines={1}>{s.business_name} · {s.pinned_products?.length || 0} products</Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
@@ -116,7 +122,7 @@ export function LiveTab() {
         </View>
       )}
 
-      {loading ? <ActivityIndicator color={TUBE.magenta} style={{ marginTop: 30 }} />
+      {loading ? <ActivityIndicator color={t.magenta} style={{ marginTop: 30 }} />
         : shows.length === 0 ? <View style={st.empty}><Text style={st.emptyTxt}>No live shows right now — tap Go Live 🎥</Text></View>
           : shows.map((s) => (
             <Pressable key={s.show_id} onPress={() => setOpen(s.show_id)} testID={`live-show-${s.show_id}`} style={st.showCard}>
@@ -148,6 +154,8 @@ function whenText(iso?: string) {
 }
 
 function CountdownText({ iso, style }: { iso?: string; style?: any }) {
+  const t = activeTokens;
+  const st = makeStyles(t);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   let diff = iso ? new Date(iso).getTime() - now : 0;
@@ -175,6 +183,8 @@ function openCal(show: any) {
 }
 
 function GoLiveSheet({ visible, onClose, onLive, onScheduled }: any) {
+  const t = activeTokens;
+  const st = makeStyles(t);
   const [title, setTitle] = useState('');
   const [biz, setBiz] = useState('');
   const [desc, setDesc] = useState('');
@@ -195,9 +205,9 @@ function GoLiveSheet({ visible, onClose, onLive, onScheduled }: any) {
   };
   return (
     <Sheet visible={visible} onClose={onClose} title="Go Live" testID="golive-sheet">
-      <TextInput value={title} onChangeText={setTitle} placeholder="Show title" placeholderTextColor={TUBE.textMuted} style={st.input} testID="golive-title" />
-      <TextInput value={biz} onChangeText={setBiz} placeholder="Business name (optional)" placeholderTextColor={TUBE.textMuted} style={st.input} testID="golive-biz" />
-      <TextInput value={desc} onChangeText={setDesc} placeholder="What are you showing?" placeholderTextColor={TUBE.textMuted} style={[st.input, { height: 70, textAlignVertical: 'top' }]} multiline testID="golive-desc" />
+      <TextInput value={title} onChangeText={setTitle} placeholder="Show title" placeholderTextColor={t.textMuted} style={st.input} testID="golive-title" />
+      <TextInput value={biz} onChangeText={setBiz} placeholder="Business name (optional)" placeholderTextColor={t.textMuted} style={st.input} testID="golive-biz" />
+      <TextInput value={desc} onChangeText={setDesc} placeholder="What are you showing?" placeholderTextColor={t.textMuted} style={[st.input, { height: 70, textAlignVertical: 'top' }]} multiline testID="golive-desc" />
       <Text style={[st.section, { marginTop: 14 }]}>WHEN</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="golive-schedule">
         {presets.map((p) => (
@@ -214,6 +224,8 @@ function GoLiveSheet({ visible, onClose, onLive, onScheduled }: any) {
 }
 
 function LiveViewer({ showId, onClose }: any) {
+  const t = activeTokens;
+  const st = makeStyles(t);
   const [show, setShow] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState('');
@@ -288,12 +300,12 @@ function LiveViewer({ showId, onClose }: any) {
     try { await Share.share({ message: `${clip.title} — on FUUSIC Live ${base}${clip.share_path}` }); } catch (_) {}
   };
 
-  if (!show) return <View style={st.center}><ActivityIndicator color={TUBE.magenta} /></View>;
+  if (!show) return <View style={st.center}><ActivityIndicator color={t.magenta} /></View>;
 
   return (
     <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 120, gap: 16 }} showsVerticalScrollIndicator={false} testID="live-viewer" keyboardShouldPersistTaps="handled">
       <Pressable onPress={onClose} testID="live-back" style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Ionicons name="chevron-back" size={18} color={TUBE.textMuted} /><Text style={{ color: TUBE.textMuted, fontSize: TFONT.sm }}>Back to Live</Text>
+        <Ionicons name="chevron-back" size={18} color={t.textMuted} /><Text style={{ color: t.textMuted, fontSize: TFONT.sm }}>Back to Live</Text>
       </Pressable>
       <LinearGradient colors={['#4c1d95', '#0d0a24']} style={st.stage}>
         {show.status === 'scheduled'
@@ -303,7 +315,7 @@ function LiveViewer({ showId, onClose }: any) {
         <Text style={st.stageBiz}>{show.business_name}</Text>
         <Text style={st.stageTitle}>{show.title}</Text>
         {show.status === 'scheduled'
-          ? <><CountdownText iso={show.scheduled_at} style={[st.stageMeta, { color: TUBE.electric, fontSize: TFONT.md, fontWeight: '900' }]} />
+          ? <><CountdownText iso={show.scheduled_at} style={[st.stageMeta, { color: t.electric, fontSize: TFONT.md, fontWeight: '900' }]} />
               <Text style={[st.stageMeta, { fontSize: TFONT.xs }]} testID="live-scheduled-time">{whenText(show.scheduled_at)}</Text></>
           : <Text style={st.stageMeta}>{show.mode === 'live' ? 'Live video stream' : 'Simulated stream (preview)'} · {show.viewer_count} watching</Text>}
         {show.status === 'scheduled' && show.can_manage && (
@@ -346,7 +358,7 @@ function LiveViewer({ showId, onClose }: any) {
                     {p.offer ? <View style={st.offer}><Text style={st.offerTxt}>{p.offer}</Text></View> : null}
                   </View>
                   {show.can_manage
-                    ? <Pressable onPress={() => unpin(p.product_id)} testID={`live-unpin-${p.product_id}`} style={st.unpinBtn}><Ionicons name="trash-outline" size={13} color={TUBE.textMuted} /><Text style={st.unpinTxt}>Unpin</Text></Pressable>
+                    ? <Pressable onPress={() => unpin(p.product_id)} testID={`live-unpin-${p.product_id}`} style={st.unpinBtn}><Ionicons name="trash-outline" size={13} color={t.textMuted} /><Text style={st.unpinTxt}>Unpin</Text></Pressable>
                     : <Pressable onPress={() => buy(p)} disabled={buying === p.product_id} testID={`live-buy-${p.product_id}`}><LinearGradient colors={['#a855f7', '#ec4899']} style={st.buyBtn}>{buying === p.product_id ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="bag-handle" size={13} color="#fff" /><Text style={st.buyTxt}>Buy now</Text></>}</LinearGradient></Pressable>}
                 </View>
               ))}
@@ -385,11 +397,11 @@ function LiveViewer({ showId, onClose }: any) {
         {messages.map((m) => (
           <View key={m.id} style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
             <Avatar name={m.author?.name} url={m.author?.avatar_url} size={26} />
-            <Text style={{ flex: 1, color: TUBE.text, fontSize: TFONT.sm }}><Text style={{ fontWeight: '800', color: TUBE.textMuted }}>{m.author?.name} </Text>{m.text}</Text>
+            <Text style={{ flex: 1, color: t.text, fontSize: TFONT.sm }}><Text style={{ fontWeight: '800', color: t.textMuted }}>{m.author?.name} </Text>{m.text}</Text>
           </View>
         ))}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-          <TextInput value={text} onChangeText={setText} placeholder="Chat with the host…" placeholderTextColor={TUBE.textMuted} style={st.chatInput} testID="live-chat-input" />
+          <TextInput value={text} onChangeText={setText} placeholder="Chat with the host…" placeholderTextColor={t.textMuted} style={st.chatInput} testID="live-chat-input" />
           <Pressable onPress={send} testID="live-chat-send"><LinearGradient colors={['#a855f7', '#ec4899']} style={st.chatSend}><Ionicons name="send" size={14} color="#fff" /></LinearGradient></Pressable>
         </View>
       </View>
@@ -401,6 +413,8 @@ function LiveViewer({ showId, onClose }: any) {
 }
 
 function CohostSheet({ visible, onClose, showId, cohosts, onChange }: any) {
+  const t = activeTokens;
+  const st = makeStyles(t);
   const [friends, setFriends] = useState<any[]>([]);
   useEffect(() => { if (visible) api.get('/social/friends').then(({ data }) => setFriends(data.friends || [])).catch(() => {}); }, [visible]);
   const coIds = new Set((cohosts || []).map((c: any) => c.user_id));
@@ -411,7 +425,7 @@ function CohostSheet({ visible, onClose, showId, cohosts, onChange }: any) {
       {friends.length === 0 ? <Text style={st.dim}>Add friends first to invite a co-host.</Text> : friends.map((f) => (
         <View key={f.user_id} style={st.coRow}>
           <Avatar name={f.name} url={f.avatar_url} size={34} />
-          <Text style={{ flex: 1, color: TUBE.text, fontWeight: '800', fontSize: TFONT.sm }} numberOfLines={1}>{f.name}</Text>
+          <Text style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: TFONT.sm }} numberOfLines={1}>{f.name}</Text>
           {coIds.has(f.user_id)
             ? <Pressable onPress={() => remove(f.user_id)} testID={`cohost-remove-${f.user_id}`} style={st.coRemove}><Text style={st.unpinTxt}>Remove</Text></Pressable>
             : <Pressable onPress={() => add(f.user_id)} testID={`cohost-add-${f.user_id}`}><LinearGradient colors={['#a855f7', '#ec4899']} style={st.coAdd}><Text style={st.buyTxt}>Add</Text></LinearGradient></Pressable>}
@@ -422,6 +436,8 @@ function CohostSheet({ visible, onClose, showId, cohosts, onChange }: any) {
 }
 
 function PinProductSheet({ visible, onClose, onPin }: any) {
+  const t = activeTokens;
+  const st = makeStyles(t);
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
   const [offer, setOffer] = useState('');
@@ -435,10 +451,10 @@ function PinProductSheet({ visible, onClose, onPin }: any) {
   };
   return (
     <Sheet visible={visible} onClose={onClose} title="Pin a product" testID="pin-product-sheet">
-      <TextInput value={title} onChangeText={setTitle} placeholder="Product title" placeholderTextColor={TUBE.textMuted} style={st.input} testID="pin-title" />
-      <TextInput value={price} onChangeText={setPrice} placeholder="Price (USD, e.g. 24.99)" keyboardType="decimal-pad" placeholderTextColor={TUBE.textMuted} style={st.input} testID="pin-price" />
-      <TextInput value={offer} onChangeText={setOffer} placeholder="Live offer (optional)" placeholderTextColor={TUBE.textMuted} style={st.input} testID="pin-offer" />
-      <TextInput value={image} onChangeText={setImage} placeholder="Image URL (optional)" placeholderTextColor={TUBE.textMuted} style={st.input} testID="pin-image" />
+      <TextInput value={title} onChangeText={setTitle} placeholder="Product title" placeholderTextColor={t.textMuted} style={st.input} testID="pin-title" />
+      <TextInput value={price} onChangeText={setPrice} placeholder="Price (USD, e.g. 24.99)" keyboardType="decimal-pad" placeholderTextColor={t.textMuted} style={st.input} testID="pin-price" />
+      <TextInput value={offer} onChangeText={setOffer} placeholder="Live offer (optional)" placeholderTextColor={t.textMuted} style={st.input} testID="pin-offer" />
+      <TextInput value={image} onChangeText={setImage} placeholder="Image URL (optional)" placeholderTextColor={t.textMuted} style={st.input} testID="pin-image" />
       <Pressable onPress={submit} disabled={busy} testID="pin-submit" style={{ marginTop: 10 }}>
         <LinearGradient colors={['#a855f7', '#ec4899']} style={st.btn}>{busy ? <ActivityIndicator color="#fff" /> : <><Ionicons name="add" size={16} color="#fff" /><Text style={st.btnTxt}>Pin to show</Text></>}</LinearGradient>
       </Pressable>
@@ -447,12 +463,14 @@ function PinProductSheet({ visible, onClose, onPin }: any) {
 }
 
 function Sheet({ visible, onClose, title, testID, children }: any) {
+  const t = activeTokens;
+  const st = makeStyles(t);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={st.sheetWrap}><View style={st.sheet} testID={testID}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text style={st.sheetTitle}>{title}</Text>
-          <Pressable onPress={onClose} testID="sheet-close"><Ionicons name="close" size={22} color={TUBE.text} /></Pressable>
+          <Pressable onPress={onClose} testID="sheet-close"><Ionicons name="close" size={22} color={t.text} /></Pressable>
         </View>
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">{children}</ScrollView>
       </View></View>
@@ -460,29 +478,29 @@ function Sheet({ visible, onClose, title, testID, children }: any) {
   );
 }
 
-const st = StyleSheet.create({
+const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-  empty: { backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, padding: 20, alignItems: 'center' },
-  emptyTxt: { color: TUBE.textMuted, fontSize: TFONT.sm, textAlign: 'center' },
+  empty: { backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, padding: 20, alignItems: 'center' },
+  emptyTxt: { color: t.textMuted, fontSize: TFONT.sm, textAlign: 'center' },
   golive: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: TRADIUS.lg },
   goliveIcon: { width: 54, height: 54, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   goliveTitle: { color: '#fff', fontSize: TFONT.lg, fontWeight: '900' },
   goliveSub: { color: 'rgba(255,255,255,0.75)', fontSize: TFONT.sm, marginTop: 2 },
   liveTag: { backgroundColor: 'rgba(239,68,68,0.3)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   liveTagTxt: { color: '#fecaca', fontSize: 10, fontWeight: '900' },
-  showCard: { backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, overflow: 'hidden' },
+  showCard: { backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, overflow: 'hidden' },
   showCover: { height: 130, alignItems: 'center', justifyContent: 'center' },
   liveBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(239,68,68,0.85)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   upcomingBadge: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(6,182,212,0.85)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   upcomingBadgeStage: { backgroundColor: 'rgba(6,182,212,0.85)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  whenChip: { paddingHorizontal: 14, height: 34, borderRadius: 17, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, alignItems: 'center', justifyContent: 'center' },
-  whenChipActive: { backgroundColor: TUBE.magenta, borderColor: TUBE.magenta },
-  whenChipTxt: { color: TUBE.textMuted, fontSize: TFONT.sm, fontWeight: '800' },
+  whenChip: { paddingHorizontal: 14, height: 34, borderRadius: 17, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line, alignItems: 'center', justifyContent: 'center' },
+  whenChipActive: { backgroundColor: t.magenta, borderColor: t.magenta },
+  whenChipTxt: { color: t.textMuted, fontSize: TFONT.sm, fontWeight: '800' },
   liveBadgeTxt: { color: '#fff', fontSize: 9, fontWeight: '900' },
   viewerBadge: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   viewerTxt: { color: '#fff', fontSize: 9, fontWeight: '900' },
-  showTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '900' },
-  showMeta: { color: TUBE.textMuted, fontSize: TFONT.xs, marginTop: 2 },
+  showTitle: { color: t.text, fontSize: TFONT.md, fontWeight: '900' },
+  showMeta: { color: t.textMuted, fontSize: TFONT.xs, marginTop: 2 },
   remindBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)' },
   remindOn: { backgroundColor: 'rgba(34,211,238,0.2)' },
   remindTxt: { color: '#cbd5e1', fontSize: TFONT.xs, fontWeight: '800' },
@@ -496,38 +514,38 @@ const st = StyleSheet.create({
   stage: { borderRadius: TRADIUS.lg, alignItems: 'center', padding: 24, borderWidth: 1, borderColor: 'rgba(244,114,182,0.25)' },
   stageBiz: { color: '#fff', fontSize: TFONT.lg, fontWeight: '900', marginTop: 12 },
   stageTitle: { color: '#ddd6fe', fontSize: TFONT.sm, marginTop: 2 },
-  stageMeta: { color: TUBE.textMuted, fontSize: TFONT.xs, marginTop: 8 },
+  stageMeta: { color: t.textMuted, fontSize: TFONT.xs, marginTop: 8 },
   stageBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 36, paddingHorizontal: 14, borderRadius: 18 },
   stageBtnTxt: { color: '#fff', fontSize: TFONT.xs, fontWeight: '900' },
   endBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.8)' },
   ghostBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)' },
-  clipCard: { backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, padding: 12, marginBottom: 10 },
+  clipCard: { backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, padding: 12, marginBottom: 10 },
   clipIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   clipShare: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  clipProduct: { width: 130, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: TUBE.line, borderRadius: 12, padding: 10, gap: 3 },
+  clipProduct: { width: 130, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: t.line, borderRadius: 12, padding: 10, gap: 3 },
   clipBuy: { height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  coRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: TUBE.line, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+  coRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: t.line, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
   coRemove: { paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
   coAdd: { paddingHorizontal: 14, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  section: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '900', letterSpacing: 1.2, marginBottom: 10 },
-  dim: { color: TUBE.textMuted, fontSize: TFONT.sm },
-  product: { width: 176, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, overflow: 'hidden', padding: 10 },
+  section: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '900', letterSpacing: 1.2, marginBottom: 10 },
+  dim: { color: t.textMuted, fontSize: TFONT.sm },
+  product: { width: 176, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, overflow: 'hidden', padding: 10 },
   productImg: { height: 96, borderRadius: 10, backgroundColor: 'rgba(168,85,247,0.1)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 8 },
-  productTitle: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
-  productPrice: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '900' },
+  productTitle: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
+  productPrice: { color: t.text, fontSize: TFONT.md, fontWeight: '900' },
   offer: { backgroundColor: 'rgba(236,72,153,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   offerTxt: { color: '#f9a8d4', fontSize: 9, fontWeight: '900' },
   buyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 34, borderRadius: 17, marginTop: 8 },
   buyTxt: { color: '#fff', fontSize: TFONT.xs, fontWeight: '900' },
   unpinBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 34, borderRadius: 17, marginTop: 8, backgroundColor: 'rgba(255,255,255,0.06)' },
-  unpinTxt: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800' },
-  chatBox: { backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, padding: 14 },
-  chatInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: TUBE.line, borderRadius: 20, paddingHorizontal: 14, height: 40, color: TUBE.text, fontSize: TFONT.sm },
+  unpinTxt: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '800' },
+  chatBox: { backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, padding: 14 },
+  chatInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: t.line, borderRadius: 20, paddingHorizontal: 14, height: 40, color: t.text, fontSize: TFONT.sm },
   chatSend: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   sheetWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
-  sheet: { backgroundColor: '#0b0c16', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, maxHeight: '88%', borderWidth: 1, borderColor: TUBE.line },
-  sheetTitle: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900' },
-  input: { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: TUBE.line, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, color: TUBE.text, fontSize: TFONT.sm, marginTop: 8 },
+  sheet: { backgroundColor: '#0b0c16', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, maxHeight: '88%', borderWidth: 1, borderColor: t.line },
+  sheetTitle: { color: t.text, fontSize: TFONT.lg, fontWeight: '900' },
+  input: { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: t.line, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, color: t.text, fontSize: TFONT.sm, marginTop: 8 },
   btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 23 },
   btnTxt: { color: '#fff', fontSize: TFONT.md, fontWeight: '900' },
 });

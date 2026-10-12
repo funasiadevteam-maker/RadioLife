@@ -10,10 +10,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { TUBE, TSPACE, TRADIUS, TFONT } from '../constants/tube';
+import { TSPACE, TRADIUS, TFONT } from '../constants/tube';
+import { activeTokens } from '../theme/ThemeProvider';
+import type { ThemeTokens } from '../theme/tokens';
 import api from '../api/client';
 
 export default function InterestOnboarding() {
+  const t = activeTokens;
+  const s = makeStyles(t);
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [topics, setTopics] = useState<any[]>([]);
@@ -55,7 +59,7 @@ export default function InterestOnboarding() {
       <View style={s.backdrop} testID="interest-onboarding">
         <View style={[s.sheet, { paddingBottom: insets.bottom + TSPACE.lg }]}>
           <View style={s.eyebrowRow}>
-            <Ionicons name="sparkles" size={13} color={TUBE.magenta} />
+            <Ionicons name="sparkles" size={13} color={t.magenta} />
             <Text style={s.eyebrow}>WELCOME TO FUUSIC</Text>
           </View>
           <Text style={s.title}>Pick a few interests</Text>
@@ -87,7 +91,7 @@ export default function InterestOnboarding() {
             </Pressable>
             <Pressable onPress={save} disabled={busy || sel.length === 0}
               testID="onboarding-save" style={{ flex: 1, opacity: busy || sel.length === 0 ? 0.5 : 1 }}>
-              <LinearGradient colors={[TUBE.magenta, TUBE.pink]}
+              <LinearGradient colors={[t.magenta, t.pink]}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.saveBtn}>
                 {busy
                   ? <ActivityIndicator color="#fff" />
@@ -103,32 +107,32 @@ export default function InterestOnboarding() {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: TUBE.elevated, borderTopLeftRadius: TRADIUS.xl,
-    borderTopRightRadius: TRADIUS.xl, borderWidth: 1, borderColor: TUBE.line,
+    backgroundColor: t.elevated, borderTopLeftRadius: TRADIUS.xl,
+    borderTopRightRadius: TRADIUS.xl, borderWidth: 1, borderColor: t.line,
     paddingHorizontal: TSPACE.lg, paddingTop: TSPACE.lg,
   },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  eyebrow: { color: TUBE.magenta, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: TUBE.text, fontSize: TFONT.xxl, fontWeight: '900', marginTop: 4 },
-  sub: { color: TUBE.textDim, fontSize: TFONT.sm, marginTop: 4, marginBottom: TSPACE.md, lineHeight: 18 },
+  eyebrow: { color: t.magenta, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
+  title: { color: t.text, fontSize: TFONT.xxl, fontWeight: '900', marginTop: 4 },
+  sub: { color: t.textDim, fontSize: TFONT.sm, marginTop: 4, marginBottom: TSPACE.md, lineHeight: 18 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, height: 40,
     paddingHorizontal: 16, borderRadius: TRADIUS.full, borderWidth: 1,
-    borderColor: TUBE.lineStrong, backgroundColor: TUBE.glass,
+    borderColor: t.lineStrong, backgroundColor: t.glass,
   },
-  chipOn: { backgroundColor: TUBE.magenta, borderColor: 'transparent' },
-  chipText: { color: TUBE.textDim, fontWeight: '700', fontSize: TFONT.sm },
+  chipOn: { backgroundColor: t.magenta, borderColor: 'transparent' },
+  chipText: { color: t.textDim, fontWeight: '700', fontSize: TFONT.sm },
   chipTextOn: { color: '#fff' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: TSPACE.lg },
   skipBtn: {
     height: 46, paddingHorizontal: 18, borderRadius: TRADIUS.full, borderWidth: 1,
-    borderColor: TUBE.lineStrong, alignItems: 'center', justifyContent: 'center',
+    borderColor: t.lineStrong, alignItems: 'center', justifyContent: 'center',
   },
-  skipText: { color: TUBE.textDim, fontWeight: '700', fontSize: TFONT.sm },
+  skipText: { color: t.textDim, fontWeight: '700', fontSize: TFONT.sm },
   saveBtn: { height: 46, borderRadius: TRADIUS.full, alignItems: 'center', justifyContent: 'center' },
   saveText: { color: '#fff', fontWeight: '900', fontSize: TFONT.md },
 });

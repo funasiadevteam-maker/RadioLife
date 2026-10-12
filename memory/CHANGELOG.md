@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 2c (MOBILE): Social secondary tabs + sheets themed → mobile Social COMPLETE (self-tested via Expo screenshots)
+- Introduced a safer migration primitive: `activeTokens` live-binding exported from `mobile/src/theme/ThemeProvider.tsx` (kept current in the provider's render, before children). Nested/function-invoked components read it as a plain `const t = activeTokens; const st = makeStyles(t);` — no per-component hook, so no rules-of-hooks risk, and they re-theme when their parent (the themed tab screen) re-renders on a theme change.
+- Migrated the full Social content tree to the theme: `src/social/together.tsx` (14 components — MomentsTab, PulseTab, Go/Play/Shop-Together sheets, MomentCard/Composer, leaderboards, DiscoverSection, Sheet), `src/social/live.tsx` (8 — LiveTab, GoLive/Viewer/Cohost/PinProduct sheets), `src/social/InterestOnboarding.tsx`.
+- Verified via Expo screenshots in BOTH themes: Social Home/wall, Moments, Live (scheduled + Go Live cards) all render correctly Light & Dark, no crash overlays, clean bundle.
+- **Mobile now fully themed**: Home, Social (complete), Shop, Play + Profile appearance picker — one preference shared with web via `/api/shell/prefs`.
+- **Still deferred**: mobile **Listen** (`listen.tsx` — folds into the Listen World Hub rebuild) and the Profile screen's OWN body; ALL **web** tab bodies (Social/Listen/Shop/Play); **Shop Storefront** redesign (#4); **Listen World Hub** (#3).
+
+
 ## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 2b (MOBILE): Play + Social default view themed (self-tested via Expo screenshots)
 - **Play** (`mobile/app/(tabs)/games.tsx`) fully migrated to the theme (GamesHub + DailyStreakBanner) — renders in Light & Dark (verified).
 - **Social default view** themed: `mobile/app/(tabs)/social.tsx` (header, stat row, tab chips, Friends tab, station-pick sheet, coming-soon — 9 components across the `s`+`ps` StyleSheets) and `mobile/src/social/wall.tsx` (the main "together" activity wall — RelChip/WallCard/MomentComposer/SocialWall/WallEmpty). Handled the module-scope `TYPE_META` by pinning its badge tints to literals so the `TUBE.`→`t.` swap stays safe.

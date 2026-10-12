@@ -9,6 +9,12 @@ import { THEME, ThemeTokens, Appearance } from './tokens';
 
 const KEY = 'fuusic.appearance';
 
+// Live binding of the active token set. The provider keeps it current (updated
+// synchronously in render, before children). Non-context screens read it as a
+// plain const so they re-theme when their parent re-renders on a theme change —
+// without needing a hook in every nested/function-invoked component.
+export let activeTokens: ThemeTokens = THEME.light;
+
 type Ctx = {
   mode: Appearance;
   theme: 'light' | 'dark';
@@ -51,6 +57,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const effective: 'light' | 'dark' = mode === 'system' ? (sys === 'dark' ? 'dark' : 'light') : mode;
+  activeTokens = THEME[effective];
 
   const cycle = useCallback(() => {
     setMode(effective === 'light' ? 'dark' : 'light');
