@@ -2,6 +2,13 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 2b (MOBILE): Play + Social default view themed (self-tested via Expo screenshots)
+- **Play** (`mobile/app/(tabs)/games.tsx`) fully migrated to the theme (GamesHub + DailyStreakBanner) — renders in Light & Dark (verified).
+- **Social default view** themed: `mobile/app/(tabs)/social.tsx` (header, stat row, tab chips, Friends tab, station-pick sheet, coming-soon — 9 components across the `s`+`ps` StyleSheets) and `mobile/src/social/wall.tsx` (the main "together" activity wall — RelChip/WallCard/MomentComposer/SocialWall/WallEmpty). Handled the module-scope `TYPE_META` by pinning its badge tints to literals so the `TUBE.`→`t.` swap stays safe.
+- Verified via Expo screenshots: Social (wall + Following/For-You + composer + quick actions) and Play (hero, daily streak, quick games) both flip Light↔Dark with the themed tab bar; no bundle errors.
+- **Still deferred (next turns)**: mobile Social SECONDARY tabs/sheets (`src/social/together.tsx` 15 comps, `live.tsx` 8 comps, `InterestOnboarding.tsx`) still render dark; Listen (`listen.tsx`) folds into the **Listen World Hub** rebuild (#3); the Profile screen's own body; ALL WEB tab bodies (#2 web); **Shop Storefront** redesign (#4). Note: `together.tsx`/`live.tsx`/`wall.tsx` have module-scope palette constants (like `TYPE_META`) that need the same literal-pinning treatment during migration.
+
+
 ## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 2a (MOBILE): Shop tab themed + Profile → Appearance picker (self-tested via Expo screenshots)
 - **Token aliases**: extended `mobile/src/theme/tokens.ts` so each theme carries BOTH the `TUBE` keys and the legacy `COLORS` keys (primary/secondary/surface/surfaceBorder/red/orange/purple/cardShadow/statusBarStyle) — now ANY mobile screen migrates to Light/Dark by a mechanical `COLORS.`/`TUBE.`→`t.` swap + a `makeStyles(t)` factory.
 - **Shop tab** (`mobile/app/(tabs)/shop.tsx`) fully migrated to the theme (ShopHome + exported `BizCard`); renders correctly in Light (white, purple accents) and Dark (navy). Verified both themes + the themed tab bar via Expo screenshots.

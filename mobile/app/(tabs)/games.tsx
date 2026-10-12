@@ -5,7 +5,9 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import { SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import { useThemeTokens } from '../../src/theme/ThemeProvider';
+import type { ThemeTokens } from '../../src/theme/tokens';
 import AdBanner from '../../src/components/AdBanner';
 import NewCityBanner from '../../src/components/NewCityBanner';
 import SafeImage from '../../src/components/SafeImage';
@@ -17,6 +19,8 @@ import { useReward } from '../../src/components/RewardOverlay';
 
 function DailyStreakBanner() {
   const { celebrate } = useReward();
+  const t = useThemeTokens();
+  const s = makeStyles(t);
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
@@ -37,7 +41,7 @@ function DailyStreakBanner() {
   return (
     <View style={s.streakCard} testID="daily-streak-banner">
       <View style={s.streakHead}>
-        <Ionicons name="flame" size={18} color={COLORS.primary} />
+        <Ionicons name="flame" size={18} color={t.primary} />
         <Text style={s.streakTitle}>Daily Streak</Text>
         <View style={{ flex: 1 }} />
         <Text style={s.streakProg}>{data.played_count}/{data.total}</Text>
@@ -47,13 +51,13 @@ function DailyStreakBanner() {
         {data.games.map((g: any) => (
           <View key={g.campaign_id} style={[s.dot, g.played && s.dotOn]} testID={`streak-dot-${g.campaign_id}`}>
             <Ionicons name={g.played ? 'checkmark' : 'ellipse-outline'} size={13}
-              color={g.played ? '#fff' : COLORS.textMuted} />
+              color={g.played ? '#fff' : t.textMuted} />
           </View>
         ))}
       </View>
       {data.claimed ? (
         <View style={s.streakDone} testID="streak-claimed">
-          <Ionicons name="checkmark-circle" size={15} color={COLORS.green} />
+          <Ionicons name="checkmark-circle" size={15} color={t.green} />
           <Text style={s.streakDoneText}>Bonus claimed today</Text>
         </View>
       ) : (
@@ -117,6 +121,8 @@ function routeForCampaign(campaignId: string) {
 }
 
 export default function GamesHub() {
+  const t = useThemeTokens();
+  const s = makeStyles(t);
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<CampaignItem[]>([]);
   const [played, setPlayed] = useState<PlayedRow[]>([]);
@@ -175,7 +181,7 @@ export default function GamesHub() {
     return (
       <SafeAreaView style={s.screen} testID="games-hub-loading">
         <View style={s.center}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={t.primary} />
         </View>
       </SafeAreaView>
     );
@@ -187,7 +193,7 @@ export default function GamesHub() {
         contentContainerStyle={s.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-            tintColor={COLORS.primary} colors={[COLORS.primary]} />
+            tintColor={t.primary} colors={[t.primary]} />
         }
       >
         {/* Header */}
@@ -216,7 +222,7 @@ export default function GamesHub() {
             activeOpacity={0.85}
             testID="games-redeem-link"
           >
-            <Ionicons name="qr-code-outline" size={18} color={COLORS.gold} />
+            <Ionicons name="qr-code-outline" size={18} color={t.gold} />
           </TouchableOpacity>
         </View>
 
@@ -310,7 +316,7 @@ export default function GamesHub() {
                     <Text style={s.sponsorType} numberOfLines={1}>{isWheel ? 'Wheel of Fortune' : 'Scratch & Win'}</Text>
                     {g.top_prize ? <Text style={s.sponsorPrize} numberOfLines={1}>🏆 {g.top_prize}</Text> : null}
                     <View style={[s.sponsorBadge, out && { backgroundColor: 'rgba(107,114,128,0.2)' }]}>
-                      <Text style={[s.sponsorBadgeTxt, out && { color: COLORS.textMuted }]}>
+                      <Text style={[s.sponsorBadgeTxt, out && { color: t.textMuted }]}>
                         {out ? 'Back tomorrow' : `${g.spins_left} play${g.spins_left === 1 ? '' : 's'} left`}
                       </Text>
                     </View>
@@ -338,7 +344,7 @@ export default function GamesHub() {
               Pick a topic and play solo, or host & join live rooms with friends.
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+          <Ionicons name="chevron-forward" size={20} color={t.textMuted} />
         </TouchableOpacity>
         <View style={s.triviaBtnRow}>
           <TouchableOpacity
@@ -356,7 +362,7 @@ export default function GamesHub() {
             activeOpacity={0.85}
             testID="trivia-join-btn"
           >
-            <Ionicons name="people" size={15} color={COLORS.primary} />
+            <Ionicons name="people" size={15} color={t.primary} />
             <Text style={s.triviaBtnGhostText}>Join with code</Text>
           </TouchableOpacity>
         </View>
@@ -378,7 +384,7 @@ export default function GamesHub() {
               Free community predictions. Make your pick & win prizes!
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+          <Ionicons name="chevron-forward" size={20} color={t.textMuted} />
         </TouchableOpacity>
 
         {/* Live games_v2 campaigns (GET /api/games_v2/play_and_win) */}
@@ -388,7 +394,7 @@ export default function GamesHub() {
             <View style={s.campaignGrid}>
               {others.map((g) => {
                 const meta = TEMPLATE_META[g.template_id || ''] || {
-                  label: 'GAME', icon: 'game-controller', color: COLORS.primary,
+                  label: 'GAME', icon: 'game-controller', color: t.primary,
                 };
                 const plays = playCount(g.campaign_id);
                 return (
@@ -412,7 +418,7 @@ export default function GamesHub() {
                         {plays > 0 ? ` · played ${plays}×` : ''}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                    <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
                   </TouchableOpacity>
                 );
               })}
@@ -426,7 +432,7 @@ export default function GamesHub() {
             <Ionicons
               name={failed ? 'cloud-offline-outline' : 'game-controller-outline'}
               size={40}
-              color={COLORS.textMuted}
+              color={t.textMuted}
             />
             <Text style={s.emptyTitle}>
               {failed ? "Couldn't load games" : 'No extra games right now'}
@@ -445,42 +451,42 @@ export default function GamesHub() {
   );
 }
 
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.bg },
+const makeStyles = (t: ThemeTokens) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: t.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { padding: SPACING.lg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   headerIcon: {
     width: 44, height: 44, borderRadius: 12,
-    backgroundColor: COLORS.primary,
+    backgroundColor: t.primary,
     alignItems: 'center', justifyContent: 'center',
   },
   headerLabel: {
-    fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700',
+    fontSize: FONT.xs, color: t.textMuted, fontWeight: '700',
     letterSpacing: 1, marginBottom: 2,
   },
-  redeemChip: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.gold, marginLeft: 8 },
-  headerTitle: { fontSize: FONT.xxl, fontWeight: '900', color: COLORS.text },
+  redeemChip: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card, borderWidth: 1, borderColor: t.gold, marginLeft: 8 },
+  headerTitle: { fontSize: FONT.xxl, fontWeight: '900', color: t.text },
   coinChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#fffbeb', borderRadius: RADIUS.full,
     borderWidth: 1, borderColor: '#fcd34d',
     paddingHorizontal: 12, paddingVertical: 7,
   },
-  coinGlyph: { fontSize: FONT.md, fontWeight: '900', color: COLORS.gold },
-  coinAmount: { fontSize: FONT.md, fontWeight: '900', color: COLORS.text },
+  coinGlyph: { fontSize: FONT.md, fontWeight: '900', color: t.gold },
+  coinAmount: { fontSize: FONT.md, fontWeight: '900', color: t.text },
   playedNote: {
-    fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', marginBottom: 8,
+    fontSize: FONT.xs, color: t.textMuted, fontWeight: '700', marginBottom: 8,
   },
   headerSubtitle: {
-    fontSize: FONT.sm, color: COLORS.textDim, marginBottom: SPACING.lg,
+    fontSize: FONT.sm, color: t.textDim, marginBottom: SPACING.lg,
     lineHeight: 18,
   },
 
   // Featured card
   featuredCard: {
-    backgroundColor: COLORS.card, borderRadius: RADIUS.lg,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: t.card, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: t.cardBorder,
     padding: SPACING.lg, marginBottom: SPACING.lg,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
@@ -498,40 +504,40 @@ const s = StyleSheet.create({
     backgroundColor: '#a855f7',
     alignItems: 'center', justifyContent: 'center',
   },
-  featuredTitle: { fontSize: FONT.xl, fontWeight: '900', color: COLORS.text, marginBottom: 4 },
-  featuredDesc: { fontSize: FONT.sm, color: COLORS.textDim, lineHeight: 18, marginBottom: 10 },
+  featuredTitle: { fontSize: FONT.xl, fontWeight: '900', color: t.text, marginBottom: 4 },
+  featuredDesc: { fontSize: FONT.sm, color: t.textDim, lineHeight: 18, marginBottom: 10 },
   featuredBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.primary, borderRadius: RADIUS.full,
+    backgroundColor: t.primary, borderRadius: RADIUS.full,
     paddingHorizontal: 16, paddingVertical: 8, alignSelf: 'flex-start',
   },
   featuredBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '800', letterSpacing: 0.5 },
 
   // Section
   sectionTitle: {
-    fontSize: FONT.sm, fontWeight: '800', color: COLORS.textDim,
+    fontSize: FONT.sm, fontWeight: '800', color: t.textDim,
     letterSpacing: 1, marginBottom: SPACING.md, marginTop: SPACING.sm,
   },
 
-  streakCard: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
+  streakCard: { backgroundColor: t.card, borderWidth: 1, borderColor: t.cardBorder, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md },
   streakHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  streakTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
-  streakProg: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
-  streakSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 4 },
+  streakTitle: { color: t.text, fontSize: FONT.md, fontWeight: '900' },
+  streakProg: { color: t.primary, fontSize: FONT.sm, fontWeight: '900' },
+  streakSub: { color: t.textDim, fontSize: FONT.xs, fontWeight: '600', marginTop: 4 },
   dotRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 12 },
-  dot: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.surfaceBorder, alignItems: 'center', justifyContent: 'center' },
-  dotOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  streakBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 11, alignItems: 'center' },
+  dot: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.inputBg, borderWidth: 1, borderColor: t.surfaceBorder, alignItems: 'center', justifyContent: 'center' },
+  dotOn: { backgroundColor: t.primary, borderColor: t.primary },
+  streakBtn: { backgroundColor: t.primary, borderRadius: RADIUS.full, paddingVertical: 11, alignItems: 'center' },
   streakBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
   streakDone: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingVertical: 8 },
-  streakDoneText: { color: COLORS.green, fontSize: FONT.sm, fontWeight: '800' },
+  streakDoneText: { color: t.green, fontSize: FONT.sm, fontWeight: '800' },
 
   // Quick games
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: SPACING.lg },
   quickTile: {
     width: '47.5%', flexGrow: 1,
-    backgroundColor: COLORS.card, borderRadius: RADIUS.lg,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: t.card, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: t.cardBorder,
     padding: SPACING.md,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
   },
@@ -539,20 +545,20 @@ const s = StyleSheet.create({
     width: 52, height: 52, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center', marginBottom: 10,
   },
-  quickLabel: { fontSize: FONT.md, fontWeight: '800', color: COLORS.text },
-  quickDesc: { fontSize: FONT.xs, fontWeight: '500', color: COLORS.textMuted, marginTop: 3, lineHeight: 15 },
-  sponsorCard: { width: 150, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.md, marginBottom: SPACING.lg },
+  quickLabel: { fontSize: FONT.md, fontWeight: '800', color: t.text },
+  quickDesc: { fontSize: FONT.xs, fontWeight: '500', color: t.textMuted, marginTop: 3, lineHeight: 15 },
+  sponsorCard: { width: 150, backgroundColor: t.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.cardBorder, padding: SPACING.md, marginBottom: SPACING.lg },
   sponsorIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 8 },
-  sponsorName: { color: COLORS.text, fontSize: 13, fontWeight: '900' },
-  sponsorType: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600', marginTop: 1 },
-  sponsorPrize: { color: COLORS.gold, fontSize: 11, fontWeight: '700', marginTop: 4 },
+  sponsorName: { color: t.text, fontSize: 13, fontWeight: '900' },
+  sponsorType: { color: t.textMuted, fontSize: 11, fontWeight: '600', marginTop: 1 },
+  sponsorPrize: { color: t.gold, fontSize: 11, fontWeight: '700', marginTop: 4 },
   sponsorBadge: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full, backgroundColor: 'rgba(168,85,247,0.18)' },
   sponsorBadgeTxt: { color: '#c7bce8', fontSize: 10, fontWeight: '800' },
 
   // Predict card
   predictCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: COLORS.card, borderRadius: RADIUS.lg,
+    backgroundColor: t.card, borderRadius: RADIUS.lg,
     borderWidth: 1, borderColor: '#f59e0b40',
     padding: SPACING.lg, marginBottom: SPACING.lg,
   },
@@ -561,13 +567,13 @@ const s = StyleSheet.create({
     backgroundColor: '#f59e0b15',
     alignItems: 'center', justifyContent: 'center',
   },
-  predictTitle: { fontSize: FONT.lg, fontWeight: '900', color: COLORS.text, marginBottom: 2 },
-  predictDesc: { fontSize: FONT.sm, color: COLORS.textDim, lineHeight: 18 },
+  predictTitle: { fontSize: FONT.lg, fontWeight: '900', color: t.text, marginBottom: 2 },
+  predictDesc: { fontSize: FONT.sm, color: t.textDim, lineHeight: 18 },
 
   // Trivia
   triviaCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: COLORS.card, borderRadius: RADIUS.lg,
+    backgroundColor: t.card, borderRadius: RADIUS.lg,
     borderWidth: 1, borderColor: '#f59e0b40',
     padding: SPACING.lg, marginBottom: SPACING.md,
   },
@@ -579,22 +585,22 @@ const s = StyleSheet.create({
   triviaBtnRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.lg },
   triviaBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 11,
+    backgroundColor: t.primary, borderRadius: RADIUS.full, paddingVertical: 11,
   },
   triviaBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '800' },
   triviaBtnGhost: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: COLORS.card, borderRadius: RADIUS.full, paddingVertical: 11,
-    borderWidth: 1, borderColor: COLORS.primary,
+    backgroundColor: t.card, borderRadius: RADIUS.full, paddingVertical: 11,
+    borderWidth: 1, borderColor: t.primary,
   },
-  triviaBtnGhostText: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '800' },
+  triviaBtnGhostText: { color: t.primary, fontSize: FONT.sm, fontWeight: '800' },
 
   // Campaign grid
   campaignGrid: { gap: 8, marginBottom: SPACING.lg },
   campaignCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: COLORS.card, borderRadius: RADIUS.lg,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: t.card, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: t.cardBorder,
     padding: SPACING.md,
   },
   campaignIconWrap: {
@@ -605,15 +611,15 @@ const s = StyleSheet.create({
     fontSize: 10, fontWeight: '800', color: '#a855f7',
     letterSpacing: 0.6, marginBottom: 2,
   },
-  campaignName: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
-  campaignMerchant: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 2 },
+  campaignName: { fontSize: FONT.md, fontWeight: '700', color: t.text },
+  campaignMerchant: { fontSize: FONT.xs, color: t.textMuted, marginTop: 2 },
 
   // Empty
   emptyCard: {
-    backgroundColor: COLORS.card, borderRadius: RADIUS.lg,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: t.card, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: t.cardBorder,
     padding: SPACING.xl, alignItems: 'center',
   },
-  emptyTitle: { fontSize: FONT.lg, fontWeight: '800', color: COLORS.text, marginTop: 12 },
-  emptyDesc: { fontSize: FONT.sm, color: COLORS.textDim, textAlign: 'center', marginTop: 6 },
+  emptyTitle: { fontSize: FONT.lg, fontWeight: '800', color: t.text, marginTop: 12 },
+  emptyDesc: { fontSize: FONT.sm, color: t.textDim, textAlign: 'center', marginTop: 6 },
 });

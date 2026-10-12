@@ -12,7 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TUBE, TSPACE, TRADIUS, TFONT } from '../constants/tube';
+import { TSPACE, TRADIUS, TFONT } from '../constants/tube';
+import { useThemeTokens } from '../theme/ThemeProvider';
+import type { ThemeTokens } from '../theme/tokens';
 import api from '../api/client';
 import { AvatarM } from '../../app/(tabs)/social';
 
@@ -20,21 +22,23 @@ const fireEvent = (event: string, extra: any = {}) =>
   api.post('/social/feed-events', { event, ...extra }).catch(() => {});
 
 const TYPE_META: any = {
-  MOMENT: { verb: 'shared a moment', icon: 'image', tone: TUBE.pink },
+  MOMENT: { verb: 'shared a moment', icon: 'image', tone: '#EC4899' },
   LIVE_VIDEO: { verb: 'went live', icon: 'videocam', tone: '#ef4444' },
   BUSINESS_LIVE: { verb: 'is live shopping', icon: 'videocam', tone: '#ef4444' },
-  EVENT: { verb: 'has an event', icon: 'sparkles', tone: TUBE.electric },
-  LISTEN_ROOM: { verb: 'is listening together', icon: 'headset', tone: TUBE.electric },
-  DREAM: { verb: 'shared a dream', icon: 'moon', tone: TUBE.magenta },
-  CLUB_POST: { verb: 'posted in a club', icon: 'people', tone: TUBE.magenta },
+  EVENT: { verb: 'has an event', icon: 'sparkles', tone: '#22D3EE' },
+  LISTEN_ROOM: { verb: 'is listening together', icon: 'headset', tone: '#22D3EE' },
+  DREAM: { verb: 'shared a dream', icon: 'moon', tone: '#A855F7' },
+  CLUB_POST: { verb: 'posted in a club', icon: 'people', tone: '#A855F7' },
   TAROT_SHARE: { verb: 'shared a Tarot card', emoji: '🃏', tone: '#c084fc' },
   STATION_ACTIVITY: { verb: 'posted', icon: 'radio', tone: '#38bdf8' },
 };
 
 function RelChip({ rel }: any) {
+  const t = useThemeTokens();
+  const w = makeStyles(t);
   const map: any = {
-    friend_following: ['Friend · Following', TUBE.electric],
-    friend: ['Friend', TUBE.electric], following: ['Following', TUBE.magenta],
+    friend_following: ['Friend · Following', t.electric],
+    friend: ['Friend', t.electric], following: ['Following', t.magenta],
   };
   const m = map[rel];
   if (!m) return null;
@@ -47,7 +51,9 @@ function RelChip({ rel }: any) {
 
 function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
   const router = useRouter();
-  const meta = TYPE_META[item.type] || { verb: '', icon: 'sparkles', tone: TUBE.magenta };
+  const t = useThemeTokens();
+  const w = makeStyles(t);
+  const meta = TYPE_META[item.type] || { verb: '', icon: 'sparkles', tone: t.magenta };
   const actor = item.actor || {};
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(item.meta?.like_count || 0);
@@ -55,9 +61,9 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
 
   const openCta = () => {
     fireEvent('feed_item_open', { item_id: item.id, item_type: item.type, mode });
-    const t = item.cta?.target;
+    const tgt = item.cta?.target;
     switch (item.cta?.action) {
-      case 'open_room': fireEvent('feed_join_room', { item_id: item.id }); router.push(`/social/room/${t}` as any); break;
+      case 'open_room': fireEvent('feed_join_room', { item_id: item.id }); router.push(`/social/room/${tgt}` as any); break;
       case 'open_live': fireEvent('feed_watch_live', { item_id: item.id }); onNavigateTab?.('live'); break;
       case 'open_dream': fireEvent('feed_dream_similar', { item_id: item.id }); router.push('/social/dreams' as any); break;
       case 'open_tarot': fireEvent('feed_tarot_open', { item_id: item.id }); router.push('/social/tarot' as any); break;
@@ -141,11 +147,11 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
         {item.type === 'MOMENT' && (
           <>
             <Pressable onPress={like} testID={`wall-like-${item.id}`} style={w.actBtn}>
-              <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? TUBE.pink : TUBE.textMuted} />
+              <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? t.pink : t.textMuted} />
               <Text style={w.actTxt}>{likeCount}</Text>
             </Pressable>
             <Pressable onPress={openCta} style={w.actBtn}>
-              <Ionicons name="chatbubble-outline" size={17} color={TUBE.textMuted} />
+              <Ionicons name="chatbubble-outline" size={17} color={t.textMuted} />
               <Text style={w.actTxt}>{item.meta?.comment_count || 0}</Text>
             </Pressable>
           </>
@@ -171,6 +177,8 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
 }
 
 function MomentComposer({ visible, onClose, onPosted }: any) {
+  const t = useThemeTokens();
+  const w = makeStyles(t);
   const [caption, setCaption] = useState('');
   const [media, setMedia] = useState('');
   const [busy, setBusy] = useState(false);
@@ -192,12 +200,12 @@ function MomentComposer({ visible, onClose, onPosted }: any) {
         <View style={w.modalCard} testID="moment-composer">
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={w.modalTitle}>Share a moment</Text>
-            <Pressable onPress={onClose}><Ionicons name="close" size={22} color={TUBE.text} /></Pressable>
+            <Pressable onPress={onClose}><Ionicons name="close" size={22} color={t.text} /></Pressable>
           </View>
           <TextInput value={caption} onChangeText={setCaption} placeholder="What's happening?"
-            placeholderTextColor={TUBE.textMuted} style={w.modalInput} multiline testID="moment-caption" />
+            placeholderTextColor={t.textMuted} style={w.modalInput} multiline testID="moment-caption" />
           <TextInput value={media} onChangeText={setMedia} placeholder="Image URL (optional)"
-            placeholderTextColor={TUBE.textMuted} style={w.modalInput2} autoCapitalize="none" testID="moment-media" />
+            placeholderTextColor={t.textMuted} style={w.modalInput2} autoCapitalize="none" testID="moment-media" />
           <Pressable onPress={post} disabled={busy} testID="moment-post">
             <LinearGradient colors={['#a855f7', '#ec4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={w.modalPost}>
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={w.modalPostTxt}>Share moment</Text>}
@@ -211,6 +219,8 @@ function MomentComposer({ visible, onClose, onPosted }: any) {
 
 export default function SocialWall({ actions, onOpenFollowing, onNavigateTab }: any) {
   const router = useRouter();
+  const t = useThemeTokens();
+  const w = makeStyles(t);
   const [mode, setMode] = useState<'following' | 'for_you'>('following');
   const [items, setItems] = useState<any[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -270,7 +280,7 @@ export default function SocialWall({ actions, onOpenFollowing, onNavigateTab }: 
       <ScrollView ref={scrollRef} testID="social-wall"
         contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 130, gap: 14 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={TUBE.magenta}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.magenta}
           onRefresh={() => { setRefreshing(true); fetchFeed(mode); }} />}
         onScrollEndDrag={(e) => {
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -293,9 +303,9 @@ export default function SocialWall({ actions, onOpenFollowing, onNavigateTab }: 
 
         <Pressable onPress={() => setComposerOpen(true)} style={w.composer} testID="composer-open">
           <Text style={w.composerTxt}>Share something with your friends…</Text>
-          <Ionicons name="image-outline" size={18} color={TUBE.pink} />
+          <Ionicons name="image-outline" size={18} color={t.pink} />
           <Pressable onPress={() => router.push('/social/dreams' as any)} testID="composer-dream">
-            <Ionicons name="moon" size={18} color={TUBE.magenta} />
+            <Ionicons name="moon" size={18} color={t.magenta} />
           </Pressable>
         </Pressable>
 
@@ -331,7 +341,7 @@ export default function SocialWall({ actions, onOpenFollowing, onNavigateTab }: 
         )}
 
         {loading ? (
-          <View style={{ paddingVertical: 40 }}><ActivityIndicator color={TUBE.magenta} /></View>
+          <View style={{ paddingVertical: 40 }}><ActivityIndicator color={t.magenta} /></View>
         ) : items.length === 0 ? (
           <WallEmpty mode={mode} onOpenFollowing={onOpenFollowing} switchForYou={() => setMode('for_you')} />
         ) : (
@@ -342,7 +352,7 @@ export default function SocialWall({ actions, onOpenFollowing, onNavigateTab }: 
             ))}
             {hasMore && (
               <Pressable onPress={loadMore} disabled={loadingMore} style={w.loadMore} testID="wall-load-more">
-                {loadingMore ? <ActivityIndicator color={TUBE.magenta} />
+                {loadingMore ? <ActivityIndicator color={t.magenta} />
                   : <Text style={w.loadMoreTxt}>Load more</Text>}
               </Pressable>
             )}
@@ -355,10 +365,12 @@ export default function SocialWall({ actions, onOpenFollowing, onNavigateTab }: 
 }
 
 function WallEmpty({ mode, onOpenFollowing, switchForYou }: any) {
+  const t = useThemeTokens();
+  const w = makeStyles(t);
   if (mode === 'for_you') {
     return (
       <View style={w.empty} testID="wall-empty">
-        <Ionicons name="sparkles" size={26} color={TUBE.magenta} />
+        <Ionicons name="sparkles" size={26} color={t.magenta} />
         <Text style={w.emptyTitle}>You're all caught up</Text>
         <Text style={w.emptyTxt}>Check back soon for fresh activity near you.</Text>
       </View>
@@ -366,7 +378,7 @@ function WallEmpty({ mode, onOpenFollowing, switchForYou }: any) {
   }
   return (
     <View style={w.empty} testID="wall-empty">
-      <Ionicons name="people" size={26} color={TUBE.magenta} />
+      <Ionicons name="people" size={26} color={t.magenta} />
       <Text style={w.emptyTitle}>Build your FUUSIC feed</Text>
       <Text style={w.emptyTxt}>Follow people, businesses, creators and clubs — their moments, live shows and dreams show up here.</Text>
       <Pressable onPress={onOpenFollowing} testID="wall-empty-follow">
@@ -379,29 +391,29 @@ function WallEmpty({ mode, onOpenFollowing, switchForYou }: any) {
   );
 }
 
-const w = StyleSheet.create({
-  qa: { width: 150, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, padding: 12, gap: 4 },
+const makeStyles = (t: ThemeTokens) => StyleSheet.create({
+  qa: { width: 150, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, padding: 12, gap: 4 },
   qaIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  qaLabel: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '900' },
-  qaBlurb: { color: TUBE.textMuted, fontSize: TFONT.xs },
-  composer: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, paddingHorizontal: 14, paddingVertical: 12 },
-  composerTxt: { flex: 1, color: TUBE.textMuted, fontSize: TFONT.sm },
+  qaLabel: { color: t.text, fontSize: TFONT.sm, fontWeight: '900' },
+  qaBlurb: { color: t.textMuted, fontSize: TFONT.xs },
+  composer: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, paddingHorizontal: 14, paddingVertical: 12 },
+  composerTxt: { flex: 1, color: t.textMuted, fontSize: TFONT.sm },
   modePill: { height: 36, paddingHorizontal: 18, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  modePillIdle: { backgroundColor: TUBE.elevated },
+  modePillIdle: { backgroundColor: t.elevated },
   modePillActive: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
-  modePillIdleTxt: { color: TUBE.textMuted, fontSize: TFONT.sm, fontWeight: '900' },
-  manage: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800' },
+  modePillIdleTxt: { color: t.textMuted, fontSize: TFONT.sm, fontWeight: '900' },
+  manage: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '800' },
   newPosts: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 22 },
   newPostsTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
-  card: { backgroundColor: 'rgba(255,255,255,0.035)', borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, overflow: 'hidden' },
+  card: { backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, overflow: 'hidden' },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  actorName: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '900', maxWidth: 140 },
-  verb: { color: TUBE.textMuted, fontSize: TFONT.xs },
+  actorName: { color: t.text, fontSize: TFONT.sm, fontWeight: '900', maxWidth: 140 },
+  verb: { color: t.textMuted, fontSize: TFONT.xs },
   relChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   relChipTxt: { fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
   typeIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  title: { color: TUBE.text, fontSize: 15, fontWeight: '800' },
-  text: { color: TUBE.textMuted, fontSize: TFONT.sm, marginTop: 2, lineHeight: 19 },
+  title: { color: t.text, fontSize: 15, fontWeight: '800' },
+  text: { color: t.textMuted, fontSize: TFONT.sm, marginTop: 2, lineHeight: 19 },
   tag: { color: '#c4b5fd', fontSize: 11 },
   media: { width: '100%', aspectRatio: 16 / 9, backgroundColor: 'rgba(0,0,0,0.3)' },
   liveTag: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(239,68,68,0.9)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
@@ -409,26 +421,26 @@ const w = StyleSheet.create({
   upTag: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(34,211,238,0.9)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   upTagTxt: { color: '#04121a', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
   product: { backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-  productTxt: { color: TUBE.text, fontSize: 11, fontWeight: '800' },
+  productTxt: { color: t.text, fontSize: 11, fontWeight: '800' },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   actBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  actTxt: { color: TUBE.textMuted, fontSize: TFONT.sm, fontWeight: '800' },
+  actTxt: { color: t.textMuted, fontSize: TFONT.sm, fontWeight: '800' },
   ctaBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, paddingHorizontal: 16, borderRadius: 18 },
   ctaTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
-  loadMore: { height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: TUBE.line, alignItems: 'center', justifyContent: 'center' },
-  loadMoreTxt: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
-  empty: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: TUBE.line, borderRadius: TRADIUS.lg, padding: 28, alignItems: 'center', gap: 8 },
-  emptyTitle: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900' },
-  emptyTxt: { color: TUBE.textMuted, fontSize: TFONT.sm, textAlign: 'center', maxWidth: 300 },
+  loadMore: { height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: t.line, alignItems: 'center', justifyContent: 'center' },
+  loadMoreTxt: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
+  empty: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: t.line, borderRadius: TRADIUS.lg, padding: 28, alignItems: 'center', gap: 8 },
+  emptyTitle: { color: t.text, fontSize: TFONT.lg, fontWeight: '900' },
+  emptyTxt: { color: t.textMuted, fontSize: TFONT.sm, textAlign: 'center', maxWidth: 300 },
   emptyBtn: { height: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   emptyBtnTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
   emptyBtn2: { height: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
-  emptyBtn2Txt: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '900' },
+  emptyBtn2Txt: { color: t.text, fontSize: TFONT.sm, fontWeight: '900' },
   modalWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
-  modalCard: { backgroundColor: '#0b0918', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderColor: TUBE.line, borderWidth: 1 },
-  modalTitle: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900' },
-  modalInput: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: TUBE.line, borderWidth: 1, borderRadius: 16, padding: 12, color: TUBE.text, fontSize: TFONT.sm, minHeight: 72, textAlignVertical: 'top' },
-  modalInput2: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: TUBE.line, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, color: TUBE.text, fontSize: TFONT.sm, marginTop: 8 },
+  modalCard: { backgroundColor: t.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderColor: t.line, borderWidth: 1 },
+  modalTitle: { color: t.text, fontSize: TFONT.lg, fontWeight: '900' },
+  modalInput: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: t.line, borderWidth: 1, borderRadius: 16, padding: 12, color: t.text, fontSize: TFONT.sm, minHeight: 72, textAlignVertical: 'top' },
+  modalInput2: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: t.line, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, color: t.text, fontSize: TFONT.sm, marginTop: 8 },
   modalPost: { height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   modalPostTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
 });
