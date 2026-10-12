@@ -11,7 +11,9 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import api, { BACKEND } from '../../src/api/client';
 import TubeDrawer from '../../src/components/TubeDrawer';
 import BannerAdSlotV2 from '../../src/components/BannerAdSlotV2';
-import { TUBE, TSPACE, TRADIUS, TFONT } from '../../src/constants/tube';
+import { TSPACE, TRADIUS, TFONT } from '../../src/constants/tube';
+import { useAppTheme, useThemeTokens } from '../../src/theme/ThemeProvider';
+import type { ThemeTokens } from '../../src/theme/tokens';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { playImportedStation } from '../../src/services/playStation';
 
@@ -44,6 +46,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { activeChannelName, activeChannelThumb, currentSeg, playing } = usePlayerStore();
+  const { t, theme, cycle } = useAppTheme();
+  const s = makeStyles(t);
 
   const [home, setHome] = useState<any>(null);
   const [socialHome, setSocialHome] = useState<any>(null);
@@ -91,7 +95,7 @@ export default function HomeScreen() {
   }, [user]);
 
   if (authLoading || loading) {
-    return <View style={s.center}><ActivityIndicator size="large" color={TUBE.electric} /></View>;
+    return <View style={s.center}><ActivityIndicator size="large" color={t.electric} /></View>;
   }
 
   const firstName = user?.name?.split(' ')[0] || '';
@@ -138,7 +142,7 @@ export default function HomeScreen() {
       {/* Sticky header */}
       <View style={[s.header, { paddingTop: insets.top + 8 }]} testID="home-header">
         <Pressable onPress={() => setDrawer(true)} testID="home-menu-btn" style={s.iconBtn} hitSlop={8}>
-          <Ionicons name="menu" size={24} color={TUBE.text} />
+          <Ionicons name="menu" size={24} color={t.text} />
         </Pressable>
         <View style={s.brandRow}>
           <View style={s.brandDot} />
@@ -146,18 +150,21 @@ export default function HomeScreen() {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Pressable style={s.pointsPill} testID="home-points-pill" onPress={() => router.push('/(tabs)/wallet')} hitSlop={6}>
-            <Ionicons name="diamond" size={12} color={TUBE.gold} />
+            <Ionicons name="diamond" size={12} color={t.gold} />
             <Text style={s.pointsText}>{points != null ? points.toLocaleString() : '—'}</Text>
           </Pressable>
           <Pressable onPress={() => router.push('/notifications')} testID="home-notif-btn" style={s.iconBtn} hitSlop={8}>
-            <Ionicons name="notifications-outline" size={20} color={TUBE.textDim} />
+            <Ionicons name="notifications-outline" size={20} color={t.textDim} />
+          </Pressable>
+          <Pressable onPress={cycle} testID="home-appearance-btn" style={s.iconBtn} hitSlop={8}>
+            <Ionicons name={theme === 'dark' ? 'sunny-outline' : 'moon-outline'} size={20} color={t.textDim} />
           </Pressable>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={TUBE.electric}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.electric}
           onRefresh={() => { setRefreshing(true); load(); }} />}>
 
         {/* Greeting */}
@@ -175,7 +182,7 @@ export default function HomeScreen() {
               <Pressable key={p.key} testID={`home-pillar-${p.key}`} style={[s.pill, p.featured && s.pillFeatured]}
                 onPress={() => { fireEvent(`home_${p.key}_click`); router.push(p.to as any); }}>
                 <View style={[s.pillIcon, { backgroundColor: p.bg }]}>
-                  <Ionicons name={p.icon as any} size={16} color={p.featured ? TUBE.onAccent : '#fff'} />
+                  <Ionicons name={p.icon as any} size={16} color={p.featured ? t.onAccent : '#fff'} />
                 </View>
                 <Text style={[s.pillLabel, p.featured && s.pillLabelFeatured]}>{p.label}</Text>
               </Pressable>
@@ -246,7 +253,7 @@ export default function HomeScreen() {
               <Text style={s.continueName} numberOfLines={1}>{activeChannelName}</Text>
               <Text style={s.continueSub} numberOfLines={1}>{currentSeg?.track_artist || 'AI radio'}</Text>
             </View>
-            <View style={s.continuePlay}><Ionicons name={playing ? 'pause' : 'play'} size={22} color={TUBE.onAccent} /></View>
+            <View style={s.continuePlay}><Ionicons name={playing ? 'pause' : 'play'} size={22} color={t.onAccent} /></View>
           </Pressable>
         ) : (
           <Pressable style={s.startCard} testID="home-start" onPress={() => router.push('/(tabs)/radio')}>
@@ -255,7 +262,7 @@ export default function HomeScreen() {
               <Text style={s.startTitle}>Start My Radio</Text>
               <Text style={s.startSub}>AI-personalized radio built around what you love</Text>
             </View>
-            <View style={s.startPlay}><Ionicons name="play" size={26} color={TUBE.onAccent} /></View>
+            <View style={s.startPlay}><Ionicons name="play" size={26} color={t.onAccent} /></View>
           </Pressable>
         )}
 
@@ -337,12 +344,12 @@ export default function HomeScreen() {
 
         {/* D · Listening Reward */}
         <Pressable style={s.rewardCard} testID="home-reward" onPress={() => router.push('/(tabs)/wallet')}>
-          <View style={s.rewardIcon}><Ionicons name="diamond" size={18} color={TUBE.gold} /></View>
+          <View style={s.rewardIcon}><Ionicons name="diamond" size={18} color={t.gold} /></View>
           <View style={{ flex: 1 }}>
             <Text style={s.rewardTitle}>Earn +{perMin} BigPoint{perMin === 1 ? '' : 's'} every minute you listen</Text>
             <Text style={s.rewardSub}>Your BigPoints stack up in the background</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={TUBE.gold} />
+          <Ionicons name="chevron-forward" size={16} color={t.gold} />
         </Pressable>
 
         {/* E · Do More While You Listen */}
@@ -363,12 +370,12 @@ export default function HomeScreen() {
         {/* G · Contextual Dining Club */}
         <Pressable style={diningMember ? s.diningMember : s.diningPromo} testID="home-dining"
           onPress={() => router.push('/dining')}>
-          <View style={s.diningIcon}><Ionicons name="restaurant" size={18} color={TUBE.electric} /></View>
+          <View style={s.diningIcon}><Ionicons name="restaurant" size={18} color={t.electric} /></View>
           <View style={{ flex: 1 }}>
             <Text style={s.diningTitle}>{diningMember ? 'Your Dining Club' : 'FUUSIC Dining Club'}</Text>
             <Text style={s.diningSub}>{diningMember ? "Pick this week's meals · spin for tonight" : 'Spin the wheel · $9.99 meals near you'}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={TUBE.textMuted} />
+          <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
         </Pressable>
 
         {/* H · Display ad — Free listeners only */}
@@ -386,9 +393,11 @@ export default function HomeScreen() {
 
 function DoMore({ icon, label, sub, onPress, testID }:
   { icon: any; label: string; sub: string; onPress: () => void; testID: string }) {
+  const t = useThemeTokens();
+  const s = makeStyles(t);
   return (
     <Pressable style={s.doMoreCard} onPress={onPress} testID={testID}>
-      <View style={s.doMoreIcon}><Ionicons name={icon} size={18} color={TUBE.electric} /></View>
+      <View style={s.doMoreIcon}><Ionicons name={icon} size={18} color={t.electric} /></View>
       <Text style={s.doMoreLabel} numberOfLines={1}>{label}</Text>
       <Text style={s.doMoreSub} numberOfLines={1}>{sub}</Text>
     </Pressable>
@@ -396,6 +405,8 @@ function DoMore({ icon, label, sub, onPress, testID }:
 }
 
 function NativeOffer({ offer, onPress }: { offer: any; onPress: () => void }) {
+  const t = useThemeTokens();
+  const s = makeStyles(t);
   useEffect(() => {
     fireEvent('native_offer_impression', {
       campaign_id: offer.campaign_id, business_id: offer.business_id, kind: offer.kind });
@@ -413,38 +424,38 @@ function NativeOffer({ offer, onPress }: { offer: any; onPress: () => void }) {
   );
 }
 
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: TUBE.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TUBE.bg },
+const makeStyles = (t: ThemeTokens) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: t.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: TSPACE.md, paddingBottom: 10, backgroundColor: TUBE.bg,
-    borderBottomWidth: 1, borderBottomColor: TUBE.line,
+    paddingHorizontal: TSPACE.md, paddingBottom: 10, backgroundColor: t.bg,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
   iconBtn: { padding: 4 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  brandDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: TUBE.electric },
-  brand: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900', letterSpacing: -0.3 },
+  brandDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: t.electric },
+  brand: { color: t.text, fontSize: TFONT.lg, fontWeight: '900', letterSpacing: -0.3 },
   pointsPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 30,
-    borderRadius: TRADIUS.full, backgroundColor: TUBE.glass, borderWidth: 1, borderColor: TUBE.line,
+    borderRadius: TRADIUS.full, backgroundColor: t.glass, borderWidth: 1, borderColor: t.line,
   },
-  pointsText: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
+  pointsText: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
 
   greetWrap: { paddingHorizontal: TSPACE.md, paddingTop: TSPACE.lg, paddingBottom: TSPACE.sm },
-  greetSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 3, marginBottom: 4 },
-  greet: { color: TUBE.text, fontSize: TFONT.xxl, fontWeight: '900', letterSpacing: -0.5 },
+  greetSub: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 3, marginBottom: 4 },
+  greet: { color: t.text, fontSize: TFONT.xxl, fontWeight: '900', letterSpacing: -0.5 },
 
   worldWrap: { marginTop: 4, marginBottom: 6 },
-  worldHead: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900', letterSpacing: -0.3, paddingHorizontal: TSPACE.md, marginBottom: TSPACE.sm },
+  worldHead: { color: t.text, fontSize: TFONT.lg, fontWeight: '900', letterSpacing: -0.3, paddingHorizontal: TSPACE.md, marginBottom: TSPACE.sm },
   pill: {
     alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 12, minWidth: 74,
-    borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line,
+    borderRadius: TRADIUS.lg, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line,
   },
   pillFeatured: { backgroundColor: 'rgba(20,184,166,0.12)', borderColor: 'rgba(20,184,166,0.5)' },
   pillIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  pillLabel: { color: TUBE.textDim, fontSize: TFONT.xs, fontWeight: '800' },
-  pillLabelFeatured: { color: TUBE.text },
+  pillLabel: { color: t.textDim, fontSize: TFONT.xs, fontWeight: '800' },
+  pillLabelFeatured: { color: t.text },
 
   socialCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: 8,
@@ -453,24 +464,24 @@ const s = StyleSheet.create({
   },
   socialIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#14b8a6' },
   socialLabel: { color: '#5eead4', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
-  socialTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 2 },
-  socialSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
+  socialTitle: { color: t.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 2 },
+  socialSub: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
   socialCta: { backgroundColor: '#14b8a6', borderRadius: TRADIUS.full, paddingHorizontal: 14, paddingVertical: 8 },
-  socialCtaText: { color: TUBE.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
+  socialCtaText: { color: t.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
 
   continueCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: 6,
-    padding: TSPACE.sm + 2, borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line,
+    padding: TSPACE.sm + 2, borderRadius: TRADIUS.lg, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line,
   },
-  continueImg: { width: 64, height: 64, borderRadius: TRADIUS.md, backgroundColor: TUBE.glass },
-  continueLabel: { color: TUBE.electric, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
-  continueName: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 2 },
-  continueSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
-  continuePlay: { width: 46, height: 46, borderRadius: 23, backgroundColor: TUBE.electric, alignItems: 'center', justifyContent: 'center' },
+  continueImg: { width: 64, height: 64, borderRadius: TRADIUS.md, backgroundColor: t.glass },
+  continueLabel: { color: t.electric, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  continueName: { color: t.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 2 },
+  continueSub: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
+  continuePlay: { width: 46, height: 46, borderRadius: 23, backgroundColor: t.electric, alignItems: 'center', justifyContent: 'center' },
 
   startCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: 6,
-    padding: TSPACE.md, borderRadius: TRADIUS.xl, backgroundColor: TUBE.magenta,
+    padding: TSPACE.md, borderRadius: TRADIUS.xl, backgroundColor: t.magenta,
   },
   startKicker: { color: 'rgba(255,255,255,0.85)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   startTitle: { color: '#fff', fontSize: TFONT.xl, fontWeight: '900', marginTop: 2 },
@@ -479,62 +490,62 @@ const s = StyleSheet.create({
 
   shelf: { marginTop: TSPACE.lg },
   shelfHead: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: TSPACE.md, marginBottom: TSPACE.sm },
-  shelfTitle: { color: TUBE.text, fontSize: TFONT.lg, fontWeight: '900', letterSpacing: -0.3 },
-  shelfSuffix: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 2, marginTop: 2 },
-  seeAll: { color: TUBE.electric, fontSize: TFONT.sm, fontWeight: '700' },
-  emptyRail: { color: TUBE.textMuted, fontSize: TFONT.sm, paddingHorizontal: TSPACE.md, paddingVertical: 12 },
+  shelfTitle: { color: t.text, fontSize: TFONT.lg, fontWeight: '900', letterSpacing: -0.3 },
+  shelfSuffix: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '800', letterSpacing: 2, marginTop: 2 },
+  seeAll: { color: t.electric, fontSize: TFONT.sm, fontWeight: '700' },
+  emptyRail: { color: t.textMuted, fontSize: TFONT.sm, paddingHorizontal: TSPACE.md, paddingVertical: 12 },
 
   scopeRow: { flexDirection: 'row', gap: 8, paddingHorizontal: TSPACE.md, marginBottom: TSPACE.sm },
-  scopeChip: { height: 32, paddingHorizontal: 14, borderRadius: TRADIUS.full, alignItems: 'center', justifyContent: 'center', backgroundColor: TUBE.glass, borderWidth: 1, borderColor: TUBE.line },
-  scopeChipActive: { backgroundColor: TUBE.text, borderColor: TUBE.text },
-  scopeChipText: { color: TUBE.textDim, fontSize: TFONT.sm, fontWeight: '700' },
-  scopeChipTextActive: { color: TUBE.bg, fontWeight: '800' },
+  scopeChip: { height: 32, paddingHorizontal: 14, borderRadius: TRADIUS.full, alignItems: 'center', justifyContent: 'center', backgroundColor: t.glass, borderWidth: 1, borderColor: t.line },
+  scopeChipActive: { backgroundColor: t.text, borderColor: t.text },
+  scopeChipText: { color: t.textDim, fontSize: TFONT.sm, fontWeight: '700' },
+  scopeChipTextActive: { color: t.bg, fontWeight: '800' },
 
   stationTile: { width: 116 },
-  stationImg: { width: 116, height: 116, borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated },
-  tileName: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800', marginTop: 6 },
-  tileSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
-  liveBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: TUBE.live, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
+  stationImg: { width: 116, height: 116, borderRadius: TRADIUS.lg, backgroundColor: t.elevated },
+  tileName: { color: t.text, fontSize: TFONT.sm, fontWeight: '800', marginTop: 6 },
+  tileSub: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
+  liveBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: t.live, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
   liveBadgeText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
   typeBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(124,58,237,0.92)', borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
   typeBadgeText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
 
   friendCard: { width: 96, alignItems: 'center' },
   friendAvatarWrap: { width: 72, height: 72, marginBottom: 6 },
-  friendAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: TUBE.elevated, borderWidth: 2, borderColor: '#14b8a6' },
+  friendAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: t.elevated, borderWidth: 2, borderColor: '#14b8a6' },
   friendAvatarFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#14b8a6' },
   friendInitial: { color: '#fff', fontSize: TFONT.xl, fontWeight: '900' },
-  friendLiveDot: { position: 'absolute', bottom: 2, right: 6, width: 14, height: 14, borderRadius: 7, backgroundColor: TUBE.live, borderWidth: 2, borderColor: TUBE.bg },
-  friendName: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800', textAlign: 'center' },
+  friendLiveDot: { position: 'absolute', bottom: 2, right: 6, width: 14, height: 14, borderRadius: 7, backgroundColor: t.live, borderWidth: 2, borderColor: t.bg },
+  friendName: { color: t.text, fontSize: TFONT.sm, fontWeight: '800', textAlign: 'center' },
   friendCtx: { color: '#5eead4', fontSize: TFONT.xs, fontWeight: '600', textAlign: 'center' },
-  sponsorBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: TUBE.gold, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
-  sponsorBadgeText: { color: TUBE.onAccent, fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+  sponsorBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: t.gold, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
+  sponsorBadgeText: { color: t.onAccent, fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
 
   rewardCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
     padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: 'rgba(245,158,11,0.06)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)',
   },
   rewardIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(245,158,11,0.15)', alignItems: 'center', justifyContent: 'center' },
-  rewardTitle: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
-  rewardSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
+  rewardTitle: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
+  rewardSub: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
 
   doMoreRow: { flexDirection: 'row', gap: 10, paddingHorizontal: TSPACE.md },
-  doMoreCard: { flex: 1, padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line },
+  doMoreCard: { flex: 1, padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line },
   doMoreIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(34,211,238,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  doMoreLabel: { color: TUBE.text, fontSize: TFONT.sm, fontWeight: '800' },
-  doMoreSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
+  doMoreLabel: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
+  doMoreSub: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
 
   nativeCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
     padding: TSPACE.sm + 2, borderRadius: TRADIUS.lg, backgroundColor: 'rgba(245,158,11,0.05)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)',
   },
-  nativeImg: { width: 64, height: 64, borderRadius: TRADIUS.md, backgroundColor: TUBE.glass },
+  nativeImg: { width: 64, height: 64, borderRadius: TRADIUS.md, backgroundColor: t.glass },
   nativeBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(245,158,11,0.16)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  nativeBadgeText: { color: TUBE.gold, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  nativeTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 4 },
-  nativeSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
-  nativeCta: { backgroundColor: TUBE.gold, borderRadius: TRADIUS.full, paddingHorizontal: 14, paddingVertical: 8 },
-  nativeCtaText: { color: TUBE.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
+  nativeBadgeText: { color: t.gold, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  nativeTitle: { color: t.text, fontSize: TFONT.md, fontWeight: '800', marginTop: 4 },
+  nativeSub: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 1 },
+  nativeCta: { backgroundColor: t.gold, borderRadius: TRADIUS.full, paddingHorizontal: 14, paddingVertical: 8 },
+  nativeCtaText: { color: t.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
 
   diningMember: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
@@ -542,9 +553,9 @@ const s = StyleSheet.create({
   },
   diningPromo: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
-    padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: TUBE.elevated, borderWidth: 1, borderColor: TUBE.line,
+    padding: TSPACE.md, borderRadius: TRADIUS.lg, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line,
   },
   diningIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: 'rgba(34,211,238,0.12)', alignItems: 'center', justifyContent: 'center' },
-  diningTitle: { color: TUBE.text, fontSize: TFONT.md, fontWeight: '800' },
-  diningSub: { color: TUBE.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
+  diningTitle: { color: t.text, fontSize: TFONT.md, fontWeight: '800' },
+  diningSub: { color: t.textMuted, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
 });

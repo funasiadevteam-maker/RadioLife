@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 1 (MOBILE parity): Light/Dark/System theme engine (tested iter201 — 6/6 PASS)
+Brought the Expo mobile app to Phase-1 parity with web. Mobile previously had NO appearance switching (dark shell + warm-light screens via static `COLORS`/`TUBE` palettes).
+- **Mobile theme engine**: new `mobile/src/theme/tokens.ts` (Light + Dark token sets; semantic keys mirror web `design_guidelines.json` AND stay drop-in compatible with legacy `TUBE` keys so screens migrate by swapping `TUBE.`→`t.` + wrapping StyleSheet in a `makeStyles(t)` factory) and `mobile/src/theme/ThemeProvider.tsx` (`useAppTheme` / `useThemeTokens`, `system` resolved via `useColorScheme`). The chosen appearance is SHARED with web — persisted via `/api/shell/prefs` (+ AsyncStorage) so a user's Light/Dark/System choice carries across both surfaces.
+- **Frame themed**: `mobile/app/_layout.tsx` wrapped in `ThemeProvider` with a dynamic `ThemedStatusBar`; `mobile/app/(tabs)/_layout.tsx` tab bar now reads theme tokens (active=brand purple, themed bg/border); `mobile/app/(tabs)/home.tsx` fully migrated to the theme (factory styles + all 3 sub-components) with a temporary appearance toggle in the Home header (`home-appearance-btn`).
+- **Verified (iter201, 6/6)**: boots through the new provider; Home + tab bar flip Light↔Dark; persists across reload; all 5 tabs navigate without crash; MiniPlayer intact.
+- **Still deferred (next phases)**: migrate the remaining mobile screens (Social/Listen/Shop/Play bodies + ~140 files on static palettes) and add a proper Profile → Appearance picker; theme the WEB page bodies (Social/Listen/Shop/Play); Listen V2; Admin appearance preview tools. Non-blocking lint: `shadow*`/`pointerEvents` deprecations + a social.tsx↔wall.tsx require-cycle (pre-existing).
+
+
 ## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 1: Global Light/Dark/System appearance (WEB, tested iter200 5/6 + fix verified)
 Foundation of the FUUSIC "ONE design language" program. Consolidated the app onto ONE global appearance system; everything else (page-body theming + mobile) builds on this.
 - **Unified design tokens**: generated `/app/design_guidelines.json` (brand + web + mobile) from the user's approved Light/Dark mockups — Outfit/Plus Jakarta Sans type, purple→pink brand gradient (#9333EA/#A855F7 → #EC4899), BigPoints gold, midnight-navy dark surfaces, clean-white light surfaces. Added the semantic CSS tokens (`--app-bg, --surface, --surface-2, --card, --brand-solid, --brand-grad-start/end, --accent-pink, --bigpoints-gold, --nav-bg, --nav-active, --modal-surface, --field-bg, --field-border, --chip-bg, --chip-active, --live`) to BOTH theme blocks in `/app/frontend/src/index.css`; nudged dark base to navy.

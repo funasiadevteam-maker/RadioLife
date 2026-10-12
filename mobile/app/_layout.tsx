@@ -13,6 +13,7 @@ import { registerForPush } from '../src/utils/pushNotifications';
 import { configureAudioMode } from '../src/services/audioInit';
 import { setupNativePlayer } from '../src/services/nativePlayerBridge';
 import { COLORS } from '../src/constants/theme';
+import { ThemeProvider, useAppTheme } from '../src/theme/ThemeProvider';
 
 // Foreground display behaviour — MODULE SCOPE, before any component.
 if (Platform.OS !== 'web') {
@@ -39,13 +40,20 @@ if (Platform.OS === 'android') {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RewardProvider>
-        <StatusBar style="dark" />
-        <AuthGatedStack />
-        <ChannelGateModal />
-      </RewardProvider>
+      <ThemeProvider>
+        <RewardProvider>
+          <ThemedStatusBar />
+          <AuthGatedStack />
+          <ChannelGateModal />
+        </RewardProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
+}
+
+function ThemedStatusBar() {
+  const { theme } = useAppTheme();
+  return <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />;
 }
 
 function AuthGatedStack() {
