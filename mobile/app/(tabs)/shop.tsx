@@ -8,7 +8,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import api from '../../src/api/client';
-import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
+import { SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import { useThemeTokens } from '../../src/theme/ThemeProvider';
+import type { ThemeTokens } from '../../src/theme/tokens';
 import { useCartStore } from '../../src/stores/useCartStore';
 
 interface Biz {
@@ -34,6 +36,8 @@ export default function ShopHome() {
   const [usual, setUsual] = useState<any>(null);
   const [usualDismissed, setUsualDismissed] = useState(false);
   const menuCart = useCartStore();
+  const t = useThemeTokens();
+  const s = makeStyles(t);
 
   const load = useCallback(async () => {
     try {
@@ -93,32 +97,32 @@ export default function ShopHome() {
 
   const goSearch = () => router.push({ pathname: '/shop/browse', params: { q: query } });
 
-  if (loading) return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+  if (loading) return <View style={s.center}><ActivityIndicator size="large" color={t.primary} /></View>;
 
   return (
-    <SafeAreaView style={common.screen}>
+    <SafeAreaView style={s.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: 90 }} testID="shop-home-root"
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={COLORS.primary}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.primary}
           onRefresh={() => { setRefreshing(true); load(); }} />}>
 
         <View style={s.hero}>
           <View style={s.heroTop}>
             <Text style={s.eyebrow}>FUUSIC SHOP</Text>
             <TouchableOpacity style={s.accountBtn} onPress={() => setMenuOpen(true)} testID="shop-account-button">
-              <Ionicons name="person-circle-outline" size={26} color={COLORS.text} />
+              <Ionicons name="person-circle-outline" size={26} color={t.text} />
             </TouchableOpacity>
           </View>
           <Text style={s.headline}>{headline}</Text>
           <View style={s.searchBar}>
-            <Ionicons name="search" size={18} color={COLORS.textMuted} />
+            <Ionicons name="search" size={18} color={t.textMuted} />
             <TextInput style={s.searchInput} value={query} onChangeText={setQuery}
-              placeholder="What are you looking for?" placeholderTextColor={COLORS.textMuted}
+              placeholder="What are you looking for?" placeholderTextColor={t.textMuted}
               returnKeyType="search" onSubmitEditing={goSearch} testID="shop-search-input" />
           </View>
           <TouchableOpacity style={s.nearMeBtn} onPress={() => router.push('/shop/near-me')} testID="shop-near-me">
-            <Ionicons name="navigate" size={16} color={COLORS.primary} />
+            <Ionicons name="navigate" size={16} color={t.primary} />
             <Text style={s.nearMeText}>Explore shops &amp; services near you</Text>
-            <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+            <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -128,7 +132,7 @@ export default function ShopHome() {
             <TouchableOpacity key={c.key} style={s.catChip} testID={`shop-cat-${c.key}`}
               onPress={() => router.push({ pathname: '/shop/browse', params: { category: c.key } })}>
               <View style={s.catIcon}>
-                <Ionicons name={(c.icon || 'storefront') as any} size={20} color={COLORS.primary} />
+                <Ionicons name={(c.icon || 'storefront') as any} size={20} color={t.primary} />
               </View>
               <Text style={s.catLabel} numberOfLines={1}>{c.name}</Text>
             </TouchableOpacity>
@@ -179,7 +183,7 @@ export default function ShopHome() {
           <View style={s.usualCard} testID="shop-usual-card">
             <View style={s.usualHead}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="refresh" size={16} color={COLORS.primary} />
+                <Ionicons name="refresh" size={16} color={t.primary} />
                 <Text style={s.usualTitle}>Get your usual</Text>
               </View>
               <TouchableOpacity onPress={() => setUsualDismissed(true)} testID="shop-usual-dismiss">
@@ -240,7 +244,7 @@ export default function ShopHome() {
           <View key={sec.key} style={{ marginTop: SPACING.lg }} testID={`shop-section-${sec.key}`}>
             <Text style={s.sectionTitle}>{sec.title}</Text>
             {sec.subtitle ? (
-              <Text style={{ color: COLORS.primary, fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: SPACING.md, marginTop: -2, marginBottom: 4 }} testID={`shop-section-sub-${sec.key}`}>{sec.subtitle}</Text>
+              <Text style={{ color: t.primary, fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: SPACING.md, marginTop: -2, marginBottom: 4 }} testID={`shop-section-sub-${sec.key}`}>{sec.subtitle}</Text>
             ) : null}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 12 }}>
@@ -268,9 +272,9 @@ export default function ShopHome() {
             )}
             {ACCOUNT_LINKS.map(([to, icon, label, tid]) => (
               <TouchableOpacity key={to} style={s.linkRow} onPress={() => openLink(to)} testID={tid}>
-                <Ionicons name={icon as any} size={18} color={COLORS.primary} />
+                <Ionicons name={icon as any} size={18} color={t.primary} />
                 <Text style={s.linkRowText}>{label}</Text>
-                <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
               </TouchableOpacity>
             ))}
           </View>
@@ -281,6 +285,8 @@ export default function ShopHome() {
 }
 
 export function BizCard({ b, onPress, wide }: { b: Biz; onPress: () => void; wide?: boolean }) {
+  const t = useThemeTokens();
+  const s = makeStyles(t);
   return (
     <TouchableOpacity style={[s.card, wide && { width: '100%' }]} onPress={onPress}
       testID={`shop-biz-${b.business_id}`} activeOpacity={0.85}>
@@ -299,7 +305,7 @@ export function BizCard({ b, onPress, wide }: { b: Biz; onPress: () => void; wid
           <Text style={s.bizCat} numberOfLines={1}>{b.subcategory || b.category}</Text>
           {b.rating ? (
             <View style={s.ratingRow}>
-              <Ionicons name="star" size={11} color={COLORS.gold} />
+              <Ionicons name="star" size={11} color={t.gold} />
               <Text style={s.ratingText}>{b.rating.toFixed(1)}</Text>
             </View>
           ) : null}
@@ -309,72 +315,74 @@ export function BizCard({ b, onPress, wide }: { b: Biz; onPress: () => void; wid
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeTokens) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: t.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
   hero: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, paddingBottom: SPACING.sm },
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   accountBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: COLORS.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-  headline: { color: COLORS.text, fontSize: 26, fontWeight: '900', marginTop: 4, marginBottom: 14, lineHeight: 30 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 12 },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: FONT.sm, padding: 0 },
-  nearMeBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, backgroundColor: COLORS.primary + '12', borderWidth: 1, borderColor: COLORS.primary + '44', borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 11 },
-  nearMeText: { flex: 1, color: COLORS.text, fontSize: FONT.sm, fontWeight: '800' },
+  eyebrow: { color: t.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
+  headline: { color: t.text, fontSize: 26, fontWeight: '900', marginTop: 4, marginBottom: 14, lineHeight: 30 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: t.card, borderWidth: 1, borderColor: t.cardBorder, borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 12 },
+  searchInput: { flex: 1, color: t.text, fontSize: FONT.sm, padding: 0 },
+  nearMeBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, backgroundColor: t.primary + '12', borderWidth: 1, borderColor: t.primary + '44', borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 11 },
+  nearMeText: { flex: 1, color: t.text, fontSize: FONT.sm, fontWeight: '800' },
   catRow: { paddingHorizontal: SPACING.md, gap: 14, paddingVertical: SPACING.sm },
   catChip: { alignItems: 'center', width: 68 },
-  catIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  catLabel: { color: COLORS.textDim, fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  catIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  catLabel: { color: t.textDim, fontSize: 11, fontWeight: '700', textAlign: 'center' },
   filterRow: { paddingHorizontal: SPACING.md, gap: 8, paddingBottom: SPACING.sm },
-  filterChip: { flexShrink: 0, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.surfaceBorder },
-  filterText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700' },
-  sellCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: 16 },
+  filterChip: { flexShrink: 0, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: t.inputBg, borderWidth: 1, borderColor: t.surfaceBorder },
+  filterText: { color: t.textDim, fontSize: FONT.xs, fontWeight: '700' },
+  sellCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.primary, borderRadius: RADIUS.lg, padding: 16 },
   dashCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1f2430', borderRadius: RADIUS.lg, padding: 16 },
-  conciergeCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, padding: 16 },
-  usualCard: { marginHorizontal: SPACING.md, marginTop: SPACING.md, backgroundColor: COLORS.primary + '10', borderWidth: 1, borderColor: COLORS.primary + '33', borderRadius: RADIUS.lg, padding: 14 },
+  conciergeCard: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.primary, borderRadius: RADIUS.lg, padding: 16 },
+  usualCard: { marginHorizontal: SPACING.md, marginTop: SPACING.md, backgroundColor: t.primary + '10', borderWidth: 1, borderColor: t.primary + '33', borderRadius: RADIUS.lg, padding: 14 },
   usualHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  usualTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
-  usualDismiss: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '900' },
-  usualSub: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
-  usualItem: { width: 104, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.primary + '33', borderRadius: RADIUS.md, overflow: 'hidden' },
-  usualImgWrap: { position: 'relative', width: '100%', height: 72, backgroundColor: COLORS.inputBg },
+  usualTitle: { color: t.text, fontSize: FONT.md, fontWeight: '900' },
+  usualDismiss: { color: t.textMuted, fontSize: FONT.xs, fontWeight: '900' },
+  usualSub: { color: t.textDim, fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
+  usualItem: { width: 104, backgroundColor: t.card, borderWidth: 1, borderColor: t.primary + '33', borderRadius: RADIUS.md, overflow: 'hidden' },
+  usualImgWrap: { position: 'relative', width: '100%', height: 72, backgroundColor: t.inputBg },
   usualImg: { width: '100%', height: '100%' },
-  usualCount: { position: 'absolute', top: 6, right: 6, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 2 },
+  usualCount: { position: 'absolute', top: 6, right: 6, backgroundColor: t.primary, borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 2 },
   usualCountText: { color: '#fff', fontSize: 10, fontWeight: '900' },
-  usualName: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '800', paddingHorizontal: 8, paddingTop: 6 },
-  usualPrice: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '900', paddingHorizontal: 8, paddingBottom: 8, paddingTop: 2 },
-  usualBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
+  usualName: { color: t.text, fontSize: FONT.xs, fontWeight: '800', paddingHorizontal: 8, paddingTop: 6 },
+  usualPrice: { color: t.text, fontSize: FONT.xs, fontWeight: '900', paddingHorizontal: 8, paddingBottom: 8, paddingTop: 2 },
+  usualBtn: { backgroundColor: t.primary, borderRadius: RADIUS.full, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
   usualBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
   sellTitle: { color: '#fff', fontSize: FONT.md, fontWeight: '900' },
   sellSub: { color: '#fff', opacity: 0.9, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
   overlayFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' },
   overlayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: SPACING.md, paddingTop: 10, paddingBottom: 34 },
-  sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.surfaceBorder, marginBottom: 12 },
-  sheetTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900', marginBottom: 10 },
-  dashRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8 },
+  sheet: { backgroundColor: t.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: SPACING.md, paddingTop: 10, paddingBottom: 34 },
+  sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: t.surfaceBorder, marginBottom: 12 },
+  sheetTitle: { color: t.text, fontSize: FONT.lg, fontWeight: '900', marginBottom: 10 },
+  dashRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.primary, borderRadius: RADIUS.md, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8 },
   dashRowText: { flex: 1, color: '#fff', fontSize: FONT.md, fontWeight: '900' },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
-  linkRowText: { flex: 1, color: COLORS.text, fontSize: FONT.md, fontWeight: '700' },
-  specialCard: { width: 176, backgroundColor: COLORS.card, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary + '44', overflow: 'hidden' },
-  specialCover: { height: 96, backgroundColor: COLORS.inputBg },
-  specialTag: { position: 'absolute', top: 8, left: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: t.surfaceBorder },
+  linkRowText: { flex: 1, color: t.text, fontSize: FONT.md, fontWeight: '700' },
+  specialCard: { width: 176, backgroundColor: t.card, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.primary + '44', overflow: 'hidden' },
+  specialCover: { height: 96, backgroundColor: t.inputBg },
+  specialTag: { position: 'absolute', top: 8, left: 8, backgroundColor: t.primary, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
   specialTagText: { color: '#fff', fontSize: 10, fontWeight: '900' },
-  specialBlurb: { color: COLORS.primary, fontSize: FONT.xs, fontWeight: '800', marginTop: 2 },
+  specialBlurb: { color: t.primary, fontSize: FONT.xs, fontWeight: '800', marginTop: 2 },
   specialPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
-  specialSale: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
-  specialWas: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700', textDecorationLine: 'line-through' },
-  sectionTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '900', paddingHorizontal: SPACING.md, marginBottom: 10 },
-  card: { width: 220, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.cardBorder, overflow: 'hidden' },
+  specialSale: { color: t.text, fontSize: FONT.sm, fontWeight: '900' },
+  specialWas: { color: t.textMuted, fontSize: FONT.xs, fontWeight: '700', textDecorationLine: 'line-through' },
+  sectionTitle: { color: t.text, fontSize: FONT.lg, fontWeight: '900', paddingHorizontal: SPACING.md, marginBottom: 10 },
+  card: { width: 220, backgroundColor: t.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.cardBorder, overflow: 'hidden' },
   coverWrap: { position: 'relative' },
-  cover: { width: '100%', height: 120, backgroundColor: COLORS.inputBg },
+  cover: { width: '100%', height: 120, backgroundColor: t.inputBg },
   sponsoredTag: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
-  promotedTag: { position: 'absolute', top: 8, left: 8, backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
+  promotedTag: { position: 'absolute', top: 8, left: 8, backgroundColor: t.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
   sponsoredText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  ptsBadge: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: COLORS.gold, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full },
+  ptsBadge: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.gold, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full },
   ptsGlyph: { color: '#3a2a00', fontSize: 11, fontWeight: '900' },
   ptsText: { color: '#3a2a00', fontSize: 11, fontWeight: '900' },
-  bizName: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900' },
+  bizName: { color: t.text, fontSize: FONT.sm, fontWeight: '900' },
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 },
-  bizCat: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', flex: 1 },
+  bizCat: { color: t.textMuted, fontSize: FONT.xs, fontWeight: '600', flex: 1 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  ratingText: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
+  ratingText: { color: t.textDim, fontSize: FONT.xs, fontWeight: '800' },
 });

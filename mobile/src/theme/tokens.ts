@@ -31,6 +31,16 @@ export const THEME = {
     tabBarBg: '#0B0F19',
     tabBarBorder: 'rgba(255,255,255,0.09)',
     statusBar: 'light' as const,
+    // COLORS-palette aliases (legacy warm-light screens migrate COLORS.→t.)
+    primary: '#A855F7',
+    secondary: '#3B82F6',
+    surface: 'rgba(255,255,255,0.04)',
+    surfaceBorder: 'rgba(255,255,255,0.10)',
+    red: '#EF4444',
+    orange: '#F59E0B',
+    purple: '#A855F7',
+    cardShadow: 'rgba(0,0,0,0.55)',
+    statusBarStyle: 'light' as const,
   },
   light: {
     bg: '#FFFFFF',
@@ -57,6 +67,16 @@ export const THEME = {
     tabBarBg: '#FFFFFF',
     tabBarBorder: '#E8E8EC',
     statusBar: 'dark' as const,
+    // COLORS-palette aliases (legacy warm-light screens migrate COLORS.→t.)
+    primary: '#9333EA',
+    secondary: '#3B82F6',
+    surface: 'rgba(16,24,48,0.03)',
+    surfaceBorder: '#E4E4E7',
+    red: '#E11D48',
+    orange: '#F26B2A',
+    purple: '#7C3AED',
+    cardShadow: 'rgba(120,72,32,0.10)',
+    statusBarStyle: 'dark' as const,
   },
 };
 

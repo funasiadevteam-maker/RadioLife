@@ -2,6 +2,13 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 2a (MOBILE): Shop tab themed + Profile → Appearance picker (self-tested via Expo screenshots)
+- **Token aliases**: extended `mobile/src/theme/tokens.ts` so each theme carries BOTH the `TUBE` keys and the legacy `COLORS` keys (primary/secondary/surface/surfaceBorder/red/orange/purple/cardShadow/statusBarStyle) — now ANY mobile screen migrates to Light/Dark by a mechanical `COLORS.`/`TUBE.`→`t.` swap + a `makeStyles(t)` factory.
+- **Shop tab** (`mobile/app/(tabs)/shop.tsx`) fully migrated to the theme (ShopHome + exported `BizCard`); renders correctly in Light (white, purple accents) and Dark (navy). Verified both themes + the themed tab bar via Expo screenshots.
+- **Profile → Appearance picker** (`mobile/app/(tabs)/profile.tsx`): new APPEARANCE section with Light / Dark / System segmented control (`appearance-light|dark|system`) wired to `useAppTheme().setMode`; selection persists + syncs to web via `/api/shell/prefs`. This is the canonical control the spec asked for (the Home-header toggle remains as a shortcut).
+- **Still deferred (next turns)**: mobile Social/Listen/Play tab bodies (same mechanical migration; Social has 8 sub-components, Listen folds into the World-Hub rebuild); the Profile screen's OWN body (still warm-light); ALL web tab bodies (Social/Listen/Shop/Play — Tailwind-class retrofit); Listen World Hub (#3) and the full Shop Storefront redesign (#4 — two-col product cards + live-shopping rails per mockup; current Shop is themed but not yet restructured to the mockup).
+
+
 ## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 1 (MOBILE parity): Light/Dark/System theme engine (tested iter201 — 6/6 PASS)
 Brought the Expo mobile app to Phase-1 parity with web. Mobile previously had NO appearance switching (dark shell + warm-light screens via static `COLORS`/`TUBE` palettes).
 - **Mobile theme engine**: new `mobile/src/theme/tokens.ts` (Light + Dark token sets; semantic keys mirror web `design_guidelines.json` AND stay drop-in compatible with legacy `TUBE` keys so screens migrate by swapping `TUBE.`→`t.` + wrapping StyleSheet in a `makeStyles(t)` factory) and `mobile/src/theme/ThemeProvider.tsx` (`useAppTheme` / `useThemeTokens`, `system` resolved via `useColorScheme`). The chosen appearance is SHARED with web — persisted via `/api/shell/prefs` (+ AsyncStorage) so a user's Light/Dark/System choice carries across both surfaces.

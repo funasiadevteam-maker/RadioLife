@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { BRAND } from '../../src/config/brand';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import { useAppTheme } from '../../src/theme/ThemeProvider';
 import ChipGrid from '../../src/components/ChipGrid';
 import FunAsiaFooter from '../../src/components/FunAsiaFooter';
 import api from '../../src/api/client';
@@ -38,6 +39,7 @@ const HOSTS = [
 export default function ProfileScreen() {
   const { user, refresh, logout } = useAuth();
   const router = useRouter();
+  const { mode: apprMode, setMode: setAppr } = useAppTheme();
   const [pv, setPv] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -157,6 +159,22 @@ export default function ProfileScreen() {
           <MenuItem icon="notifications-outline" label="Notifications" sub="Push notification preferences"
             onPress={() => router.push('/notifications')}
             testID="menu-notifications" />
+
+          <Text style={[st.menuLabel, { marginTop: SPACING.lg }]}>APPEARANCE</Text>
+          <View style={st.apprRow} testID="profile-appearance">
+            {(['light', 'dark', 'system'] as const).map((m) => {
+              const active = apprMode === m;
+              const ic = m === 'light' ? 'sunny-outline' : m === 'dark' ? 'moon-outline' : 'phone-portrait-outline';
+              const lbl = m === 'light' ? 'Light' : m === 'dark' ? 'Dark' : 'System';
+              return (
+                <TouchableOpacity key={m} testID={`appearance-${m}`} activeOpacity={0.85}
+                  onPress={() => setAppr(m)} style={[st.apprChip, active && st.apprChipActive]}>
+                  <Ionicons name={ic as any} size={18} color={active ? '#fff' : COLORS.textDim} />
+                  <Text style={[st.apprChipText, active && { color: '#fff' }]}>{lbl}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={[st.menuLabel, { marginTop: SPACING.lg }]}>GENERAL</Text>
           <MenuItem icon="megaphone-outline" label="Advertise on FUUSIC" sub="Create ads, manage campaigns"
@@ -345,6 +363,10 @@ const st = StyleSheet.create({
   profileTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.surfaceBorder },
   profileTagText: { fontSize: 9, fontWeight: '700', color: COLORS.textDim, letterSpacing: 1 },
   menuLabel: { color: COLORS.textDim, fontSize: 10, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', marginBottom: SPACING.sm },
+  apprRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+  apprChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: RADIUS.md, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
+  apprChipActive: { backgroundColor: '#9333EA', borderColor: '#9333EA' },
+  apprChipText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '800' },
   menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.sm + 2, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 8 },
   menuIconChip: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
   menuItemLabel: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
