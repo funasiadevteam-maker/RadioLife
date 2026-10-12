@@ -1,0 +1,34 @@
+{
+  "summary": "Web frontend testing of the new Social Feed Home (V2 Light / V3 Dark) for FUUSIC. All critical flows verified end-to-end against the shared backend: default view, feed render, tabs, composer post, card interactions, rail follow, home-view switcher persistence, V1 Classic round-trip, Social-Feed chrome across tabs (/social /listen /shop /play-and-win), and mobile viewport. No functional bugs found.",
+  "platforms_tested": ["web"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "SocialFeedShell header (mobile 375px)", "issues": ["The HomeViewSwitcher pill label 'Social · Light' wraps into two lines on narrow viewports because the pill's text does not have white-space:nowrap. Visual-only, interaction still works."]},
+        {"screen": "Social Feed Home (web)", "issues": ["Cookie-consent banner overlays the composer area on first load until dismissed; expected global behavior but worth noting since it visually obscures 'sf-composer-open' until acknowledged."]}
+      ]
+    },
+    "mobile": { "ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": [] }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "Optional polish: add white-space:nowrap (and/or shrink label at <400px) to HomeViewSwitcher pill in /app/frontend/src/design_v2/socialfeed/HomeViewSwitcher.jsx so 'Social · Light' doesn't wrap on 375px."
+  ],
+  "critical_code_review_comments": [
+    "SocialFeedCard: clicking 'sf-comment' calls openCta() which navigates away via ctaTo(cta) — this surprises automated tests and real users who expect comment to open an inline comment composer, not navigate to the CTA destination. Consider wiring 'sf-comment' to a comments drawer/anchor instead of reusing openCta.",
+    "useHomeView.setView is optimistic and swallows PUT failures silently (empty catch). Fine for QA, but consider a toast/retry on error so a stale server value doesn't drift from UI.",
+    "sfTheme bundles multiple visual tokens — fine. socialFeedParts.jsx is ~450 lines; still under the 700-line soft cap but close. If more sections get added, split RightRail/BottomNav into their own files."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only run)", "frontend": "100%" },
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (cookie login via POST /api/auth/login)",
+  "seed_data_creation": "Composer test posted a Moment with caption 'TEST_automated_qa_moment' (public). Rail follow POST and card-follow POST both executed (200).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified: (1) default home = Social Feed Light [social-feed-shell + social-feed-home present, 16 feed cards]; (2) Following(16)/For You(30) tabs reload feed; (3) Composer POST /api/social/moments => 200; (4) Card actions sf-like/sf-comment/sf-share/sf-save/sf-card-follow/sf-card-cta all clickable (7 cards each, 2 follow buttons where follow=none); (5) Right rail has 4 sf-follow buttons; sf-card-follow POST /api/social/follow/{id} => 200; (6) PUT /api/social/home-view => 200 for v3; bg flips to rgb(9,11,22); reload persists dark; (7) V1 switch renders shell-v2 and removes social-feed-shell; (8) Switching back to V2 via query override or switcher restores feed; (9) Social-Feed chrome (shell + sf-leftnav) persists on /social, /listen, /shop, /play-and-win; (10) Mobile 375px: sf-bottomnav visible, sf-rightrail hidden, 16 cards + InlineDiscovery render below the feed. The only design nit is the 'Social · Light' switcher pill wrapping to 2 lines on narrow mobile widths.",
+  "rca of the issue": ""
+}

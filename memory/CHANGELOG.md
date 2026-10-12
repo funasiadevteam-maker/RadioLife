@@ -2,6 +2,16 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 📰 SOCIAL FEED HOME V2/V3 (web, testing agent PASS iter199 — all 10 flows)
+Facebook-style single-column activity wall added as an ALTERNATIVE Home layout, Light (V2) + Dark (V3), switchable via the top-bar dropdown. Classic "New Look V2" (V1) stays reachable via the same switcher. Reuses existing Social V2 APIs only — NO new feed backend.
+- **User choices honored**: Social Feed Light (V2) is now the DEFAULT home for logged-in users on the `new_look_v2` variant; no onboarding thumbnail picker (defaults straight in); feed chrome spans ALL in-app tabs; station-card CTAs navigate to the player (inline where possible).
+- **Backend (only change)** `routes/social_v2.py`: `GET/PUT /api/social/home-view` persists `home_view` (v1/v2/v3) on the user doc; GET defaults to `v2`. Everything else reuses `/api/social/feed-v2` (+`/new-count`), `/moments`, `/rail`, `/follow`, `/feed-events`, `/bigcoin/me`.
+- **Frontend (web)**: NEW `design_v2/socialfeed/SocialFeedShell.jsx` (persistent themed chrome — sticky header, left nav, right discovery rail on Home only, audio dock, mobile bottom nav; fetches `/social/rail`) and `design_v2/socialfeed/SocialFeedHomeV2.jsx` (center wall — Moments, composer→`POST /moments`, compact Together actions, Following/For-You tabs, auto-refresh "N new posts" via `/feed-v2/new-count` polled 45s, IntersectionObserver infinite scroll via cursor, skeleton/empty states). Reuses the pre-scaffolded `socialFeedParts.jsx`, `SocialFeedCard.jsx`, `HomeViewSwitcher.jsx`, `sfTheme.js`, `useHomeView.js`.
+- **Wiring**: `AppShellV2.jsx` bootstraps `useHomeView` and, when `homeView∈{v2,v3}` for a logged-in user, wraps all non-bare/non-admin routes in `SocialFeedShell` (keeping headless engines InterestOnboarding/FeatureOnboarding/PlayerSwitchToast/SleepTimerEngine mounted) instead of the cinematic V2 chrome. `App.js RootGate` renders `SocialFeedHomeV2` at `/` for v2/v3, else `HomeNewLookV2`. Gated to the `new_look_v2` design variant; anonymous users still get the public landing.
+- **Verified** (iter199): default Light feed renders (16 cards); Following/For-You reload; composer 200; like/comment/share/save/follow/CTA all live (follow→`/follow/{id}` 200); right rail follows; V2↔V3 theme flip + persistence across reload; V3↔V1 Classic round-trip; shell+left nav persist on `/social`,`/listen`,`/shop`,`/play-and-win`; mobile 375px single-column + bottom nav + inline discovery. Fixed the one nit (switcher pill `white-space:nowrap` on mobile).
+- **Deferred (Phase 1b / later)**: Expo native mobile Social Feed (explicitly deferred by user); inline comment drawer (`sf-comment` currently navigates to detail); re-skinning non-home page BODIES to match the selected feed theme (Light-mode inner pages still render their own dark styling); true in-card audio playback without a route change.
+
+
 ## 2026-06 (fork) — Phase 1: Dreams / Astrology UX (web + mobile, tested iter183 PASS)
 User feedback batch → Phase 1 shipped on BOTH surfaces:
 - Dream AI action renamed "Get AI reflection" → **"Click to know what your dream means"**; added `*` disclaimer footnote ("AI-generated — for fun only, not advice…") in the dream AI block (web `dream-ai-footnote`, mobile too).

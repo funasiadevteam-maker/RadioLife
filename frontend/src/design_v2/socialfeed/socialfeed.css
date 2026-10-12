@@ -1,0 +1,19 @@
+/* FUUSIC Social Feed view — layout helpers only. Colors come from JS tokens. */
+.sf-root {
+  font-family: "Inter", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.sf-noscroll::-webkit-scrollbar { display: none; }
+.sf-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+.sf-clamp2 {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sf-clamp3 {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sf-press { transition: transform .12s ease, opacity .12s ease, background .15s ease; }
+.sf-press:active { transform: scale(.97); }
+.sf-fade-in { animation: sfFade .28s ease both; }
+@keyframes sfFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

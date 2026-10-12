@@ -324,6 +324,8 @@ import Home from "@/Home";
 import HomeB from "@/HomeB";
 import AppShellV2 from "@/design_v2/AppShellV2";
 import HomeNewLookV2 from "@/design_v2/HomeNewLookV2";
+import SocialFeedHomeV2 from "@/design_v2/socialfeed/SocialFeedHomeV2";
+import { useHomeView } from "@/store/useHomeView";
 import PublicHomeNewLookV2 from "@/design_v2/PublicHomeNewLookV2";
 import AdminSkipRules from "@/pages/admin/AdminSkipRules";
 import AdminPlatformFees from "@/pages/admin/AdminPlatformFees";
@@ -1254,6 +1256,7 @@ export function LaunchModeGate({ children }) {
 export function RootGate() {
   const { user, loading } = _useAuth_();
   const designVariant = useDesignVariantStore((s) => s.variant);
+  const homeView = useHomeView((s) => s.homeView);
   const blocked = useLaunchBlocked();
   const offerMonths = useLaunchStore((s) => s.offerMonths);
   const waitlistEnabled = useLaunchStore((s) => s.waitlistEnabled);
@@ -1270,8 +1273,12 @@ export function RootGate() {
     // Admin/QA can preview the legacy landing via ?design=classic_b|legacy.
     return designVariant === "new_look_v2" ? <PublicHomeNewLookV2 /> : <Landing />;
   }
-  return designVariant === "new_look_v2" ? <HomeNewLookV2 />
-    : designVariant === "classic_b" ? <HomeB /> : <Home />;
+  if (designVariant === "new_look_v2") {
+    return (homeView === "v2" || homeView === "v3")
+      ? <SocialFeedHomeV2 />
+      : <HomeNewLookV2 />;
+  }
+  return designVariant === "classic_b" ? <HomeB /> : <Home />;
 }
 
 // `/pricing` is a single URL with two faces:

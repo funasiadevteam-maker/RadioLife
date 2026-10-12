@@ -1091,6 +1091,32 @@ async def skip_interests(request: Request, user: dict = Depends(current_user)):
     return {"ok": True}
 
 
+# ── Home view preference (V1 classic / V2 Social·Light / V3 Social·Dark) ──
+_VALID_HOME_VIEWS = {"v1", "v2", "v3"}
+
+
+class HomeViewBody(BaseModel):
+    home_view: str
+
+
+@router.get("/home-view")
+async def get_home_view(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"home_view": 1}) or {}
+    hv = u.get("home_view")
+    return {"home_view": hv if hv in _VALID_HOME_VIEWS else "v2"}
+
+
+@router.put("/home-view")
+async def put_home_view(body: HomeViewBody, request: Request,
+                        user: dict = Depends(current_user)):
+    db = request.app.state.db
+    hv = body.home_view if body.home_view in _VALID_HOME_VIEWS else "v2"
+    await db.users.update_one({"user_id": user["user_id"]},
+                              {"$set": {"home_view": hv}})
+    return {"ok": True, "home_view": hv}
+
+
 # ── Feature personalization (which features power Home + the nav) ──
 async def _admin_default_features(db) -> list[str]:
     doc = await db.app_settings.find_one({"_id": "feature_defaults"})

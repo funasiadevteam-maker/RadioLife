@@ -1,0 +1,449 @@
+// Building blocks for SocialFeedHomeV2 — header, moments, composer, together
+// row, mode tabs, sidebars, discovery, audio dock, bottom nav.
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
+import {
+  Home, Users, Headphones, ShoppingBag, Gamepad2, Bell, Coins, Search,
+  Plus, Image as ImageIcon, Music2, Mic, MoreHorizontal, MapPin, Play, Pause,
+  X, Utensils, Gift, Bookmark, Radio, ListMusic, Sparkles, Moon, Crown, Store,
+  Headphones as Head2, Heart, ChevronRight,
+} from "lucide-react";
+import { useGeoStore } from "@/store/useGeoStore";
+import { usePlayerStore } from "@/store/usePlayerStore";
+import { initials, pillStyle } from "./sfTheme";
+import HomeViewSwitcher from "./HomeViewSwitcher";
+
+const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
+
+const TOP_NAV = [
+  { key: "home", label: "Home", icon: Home, to: "/" },
+  { key: "social", label: "Social", icon: Users, to: "/social" },
+  { key: "listen", label: "Listen", icon: Headphones, to: "/listen" },
+  { key: "shop", label: "Shop", icon: ShoppingBag, to: "/shop" },
+  { key: "play", label: "Play", icon: Gamepad2, to: "/play-and-win" },
+];
+
+/* ─────────────────────────── Header ─────────────────────────── */
+export function SfHeader({ t, appearance }) {
+  const { pathname } = useLocation();
+  const city = useGeoStore((s) => s.city);
+  const [points, setPoints] = useState(null);
+  useEffect(() => {
+    axios.get(`${API}/bigcoin/me`, { withCredentials: true })
+      .then((r) => setPoints(r.data?.balance)).catch(() => {});
+  }, []);
+  const active = (to) => (to === "/" ? pathname === "/" : pathname.startsWith(to));
+
+  return (
+    <header data-testid="sf-header" style={{
+      position: "sticky", top: 0, zIndex: 50, background: t.header,
+      backdropFilter: "blur(14px)", borderBottom: `1px solid ${t.border}`,
+    }}>
+      <div style={{ maxWidth: 1240, margin: "0 auto", height: 60, padding: "0 14px", display: "flex", alignItems: "center", gap: 14 }}>
+        <Link to="/" style={{ fontWeight: 900, fontSize: 21, letterSpacing: "-.02em", backgroundImage: t.accentGrad, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>FUUSIC</Link>
+
+        {/* desktop nav */}
+        <nav className="hidden lg:flex" style={{ gap: 4, marginLeft: 8 }}>
+          {TOP_NAV.map(({ key, label, icon: Icon, to }) => (
+            <Link key={key} to={to} data-testid={`sf-nav-${key}`}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, padding: "6px 14px", borderRadius: 11, color: active(to) ? t.accent : t.text2, background: active(to) ? t.accentSoft : "transparent", fontWeight: 700 }}>
+              <Icon size={18} /><span style={{ fontSize: 11 }}>{label}</span>
+            </Link>
+          ))}
+        </nav>
+
+        {/* desktop search */}
+        <div className="hidden lg:flex" style={{ flex: 1, maxWidth: 360, marginLeft: 8, alignItems: "center", gap: 8, height: 38, padding: "0 12px", borderRadius: 999, background: t.chip, border: `1px solid ${t.border}`, color: t.muted }}>
+          <Search size={16} /><span style={{ fontSize: 13 }}>Search music, people, stations…</span>
+        </div>
+
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="hidden sm:inline-flex" style={{ alignItems: "center", gap: 4, color: t.text2, fontSize: 12, fontWeight: 700 }}>
+            <MapPin size={14} color={t.accent} />{city || "Dubai"}
+          </span>
+          <Link to="/wallet" data-testid="sf-points" style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 34, padding: "0 10px", borderRadius: 999, background: t.goldBg, border: `1px solid ${t.gold}44` }}>
+            <Coins size={15} color={t.gold} />
+            <span style={{ fontFamily: "monospace", fontWeight: 900, fontSize: 13, color: t.gold }}>{points != null ? points.toLocaleString() : "—"}</span>
+          </Link>
+          <Link to="/notifications" data-testid="sf-bell" style={{ width: 34, height: 34, borderRadius: 999, display: "grid", placeItems: "center", color: t.text2, background: t.chip }}>
+            <Bell size={17} />
+          </Link>
+          <HomeViewSwitcher dark={appearance === "dark"} />
+          <Link to="/profile" data-testid="sf-avatar" className="hidden sm:grid" style={{ width: 34, height: 34, borderRadius: 999, placeItems: "center", color: "#fff", fontWeight: 800, background: t.accentGrad }}>U</Link>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ─────────────────────────── Moments ─────────────────────────── */
+export function MomentsRow({ t, moments }) {
+  const nav = useNavigate();
+  const list = moments || [];
+  return (
+    <div className="sf-noscroll" data-testid="sf-moments" style={{ display: "flex", gap: 12, overflowX: "auto", padding: "2px 2px 2px", background: t.card, border: `1px solid ${t.border}`, borderRadius: 18, boxShadow: t.shadow, paddingLeft: 12, paddingRight: 12, paddingTop: 12, paddingBottom: 12 }}>
+      <Momentcircle t={t} add onClick={() => nav("/social")} label="Add" />
+      {list.slice(0, 14).map((m, i) => (
+        <Momentcircle key={m._id || m.id || i} t={t}
+          img={m.media_url || m.author?.avatar_url}
+          label={(m.author?.name || m.user_name || "You").split(" ")[0]}
+          live={m.context?.live}
+          onClick={() => nav("/social")} />
+      ))}
+      {list.length === 0 && <span style={{ fontSize: 12.5, color: t.muted, alignSelf: "center" }}>Share your first Moment →</span>}
+    </div>
+  );
+}
+function Momentcircle({ t, img, label, add, live, onClick }) {
+  return (
+    <button onClick={onClick} className="sf-press" style={{ flex: "0 0 auto", width: 62, border: "none", background: "transparent", cursor: "pointer", textAlign: "center" }}>
+      <span style={{ position: "relative", display: "block", width: 58, height: 58, borderRadius: 999, margin: "0 auto", padding: 2, background: add ? t.chip : t.accentGrad }}>
+        {add ? (
+          <span style={{ width: "100%", height: "100%", borderRadius: 999, display: "grid", placeItems: "center", background: t.card, color: t.accent }}><Plus size={22} /></span>
+        ) : img ? (
+          <img src={img} alt="" loading="lazy" style={{ width: "100%", height: "100%", borderRadius: 999, objectFit: "cover", border: `2px solid ${t.card}` }} />
+        ) : (
+          <span style={{ width: "100%", height: "100%", borderRadius: 999, display: "grid", placeItems: "center", background: t.card, color: t.text2, fontWeight: 800 }}>{initials(label)}</span>
+        )}
+        {live && <span style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", fontSize: 8, fontWeight: 900, color: "#fff", background: t.live, padding: "1px 5px", borderRadius: 999 }}>LIVE</span>}
+      </span>
+      <span className="sf-clamp2" style={{ display: "block", fontSize: 11, color: t.text2, marginTop: 4 }}>{label}</span>
+    </button>
+  );
+}
+
+/* ─────────────────────────── Composer ─────────────────────────── */
+export function Composer({ t, onPosted }) {
+  const nav = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const post = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    try {
+      await axios.post(`${API}/social/moments`, { caption: text.trim(), visibility: "public" }, { withCredentials: true });
+      setText(""); setOpen(false); onPosted && onPosted();
+    } catch (_e) { /* soft */ } finally { setBusy(false); }
+  };
+  const QA = [
+    { icon: ImageIcon, label: "Moment", c: "#ec4899", onClick: () => setOpen(true) },
+    { icon: ImageIcon, label: "Photo", c: "#22c55e", onClick: () => nav("/social") },
+    { icon: Music2, label: "Music", c: t.accent, onClick: () => nav("/listen") },
+    { icon: Mic, label: "Voice", c: "#f59e0b", onClick: () => setOpen(true) },
+    { icon: MoreHorizontal, label: "More", c: t.text2, onClick: () => nav("/social") },
+  ];
+  return (
+    <div data-testid="sf-composer" style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 18, boxShadow: t.shadow, padding: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ width: 40, height: 40, borderRadius: 999, flexShrink: 0, display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, background: t.accentGrad }}>U</span>
+        <button onClick={() => setOpen((v) => !v)} data-testid="sf-composer-open" className="sf-press"
+          style={{ flex: 1, textAlign: "left", padding: "10px 16px", borderRadius: 999, border: `1px solid ${t.border}`, background: t.chip, color: t.muted, cursor: "pointer", fontSize: 14 }}>
+          What's on your mind?
+        </button>
+      </div>
+      {open && (
+        <div className="sf-fade-in" style={{ marginTop: 10 }}>
+          <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} data-testid="sf-composer-input"
+            placeholder="Share a moment with FUUSIC…" rows={3}
+            style={{ width: "100%", resize: "vertical", padding: 12, borderRadius: 12, border: `1px solid ${t.border}`, background: t.cardAlt, color: t.text, fontSize: 14, outline: "none" }} />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+            <button onClick={() => { setOpen(false); setText(""); }} style={{ padding: "8px 16px", borderRadius: 999, border: `1px solid ${t.border}`, background: "transparent", color: t.text2, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+            <button onClick={post} disabled={busy || !text.trim()} data-testid="sf-composer-post"
+              style={{ padding: "8px 20px", borderRadius: 999, border: "none", background: t.accentGrad, color: "#fff", fontWeight: 800, cursor: "pointer", opacity: busy || !text.trim() ? .6 : 1 }}>
+              {busy ? "Posting…" : "Post"}
+            </button>
+          </div>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 2, marginTop: 10, borderTop: `1px solid ${t.border}`, paddingTop: 8 }}>
+        {QA.map(({ icon: Icon, label, c, onClick }) => (
+          <button key={label} onClick={onClick} data-testid={`sf-qa-${label.toLowerCase()}`} className="sf-press"
+            style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 4px", borderRadius: 10, border: "none", background: "transparent", color: t.text2, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+            <Icon size={17} color={c} /><span className="hidden sm:inline">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────── Together quick actions ─────────────────────── */
+const TOGETHER = [
+  { label: "Listen\nTogether", icon: Headphones, to: "/listen" },
+  { label: "Play\nTogether", icon: Gamepad2, to: "/play-and-win" },
+  { label: "Go\nTogether", icon: MapPin, to: "/social" },
+  { label: "Shop\nTogether", icon: ShoppingBag, to: "/shop" },
+];
+export function TogetherRow({ t }) {
+  const nav = useNavigate();
+  return (
+    <div data-testid="sf-together" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+      {TOGETHER.map(({ label, icon: Icon, to }) => (
+        <button key={label} onClick={() => nav(to)} className="sf-press"
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "12px 4px", borderRadius: 14, border: `1px solid ${t.border}`, background: t.card, boxShadow: t.shadow, cursor: "pointer" }}>
+          <span style={{ width: 38, height: 38, borderRadius: 11, display: "grid", placeItems: "center", background: t.accentSoft }}><Icon size={18} color={t.accent} /></span>
+          <span style={{ fontSize: 11, fontWeight: 800, color: t.text, whiteSpace: "pre-line", textAlign: "center", lineHeight: 1.15 }}>{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─────────────────────────── Mode tabs ─────────────────────────── */
+export function ModeTabs({ t, mode, setMode }) {
+  const Tab = ({ k, label }) => (
+    <button onClick={() => setMode(k)} data-testid={`sf-mode-${k}`} className="sf-press"
+      style={{ flex: 1, padding: "10px", borderRadius: 11, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 13.5, background: mode === k ? t.accentSoft : "transparent", color: mode === k ? t.accent : t.text2, borderBottom: mode === k ? `2px solid ${t.accent}` : "2px solid transparent" }}>
+      {label}
+    </button>
+  );
+  return (
+    <div style={{ display: "flex", gap: 4, background: t.card, border: `1px solid ${t.border}`, borderRadius: 14, padding: 4, boxShadow: t.shadow }}>
+      <Tab k="following" label="Following" />
+      <Tab k="for_you" label="For You" />
+    </div>
+  );
+}
+
+/* ─────────────────────────── Left sidebar ─────────────────────────── */
+const SIDE_MAIN = [
+  { label: "Home", icon: Home, to: "/" },
+  { label: "Social", icon: Users, to: "/social" },
+  { label: "Listen", icon: Headphones, to: "/listen" },
+  { label: "Shop", icon: ShoppingBag, to: "/shop" },
+  { label: "Play", icon: Gamepad2, to: "/play-and-win" },
+  { label: "Dining Club", icon: Utensils, to: "/dining" },
+  { label: "Rewards", icon: Gift, to: "/wallet" },
+  { label: "Following", icon: Heart, to: "/me/following" },
+  { label: "Saved", icon: Bookmark, to: "/me/saved" },
+];
+const SIDE_MORE = [
+  { label: "My AI Radio", icon: Sparkles, to: "/radio" },
+  { label: "Live Radio", icon: Radio, to: "/live-radio" },
+  { label: "My Playlists", icon: ListMusic, to: "/listen" },
+  { label: "Dreams", icon: Moon, to: "/social/dreams" },
+  { label: "Tarot", icon: Sparkles, to: "/social/tarot" },
+];
+export function LeftSidebar({ t }) {
+  const { pathname } = useLocation();
+  const Item = ({ label, icon: Icon, to }) => {
+    const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+    return (
+      <Link to={to} data-testid={`sf-side-${label.toLowerCase().replace(/\s+/g, "-")}`}
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", borderRadius: 11, color: active ? t.accent : t.text, background: active ? t.accentSoft : "transparent", fontWeight: active ? 800 : 600, fontSize: 14 }}>
+        <Icon size={18} color={active ? t.accent : t.text2} />{label}
+      </Link>
+    );
+  };
+  return (
+    <aside className="hidden lg:block sf-noscroll" data-testid="sf-leftnav"
+      style={{ flex: "0 0 232px", position: "sticky", top: 76, alignSelf: "flex-start", maxHeight: "calc(100vh - 92px)", overflowY: "auto" }}>
+      <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 18, boxShadow: t.shadow, padding: 8 }}>
+        <Link to="/profile" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px 12px", borderBottom: `1px solid ${t.border}`, marginBottom: 6 }}>
+          <span style={{ width: 42, height: 42, borderRadius: 999, display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, background: t.accentGrad }}>U</span>
+          <span><span style={{ display: "block", fontWeight: 800, color: t.text, fontSize: 14 }}>Your Profile</span><span style={{ display: "block", fontSize: 12, color: t.muted }}>View activity</span></span>
+        </Link>
+        {SIDE_MAIN.map((i) => <Item key={i.label} {...i} />)}
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: t.muted, padding: "12px 12px 4px" }}>Explore more</div>
+        {SIDE_MORE.map((i) => <Item key={i.label} {...i} />)}
+      </div>
+    </aside>
+  );
+}
+
+/* ─────────────────────────── Right rail ─────────────────────────── */
+function RailSection({ t, title, children }) {
+  return (
+    <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 18, boxShadow: t.shadow, padding: 12, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontWeight: 800, fontSize: 14, color: t.text }}>{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+function FollowRow({ t, c, onFollow }) {
+  const [done, setDone] = useState(false);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0" }}>
+      {c.image ? <img src={c.image} alt="" loading="lazy" style={{ width: 40, height: 40, borderRadius: 999, objectFit: "cover" }} />
+        : <span style={{ width: 40, height: 40, borderRadius: 999, display: "grid", placeItems: "center", color: "#fff", background: t.accentGrad, fontWeight: 800 }}>{initials(c.title)}</span>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
+        <div style={{ fontSize: 11.5, color: t.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.subtitle || c.hint}</div>
+      </div>
+      <button onClick={() => { setDone(true); onFollow && onFollow(c.follow_id || c.id); }} data-testid="sf-follow"
+        className="sf-press" style={{ fontSize: 12, fontWeight: 800, color: done ? t.text2 : t.accent, background: done ? t.chip : t.accentSoft, border: "none", borderRadius: 999, padding: "6px 14px", cursor: "pointer" }}>
+        {done ? "Following" : "Follow"}
+      </button>
+    </div>
+  );
+}
+function MediaRow({ t, c, onClick }) {
+  return (
+    <button onClick={onClick} className="sf-press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "6px 0", border: "none", background: "transparent", cursor: "pointer", textAlign: "left" }}>
+      {c.image ? <img src={c.image} alt="" loading="lazy" style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover" }} />
+        : <span style={{ width: 44, height: 44, borderRadius: 12, background: t.accentSoft, display: "grid", placeItems: "center" }}><Radio size={18} color={t.accent} /></span>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
+        <div style={{ fontSize: 11.5, color: t.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.subtitle}</div>
+      </div>
+      {c.badge && <span style={{ fontSize: 9.5, fontWeight: 900, color: "#fff", background: c.kind === "live" ? t.live : t.accent, padding: "3px 7px", borderRadius: 999 }}>{c.badge}</span>}
+    </button>
+  );
+}
+const HOUSE = [
+  { id: "promo-premium", icon: Crown, title: "FUUSIC Premium", subtitle: "Ad-free · 6 skips/hr", cta: "Upgrade", to: "/wallet" },
+  { id: "promo-business", icon: Store, title: "FUUSIC for Business", subtitle: "Go Live. Run Offers. Grow.", cta: "Learn More", to: "/shop" },
+];
+function PromoCard({ t, p, sample }) {
+  const nav = useNavigate();
+  const Icon = p.icon;
+  return (
+    <button onClick={() => nav(p.to || "/shop")} className="sf-press" data-testid="sf-promo"
+      style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: 10, marginBottom: 8, borderRadius: 14, border: `1px solid ${t.border}`, background: t.cardAlt, cursor: "pointer", textAlign: "left" }}>
+      {p.image ? <img src={p.image} alt="" loading="lazy" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
+        : <span style={{ width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center", background: t.accentGrad }}>{Icon ? <Icon size={18} color="#fff" /> : <Sparkles size={18} color="#fff" />}</span>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 13, color: t.text }}>{p.title}{sample && <span style={{ fontSize: 9, fontWeight: 800, color: t.muted, marginLeft: 6, border: `1px solid ${t.border}`, padding: "1px 5px", borderRadius: 6 }}>SAMPLE</span>}</div>
+        <div className="sf-clamp2" style={{ fontSize: 11.5, color: t.muted }}>{p.subtitle}</div>
+      </div>
+      <span style={{ fontSize: 11.5, fontWeight: 800, color: t.accent, background: t.accentSoft, padding: "6px 12px", borderRadius: 999, whiteSpace: "nowrap" }}>{p.cta || "Open"}</span>
+    </button>
+  );
+}
+
+export function RightRail({ t, rail, onFollow }) {
+  const nav = useNavigate();
+  const follows = rail.filter((c) => c.kind === "follow").slice(0, 4);
+  const lives = rail.filter((c) => ["live", "station", "event"].includes(c.kind)).slice(0, 3);
+  const sponsored = rail.filter((c) => c.kind === "sponsored").slice(0, 4);
+  return (
+    <aside className="hidden lg:block sf-noscroll" data-testid="sf-rightrail"
+      style={{ flex: "0 0 300px", position: "sticky", top: 76, alignSelf: "flex-start", maxHeight: "calc(100vh - 92px)", overflowY: "auto" }}>
+      {follows.length > 0 && (
+        <RailSection t={t} title="Suggested for You">
+          {follows.map((c) => <FollowRow key={c.id} t={t} c={c} onFollow={onFollow} />)}
+        </RailSection>
+      )}
+      {lives.length > 0 && (
+        <RailSection t={t} title="Trending / Live Now">
+          {lives.map((c) => <MediaRow key={c.id} t={t} c={c} onClick={() => nav(c.to || "/listen")} />)}
+        </RailSection>
+      )}
+      <RailSection t={t} title="Sponsored & Discover">
+        {HOUSE.map((p) => <PromoCard key={p.id} t={t} p={p} />)}
+        {sponsored.map((c) => <PromoCard key={c.id} t={t} p={{ ...c, subtitle: c.subtitle, cta: c.cta, to: c.to, image: c.image }} sample />)}
+      </RailSection>
+    </aside>
+  );
+}
+
+/* ───────────────────── Mobile inline discovery ───────────────────── */
+export function InlineDiscovery({ t, rail, onFollow }) {
+  const nav = useNavigate();
+  const follows = rail.filter((c) => c.kind === "follow").slice(0, 3);
+  const lives = rail.filter((c) => ["live", "station", "event"].includes(c.kind)).slice(0, 3);
+  const sponsored = rail.filter((c) => c.kind === "sponsored").slice(0, 4);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {follows.length > 0 && (
+        <RailSection t={t} title="People You May Know">
+          {follows.map((c) => <FollowRow key={c.id} t={t} c={c} onFollow={onFollow} />)}
+        </RailSection>
+      )}
+      {lives.length > 0 && (
+        <RailSection t={t} title="Live Now">
+          {lives.map((c) => <MediaRow key={c.id} t={t} c={c} onClick={() => nav(c.to || "/listen")} />)}
+        </RailSection>
+      )}
+      <RailSection t={t} title="Sponsored & Discover">
+        {HOUSE.map((p) => <PromoCard key={p.id} t={t} p={p} />)}
+        {sponsored.map((c) => <PromoCard key={c.id} t={t} p={{ ...c }} sample />)}
+      </RailSection>
+    </div>
+  );
+}
+
+/* ─────────────────────────── Audio dock ─────────────────────────── */
+export function AudioDock({ t }) {
+  const name = usePlayerStore((s) => s.activeChannelName);
+  const seg = usePlayerStore((s) => s.currentSeg);
+  const playing = usePlayerStore((s) => s.playing);
+  const thumb = usePlayerStore((s) => s.activeChannelThumb);
+  const [hidden, setHidden] = useState(false);
+  if (!name || hidden) return null;
+  const toggle = () => window.dispatchEvent(new CustomEvent("bigfm:player:toggle"));
+  const sub = seg?.track_title ? `${seg.track_title}${seg.track_artist ? " · " + seg.track_artist : ""}` : "Live";
+  return (
+    <div data-testid="sf-audio-dock" style={{ position: "fixed", left: 0, right: 0, bottom: 62, zIndex: 45, padding: "0 10px" }}>
+      <div className="lg:max-w-[640px] lg:mx-auto" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 14, background: t.card, border: `1px solid ${t.border}`, boxShadow: "0 -4px 20px rgba(0,0,0,.25)" }}>
+        {thumb ? <img src={thumb} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
+          : <span style={{ width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center", background: t.accentGrad }}><Radio size={18} color="#fff" /></span>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+          <div style={{ fontSize: 11.5, color: t.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
+        </div>
+        <button onClick={toggle} data-testid="sf-dock-toggle" className="sf-press" style={{ width: 40, height: 40, borderRadius: 999, border: "none", cursor: "pointer", background: t.accentGrad, display: "grid", placeItems: "center" }}>
+          {playing ? <Pause size={18} color="#fff" fill="#fff" /> : <Play size={18} color="#fff" fill="#fff" />}
+        </button>
+        <button onClick={() => setHidden(true)} aria-label="Close" className="sf-press" style={{ width: 32, height: 32, borderRadius: 999, border: "none", cursor: "pointer", background: "transparent", color: t.text2 }}><X size={18} /></button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────── Bottom nav (mobile) ─────────────────────────── */
+export function BottomNav({ t }) {
+  const { pathname } = useLocation();
+  return (
+    <nav className="lg:hidden" data-testid="sf-bottomnav" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 46, display: "flex", background: t.card, borderTop: `1px solid ${t.border}`, paddingBottom: "env(safe-area-inset-bottom)" }}>
+      {TOP_NAV.map(({ key, label, icon: Icon, to }) => {
+        const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+        return (
+          <Link key={key} to={to} data-testid={`sf-bn-${key}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "8px 0 10px", color: active ? t.accent : t.text2 }}>
+            <Icon size={21} />
+            <span style={{ fontSize: 10, fontWeight: active ? 800 : 600 }}>{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* ─────────────────────────── States ─────────────────────────── */
+export function FeedSkeleton({ t }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 18, padding: 14 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <span style={{ width: 40, height: 40, borderRadius: 999, background: t.chip }} />
+            <span style={{ flex: 1 }}><span style={{ display: "block", width: "40%", height: 12, borderRadius: 6, background: t.chip, marginBottom: 6 }} /><span style={{ display: "block", width: "25%", height: 10, borderRadius: 6, background: t.chip }} /></span>
+          </div>
+          <div style={{ height: 160, borderRadius: 12, background: t.chip, marginTop: 12 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+export function EmptyState({ t, mode, onDiscover }) {
+  return (
+    <div data-testid="sf-empty" style={{ textAlign: "center", padding: "40px 20px", background: t.card, border: `1px solid ${t.border}`, borderRadius: 18 }}>
+      <span style={{ width: 56, height: 56, borderRadius: 999, display: "inline-grid", placeItems: "center", background: t.accentSoft, marginBottom: 12 }}><Users size={26} color={t.accent} /></span>
+      <div style={{ fontWeight: 800, fontSize: 16, color: t.text }}>
+        {mode === "following" ? "Your Following feed is quiet" : "Nothing to show yet"}
+      </div>
+      <div style={{ fontSize: 13.5, color: t.muted, margin: "6px 0 16px" }}>
+        {mode === "following" ? "Follow people, stations and businesses to see their activity here." : "Check back soon for fresh activity."}
+      </div>
+      {mode === "following" && (
+        <button onClick={onDiscover} className="sf-press" style={{ ...pillStyle(t), width: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 22px" }}>
+          Discover on For You <ChevronRight size={16} />
+        </button>
+      )}
+    </div>
+  );
+}

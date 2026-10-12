@@ -29,6 +29,8 @@ import SleepTimerEngine from "@/components/SleepTimerEngine";
 import InterestOnboarding from "./InterestOnboarding";
 import FeatureOnboarding from "@/components/FeatureOnboarding";
 import { useFeaturePrefs } from "@/store/useFeaturePrefs";
+import { useHomeView } from "@/store/useHomeView";
+import SocialFeedShell from "./socialfeed/SocialFeedShell";
 import { isMarketingPath } from "@/shell/AppShellB";
 import { useLaunchBlocked } from "@/hooks/useLaunchStatus";
 import "./newlookv2.css";
@@ -93,6 +95,12 @@ export default function AppShellV2({ children }) {
   useEffect(() => { if (!geoReady) bootstrapGeo(); }, [geoReady, bootstrapGeo]);
   useEffect(() => { if (user && !featLoaded) bootstrapFeatures(); },
     [user, featLoaded, bootstrapFeatures]);
+  const homeView = useHomeView((s) => s.homeView);
+  const bootstrapHomeView = useHomeView((s) => s.bootstrap);
+  const hvLoaded = useHomeView((s) => s.loaded);
+  useEffect(() => { if (user && !hvLoaded) bootstrapHomeView(); },
+    [user, hvLoaded, bootstrapHomeView]);
+  const socialFeedActive = !!user && (homeView === "v2" || homeView === "v3");
 
   // Admin routes render their own content but must clear the fixed
   // AdminSidebar (220px). Offset only on lg+ where the rail is visible.
@@ -104,6 +112,23 @@ export default function AppShellV2({ children }) {
     );
   }
   if (bare) return <>{children}</>;
+
+  // Social Feed view (V2 light / V3 dark) — a Facebook-style activity wall
+  // that replaces the cinematic V2 chrome with its own themed shell across
+  // every in-app route. Classic "New Look V2" stays reachable via the
+  // header view-switcher (sets homeView back to v1).
+  if (socialFeedActive) {
+    const appearance = homeView === "v3" ? "dark" : "light";
+    return (
+      <SocialFeedShell appearance={appearance}>
+        {children}
+        {user && <InterestOnboarding />}
+        {user && <FeatureOnboarding />}
+        <PlayerSwitchToast />
+        <SleepTimerEngine />
+      </SocialFeedShell>
+    );
+  }
 
   // Desktop-only bottom clearance adapts to the player dock position so the
   // player never covers content. Mobile keeps its native full-width dock.
