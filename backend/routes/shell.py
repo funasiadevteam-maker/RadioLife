@@ -18,7 +18,7 @@ import re
 
 router = APIRouter(prefix="/api/shell")
 
-VALID_THEMES = {"dark", "light"}
+VALID_THEMES = {"dark", "light", "system"}
 _TEST_NAME = re.compile(r"(TEST_|Iter\d|Test Shop|QA Demo)", re.I)
 
 # Excludes QA/seed shops from consumer-facing counts + venue lists.

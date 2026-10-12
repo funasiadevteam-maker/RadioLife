@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
 import { sfTokens } from "./sfTheme";
+import { useThemeStore } from "@/theme/useTheme";
 import {
   SfHeader, LeftSidebar, RightRail, AudioDock, BottomNav, InlineDiscovery,
 } from "./socialFeedParts";
@@ -13,7 +14,8 @@ import "./socialfeed.css";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
-export default function SocialFeedShell({ appearance = "light", children }) {
+export default function SocialFeedShell({ children }) {
+  const appearance = useThemeStore((s) => s.theme);
   const t = sfTokens(appearance);
   const { pathname } = useLocation();
   const isHome = pathname === "/";

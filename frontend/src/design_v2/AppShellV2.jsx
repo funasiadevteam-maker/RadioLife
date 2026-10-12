@@ -31,6 +31,7 @@ import FeatureOnboarding from "@/components/FeatureOnboarding";
 import { useFeaturePrefs } from "@/store/useFeaturePrefs";
 import { useHomeView } from "@/store/useHomeView";
 import SocialFeedShell from "./socialfeed/SocialFeedShell";
+import HomeViewSwitcher from "./socialfeed/HomeViewSwitcher";
 import { isMarketingPath } from "@/shell/AppShellB";
 import { useLaunchBlocked } from "@/hooks/useLaunchStatus";
 import "./newlookv2.css";
@@ -118,9 +119,8 @@ export default function AppShellV2({ children }) {
   // every in-app route. Classic "New Look V2" stays reachable via the
   // header view-switcher (sets homeView back to v1).
   if (socialFeedActive) {
-    const appearance = homeView === "v3" ? "dark" : "light";
     return (
-      <SocialFeedShell appearance={appearance}>
+      <SocialFeedShell>
         {children}
         {user && <InterestOnboarding />}
         {user && <FeatureOnboarding />}
@@ -221,6 +221,7 @@ function ShellV2Header() {
           <span className="font-mono text-sm font-black text-[#f5c563]">{balance}</span>
         </Link>
         <NotificationBell />
+        <span className="hidden sm:block"><HomeViewSwitcher /></span>
         <WorkspaceSwitcher compact />
         <Link to="/profile" data-testid="nlv2-avatar" className="flex items-center gap-2">
           <span className="w-9 h-9 rounded-full grid place-items-center text-white font-black shrink-0"

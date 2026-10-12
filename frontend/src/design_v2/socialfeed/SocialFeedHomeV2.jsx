@@ -9,6 +9,7 @@ import axios from "axios";
 import { ArrowUp } from "lucide-react";
 import { sfTokens } from "./sfTheme";
 import { useHomeView } from "@/store/useHomeView";
+import { useThemeStore } from "@/theme/useTheme";
 import SocialFeedCard from "./SocialFeedCard";
 import {
   MomentsRow, Composer, TogetherRow, ModeTabs, FeedSkeleton, EmptyState,
@@ -17,7 +18,7 @@ import {
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
 export default function SocialFeedHomeV2() {
-  const appearance = useHomeView((s) => s.appearance());
+  const appearance = useThemeStore((s) => s.theme);
   const t = sfTokens(appearance);
   const [mode, setMode] = useState("following");
   const [items, setItems] = useState([]);

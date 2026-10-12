@@ -1,0 +1,36 @@
+{
+  "summary": "FUUSIC Phase 1 (WEB) global appearance system tested on Social Feed home. Appearance Light/Dark/System via home-view-switcher-btn works, data-theme toggles instantly on <html>, Social Feed re-themes without a page reload, and 'system' matches the OS preference live. Persistence works end-to-end: selecting Dark persists via PUT /api/shell/prefs and after a full page reload GET /api/shell/prefs returns {theme:'dark'} and data-theme='dark'. Backend accepts 'light','dark','system'. Home layout toggle v2 (Social Feed) <-> v1 (Classic shell-v2) works and layout is independent of appearance. Feed regression passed (Following/For You tabs reload with 16/30 sf-card-* items; composer + like controls render). TWO regressions found in the Classic (shell-v2) header: the legacy ThemeToggle (data-testid='theme-toggle') and the new HomeViewSwitcher (data-testid='home-view-switcher-btn') are BOTH absent from design_v2/AppShellV2.jsx, so (a) the explicit regression item 6 fails and (b) once a user picks Classic they have no on-screen control to switch back to Social Feed or change appearance.",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "AppShellV2 header (Classic layout)", "issue": "Legacy ThemeToggle is not rendered in the shell-v2 top bar. Review item 6 requires the legacy classic header ThemeToggle (data-testid='theme-toggle') to still flip the theme (proxying to setMode). Expected present+clickable in Classic shell, actual: not in the DOM. ThemeToggle is still imported/used in /app/frontend/src/shell/AppShellB.jsx and /app/frontend/src/shell/AppShell.jsx, but when home-view=v1 the home now renders the newer design_v2/AppShellV2.jsx (data-testid='shell-v2-header'), which has NO ThemeToggle at /app/frontend/src/design_v2/AppShellV2.jsx:209-237.", "selector": "[data-testid='theme-toggle']", "priority": "HIGH"},
+        {"component": "AppShellV2 header (Classic layout)", "issue": "HomeViewSwitcher (data-testid='home-view-switcher-btn') is also absent from the Classic shell-v2 header. Consequence: after switching to Classic, the user cannot switch Appearance (Light/Dark/System) OR return to Social Feed from the UI — they are stuck in Classic/current theme (only API/localStorage can recover). The switcher must be present in both layouts to make the appearance+layout preference reachable everywhere.", "selector": "[data-testid='home-view-switcher-btn']", "priority": "HIGH"}
+      ],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "Add <HomeViewSwitcher /> into design_v2/AppShellV2.jsx right-cluster (next to NotificationBell / avatar) so Appearance + Home Layout are reachable from the Classic shell too.",
+    "Re-add <ThemeToggle /> (or at least keep its data-testid='theme-toggle' entry point) in design_v2/AppShellV2.jsx header to satisfy the review's regression item 6; it should proxy to the new global setMode (ThemeToggle already does — just needs to be mounted).",
+    "Optional: hide the standalone ThemeToggle on mobile widths if space is tight, but keep its testid rendered for regression tests."
+  ],
+  "critical_code_review_comments": [
+    "useTheme.js hydrate() is well-designed: localStorage mode applied pre-paint, OS matchMedia listener wired once, and server pref reconciles after. Good.",
+    "setMode fires a non-awaited axios.put — fine as best-effort; the localStorage write happens synchronously before the PUT so reload still re-reads the right mode even if the PUT is slow. Verified end-to-end.",
+    "APPEARANCE options in HomeViewSwitcher correctly use setMode('system') for System; resolution of effective theme occurs in the store, not in the component — clean separation.",
+    "Design-wise, the switcher dropdown stays open after an appearance click. That's intentional (lets user compare), but the toggle button both opens and closes the panel, which bit the test flow — not a bug. Consider adding an outside-click to also close on scroll."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "85% (5/6 review items pass; item 6 fails; also no UI route back from Classic to Feed)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The Phase-1 appearance system (Light/Dark/System) + persistence + Social Feed re-theming + layout toggle work. Two Classic-shell regressions remain: HomeViewSwitcher and legacy ThemeToggle both missing from design_v2/AppShellV2.jsx header. After E1's fix, re-verify: (1) in Classic (home-view-opt-v1) that [data-testid='home-view-switcher-btn'] and [data-testid='theme-toggle'] are present AND tappable, (2) legacy toggle flips data-theme and persists via PUT /api/shell/prefs just like the new switcher. Note: if your test flow uses the switcher button to toggle open, remember that clicking it when the panel is already open CLOSES it — always query the appearance options first and only click the toggle button if options are not in the DOM.",
+  "rca of the issue": "Classic (home_view=v1) was migrated from the older /app/frontend/src/shell/AppShell(B).jsx (which still contains ThemeToggle) to the newer /app/frontend/src/design_v2/AppShellV2.jsx (data-testid='shell-v2'). During that migration the header was redesigned (CityChip, BigPoints pill, NotificationBell, WorkspaceSwitcher, avatar) but the two theming/layout controls (ThemeToggle + HomeViewSwitcher) were not ported over. Fix is a one-line mount of HomeViewSwitcher (and ThemeToggle, if the legacy entry point is still required) in the right-cluster of AppShellV2.jsx around line 222-224."
+}

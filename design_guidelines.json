@@ -1,133 +1,335 @@
 {
-  "theme": {
-    "mode": "dark",
-    "archetype": "7-Electric-Neon-mixed-with-5-Luxury",
-    "description": "Neon-club Dubai dark aesthetic. Confident, aspirational, premium, pixel-conscious.",
-    "colors": {
-      "background": "#0a0c18",
-      "primary": "#ff2d95",
-      "secondary": "#00d9ff",
-      "accent_gold": "#ffd700",
-      "text_primary": "#ffffff",
-      "text_secondary": "#9ca3af",
-      "surface": "rgba(255, 255, 255, 0.03)",
-      "surface_border": "rgba(255, 255, 255, 0.1)"
+  "app_name": "FUUSIC",
+  "surfaces": [
+    "web",
+    "mobile"
+  ],
+  "personality": "Glass / Luxe (Dark mode) + iOS-Native Clean (Light mode) Fusion",
+  "personality_one_liner": "A premium, unified social-audio experience that transitions smoothly from clean and legible daylight feeds to a cinematic, glassy midnight-navy listening lounge.",
+  "brand": {
+    "color": {
+      "surface": "#FFFFFF",
+      "onSurface": "#09090B",
+      "surfaceSecondary": "#F4F4F5",
+      "onSurfaceSecondary": "#27272A",
+      "surfaceTertiary": "#F3E8FF",
+      "onSurfaceTertiary": "#6B21A8",
+      "surfaceInverse": "#0B0F19",
+      "onSurfaceInverse": "#FAFAFA",
+      "brand": "#9333EA",
+      "brandPrimary": "#9333EA",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#EC4899",
+      "onBrandSecondary": "#FFFFFF",
+      "brandTertiary": "#F3E8FF",
+      "onBrandTertiary": "#6B21A8",
+      "success": "#10B981",
+      "onSuccess": "#FFFFFF",
+      "warning": "#F59E0B",
+      "onWarning": "#FFFFFF",
+      "error": "#EF4444",
+      "onError": "#FFFFFF",
+      "info": "#3B82F6",
+      "onInfo": "#FFFFFF",
+      "border": "#E4E4E7",
+      "borderStrong": "#D4D4D8",
+      "divider": "#F4F4F5"
     },
     "typography": {
-      "headings": "font-sans font-black tracking-tighter",
-      "labels": "font-mono uppercase tracking-[0.2em] text-xs",
-      "body": "font-sans leading-relaxed text-base"
+      "displayFontFamily": "'Outfit', sans-serif",
+      "textFontFamily": "'Plus Jakarta Sans', sans-serif",
+      "scale": {
+        "sm": 12,
+        "base": 14,
+        "lg": 16,
+        "xl": 20,
+        "2xl": 24,
+        "3xl": 32
+      },
+      "expo_font_packages": [
+        "@expo-google-fonts/outfit",
+        "@expo-google-fonts/plus-jakarta-sans"
+      ]
     },
-    "effects": {
-      "glass": "backdrop-blur-xl bg-white/5 border border-white/10",
-      "neon_glow_pink": "shadow-[0_0_20px_rgba(255,45,149,0.5)]",
-      "neon_glow_cyan": "shadow-[0_0_20px_rgba(0,217,255,0.5)]"
+    "spacing": {
+      "xs": 4,
+      "sm": 8,
+      "md": 12,
+      "lg": 16,
+      "xl": 24,
+      "2xl": 32,
+      "3xl": 48
+    },
+    "radius_tokens": {
+      "sm": 6,
+      "md": 12,
+      "lg": 20,
+      "pill": 999
+    },
+    "shadow_tier": "2",
+    "icon": {
+      "style": "filled",
+      "web_library": "lucide-react",
+      "mobile_set": "Ionicons"
     }
   },
-  "media": {
-    "images": {
-      "pricing_hero_bg": {
-        "url": "https://static.prod-images.emergentagent.com/jobs/6575e7be-4754-4bdb-b0cf-17c22c4a16e8/images/59e033212fb4c82b029ef15c7f60f08b8c94e1578b97fda6e673bfe3c7769124.png",
-        "description": "Wide atmospheric abstract background for pricing hero section",
-        "usage": "Background for /pricing page hero section"
+  "web": {
+    "tech": "React (.js, not .tsx) + Tailwind + shadcn/ui primitives",
+    "css_variables": {
+      "root": {
+        "--background": "0 0% 100%",
+        "--foreground": "240 10% 3.9%",
+        "--card": "0 0% 100%",
+        "--card-foreground": "240 10% 3.9%",
+        "--popover": "0 0% 100%",
+        "--popover-foreground": "240 10% 3.9%",
+        "--primary": "271 81% 56%",
+        "--primary-foreground": "0 0% 100%",
+        "--secondary": "240 4.8% 95.9%",
+        "--secondary-foreground": "240 5.9% 10%",
+        "--muted": "240 4.8% 95.9%",
+        "--muted-foreground": "240 3.8% 46.1%",
+        "--accent": "271 81% 96%",
+        "--accent-foreground": "271 81% 29%",
+        "--destructive": "0 84.2% 60.2%",
+        "--destructive-foreground": "0 0% 100%",
+        "--border": "240 5.9% 90%",
+        "--input": "240 5.9% 90%",
+        "--ring": "271 81% 56%",
+        "--app-bg": "0 0% 100%",
+        "--surface": "0 0% 100%",
+        "--surface-2": "240 4.8% 95.9%",
+        "--text-primary": "240 10% 3.9%",
+        "--text-secondary": "240 5.9% 10%",
+        "--text-muted": "240 3.8% 46.1%",
+        "--brand-solid": "271 81% 56%",
+        "--brand-grad-start": "271 81% 56%",
+        "--brand-grad-end": "330 81% 60%",
+        "--accent-pink": "330 81% 60%",
+        "--bigpoints-gold": "38 92% 50%",
+        "--nav-bg": "0 0% 100%",
+        "--nav-active": "271 81% 56%",
+        "--modal-surface": "0 0% 100%",
+        "--field-bg": "240 4.8% 95.9%",
+        "--field-border": "240 5.9% 90%",
+        "--media-control": "240 10% 3.9%",
+        "--chip-bg": "271 81% 96%",
+        "--chip-active": "271 81% 56%",
+        "--live-red": "0 84.2% 60.2%"
       },
-      "vip_lounge_cover": {
-        "url": "https://static.prod-images.emergentagent.com/jobs/6575e7be-4754-4bdb-b0cf-17c22c4a16e8/images/a796d4e8ba873afaac66656a728b3dd94a575f06576b7afc90f3331cb6692dd8.png",
-        "description": "VIP Lounge cover art",
-        "usage": "Channel image for vip_lounge"
-      },
-      "premium_mehfil_cover": {
-        "url": "https://static.prod-images.emergentagent.com/jobs/6575e7be-4754-4bdb-b0cf-17c22c4a16e8/images/99977df7586c3a62b55092fcb9f41980f0cd6c56aa34c839163fdfac03b30013.png",
-        "description": "Premium Mehfil cover art",
-        "usage": "Channel image for premium_mehfil"
-      },
-      "success_confetti_bg": {
-        "url": "https://images.unsplash.com/photo-1678845538047-5e5203537b58?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwzfHxjb25mZXR0aSUyMGRhcmslMjBiYWNrZ3JvdW5kJTIwbmVvbnxlbnwwfHx8fDE3Nzk1NzE2MTJ8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Dark neon confetti background",
-        "usage": "Background for /billing/success page"
+      "dark": {
+        "--background": "223 39% 7%",
+        "--foreground": "0 0% 98%",
+        "--card": "223 34% 13%",
+        "--card-foreground": "0 0% 98%",
+        "--popover": "223 34% 13%",
+        "--popover-foreground": "0 0% 98%",
+        "--primary": "271 91% 75%",
+        "--primary-foreground": "0 0% 98%",
+        "--secondary": "223 31% 17%",
+        "--secondary-foreground": "0 0% 98%",
+        "--muted": "223 31% 17%",
+        "--muted-foreground": "240 5% 64.9%",
+        "--accent": "260 45% 25%",
+        "--accent-foreground": "0 0% 98%",
+        "--destructive": "0 62.8% 30.6%",
+        "--destructive-foreground": "0 0% 98%",
+        "--border": "223 31% 17%",
+        "--input": "223 31% 17%",
+        "--ring": "271 91% 75%",
+        "--app-bg": "223 39% 7%",
+        "--surface": "223 39% 7%",
+        "--surface-2": "223 34% 13%",
+        "--text-primary": "0 0% 98%",
+        "--text-secondary": "240 5% 84%",
+        "--text-muted": "240 5% 64.9%",
+        "--brand-solid": "271 91% 75%",
+        "--brand-grad-start": "271 91% 75%",
+        "--brand-grad-end": "330 91% 75%",
+        "--accent-pink": "330 91% 75%",
+        "--bigpoints-gold": "43 96% 56%",
+        "--nav-bg": "223 39% 7%",
+        "--nav-active": "271 91% 75%",
+        "--modal-surface": "223 34% 13%",
+        "--field-bg": "223 31% 17%",
+        "--field-border": "223 31% 17%",
+        "--media-control": "0 0% 98%",
+        "--chip-bg": "260 45% 25%",
+        "--chip-active": "271 91% 75%",
+        "--live-red": "0 84.2% 60.2%"
       }
-    }
+    },
+    "color_rules": [
+      "No pure black or un-tinted greys. Always use the specified navy-tinted values.",
+      "Primary brand CTA should always use a gradient via `bg-gradient-to-r from-[--brand-grad-start] to-[--brand-grad-end]` when possible.",
+      "Use BigPoints gold exclusively for rewards, coins, and premium badges; do not use it for standard warnings.",
+      "Filter chips use `--chip-bg` with `--primary` text when active."
+    ],
+    "typography": {
+      "headings": {
+        "font_family": "'Outfit', sans-serif",
+        "h1": "text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight",
+        "h2": "text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight",
+        "h3": "text-xl sm:text-2xl font-medium",
+        "h4": "text-lg sm:text-xl font-medium",
+        "styles": "Use Outfit for all headers; do not exceed text-6xl. Keep letter-spacing tight."
+      },
+      "body": {
+        "font_family": "'Plus Jakarta Sans', sans-serif",
+        "styles": "leading-relaxed text-base font-normal text-[color:var(--text-primary)]"
+      },
+      "labels": {
+        "styles": "uppercase text-xs tracking-wider font-semibold text-[color:var(--text-muted)]"
+      }
+    },
+    "layout": "Desktop layout: Left navigation rail (fixed, 240px) + Center main content (flexible, max 800px) + Right discovery/ad rail (fixed, 300px). Video/Radio/Checkout flows span the full width (hide right rail). Padding is generous (p-6 to p-8 internally).",
+    "surface_microtheme": "Crystal Glass in Dark Mode (nav/media dock); Flat/Clean in Light Mode (subtle border and shadow).",
+    "navigation_header": "Global top header with FUUSIC wordmark, market selector, BigPoints badge. Always uses a solid/glassy background (never fully transparent over content) to ensure readability.",
+    "components_strategy": {
+      "marketing_pages": "pure HTML + Tailwind for structural layouts to allow overlapping and fluid positioning.",
+      "interactive_logic": "shadcn primitives heavily customized. Strip raw Vercel looks (remove pure black). Make edges match brand.radius_tokens.",
+      "icons": "lucide-react with stroke-width 2 to match the clean, readable Outfit font.",
+      "buttons": "Pill-shaped (rounded-full) for primary actions, heavily utilizing the brand gradient."
+    },
+    "glassmorphism": {
+      "enabled": "true for sticky headers, nav rails, and the persistent media player.",
+      "recipe": "backdrop-blur-xl backdrop-saturate-150 bg-white/70 (light) or bg-[#0B0F19]/70 (dark) + 1px inner stroke border-white/10"
+    },
+    "motion": {
+      "hover_states": "lift (-translate-y-1) and slight shadow increase for cards.",
+      "page_transitions": "Fade-through (opacity 0 to 1) to match an app-like feel.",
+      "buttons": "transition-transform transition-colors duration-200 ease-out active:scale-95"
+    },
+    "data_testid": "Every interactive element (feed posts, like buttons, media play/pause, navigation tabs) MUST have a kebab-case data-testid."
   },
-  "pages": {
-    "pricing": {
-      "layout": "Marketing page bento grid and wide sections",
-      "elements": {
-        "test_mode_banner": {
-          "style": "bg-yellow-500/10 text-yellow-500 font-mono text-xs uppercase tracking-widest text-center py-2 border-b border-yellow-500/20 w-full fixed top-0 z-50",
-          "content": "Test mode · No real charges"
-        },
-        "hero_section": {
-          "background": "Use `pricing_hero_bg` with `bg-cover bg-center` and overlay `bg-[#0a0c18]/80`",
-          "heading": "text-5xl md:text-6xl+ font-black text-white text-center pt-32 pb-8",
-          "currency_selector": "pill-shaped toggle, glassmorphism, accenting active state with cyan (#00d9ff)"
-        },
-        "pricing_cards": {
-          "free_tier": "glassmorphism, muted borders, p-8 rounded-3xl",
-          "premium_tier": "glassmorphism, border-[#ff2d95]/50 neon_glow_pink, p-8 rounded-3xl relative overflow-hidden",
-          "premium_badge": "absolute top-0 right-0 bg-gradient-to-r from-[#ff2d95] to-[#00d9ff] text-white font-mono text-[10px] px-3 py-1 rounded-bl-xl",
-          "cta_premium": "w-full bg-[#ff2d95] text-white hover:bg-[#ff2d95]/90 py-4 rounded-xl font-bold uppercase tracking-wide transition-all neon_glow_pink data-testid='go-premium-cta'",
-          "price_display": "text-4xl font-black text-white, with 'billed annually' in font-mono text-xs text-gray-400"
-        },
-        "features_list": {
-          "style": "flex flex-col gap-4 mt-8",
-          "icon": "lucide-react Check (Cyan for premium)",
-          "items": ["Unlimited skips", "2 exclusive VIP channels", "Ad-free listening", "VIP Badge", "2x Rewards Multiplier"]
-        }
-      }
+  "mobile": {
+    "navigation": "bottom_tabs",
+    "glassmorphism": {
+      "enabled": "true",
+      "dos": [
+        "Bottom tab bar",
+        "Sticky global header over scrolling feed",
+        "Persistent mini media player dock"
+      ],
+      "donts": [
+        "Inside feed cards",
+        "Form inputs",
+        "Standard buttons"
+      ]
     },
-    "billing_success": {
-      "layout": "Centered overlay / full screen minimal",
-      "elements": {
-        "background": "Use `success_confetti_bg` with `bg-cover` and `bg-[#0a0c18]/90` overlay",
-        "card": "glassmorphism max-w-md mx-auto p-12 text-center rounded-3xl border border-[#ff2d95]/30 neon_glow_pink",
-        "heading": "text-3xl font-black text-white mb-4",
-        "text": "Welcome to BigFM Premium",
-        "loader": "cyan pulsing indicator for session status",
-        "countdown": "font-mono text-sm text-[#00d9ff]"
-      }
-    }
-  },
-  "components": {
-    "avatar_dropdown": {
-      "free_user": {
-        "cta": "font-bold text-[#ff2d95] hover:bg-[#ff2d95]/10 data-testid='dropdown-go-premium'"
+    "platform_libraries": {
+      "glass": {
+        "ios": "expo-glass-effect",
+        "android": "expo-blur",
+        "low_end_android_fallback": "solid surfaceSecondary"
       },
-      "premium_user": {
-        "badge": "inline-flex items-center gap-1 bg-[#ffd700]/10 text-[#ffd700] border border-[#ffd700]/30 font-mono text-[10px] px-2 py-0.5 rounded-full",
-        "link": "text-white hover:text-[#00d9ff] data-testid='dropdown-manage-sub'"
+      "image": "expo-image",
+      "blur": "expo-blur",
+      "bottom_sheet": "@gorhom/bottom-sheet",
+      "animation": "react-native-reanimated",
+      "gesture": "react-native-gesture-handler"
+    },
+    "haptics": {
+      "events": {
+        "like_post": "impactLight",
+        "play_pause": "impactMedium",
+        "tab_press": "selection",
+        "buy_action": "notificationSuccess"
       }
     },
-    "profile_premium_tile": {
-      "style": "glassmorphism border-[#00d9ff]/30 p-6 rounded-2xl flex justify-between items-center",
-      "content": "Show VIP status, renewal date, and 'Manage Billing' button (cyan bordered)"
-    },
-    "radio_player": {
-      "vip_badge": "Gold/cyan VIP badge next to username (use lucide Crown icon)",
-      "skip_text": "Replace standard skip counter with 'Unlimited skips' in text-[#00d9ff] font-mono text-xs for premium users"
-    },
-    "channel_switcher": {
-      "free_user_premium_chip": "opacity-70 grayscale hover:grayscale-0 transition-all cursor-pointer relative",
-      "lock_icon": "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white bg-black/50 p-2 rounded-full backdrop-blur-md",
-      "premium_chip_style": "border-2 border-[#ffd700]/50 shadow-[0_0_15px_rgba(255,215,0,0.2)]",
-      "on_click": "Redirects to /pricing for free users"
-    },
-    "skip_limit_modal": {
-      "style": "glassmorphism border-[#ff2d95]/40 rounded-3xl p-8 text-center",
-      "heading": "text-2xl font-black text-white mb-2",
-      "body": "Out of skips. Premium = unlimited.",
-      "cta": "bg-gradient-to-r from-[#ff2d95] to-[#00d9ff] text-white w-full py-3 rounded-xl font-bold uppercase mt-6 hover:opacity-90 data-testid='modal-upgrade-nudge'"
-    }
+    "safe_area": "All screen roots must respect SafeAreaView boundaries. The persistent mini media player must float directly above the bottom tab bar.",
+    "touch_targets": "All Pressables must be >= 44x44pt. Use hitSlop if the visual icon is smaller. Include testID on all interactive elements."
   },
-  "testing": {
-    "requirements": "All interactive and key informational elements MUST include a data-testid attribute."
+  "screens": [
+    {
+      "name": "Home / Social Feed",
+      "surface": "both",
+      "purpose": "Facebook-style social feed showing Moments, posts, and sponsored cards.",
+      "states": {
+        "loading": "Skeleton cards representing posts and the top Moments row.",
+        "empty": "Illustration of friends + 'Follow people to see their updates' + Explore CTA.",
+        "error": "Readable error text + Retry button."
+      },
+      "layout": "Vertical single column on mobile. Top row is horizontally scrollable Moments. Followed by a Composer card, then vertical Feed cards. Cards fill width with md padding."
+    },
+    {
+      "name": "Listen / Radio",
+      "surface": "both",
+      "purpose": "Immersive audio hub featuring radio stations, podcasts, and now-playing views.",
+      "states": {
+        "loading": "Grid skeletons for album art.",
+        "empty": "Illustration of headphones + 'No stations found'.",
+        "error": "Unable to load audio streams + Retry."
+      },
+      "layout": "Grid of vibrant album/station artwork. Now Playing view dominates with large blurred background of the album art."
+    },
+    {
+      "name": "Shop",
+      "surface": "both",
+      "purpose": "E-commerce discovery for products and local dining offers.",
+      "states": {
+        "loading": "2-column product card skeletons.",
+        "empty": "Empty cart or 'No products found'.",
+        "error": "Unable to load store + Retry."
+      },
+      "layout": "2-column grid of product cards on mobile. Each card has a square image, title, price, and BigPoints reward tag."
+    },
+    {
+      "name": "Play",
+      "surface": "both",
+      "purpose": "Casual games and trivia to earn BigPoints.",
+      "states": {
+        "loading": "Large game banner skeletons.",
+        "empty": "Check back later for more games.",
+        "error": "Games temporarily unavailable."
+      },
+      "layout": "Full-width immersive game banners. Vibrant colors, gold accents, prominent CTA to start playing."
+    }
+  ],
+  "images": {
+    "radio_music_festival": {
+      "url": "https://images.unsplash.com/photo-1582711012124-a56cf82307a0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwzfHxtdXNpYyUyMGZlc3RpdmFsJTIwY3Jvd2R8ZW58MHx8fHwxNzkxODQyMDQzfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Crowd at a music festival",
+      "category": "hero",
+      "description": "Hero background for the Listen/Radio tab.",
+      "surface": "both"
+    },
+    "shop_headphones": {
+      "url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NjZ8MHwxfHNlYXJjaHwxfHx3aXJlbGVzcyUyMGhlYWRwaG9uZXMlMjBwcm9kdWN0fGVufDB8fHx8MTc5MTg0MjA0M3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Wireless headphones",
+      "category": "product",
+      "description": "Featured product in the Shop tab.",
+      "surface": "both"
+    },
+    "play_casual_game": {
+      "url": "https://images.unsplash.com/photo-1639656333010-b6a054423b63?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwyfHxjYXN1YWwlMjBtb2JpbGUlMjBnYW1lfGVufDB8fHx8MTc5MTg0MjA0M3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Person playing a casual mobile game",
+      "category": "hero",
+      "description": "Featured game banner in the Play tab.",
+      "surface": "both"
+    },
+    "user_avatar_1": {
+      "url": "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwzfHxwcm9maWxlJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzkxODQyMDQzfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Profile portrait of a user",
+      "category": "avatar",
+      "description": "Avatar for a sample user in the Social Feed.",
+      "surface": "both"
+    },
+    "dining_club": {
+      "url": "https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwyfHxyZXN0YXVyYW50JTIwZGluaW5nfGVufDB8fHx8MTc5MTg0MjA0M3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "People dining at a restaurant",
+      "category": "banner",
+      "description": "Background image for the Dining Club section in Shop.",
+      "surface": "both"
+    }
   },
   "instructions_to_main_agent": [
-    "Implement the /pricing page following the layout and dark neon colors provided.",
-    "Ensure CF-IPCountry header logic correctly maps currencies: AE->AED, IN->INR, US/CA/AU/GB->USD, fallback->USD. Allow ?currency= override.",
-    "Use standard HTML tags and Tailwind classes. Avoid Shadcn components for marketing layouts unless heavily customized to fit the neon aesthetic.",
-    "Apply the test mode banner 'Test mode · No real charges' globally on /pricing.",
-    "Integrate the generated media URLs for backgrounds and channel covers.",
-    "For the Radio Player, swap the skip counter logic to display 'Unlimited skips' for premium tier.",
-    "Ensure all buttons and links have proper data-testid attributes."
+    "CRITICAL: The UI must support seamless toggling between Light, Dark, and System modes. Read the theme preference from /api/shell/prefs.",
+    "WEB: Apply the EXACT CSS variables provided in `web.css_variables` to `/app/frontend/src/index.css`. The `--app-bg`, `--surface`, `--brand-grad-start`, `--bigpoints-gold`, etc. variables MUST be implemented exactly as requested.",
+    "MOBILE: In `/app/mobile`, you MUST export a JS object in `src/constants/theme.ts` that includes both `light` and `dark` variants mapped to the exact semantic token names (e.g., appBg, surface, surface2, textPrimary, brandGradStart, bigpointsGold). Implement a ThemeProvider that dynamically swaps them.",
+    "Both surfaces share the EXACT same visual semantics. Light mode is heavily anchored in #FFFFFF and #F4F4F5 with deep purple accents. Dark mode is anchored in midnight navy (#0B0F19) with vibrant, glowing glassy cards.",
+    "The 'Persistent mini media player dock' is a crucial architectural element. It sits permanently above the bottom tab navigation on mobile, and fixed at the bottom of the left/center layout on desktop web. Ensure layout padding avoids overlapping this player.",
+    "Avatars and UI components should heavily rely on `Plus Jakarta Sans` for clean data readability, while headers, titles, and numbers use `Outfit` for a friendly, modern music-brand feel.",
+    "On Mobile, strictly adhere to the 44x44pt touch target rule for all icon buttons (like, share, play, pause, filter chips) via hitSlop or padding."
   ]
 }

@@ -23,8 +23,8 @@ a#emergent-badge,
 /* Phase A — dual-theme design tokens (dark default + light). */
 :root, [data-theme="dark"] {
     /* core */
-    --bg-base:        #0A0A0F;
-    --bg-elevated:    #14141C;
+    --bg-base:        #0B0F19;
+    --bg-elevated:    #151B2B;
     --bg-glass:       rgba(255, 255, 255, 0.04);
     --text-primary:   #ffffff;
     --text-secondary: rgba(255, 255, 255, 0.62);
@@ -43,6 +43,27 @@ a#emergent-badge,
     --radius-hero:    24px;
 
     --card-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.25);
+
+    /* FUUSIC unified brand tokens — see design_guidelines.json (dark) */
+    --app-bg:        #0B0F19;
+    --surface:       #0B0F19;
+    --surface-2:     #161C2E;
+    --card:          #151B2B;
+    --card-border:   rgba(139,124,246,.16);
+    --text-muted:    rgba(255,255,255,.44);
+    --brand-solid:   #A855F7;
+    --brand-grad-start: #A855F7;
+    --brand-grad-end:   #EC4899;
+    --accent-pink:   #EC4899;
+    --bigpoints-gold:#FFD54A;
+    --nav-bg:        rgba(11,15,25,.92);
+    --nav-active:    #A855F7;
+    --modal-surface: #151B2B;
+    --field-bg:      #161C2E;
+    --field-border:  rgba(255,255,255,.12);
+    --chip-bg:       rgba(168,85,247,.16);
+    --chip-active:   #A855F7;
+    --live:          #FF3B30;
 }
 
 [data-theme="light"] {
@@ -60,6 +81,27 @@ a#emergent-badge,
     --accent-live:      #E02020;
 
     --card-shadow: 0 1px 4px rgba(0,0,0,0.06);
+
+    /* FUUSIC unified brand tokens — see design_guidelines.json (light) */
+    --app-bg:        #FFFFFF;
+    --surface:       #FFFFFF;
+    --surface-2:     #F4F4F5;
+    --card:          #FFFFFF;
+    --card-border:   #E4E4E7;
+    --text-muted:    rgba(10,10,20,.44);
+    --brand-solid:   #9333EA;
+    --brand-grad-start: #9333EA;
+    --brand-grad-end:   #EC4899;
+    --accent-pink:   #EC4899;
+    --bigpoints-gold:#C98A00;
+    --nav-bg:        rgba(255,255,255,.92);
+    --nav-active:    #9333EA;
+    --modal-surface: #FFFFFF;
+    --field-bg:      #F4F4F5;
+    --field-border:  #E4E4E7;
+    --chip-bg:       #F3E8FF;
+    --chip-active:   #9333EA;
+    --live:          #E02020;
 }
 
 body {
