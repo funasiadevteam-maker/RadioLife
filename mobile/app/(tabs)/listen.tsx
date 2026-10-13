@@ -6,7 +6,9 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api, { BACKEND } from '../../src/api/client';
-import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import { SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import { useThemeTokens } from '../../src/theme/ThemeProvider';
+import type { ThemeTokens } from '../../src/theme/tokens';
 import SafeImage from '../../src/components/SafeImage';
 import BannerAdSlotV2 from '../../src/components/BannerAdSlotV2';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
@@ -35,6 +37,8 @@ function buildWeightedOrder(items: any[]): any[] {
 }
 
 function StationTile({ st, onPress }: { st: any; onPress: () => void }) {
+  const tk = useThemeTokens();
+  const t = makeT(tk);
   const sub = st.country || (st.language ? String(st.language).split(',')[0] : '') || 'Live';
   return (
     <TouchableOpacity style={t.tile} onPress={onPress} testID={`listen-station-${st.id || st.slug}`} activeOpacity={0.85}>
@@ -45,13 +49,16 @@ function StationTile({ st, onPress }: { st: any; onPress: () => void }) {
   );
 }
 
-const t = StyleSheet.create({
+const makeT = (tk: ThemeTokens) => StyleSheet.create({
   tile: { width: 116 },
-  name: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '700', marginTop: 6 },
-  sub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+  name: { color: tk.text, fontSize: FONT.sm, fontWeight: '700', marginTop: 6 },
+  sub: { color: tk.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
 });
 
 export default function ListenScreen() {
+  const tk = useThemeTokens();
+  const t = makeT(tk);
+  const s = makeS(tk);
   const router = useRouter();
   const { activeChannelName, activeChannelThumb, currentSeg, playing } = usePlayerStore();
   const { recents, load: loadSaved } = useStationsStore();
@@ -132,7 +139,7 @@ export default function ListenScreen() {
     stations && stations.length ? (
       <View testID={`listen-rail-${id}`}>
         <View style={s.sectionHeader}>
-          <Ionicons name={icon} size={16} color={COLORS.primary} />
+          <Ionicons name={icon} size={16} color={tk.primary} />
           <Text style={s.sectionTitle}>{title}</Text>
           {more && <TouchableOpacity onPress={more} testID={`listen-more-${id}`}><Text style={s.more}>Explore more</Text></TouchableOpacity>}
         </View>
@@ -145,7 +152,7 @@ export default function ListenScreen() {
   return (
     <SafeAreaView style={s.screen} testID="listen-screen">
       <ScrollView contentContainerStyle={{ paddingBottom: 110 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAll(); }} tintColor={COLORS.primary} />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAll(); }} tintColor={tk.primary} />}>
         <View style={s.header}>
           <Text style={s.pageTitle}>Listen</Text>
           <Text style={s.pageSub}>Live radio, AI channels & podcasts</Text>
@@ -176,7 +183,7 @@ export default function ListenScreen() {
         )}
 
         {loading ? (
-          <View style={s.loadWrap}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+          <View style={s.loadWrap}><ActivityIndicator size="large" color={tk.primary} /></View>
         ) : (
           <>
             {/* For You — personalized top stations */}
@@ -192,7 +199,7 @@ export default function ListenScreen() {
             {aiChannels.length > 0 && (
               <View testID="listen-rail-ai">
                 <View style={s.sectionHeader}>
-                  <Ionicons name="radio" size={16} color={COLORS.primary} />
+                  <Ionicons name="radio" size={16} color={tk.primary} />
                   <Text style={s.sectionTitle}>AI stations</Text>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.railContent}>
@@ -215,7 +222,7 @@ export default function ListenScreen() {
 
             {/* 40k+ CTA */}
             <View style={s.sectionHeader}>
-              <Ionicons name="globe" size={16} color={COLORS.primary} />
+              <Ionicons name="globe" size={16} color={tk.primary} />
               <Text style={s.sectionTitle}>Stations worldwide</Text>
             </View>
             <TouchableOpacity style={s.worldCta} onPress={() => router.push('/stations')} testID="listen-all-stations" activeOpacity={0.85}>
@@ -224,18 +231,18 @@ export default function ListenScreen() {
                 <Text style={s.worldTitle}>Explore 40,000+ live stations</Text>
                 <Text style={s.worldSub}>Search by country, language & genre</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+              <Ionicons name="chevron-forward" size={18} color={tk.textMuted} />
             </TouchableOpacity>
 
             {/* Podcasts — two rows */}
             <View style={s.sectionHeader}>
-              <Ionicons name="mic" size={16} color={COLORS.primary} />
+              <Ionicons name="mic" size={16} color={tk.primary} />
               <Text style={s.sectionTitle}>Podcasts</Text>
               {podcasts.length > 0 && <TouchableOpacity onPress={() => router.push('/podcasts')} testID="listen-more-podcasts"><Text style={s.more}>More podcasts</Text></TouchableOpacity>}
             </View>
             {podcasts.length === 0 ? (
               <View style={s.emptyRail} testID="listen-podcasts-empty">
-                <Ionicons name="mic-outline" size={26} color={COLORS.textMuted} />
+                <Ionicons name="mic-outline" size={26} color={tk.textMuted} />
                 <Text style={s.emptyRailText}>Podcasts are coming soon</Text>
                 <Text style={s.emptyRailSub}>Top-listened & AI-recommended shows will appear here.</Text>
               </View>
@@ -268,18 +275,18 @@ export default function ListenScreen() {
             {clips.length > 0 && (
               <View testID="listen-clips">
                 <View style={s.sectionHeader}>
-                  <Ionicons name="film" size={16} color={COLORS.primary} />
+                  <Ionicons name="film" size={16} color={tk.primary} />
                   <Text style={s.sectionTitle}>Clips</Text>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.railContent}>
                   {clips.map((c) => (
                     <TouchableOpacity key={c.id} testID={`listen-clip-${c.id}`} activeOpacity={0.85}
-                      style={{ width: 128, height: 210, borderRadius: RADIUS.lg, overflow: 'hidden', backgroundColor: COLORS.card }}
+                      style={{ width: 128, height: 210, borderRadius: RADIUS.lg, overflow: 'hidden', backgroundColor: tk.card }}
                       onPress={() => (c.business_id ? router.push('/(tabs)/shop') : router.push('/(tabs)/radio'))}>
                       <SafeImage uri={resolveImg(c.image)} fallbackText={c.title} size={128} borderRadius={0} style={{ position: 'absolute', width: 128, height: 210 }} />
                       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 9, backgroundColor: 'rgba(0,0,0,0.45)' }}>
                         {c.sponsored && (
-                          <View style={{ alignSelf: 'flex-start', backgroundColor: COLORS.gold, borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2, marginBottom: 4 }}>
+                          <View style={{ alignSelf: 'flex-start', backgroundColor: tk.gold, borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2, marginBottom: 4 }}>
                             <Text style={{ color: '#0a0a0c', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 }}>SPONSORED</Text>
                           </View>
                         )}
@@ -296,7 +303,7 @@ export default function ListenScreen() {
             {news.length > 0 && (
               <View testID="listen-news">
                 <View style={s.sectionHeader}>
-                  <Ionicons name="newspaper" size={16} color={COLORS.primary} />
+                  <Ionicons name="newspaper" size={16} color={tk.primary} />
                   <Text style={s.sectionTitle}>News</Text>
                   <TouchableOpacity onPress={() => router.push('/(tabs)/news')} testID="listen-more-news"><Text style={s.more}>News Radio</Text></TouchableOpacity>
                 </View>
@@ -305,7 +312,7 @@ export default function ListenScreen() {
                     <TouchableOpacity key={n.id || idx} testID={`listen-news-${idx}`} activeOpacity={0.85}
                       style={{ width: 220 }} onPress={() => router.push('/(tabs)/news')}>
                       <SafeImage uri={resolveImg(n.image_url)} fallbackText={n.headline_text || n.title || 'News'} size={220} borderRadius={RADIUS.md} style={{ height: 124 }} />
-                      <Text style={{ color: COLORS.text, fontSize: FONT.sm, fontWeight: '700', marginTop: 8, lineHeight: 18 }} numberOfLines={3}>
+                      <Text style={{ color: tk.text, fontSize: FONT.sm, fontWeight: '700', marginTop: 8, lineHeight: 18 }} numberOfLines={3}>
                         {n.headline_text || n.title || n.headline}
                       </Text>
                     </TouchableOpacity>
@@ -320,43 +327,43 @@ export default function ListenScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.bg },
+const makeS = (tk: ThemeTokens) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: tk.bg },
   header: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
-  pageTitle: { color: COLORS.text, fontSize: 30, fontWeight: '900' },
-  pageSub: { color: COLORS.textMuted, fontSize: FONT.sm, fontWeight: '600', marginTop: 2 },
+  pageTitle: { color: tk.text, fontSize: 30, fontWeight: '900' },
+  pageSub: { color: tk.textMuted, fontSize: FONT.sm, fontWeight: '600', marginTop: 2 },
   loadWrap: { paddingVertical: 60, alignItems: 'center' },
   continueCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginHorizontal: SPACING.md, marginBottom: SPACING.md, padding: SPACING.sm + 2,
-    borderRadius: RADIUS.lg, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+    borderRadius: RADIUS.lg, backgroundColor: tk.card, borderWidth: 1, borderColor: tk.cardBorder,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
-  continueLabel: { color: COLORS.primary, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
-  continueName: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800', marginTop: 2 },
-  continueSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
-  continuePlay: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  continueLabel: { color: tk.primary, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  continueName: { color: tk.text, fontSize: FONT.md, fontWeight: '800', marginTop: 2 },
+  continueSub: { color: tk.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+  continuePlay: { width: 40, height: 40, borderRadius: 20, backgroundColor: tk.primary, alignItems: 'center', justifyContent: 'center' },
   sponsoredCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginHorizontal: SPACING.md, marginBottom: SPACING.md, padding: SPACING.sm + 2,
-    borderRadius: RADIUS.lg, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.gold,
+    borderRadius: RADIUS.lg, backgroundColor: tk.card, borderWidth: 1, borderColor: tk.gold,
   },
-  sponsoredBadge: { alignSelf: 'flex-start', backgroundColor: COLORS.gold, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 4 },
+  sponsoredBadge: { alignSelf: 'flex-start', backgroundColor: tk.gold, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 4 },
   sponsoredBadgeText: { color: '#0a0a0c', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, marginTop: SPACING.md, marginBottom: SPACING.sm },
-  sectionTitle: { color: COLORS.text, fontSize: FONT.lg, fontWeight: '800', flex: 1 },
-  more: { color: COLORS.secondary, fontSize: FONT.sm, fontWeight: '700' },
+  sectionTitle: { color: tk.text, fontSize: FONT.lg, fontWeight: '800', flex: 1 },
+  more: { color: tk.secondary, fontSize: FONT.sm, fontWeight: '700' },
   railContent: { paddingHorizontal: SPACING.md, gap: SPACING.sm },
-  rowLabel: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700', paddingHorizontal: SPACING.md, marginTop: SPACING.sm, marginBottom: 6 },
+  rowLabel: { color: tk.textDim, fontSize: FONT.sm, fontWeight: '700', paddingHorizontal: SPACING.md, marginTop: SPACING.sm, marginBottom: 6 },
   worldCta: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginHorizontal: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: tk.card, borderWidth: 1, borderColor: tk.cardBorder,
   },
-  worldIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.secondary, alignItems: 'center', justifyContent: 'center' },
-  worldTitle: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800' },
-  worldSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
+  worldIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: tk.secondary, alignItems: 'center', justifyContent: 'center' },
+  worldTitle: { color: tk.text, fontSize: FONT.md, fontWeight: '800' },
+  worldSub: { color: tk.textMuted, fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
   emptyRail: { alignItems: 'center', gap: 4, paddingVertical: 24, marginHorizontal: SPACING.md },
-  emptyRailText: { color: COLORS.text, fontSize: FONT.md, fontWeight: '800' },
-  emptyRailSub: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600', textAlign: 'center' },
+  emptyRailText: { color: tk.text, fontSize: FONT.md, fontWeight: '800' },
+  emptyRailSub: { color: tk.textMuted, fontSize: FONT.xs, fontWeight: '600', textAlign: 'center' },
 });

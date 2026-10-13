@@ -7,8 +7,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { BRAND } from '../../src/config/brand';
-import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
-import { useAppTheme } from '../../src/theme/ThemeProvider';
+import { SPACING, FONT, RADIUS } from '../../src/constants/theme';
+import type { ThemeTokens } from '../../src/theme/tokens';
+import { useAppTheme, useThemeTokens } from '../../src/theme/ThemeProvider';
 import ChipGrid from '../../src/components/ChipGrid';
 import FunAsiaFooter from '../../src/components/FunAsiaFooter';
 import api from '../../src/api/client';
@@ -39,7 +40,9 @@ const HOSTS = [
 export default function ProfileScreen() {
   const { user, refresh, logout } = useAuth();
   const router = useRouter();
-  const { mode: apprMode, setMode: setAppr } = useAppTheme();
+  const { mode: apprMode, setMode: setAppr, t } = useAppTheme();
+  const st = makeStyles(t);
+  const cst = makeCst(t);
   const [pv, setPv] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -78,7 +81,7 @@ export default function ProfileScreen() {
   };
 
   if (!user) return null;
-  if (!pv) return <View style={st.loadingWrap}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+  if (!pv) return <View style={st.loadingWrap}><ActivityIndicator size="large" color={t.primary} /></View>;
 
   const toggle = (key: string) => (id: string) => {
     setPv((p: any) => {
@@ -133,15 +136,15 @@ export default function ProfileScreen() {
               <View style={st.tagRow}>
                 <View style={st.profileTag}><Text style={st.profileTagText}>{user.auth_provider?.toUpperCase()}</Text></View>
                 {user.role === 'admin' && (
-                  <View style={[st.profileTag, { borderColor: COLORS.secondary }]} testID="profile-admin-tag">
-                    <Ionicons name="shield" size={10} color={COLORS.secondary} />
-                    <Text style={[st.profileTagText, { color: COLORS.secondary }]}>ADMIN</Text>
+                  <View style={[st.profileTag, { borderColor: t.secondary }]} testID="profile-admin-tag">
+                    <Ionicons name="shield" size={10} color={t.secondary} />
+                    <Text style={[st.profileTagText, { color: t.secondary }]}>ADMIN</Text>
                   </View>
                 )}
                 {user.is_premium && (
-                  <View style={[st.profileTag, { borderColor: COLORS.gold }]} testID="profile-vip-tag">
-                    <Ionicons name="diamond" size={10} color={COLORS.gold} />
-                    <Text style={[st.profileTagText, { color: COLORS.gold }]}>VIP</Text>
+                  <View style={[st.profileTag, { borderColor: t.gold }]} testID="profile-vip-tag">
+                    <Ionicons name="diamond" size={10} color={t.gold} />
+                    <Text style={[st.profileTagText, { color: t.gold }]}>VIP</Text>
                   </View>
                 )}
               </View>
@@ -169,7 +172,7 @@ export default function ProfileScreen() {
               return (
                 <TouchableOpacity key={m} testID={`appearance-${m}`} activeOpacity={0.85}
                   onPress={() => setAppr(m)} style={[st.apprChip, active && st.apprChipActive]}>
-                  <Ionicons name={ic as any} size={18} color={active ? '#fff' : COLORS.textDim} />
+                  <Ionicons name={ic as any} size={18} color={active ? '#fff' : t.textDim} />
                   <Text style={[st.apprChipText, active && { color: '#fff' }]}>{lbl}</Text>
                 </TouchableOpacity>
               );
@@ -211,9 +214,9 @@ export default function ProfileScreen() {
             onPress={() => Alert.alert('FUUSIC', `${BRAND.tagline}\n\nEverything you love — audio, friends, local businesses, games, rewards and live experiences — together.\n\nVersion 1.0.0`)} testID="menu-about" />
 
           <Text style={[st.menuLabel, { marginTop: SPACING.lg }]}>DANGER ZONE</Text>
-          <MenuItem icon="log-out" label="Sign Out" color={COLORS.orange}
+          <MenuItem icon="log-out" label="Sign Out" color={t.orange}
             onPress={doLogout} testID="signout-btn" />
-          <MenuItem icon="trash-outline" label="Delete Account" sub="Permanently delete all data" color={COLORS.red}
+          <MenuItem icon="trash-outline" label="Delete Account" sub="Permanently delete all data" color={t.red}
             onPress={confirmDelete} testID="menu-delete-account" />
           <FunAsiaFooter />
         </ScrollView>
@@ -232,14 +235,14 @@ export default function ProfileScreen() {
                       testID={`city-option-${m.key}`} activeOpacity={0.8}
                       style={[cst.row, active && cst.rowActive]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[cst.rowLabel, active && { color: COLORS.primary }]}>{m.label}</Text>
+                        <Text style={[cst.rowLabel, active && { color: t.primary }]}>{m.label}</Text>
                         <Text style={cst.rowCountry}>{m.country}</Text>
                       </View>
                       {cityBusy === m.key
-                        ? <ActivityIndicator size="small" color={COLORS.primary} />
+                        ? <ActivityIndicator size="small" color={t.primary} />
                         : active
-                          ? <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
-                          : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
+                          ? <Ionicons name="checkmark-circle" size={20} color={t.primary} />
+                          : <Ionicons name="chevron-forward" size={18} color={t.textMuted} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -256,7 +259,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={st.container} testID="profile-prefs">
       <ScrollView contentContainerStyle={st.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => setSection('menu')} style={st.backRow} testID="prefs-back">
-          <Ionicons name="chevron-back" size={14} color={COLORS.textDim} />
+          <Ionicons name="chevron-back" size={14} color={t.textDim} />
           <Text style={st.backText}>back to menu</Text>
         </TouchableOpacity>
         <Text style={st.prefsTitle}>Edit Preferences</Text>
@@ -268,7 +271,7 @@ export default function ProfileScreen() {
             onPress={() => setPv((p: any) => ({ ...p, show_all_languages: !p.show_all_languages }))}
             style={st.showAllRow}>
             <Ionicons name={pv.show_all_languages ? 'checkbox' : 'square-outline'} size={20}
-              color={pv.show_all_languages ? COLORS.secondary : COLORS.textDim} />
+              color={pv.show_all_languages ? t.secondary : t.textDim} />
             <Text style={st.showAllText}>Show content in all languages (don’t filter to mine)</Text>
           </TouchableOpacity>
           <Text style={[st.scopeHint, pv.show_all_languages && { opacity: 0.4 }]}>Apply my language filter to:</Text>
@@ -280,7 +283,7 @@ export default function ProfileScreen() {
                 onPress={() => setPv((p: any) => ({ ...p, content_lang_scopes: { ...(p.content_lang_scopes || {}), [k]: !on } }))}
                 style={[st.showAllRow, !!pv.show_all_languages && { opacity: 0.4 }]}>
                 <Ionicons name={on ? 'checkbox' : 'square-outline'} size={18}
-                  color={on ? COLORS.secondary : COLORS.textDim} />
+                  color={on ? t.secondary : t.textDim} />
                 <Text style={st.showAllText}>{label}</Text>
               </TouchableOpacity>
             );
@@ -296,8 +299,8 @@ export default function ProfileScreen() {
           <View style={st.areaGrid}>
             {DUBAI_AREAS.map(a => (
               <TouchableOpacity key={a} style={[st.areaChip, pv.home_area === a && st.areaChipOn]} onPress={() => setPv((p: any) => ({ ...p, home_area: a }))} testID={`pref-area-${a.toLowerCase().replace(/ /g, '-')}`}>
-                {pv.home_area === a && <Ionicons name="checkmark" size={12} color={COLORS.secondary} />}
-                <Text style={[st.areaChipText, pv.home_area === a && { color: COLORS.secondary }]}>{a}</Text>
+                {pv.home_area === a && <Ionicons name="checkmark" size={12} color={t.secondary} />}
+                <Text style={[st.areaChipText, pv.home_area === a && { color: t.secondary }]}>{a}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -308,8 +311,8 @@ export default function ProfileScreen() {
           <View style={{ gap: SPACING.sm }}>
             {HOSTS.map(h => (
               <TouchableOpacity key={h.id} style={[st.hostCard, pv.host_personality === h.id && st.hostCardOn]} onPress={() => setPv((p: any) => ({ ...p, host_personality: h.id }))} testID={`pref-host-${h.id}`}>
-                {pv.host_personality === h.id && <Ionicons name="checkmark" size={14} color={COLORS.secondary} />}
-                <Text style={[st.hostText, pv.host_personality === h.id && { color: COLORS.secondary }]}>{h.label}</Text>
+                {pv.host_personality === h.id && <Ionicons name="checkmark" size={14} color={t.secondary} />}
+                <Text style={[st.hostText, pv.host_personality === h.id && { color: t.secondary }]}>{h.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -318,8 +321,8 @@ export default function ProfileScreen() {
         <View style={st.prefBlock}>
           <Text style={st.prefTitle}>Explicit content</Text>
           <View style={st.toggleRow}>
-            <Switch value={pv.explicit_ok} onValueChange={v => setPv((p: any) => ({ ...p, explicit_ok: v }))} trackColor={{ false: '#333', true: COLORS.primary }} thumbColor="#fff" testID="pref-explicit-checkbox" />
-            <Text style={{ color: COLORS.textDim, fontSize: 13, flex: 1 }}>{pv.explicit_ok ? 'Explicit ON' : 'Explicit OFF'}</Text>
+            <Switch value={pv.explicit_ok} onValueChange={v => setPv((p: any) => ({ ...p, explicit_ok: v }))} trackColor={{ false: '#333', true: t.primary }} thumbColor="#fff" testID="pref-explicit-checkbox" />
+            <Text style={{ color: t.textDim, fontSize: 13, flex: 1 }}>{pv.explicit_ok ? 'Explicit ON' : 'Explicit OFF'}</Text>
           </View>
         </View>
 
@@ -335,70 +338,72 @@ export default function ProfileScreen() {
 function MenuItem({ icon, label, sub, color, onPress, loading: busy, testID }: {
   icon: string; label: string; sub?: string; color?: string; onPress: () => void; loading?: boolean; testID: string;
 }) {
+  const t = useThemeTokens();
+  const st = makeStyles(t);
   return (
     <TouchableOpacity style={st.menuItem} onPress={onPress} testID={testID} activeOpacity={0.7}>
       <View style={[st.menuIconChip, color ? { backgroundColor: `${color}18` } : null]}>
-        {busy ? <ActivityIndicator size="small" color={COLORS.textDim} /> :
-          <Ionicons name={icon as any} size={18} color={color || COLORS.primary} />}
+        {busy ? <ActivityIndicator size="small" color={t.textDim} /> :
+          <Ionicons name={icon as any} size={18} color={color || t.primary} />}
       </View>
       <View style={{ flex: 1, marginLeft: 12 }}>
         <Text style={[st.menuItemLabel, color ? { color } : null]}>{label}</Text>
         {sub && <Text style={st.menuItemSub}>{sub}</Text>}
       </View>
-      <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
+      <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
     </TouchableOpacity>
   );
 }
 
-const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  loadingWrap: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
+const makeStyles = (t: ThemeTokens) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
+  loadingWrap: { flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: SPACING.md, paddingBottom: 100 },
-  idCard: { flexDirection: 'row', gap: SPACING.md, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: SPACING.lg },
-  profileAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  idCard: { flexDirection: 'row', gap: SPACING.md, backgroundColor: t.card, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: t.cardBorder, marginBottom: SPACING.lg },
+  profileAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center' },
   profileInitials: { fontSize: 24, fontWeight: '800', color: '#fff' },
-  profileName: { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  profileEmail: { fontSize: 12, color: COLORS.textDim, marginTop: 2, letterSpacing: 0.5 },
+  profileName: { fontSize: 18, fontWeight: '800', color: t.text },
+  profileEmail: { fontSize: 12, color: t.textDim, marginTop: 2, letterSpacing: 0.5 },
   tagRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
-  profileTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.surfaceBorder },
-  profileTagText: { fontSize: 9, fontWeight: '700', color: COLORS.textDim, letterSpacing: 1 },
-  menuLabel: { color: COLORS.textDim, fontSize: 10, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', marginBottom: SPACING.sm },
+  profileTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.surfaceBorder },
+  profileTagText: { fontSize: 9, fontWeight: '700', color: t.textDim, letterSpacing: 1 },
+  menuLabel: { color: t.textDim, fontSize: 10, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', marginBottom: SPACING.sm },
   apprRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
-  apprChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: RADIUS.md, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
+  apprChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: RADIUS.md, backgroundColor: t.card, borderWidth: 1, borderColor: t.cardBorder },
   apprChipActive: { backgroundColor: '#9333EA', borderColor: '#9333EA' },
-  apprChipText: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '800' },
-  menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.sm + 2, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 8 },
-  menuIconChip: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
-  menuItemLabel: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
-  menuItemSub: { color: COLORS.textDim, fontSize: 11, marginTop: 2 },
+  apprChipText: { color: t.textDim, fontSize: FONT.sm, fontWeight: '800' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.card, borderRadius: RADIUS.md, padding: SPACING.sm + 2, borderWidth: 1, borderColor: t.cardBorder, marginBottom: 8 },
+  menuIconChip: { width: 38, height: 38, borderRadius: 12, backgroundColor: t.inputBg, alignItems: 'center', justifyContent: 'center' },
+  menuItemLabel: { color: t.text, fontSize: 14, fontWeight: '700' },
+  menuItemSub: { color: t.textDim, fontSize: 11, marginTop: 2 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.sm },
-  backText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
-  prefsTitle: { color: COLORS.text, fontSize: 22, fontWeight: '900', marginBottom: SPACING.lg, letterSpacing: -0.5 },
+  backText: { color: t.textMuted, fontSize: FONT.xs, fontWeight: '600' },
+  prefsTitle: { color: t.text, fontSize: 22, fontWeight: '900', marginBottom: SPACING.lg, letterSpacing: -0.5 },
   prefBlock: { marginBottom: SPACING.lg },
-  prefTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
+  prefTitle: { fontSize: 14, fontWeight: '700', color: t.text, marginBottom: SPACING.sm },
   showAllRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: SPACING.sm },
-  showAllText: { flex: 1, fontSize: 12, color: COLORS.textDim, fontWeight: '600' },
-  scopeHint: { fontSize: 11, color: COLORS.textDim, fontWeight: '700', marginTop: SPACING.md, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  showAllText: { flex: 1, fontSize: 12, color: t.textDim, fontWeight: '600' },
+  scopeHint: { fontSize: 11, color: t.textDim, fontWeight: '700', marginTop: SPACING.md, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
   areaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  areaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.surfaceBorder, backgroundColor: COLORS.surface },
-  areaChipOn: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },
-  areaChipText: { color: COLORS.textDim, fontSize: 12 },
-  hostCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.surfaceBorder, backgroundColor: COLORS.card },
-  hostCardOn: { borderColor: COLORS.secondary, backgroundColor: 'rgba(59,130,246,0.06)' },
-  hostText: { color: COLORS.textDim, fontSize: 13 },
+  areaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.surfaceBorder, backgroundColor: t.surface },
+  areaChipOn: { borderColor: t.secondary, backgroundColor: 'rgba(59,130,246,0.08)' },
+  areaChipText: { color: t.textDim, fontSize: 12 },
+  hostCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.surfaceBorder, backgroundColor: t.card },
+  hostCardOn: { borderColor: t.secondary, backgroundColor: 'rgba(59,130,246,0.06)' },
+  hostText: { color: t.textDim, fontSize: 13 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: RADIUS.md, marginTop: SPACING.md },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, backgroundColor: t.primary, paddingVertical: 14, borderRadius: RADIUS.md, marginTop: SPACING.md },
   saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
 });
 
-const cst = StyleSheet.create({
+const makeCst = (t: ThemeTokens) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.lg, paddingBottom: 34, borderWidth: 1, borderColor: COLORS.cardBorder },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.surfaceBorder, marginBottom: SPACING.md },
-  title: { color: COLORS.text, fontSize: 20, fontWeight: '900' },
-  sub: { color: COLORS.textDim, fontSize: 12, marginTop: 4, marginBottom: SPACING.md },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.surface, marginBottom: 8 },
-  rowActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(168,85,247,0.08)' },
-  rowLabel: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-  rowCountry: { color: COLORS.textDim, fontSize: 11, marginTop: 2 },
+  sheet: { backgroundColor: t.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.lg, paddingBottom: 34, borderWidth: 1, borderColor: t.cardBorder },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: t.surfaceBorder, marginBottom: SPACING.md },
+  title: { color: t.text, fontSize: 20, fontWeight: '900' },
+  sub: { color: t.textDim, fontSize: 12, marginTop: 4, marginBottom: SPACING.md },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.cardBorder, backgroundColor: t.surface, marginBottom: 8 },
+  rowActive: { borderColor: t.primary, backgroundColor: 'rgba(168,85,247,0.08)' },
+  rowLabel: { color: t.text, fontSize: 15, fontWeight: '700' },
+  rowCountry: { color: t.textDim, fontSize: 11, marginTop: 2 },
 });

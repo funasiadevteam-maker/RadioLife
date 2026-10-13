@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 2d (MOBILE): Listen + Profile themed → MOBILE THEMING COMPLETE (self-tested via Expo screenshots)
+- **Listen** (`mobile/app/(tabs)/listen.tsx`) migrated — note its StyleSheet was literally named `t`, so the token var here is `tk` (StyleSheets became `makeT(tk)`/`makeS(tk)`) to avoid a clash. Renders Light & Dark (rails: Made for you / Trending now / AI stations / Flagship + sponsored now-playing strip).
+- **Profile** (`mobile/app/(tabs)/profile.tsx`) body migrated (`makeStyles`/`makeCst` factories; ProfileScreen + MenuItem); the APPEARANCE picker now sits on a themed surface. Renders Light & Dark.
+- Verified via Expo screenshots in both themes, no runtime errors, clean bundle.
+- **✅ MOBILE IS NOW FULLY THEMED end-to-end**: Home, Social (complete), Listen, Shop, Play, Profile — all Light/Dark/System, one preference shared with web via `/api/shell/prefs`.
+- **Remaining program items**: (a) **WEB** tab bodies (Social/Listen/Shop/Play) — Tailwind-class retrofit, not started; (b) **Shop Storefront** structural rebuild to the mockup (#4); (c) **Listen World Hub** feature rebuild — search + country/language/genre browse + rich now-playing (#3). The current mobile Listen is themed but not yet feature-rebuilt.
+
+
 ## 2026-06 (fork) — 🎨 UNIFIED DESIGN SYSTEM · PHASE 2c (MOBILE): Social secondary tabs + sheets themed → mobile Social COMPLETE (self-tested via Expo screenshots)
 - Introduced a safer migration primitive: `activeTokens` live-binding exported from `mobile/src/theme/ThemeProvider.tsx` (kept current in the provider's render, before children). Nested/function-invoked components read it as a plain `const t = activeTokens; const st = makeStyles(t);` — no per-component hook, so no rules-of-hooks risk, and they re-theme when their parent (the themed tab screen) re-renders on a theme change.
 - Migrated the full Social content tree to the theme: `src/social/together.tsx` (14 components — MomentsTab, PulseTab, Go/Play/Shop-Together sheets, MomentCard/Composer, leaderboards, DiscoverSection, Sheet), `src/social/live.tsx` (8 — LiveTab, GoLive/Viewer/Cohost/PinProduct sheets), `src/social/InterestOnboarding.tsx`.
