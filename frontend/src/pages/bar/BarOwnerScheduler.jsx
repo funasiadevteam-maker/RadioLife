@@ -25,7 +25,7 @@ export default function BarOwnerScheduler({ businessId, businessName, onClose, o
     const prompt = (title.trim() || `${businessName || "bar"} live night`).slice(0, 180);
     setGenBusy(true);
     try {
-      const { data } = await axios.post(`${API}/bar-games/cover-art`, { prompt }, { withCredentials: true });
+      const { data } = await axios.post(`${API}/bar-games/cover-art`, { prompt, business_id: businessId }, { withCredentials: true });
       setCover(`${BACKEND}${data.url}`);
       toast.success("Cover art generated 🎨");
     } catch (e) {

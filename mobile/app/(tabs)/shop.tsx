@@ -35,6 +35,7 @@ export default function ShopHome() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [usual, setUsual] = useState<any>(null);
   const [usualDismissed, setUsualDismissed] = useState(false);
+  const [liveShows, setLiveShows] = useState<any[]>([]);
   const menuCart = useCartStore();
   const t = useThemeTokens();
   const s = makeStyles(t);
@@ -72,6 +73,13 @@ export default function ShopHome() {
     api.get('/shop/usual')
       .then((r) => { if (r.data?.has_usual) setUsual(r.data); })
       .catch(() => setUsual(null));
+    // Live Shopping — live shows first, then upcoming (scheduled) shows.
+    Promise.all([
+      api.get('/social/liveshows', { params: { status: 'live' } }).catch(() => ({ data: { items: [] } })),
+      api.get('/social/liveshows', { params: { status: 'scheduled' } }).catch(() => ({ data: { items: [] } })),
+    ]).then(([lv, up]) => {
+      setLiveShows([...(lv.data.items || []), ...(up.data.items || [])].slice(0, 8));
+    }).catch(() => setLiveShows([]));
   }, []);
 
   const addUsual = () => {
@@ -209,6 +217,46 @@ export default function ShopHome() {
           </View>
         )}
 
+        {liveShows.length > 0 && (
+          <View style={{ marginTop: SPACING.lg }} testID="shop-live-shopping">
+            <View style={s.liveHead}>
+              <View style={s.liveBadge}>
+                <View style={s.liveDot} />
+                <Text style={s.liveBadgeText}>LIVE</Text>
+              </View>
+              <Text style={s.sectionTitleInline}>Live Shopping</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 12 }}>
+              {liveShows.map((sh) => {
+                const isLive = sh.status === 'live';
+                return (
+                  <Pressable key={sh.show_id} style={s.liveCard} testID={`shop-live-${sh.show_id}`}
+                    onPress={() => router.push('/(tabs)/social?tab=live' as any)}>
+                    <View style={s.liveCover}>
+                      <Image source={{ uri: sh.cover_url }} style={s.cover} contentFit="cover" transition={200} />
+                      <View style={[s.liveTag, !isLive && s.upcomingTag]}>
+                        {isLive && <View style={s.liveDot} />}
+                        <Text style={s.liveTagText}>{isLive ? 'LIVE' : 'UPCOMING'}</Text>
+                      </View>
+                      {isLive && (
+                        <View style={s.liveViewers}>
+                          <Ionicons name="eye" size={10} color="#fff" />
+                          <Text style={s.liveViewersText}>{sh.viewer_count || 0}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ padding: 10 }}>
+                      <Text style={s.bizName} numberOfLines={1}>{sh.title || 'Live show'}</Text>
+                      <Text style={s.bizCat} numberOfLines={1}>{sh.business_name || sh.host?.display_name || 'FUUSIC Live'}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
         {specials.length > 0 && (
           <View style={{ marginTop: SPACING.lg }} testID="shop-specials-row">
             <Text style={s.sectionTitle}>{"🔥 Today's Specials"}</Text>
@@ -240,19 +288,28 @@ export default function ShopHome() {
           </View>
         )}
 
-        {sections.map((sec) => (
+        {sections.map((sec, idx) => (
           <View key={sec.key} style={{ marginTop: SPACING.lg }} testID={`shop-section-${sec.key}`}>
-            <Text style={s.sectionTitle}>{sec.title}</Text>
+            <Text style={s.sectionTitle}>{idx === 0 ? 'Featured Near You' : sec.title}</Text>
             {sec.subtitle ? (
               <Text style={{ color: t.primary, fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: SPACING.md, marginTop: -2, marginBottom: 4 }} testID={`shop-section-sub-${sec.key}`}>{sec.subtitle}</Text>
             ) : null}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 12 }}>
-              {sec.items.map((b) => (
-                <BizCard key={b.business_id + sec.key} b={b}
-                  onPress={() => router.push(`/shop/${b.business_id}`)} />
-              ))}
-            </ScrollView>
+            {idx === 0 ? (
+              <View style={s.grid}>
+                {sec.items.slice(0, 6).map((b) => (
+                  <BizCard key={b.business_id + sec.key} b={b} grid
+                    onPress={() => router.push(`/shop/${b.business_id}`)} />
+                ))}
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 12 }}>
+                {sec.items.map((b) => (
+                  <BizCard key={b.business_id + sec.key} b={b}
+                    onPress={() => router.push(`/shop/${b.business_id}`)} />
+                ))}
+              </ScrollView>
+            )}
           </View>
         ))}
       </ScrollView>
@@ -284,14 +341,14 @@ export default function ShopHome() {
   );
 }
 
-export function BizCard({ b, onPress, wide }: { b: Biz; onPress: () => void; wide?: boolean }) {
+export function BizCard({ b, onPress, wide, grid }: { b: Biz; onPress: () => void; wide?: boolean; grid?: boolean }) {
   const t = useThemeTokens();
   const s = makeStyles(t);
   return (
-    <TouchableOpacity style={[s.card, wide && { width: '100%' }]} onPress={onPress}
+    <TouchableOpacity style={[s.card, wide && { width: '100%' }, grid && s.cardGrid]} onPress={onPress}
       testID={`shop-biz-${b.business_id}`} activeOpacity={0.85}>
-      <View style={s.coverWrap}>
-        <Image source={{ uri: b.cover_url }} style={s.cover} contentFit="cover" transition={200} />
+      <View style={[s.coverWrap, grid && s.coverWrapGrid]}>
+        <Image source={{ uri: b.cover_url }} style={[s.cover, grid && s.coverGrid]} contentFit="cover" transition={200} />
         {b.promoted ? <View style={s.promotedTag}><Text style={s.sponsoredText}>Promoted</Text></View>
           : b.sponsored ? <View style={s.sponsoredTag}><Text style={s.sponsoredText}>Sponsored</Text></View> : null}
         <View style={s.ptsBadge}>
@@ -371,9 +428,25 @@ const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   specialSale: { color: t.text, fontSize: FONT.sm, fontWeight: '900' },
   specialWas: { color: t.textMuted, fontSize: FONT.xs, fontWeight: '700', textDecorationLine: 'line-through' },
   sectionTitle: { color: t.text, fontSize: FONT.lg, fontWeight: '900', paddingHorizontal: SPACING.md, marginBottom: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: SPACING.md, rowGap: 12 },
+  liveHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: SPACING.md, marginBottom: 10 },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.live || '#E02020', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
+  liveBadgeText: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
+  sectionTitleInline: { color: t.text, fontSize: FONT.lg, fontWeight: '900' },
+  liveCard: { width: 176, backgroundColor: t.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.cardBorder, overflow: 'hidden' },
+  liveCover: { position: 'relative', height: 112, backgroundColor: t.inputBg },
+  liveTag: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.live || '#E02020', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
+  upcomingTag: { backgroundColor: t.primary },
+  liveTagText: { color: '#fff', fontSize: 9, fontWeight: '900', letterSpacing: 0.3 },
+  liveViewers: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 3 },
+  liveViewersText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   card: { width: 220, backgroundColor: t.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.cardBorder, overflow: 'hidden' },
+  cardGrid: { width: '48%' },
   coverWrap: { position: 'relative' },
+  coverWrapGrid: {},
   cover: { width: '100%', height: 120, backgroundColor: t.inputBg },
+  coverGrid: { aspectRatio: 1, height: undefined },
   sponsoredTag: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
   promotedTag: { position: 'absolute', top: 8, left: 8, backgroundColor: t.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
   sponsoredText: { color: '#fff', fontSize: 9, fontWeight: '800' },

@@ -104,6 +104,43 @@ a#emergent-badge,
     --live:          #E02020;
 }
 
+/* FUUSIC themed utilities — read the semantic theme tokens directly so they
+   flip with data-theme and are immune to the legacy shop-desktop-dark remaps
+   (which only target .bg-white / .text-slate-* / input). Use these on screens
+   being migrated to the unified Light/Dark system. */
+.fz-app       { background: var(--app-bg); color: var(--text-primary); }
+.fz-surface   { background: var(--surface); }
+.fz-surface-2 { background: var(--surface-2); }
+.fz-card      { background: var(--card); border: 1px solid var(--card-border); }
+.fz-text      { color: var(--text-primary); }
+.fz-sub       { color: var(--text-secondary); }
+.fz-muted     { color: var(--text-muted); }
+.fz-brand     { color: var(--brand-solid); }
+.fz-border    { border-color: var(--card-border) !important; }
+.fz-field     { background: var(--field-bg); border: 1px solid var(--field-border); color: var(--text-primary) !important; }
+.fz-field::placeholder { color: var(--text-muted) !important; }
+.fz-chip      { background: var(--chip-bg); color: var(--brand-solid); border: 1px solid var(--card-border); }
+.fz-chip-active { background: var(--chip-active); color: #fff; border: 1px solid transparent; }
+.fz-grad      { background: linear-gradient(90deg, var(--brand-grad-start), var(--brand-grad-end)); color: #fff; }
+.fz-brand-soft { background: color-mix(in srgb, var(--brand-solid) 12%, transparent); border: 1px solid color-mix(in srgb, var(--brand-solid) 30%, transparent); }
+
+/* Social tab (SocialV2) — light-mode remap of its hardcoded glass/dark
+   utilities so inner panels read correctly on a white surface. Scoped to
+   .fz-social-page so it never touches other pages; text-white is left alone
+   (it sits on gradient/colored chips). */
+[data-theme="light"] .fz-social-page .bg-white\/\[0\.03\],
+[data-theme="light"] .fz-social-page .bg-white\/\[0\.04\],
+[data-theme="light"] .fz-social-page .bg-white\/\[0\.05\],
+[data-theme="light"] .fz-social-page .bg-white\/\[0\.06\],
+[data-theme="light"] .fz-social-page .bg-white\/\[0\.08\],
+[data-theme="light"] .fz-social-page .bg-black { background-color: var(--surface-2) !important; }
+[data-theme="light"] .fz-social-page .border-white\/10 { border-color: var(--card-border) !important; }
+[data-theme="light"] .fz-social-page .text-slate-400,
+[data-theme="light"] .fz-social-page .text-slate-300,
+[data-theme="light"] .fz-social-page .text-slate-500 { color: var(--text-muted) !important; }
+[data-theme="light"] .fz-social-page .text-slate-200 { color: var(--text-secondary) !important; }
+
+
 body {
     background: var(--bg-base);
     color: var(--text-primary);

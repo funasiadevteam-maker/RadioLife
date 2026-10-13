@@ -454,13 +454,22 @@ async def gift_perk(play_id: str, body: GiftBody, request: Request,
 
 class CoverBody(BaseModel):
     prompt: str = Field(..., min_length=2, max_length=200)
+    business_id: Optional[str] = Field(None, max_length=64)
 
 
 @router.post("/cover-art")
 async def cover_art(body: CoverBody, request: Request,
                     user: dict = Depends(current_user)):
-    """AI cover art for a Live event (reuses the shared image-gen service)."""
+    """AI cover art for a Live event (reuses the shared image-gen service).
+    Restricted to admins and the venue's owner/manager so random users can't
+    burn paid image-gen quota."""
     db = request.app.state.db
+    from services.merchant_rbac_service import get_user_role_for_merchant
+    role = await get_user_role_for_merchant(
+        db, user=user, merchant_id=body.business_id)
+    if role not in ("admin", "owner", "manager"):
+        raise HTTPException(403, {"code": "forbidden",
+            "message": "Only the venue owner or managers can generate cover art."})
     tier = "admin" if user.get("role") == "admin" else ("premium" if user.get("is_premium") else "free")
     prompt = (f"Vibrant nightlife bar event poster background, {body.prompt.strip()}, "
               f"neon cinematic lighting, moody, high detail, no text, no words")

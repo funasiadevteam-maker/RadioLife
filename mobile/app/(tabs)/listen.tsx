@@ -18,6 +18,19 @@ import { playImportedStation } from '../../src/services/playStation';
 const resolveImg = (u?: string | null) =>
   u ? (u.startsWith('http') ? u : `${BACKEND}${u}`) : null;
 
+const COUNTRY_NAMES: Record<string, string> = {
+  US: 'USA', IN: 'India', AE: 'UAE', GB: 'UK', CA: 'Canada', AU: 'Australia',
+  FR: 'France', DE: 'Germany', IT: 'Italy', ES: 'Spain', BR: 'Brazil', MX: 'Mexico',
+  PK: 'Pakistan', SA: 'Saudi Arabia', NG: 'Nigeria', ZA: 'S. Africa', JP: 'Japan',
+  KR: 'Korea', RU: 'Russia', NL: 'Netherlands', SE: 'Sweden', TR: 'Turkey',
+  EG: 'Egypt', ID: 'Indonesia', PH: 'Philippines',
+};
+const flagOf = (cc?: string) => {
+  if (!cc || cc.length !== 2) return '🌐';
+  try { return String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 127397 + c.charCodeAt(0))); }
+  catch { return '🌐'; }
+};
+
 // Weighted rotation — a higher bid earns more slots in the playlist.
 function buildWeightedOrder(items: any[]): any[] {
   if (!items.length) return [];
@@ -64,6 +77,7 @@ export default function ListenScreen() {
   const { recents, load: loadSaved } = useStationsStore();
 
   const [rails, setRails] = useState<Record<string, any[]>>({});
+  const [facets, setFacets] = useState<Record<string, any[]>>({});
   const [aiChannels, setAiChannels] = useState<any[]>([]);
   const [podcasts, setPodcasts] = useState<any[]>([]);
   const [clips, setClips] = useState<any[]>([]);
@@ -84,8 +98,13 @@ export default function ListenScreen() {
       ]);
       if (disc.status === 'fulfilled') {
         const map: Record<string, any[]> = {};
-        (disc.value.data.rails || []).forEach((r: any) => { map[r.id] = r.stations || []; });
+        const fac: Record<string, any[]> = {};
+        (disc.value.data.rails || []).forEach((r: any) => {
+          map[r.id] = r.stations || [];
+          if (r.facet_chips) fac[r.id] = r.facet_chips;
+        });
         setRails(map);
+        setFacets(fac);
       }
       if (chans.status === 'fulfilled') setAiChannels(chans.value.data.channels || []);
       if (pods.status === 'fulfilled') setPodcasts(pods.value.data.channels || []);
@@ -189,6 +208,43 @@ export default function ListenScreen() {
             {/* For You — personalized top stations */}
             <Rail id="for_you" icon="sparkles" title="Made for you" stations={rails.for_you || []} more={() => router.push('/stations')} />
 
+            {/* Explore by Country — flags */}
+            {(facets.countries || []).length > 0 && (
+              <View testID="listen-countries">
+                <View style={s.sectionHeader}>
+                  <Ionicons name="earth" size={16} color={tk.primary} />
+                  <Text style={s.sectionTitle}>Explore by Country</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.railContent}>
+                  {(facets.countries || []).slice(0, 12).map((c) => (
+                    <TouchableOpacity key={c.slug} style={s.countryChip} testID={`listen-country-${c.slug}`}
+                      onPress={() => router.push({ pathname: '/stations', params: { country: c.slug } })} activeOpacity={0.85}>
+                      <Text style={s.countryFlag}>{flagOf(c.slug)}</Text>
+                      <Text style={s.countryLabel} numberOfLines={1}>{COUNTRY_NAMES[c.slug] || c.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Browse by Genre — cards */}
+            {(facets.genres || []).length > 0 && (
+              <View testID="listen-genres">
+                <View style={s.sectionHeader}>
+                  <Ionicons name="musical-notes" size={16} color={tk.primary} />
+                  <Text style={s.sectionTitle}>Browse by Genre</Text>
+                </View>
+                <View style={s.genreGrid}>
+                  {(facets.genres || []).slice(0, 8).map((g) => (
+                    <TouchableOpacity key={g.slug} style={s.genreCard} testID={`listen-genre-${g.slug}`}
+                      onPress={() => router.push({ pathname: '/stations', params: { category: g.slug } })} activeOpacity={0.85}>
+                      <Text style={s.genreCardText} numberOfLines={1}>{g.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Purchasable ad slot — v2 rotation (local business banners) */}
             <BannerAdSlotV2 slotKey="inline_mpu_1" pageRoute="/listen" />
 
@@ -228,8 +284,8 @@ export default function ListenScreen() {
             <TouchableOpacity style={s.worldCta} onPress={() => router.push('/stations')} testID="listen-all-stations" activeOpacity={0.85}>
               <View style={s.worldIcon}><Ionicons name="globe-outline" size={22} color="#fff" /></View>
               <View style={{ flex: 1 }}>
-                <Text style={s.worldTitle}>Explore 40,000+ live stations</Text>
-                <Text style={s.worldSub}>Search by country, language & genre</Text>
+                <Text style={s.worldTitle}>Explore live stations worldwide</Text>
+                <Text style={s.worldSub}>Search by country, language &amp; genre</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={tk.textMuted} />
             </TouchableOpacity>
@@ -354,6 +410,12 @@ const makeS = (tk: ThemeTokens) => StyleSheet.create({
   sectionTitle: { color: tk.text, fontSize: FONT.lg, fontWeight: '800', flex: 1 },
   more: { color: tk.secondary, fontSize: FONT.sm, fontWeight: '700' },
   railContent: { paddingHorizontal: SPACING.md, gap: SPACING.sm },
+  countryChip: { width: 84, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: RADIUS.lg, backgroundColor: tk.card, borderWidth: 1, borderColor: tk.cardBorder },
+  countryFlag: { fontSize: 28, lineHeight: 32 },
+  countryLabel: { color: tk.text, fontSize: FONT.xs, fontWeight: '800', textAlign: 'center', paddingHorizontal: 4 },
+  genreGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: SPACING.md, gap: 10 },
+  genreCard: { width: '48%', height: 60, borderRadius: RADIUS.lg, backgroundColor: tk.primary, justifyContent: 'flex-end', padding: 12 },
+  genreCardText: { color: '#fff', fontSize: FONT.md, fontWeight: '900', textTransform: 'capitalize' },
   rowLabel: { color: tk.textDim, fontSize: FONT.sm, fontWeight: '700', paddingHorizontal: SPACING.md, marginTop: SPACING.sm, marginBottom: 6 },
   worldCta: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

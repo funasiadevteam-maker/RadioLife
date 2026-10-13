@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 from auth import current_user
 from core.features import (
     FEATURE_CATALOG, FEATURE_KEYS, MANDATORY_FEATURES, DEFAULT_FEATURES,
-    normalize_features,
+    normalize_features, normalize_features_ordered, city_default_features,
 )
 from core.origins import resolve_origin
 from services.points_service import PointsService
@@ -1118,9 +1118,17 @@ async def put_home_view(body: HomeViewBody, request: Request,
 
 
 # ── Feature personalization (which features power Home + the nav) ──
-async def _admin_default_features(db) -> list[str]:
-    doc = await db.app_settings.find_one({"_id": "feature_defaults"})
-    base = (doc or {}).get("features")
+async def _admin_default_features(db, city: str | None = None) -> list[str]:
+    doc = await db.app_settings.find_one({"_id": "feature_defaults"}) or {}
+    if city:
+        by_city = doc.get("by_city") or {}
+        preset = by_city.get(city.strip().lower())
+        if preset is not None:
+            return normalize_features_ordered(preset)
+        built_in = city_default_features(city)
+        if built_in:
+            return built_in
+    base = doc.get("features")
     return normalize_features(base if base is not None else DEFAULT_FEATURES)
 
 
@@ -1129,12 +1137,13 @@ async def get_features(request: Request, user: dict = Depends(current_user)):
     db = request.app.state.db
     u = await db.users.find_one(
         {"user_id": user["user_id"]},
-        {"enabled_features": 1, "onboarded_features": 1}) or {}
-    default = await _admin_default_features(db)
+        {"enabled_features": 1, "onboarded_features": 1, "home_city": 1}) or {}
+    city = u.get("home_city")
+    default = await _admin_default_features(db, city)
     saved = u.get("enabled_features")
-    effective = normalize_features(saved) if saved is not None else default
+    effective = normalize_features_ordered(saved) if saved is not None else default
     return {"catalog": FEATURE_CATALOG, "mandatory": MANDATORY_FEATURES,
-            "enabled": effective, "default": default,
+            "enabled": effective, "default": default, "home_city": city or None,
             "needs_onboarding": not bool(u.get("onboarded_features"))}
 
 
@@ -1146,7 +1155,7 @@ class FeaturesBody(BaseModel):
 async def put_features(body: FeaturesBody, request: Request,
                        user: dict = Depends(current_user)):
     db = request.app.state.db
-    sel = normalize_features(body.features)
+    sel = normalize_features_ordered(body.features)
     await db.users.update_one(
         {"user_id": user["user_id"]},
         {"$set": {"enabled_features": sel, "onboarded_features": True}})
@@ -1155,11 +1164,12 @@ async def put_features(body: FeaturesBody, request: Request,
 
 @router.post("/features/skip")
 async def skip_features(request: Request, user: dict = Depends(current_user)):
-    """Keep the default feature set (all / admin default) and move on."""
+    """Keep the default feature set (city-aware / admin default) and move on."""
     db = request.app.state.db
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"home_city": 1}) or {}
     await db.users.update_one({"user_id": user["user_id"]},
                               {"$set": {"onboarded_features": True}})
-    return {"ok": True, "enabled": await _admin_default_features(db)}
+    return {"ok": True, "enabled": await _admin_default_features(db, u.get("home_city"))}
 
 
 @router.get("/rail/sponsor/eligible-shows")

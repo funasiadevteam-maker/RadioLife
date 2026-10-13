@@ -1,31 +1,68 @@
-// Listen Hub (Phase 4) — the aggregator page behind the "Listen" tab.
-// My Radio one-tap lives at the top; the classic Radio hub is kept as a
-// secondary "option 2" link on top; below are the live flagship stations
-// plus quick links to Browse / News Radio / Podcasts.
+// Listen World Hub — the aggregator behind the "Listen" tab. Rebuilt for the
+// unified FUUSIC Light/Dark theme (brand purple→pink): search, quick-access
+// surfaces, My Radio one-tap, Explore by Country (flags), Browse by Genre and
+// themed station rails. Copy stays generic (real catalog varies — no counts).
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Play, Pause, Radio as RadioIcon, Sparkles, ChevronRight,
-  Newspaper, Podcast, Search, Headphones, Film,
+  Podcast, Search, Headphones, Heart, Users, Globe,
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
-import { useShellSummary, fmtCount } from "@/shell/useShellData";
+import { useShellSummary } from "@/shell/useShellData";
 import PinnedAiRow from "@/components/PinnedAiRow";
 import axios from "axios";
 import { API } from "@/AuthContext";
 
+const COUNTRY_NAMES = {
+  US: "USA", IN: "India", AE: "UAE", GB: "UK", CA: "Canada", AU: "Australia",
+  FR: "France", DE: "Germany", IT: "Italy", ES: "Spain", BR: "Brazil",
+  MX: "Mexico", PK: "Pakistan", SA: "Saudi Arabia", NG: "Nigeria", ZA: "South Africa",
+  JP: "Japan", KR: "Korea", CN: "China", RU: "Russia", NL: "Netherlands",
+  SE: "Sweden", TR: "Turkey", EG: "Egypt", ID: "Indonesia", PH: "Philippines",
+};
+const flagOf = (cc) => {
+  if (!cc || cc.length !== 2) return "🌐";
+  try {
+    return String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)));
+  } catch (_e) { return "🌐"; }
+};
+
+function StationCard({ s }) {
+  const art = s.art || s.favicon || s.logo || s.image;
+  return (
+    <Link to={`/radio/station/${encodeURIComponent(s.id)}?autoplay=1`}
+      data-testid={`listen-station-${s.slug || s.id}`}
+      className="fz-card group rounded-token-md overflow-hidden transition-transform hover:-translate-y-1 block">
+      <div className="aspect-square overflow-hidden relative" style={{ background: "var(--surface-2)" }}>
+        {art
+          ? <img src={art} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          : <div className="w-full h-full grid place-items-center"><RadioIcon size={24} className="fz-muted" /></div>}
+        {s.live && <span className="absolute top-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: "var(--live)" }}>LIVE</span>}
+        <span className="absolute inset-0 grid place-items-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
+          <Play size={22} className="text-white translate-x-0.5" />
+        </span>
+      </div>
+      <div className="p-2">
+        <div className="text-[13px] font-semibold truncate fz-text">{s.name}</div>
+        {(s.country || s.language) && (
+          <div className="text-[11px] truncate fz-muted">{[s.language, s.country].filter(Boolean).join(" · ")}</div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 export default function ListenHub() {
   const navigate = useNavigate();
   const summary = useShellSummary();
-  const [clips, setClips] = useState([]);
-  const [news, setNews] = useState([]);
+  const [q, setQ] = useState("");
+  const [discover, setDiscover] = useState(null);
 
   useEffect(() => {
     let cancel = false;
-    axios.get(`${API}/shell/clips`, { params: { limit: 10 }, withCredentials: true })
-      .then((r) => { if (!cancel) setClips(r.data?.items || []); }).catch(() => {});
-    axios.get(`${API}/news/headlines`, { params: { limit: 6 }, withCredentials: true })
-      .then((r) => { if (!cancel) setNews(r.data?.items || []); }).catch(() => {});
+    axios.get(`${API}/radio/discover`, { withCredentials: true })
+      .then((r) => { if (!cancel) setDiscover(r.data || null); }).catch(() => {});
     return () => { cancel = true; };
   }, []);
 
@@ -35,72 +72,78 @@ export default function ListenHub() {
   const activeChannelName = usePlayerStore((s) => s.activeChannelName);
   const playing = usePlayerStore((s) => s.playing || s.importedPlaying || s.podcastPlaying);
 
-  const nowTitle = importedStation?.name
-    || podcastEpisode?.title
-    || currentSeg?.track_title
-    || activeChannelName;
+  const nowTitle = importedStation?.name || podcastEpisode?.title || currentSeg?.track_title || activeChannelName;
   const hasSession = !!nowTitle;
 
   const startMyRadio = () => navigate("/radio?ch=my&autoplay=1");
-  const resume = () => {
-    try { window.dispatchEvent(new CustomEvent("bigfm:player:toggle")); } catch (_e) { /* noop */ }
-  };
+  const resume = () => { try { window.dispatchEvent(new CustomEvent("bigfm:player:toggle")); } catch (_e) { /* noop */ } };
+  const runSearch = (e) => { e.preventDefault(); navigate(`/radio/browse${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`); };
 
+  const railsById = (discover?.rails || []).reduce((acc, r) => { acc[r.id] = r; return acc; }, {});
+  const countries = (railsById.countries?.facet_chips || []).slice(0, 12);
+  const genres = (railsById.genres?.facet_chips || []).slice(0, 10);
+  const trending = (railsById.trending?.stations || railsById.local?.stations || []).slice(0, 8);
+  const recommended = (railsById.for_you?.stations || railsById.ai_curated?.stations || []).slice(0, 8);
   const flagships = (summary?.flagships || []).slice(0, 8);
-  const count = summary?.station_count ? `${fmtCount(summary.station_count)}+ stations` : "50,000+ stations";
 
-  const quickLinks = [
-    { key: "browse",   label: "Browse stations", sub: count,                     icon: Search,    to: "/radio/browse" },
-    { key: "news",     label: "News Radio",      sub: "Headlines, read aloud",   icon: Newspaper, to: "/radio/news" },
-    { key: "podcasts", label: "Podcasts",        sub: "Shows & episodes",        icon: Podcast,   to: "/podcasts" },
+  const QUICK = [
+    { key: "live", label: "Live Radio", icon: RadioIcon, to: "/radio/browse" },
+    { key: "ai", label: "AI Radio", icon: Sparkles, to: "/radio?ch=my&autoplay=1" },
+    { key: "podcasts", label: "Podcasts", icon: Podcast, to: "/podcasts" },
+    { key: "favorites", label: "Favorites", icon: Heart, to: "/me/saved" },
+    { key: "together", label: "Together", icon: Users, to: "/social" },
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-7" data-testid="listen-hub">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-mono uppercase tracking-widest text-text-secondary">Listen</div>
-          <h1 className="text-2xl sm:text-3xl font-display font-black tracking-tight mt-0.5">
-            Everything to listen to
-          </h1>
-        </div>
-        {/* Old radio hub kept as "option 2" on top */}
-        <Link to="/radio" data-testid="listen-hub-old-hub-link"
-          className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13px] font-bold border transition-colors hover:text-accent-electric"
-          style={{ borderColor: "var(--line)" }}>
-          <RadioIcon size={15} /> Radio hub <ChevronRight size={14} />
-        </Link>
+    <div className="max-w-5xl mx-auto space-y-7 fz-text" data-testid="listen-hub">
+      <div>
+        <div className="text-[11px] font-mono uppercase tracking-widest fz-brand">Listen</div>
+        <h1 className="text-2xl sm:text-3xl font-display font-black tracking-tight mt-0.5">Radio from around the world</h1>
       </div>
+
+      {/* Search */}
+      <form onSubmit={runSearch} className="fz-field flex items-center gap-2 rounded-full px-4 py-3" data-testid="listen-search-form">
+        <Search size={18} className="fz-muted" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} data-testid="listen-search-input"
+          placeholder="Search radio stations, genres, countries…"
+          className="flex-1 outline-none text-sm bg-transparent border-0 p-0 fz-text" style={{ background: "transparent" }} />
+      </form>
+
+      {/* Quick access */}
+      <section className="grid grid-cols-5 gap-2 sm:gap-3" data-testid="listen-quick-access">
+        {QUICK.map((qa) => (
+          <Link key={qa.key} to={qa.to} data-testid={`listen-quick-${qa.key}`}
+            className="fz-card flex flex-col items-center gap-2 rounded-token-md p-3 transition-transform hover:-translate-y-1">
+            <span className="w-11 h-11 rounded-full grid place-items-center fz-brand-soft"><qa.icon size={20} style={{ color: "var(--brand-solid)" }} /></span>
+            <span className="text-[11px] sm:text-xs font-bold text-center fz-sub">{qa.label}</span>
+          </Link>
+        ))}
+      </section>
 
       {/* My Radio — one tap */}
       <section data-testid="listen-hub-myradio">
         {hasSession ? (
-          <div className="flex items-center gap-4 rounded-token-card border border-white/[0.08] bg-bg-elevated p-4 sm:p-5"
-               data-testid="listen-hub-resume-card">
-            <div className="w-16 h-16 rounded-token-md overflow-hidden shrink-0 bg-black/30 grid place-items-center">
-              <Headphones size={26} className="text-accent-electric" />
+          <div className="fz-card flex items-center gap-4 rounded-token-card p-4 sm:p-5" data-testid="listen-hub-resume-card">
+            <div className="w-16 h-16 rounded-token-md overflow-hidden shrink-0 grid place-items-center" style={{ background: "var(--surface-2)" }}>
+              <Headphones size={26} style={{ color: "var(--brand-solid)" }} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-mono uppercase tracking-widest text-accent-electric">
-                {playing ? "Now playing" : "Paused"}
-              </div>
+              <div className="text-[11px] font-mono uppercase tracking-widest fz-brand">{playing ? "Now playing" : "Paused"}</div>
               <div className="text-lg font-bold truncate">{nowTitle}</div>
-              <div className="text-sm text-text-secondary truncate">My Radio · AI-personalized</div>
+              <div className="text-sm fz-muted truncate">My Radio · AI-personalized</div>
             </div>
             <button type="button" onClick={resume} data-testid="listen-hub-resume-btn"
-              className="w-14 h-14 rounded-full bg-accent-electric text-black grid place-items-center shrink-0 hover:scale-105 transition-transform">
+              className="fz-grad w-14 h-14 rounded-full grid place-items-center shrink-0 hover:scale-105 transition-transform">
               {playing ? <Pause size={24} /> : <Play size={24} className="translate-x-0.5" />}
             </button>
           </div>
         ) : (
-          <div className="rounded-token-card p-6 sm:p-8 text-white relative overflow-hidden"
-               data-testid="listen-hub-start-card"
-               style={{ background: "linear-gradient(135deg, #A020F0, #EC4899)" }}>
+          <div className="fz-grad rounded-token-card p-6 sm:p-8 relative overflow-hidden" data-testid="listen-hub-start-card">
             <div className="relative z-10">
               <div className="text-[11px] font-mono uppercase tracking-widest opacity-80">Your radio, one tap away</div>
               <h2 className="text-2xl sm:text-3xl font-display font-black mt-1">Start My Radio</h2>
               <p className="text-sm opacity-90 mt-1 max-w-md">
-                AI-personalized radio built around what you love. Like a track to hear more of it — skip what you don't.
+                AI-personalized radio built around what you love. Like a track to hear more of it — skip what you don&apos;t.
               </p>
               <button type="button" onClick={startMyRadio} data-testid="listen-hub-myradio-btn"
                 className="mt-4 inline-flex items-center gap-2 h-12 px-6 rounded-full bg-white text-black font-bold hover:scale-[1.03] transition-transform">
@@ -114,110 +157,75 @@ export default function ListenHub() {
 
       <PinnedAiRow testId="listen-pinned-ai-row" />
 
-      {/* Quick links — the other listening surfaces */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="listen-hub-quicklinks">
-        {quickLinks.map((q) => (
-          <Link key={q.key} to={q.to} data-testid={`listen-hub-quicklink-${q.key}`}
-            className="group flex items-center gap-3 rounded-token-card border border-white/[0.08] bg-bg-elevated p-4 hover:border-accent-electric/40 transition-colors">
-            <div className="w-11 h-11 rounded-token-md grid place-items-center bg-accent-electric/15 text-accent-electric shrink-0">
-              <q.icon size={20} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[14.5px] font-bold truncate">{q.label}</div>
-              <div className="text-xs text-text-secondary truncate">{q.sub}</div>
-            </div>
-            <ChevronRight size={16} className="text-text-secondary group-hover:text-accent-electric transition-colors" />
-          </Link>
-        ))}
-      </section>
-
-      {/* Live flagship stations */}
-      {flagships.length > 0 && (
-        <section data-testid="listen-hub-flagships">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold">Live flagship stations</h2>
-            <Link to="/radio/browse" data-testid="listen-hub-flagships-seeall"
-              className="text-sm font-semibold text-accent-electric hover:underline flex items-center gap-1">
-              Browse all <ChevronRight size={15} />
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {flagships.map((s) => (
-              <Link key={s.slug || s.id} to={`/radio/station/${encodeURIComponent(s.id)}?autoplay=1`}
-                data-testid={`listen-hub-flagship-${s.slug || s.id}`}
-                className="group rounded-token-md overflow-hidden border border-white/[0.06] bg-bg-elevated hover:border-accent-electric/40 transition-colors">
-                <div className="aspect-square bg-black/30 overflow-hidden relative">
-                  {(s.art || s.favicon)
-                    ? <img src={s.art || s.favicon} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    : <div className="w-full h-full grid place-items-center"><RadioIcon size={24} className="text-text-secondary" /></div>}
-                  {s.live && <span className="absolute top-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-accent-live text-white">LIVE</span>}
-                  <span className="absolute inset-0 grid place-items-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
-                    <Play size={22} className="text-white translate-x-0.5" />
-                  </span>
-                </div>
-                <div className="p-2">
-                  <div className="text-[13px] font-semibold truncate">{s.name}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Clips — RJ moments (moved off Home) */}
-      {clips.length > 0 && (
-        <section data-testid="listen-hub-clips">
+      {/* Explore by Country */}
+      {countries.length > 0 && (
+        <section data-testid="listen-countries">
           <div className="flex items-center gap-2 mb-3">
-            <Film size={17} className="text-accent-electric" />
-            <h2 className="text-lg font-bold">Clips</h2>
-            <span className="text-[10px] font-mono uppercase tracking-widest text-text-secondary">RJ moments</span>
+            <Globe size={17} style={{ color: "var(--brand-solid)" }} />
+            <h2 className="text-lg font-bold">Explore by Country</h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1" data-testid="listen-hub-clips-row">
-            {clips.map((c) => (
-              <button type="button" key={c.id}
-                onClick={() => (c.business_id ? navigate("/shop") : navigate(`/radio?ch=${encodeURIComponent(c.slug || "")}`))}
-                data-testid={`listen-hub-clip-${c.id}`}
-                className="group relative shrink-0 w-[132px] h-[216px] rounded-token-md overflow-hidden border border-white/[0.06] bg-bg-elevated text-left">
-                {c.image
-                  ? <img src={c.image} alt="" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  : <div className="absolute inset-0 grid place-items-center"><RadioIcon size={24} className="text-text-secondary" /></div>}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                {c.sponsored && (
-                  <span className="absolute top-2 left-2 text-[8px] font-black px-1.5 py-0.5 rounded-full bg-accent-gold text-black tracking-widest">SPONSORED</span>
-                )}
-                <div className="absolute inset-x-0 bottom-0 p-2.5">
-                  <div className="text-[13px] font-bold text-white line-clamp-2">{c.title}</div>
-                  <div className="text-[11px] text-white/80 truncate">{c.channel}</div>
-                </div>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+            {countries.map((c) => (
+              <button type="button" key={c.slug} onClick={() => navigate(`/radio/browse?country=${encodeURIComponent(c.slug)}`)}
+                data-testid={`listen-country-${c.slug}`}
+                className="fz-card shrink-0 w-24 rounded-token-md p-3 flex flex-col items-center gap-1.5 transition-transform hover:-translate-y-1">
+                <span className="text-3xl leading-none">{flagOf(c.slug)}</span>
+                <span className="text-[12px] font-bold text-center truncate w-full fz-text">{COUNTRY_NAMES[c.slug] || c.label}</span>
               </button>
             ))}
           </div>
         </section>
       )}
 
-      {/* News — headlines (moved off Home) */}
-      {news.length > 0 && (
-        <section data-testid="listen-hub-news">
+      {/* Browse by Genre */}
+      {genres.length > 0 && (
+        <section data-testid="listen-genres">
+          <h2 className="text-lg font-bold mb-3">Browse by Genre</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {genres.map((g, i) => (
+              <button type="button" key={g.slug} onClick={() => navigate(`/radio/browse?category=${encodeURIComponent(g.slug)}`)}
+                data-testid={`listen-genre-${g.slug}`}
+                className="relative h-20 rounded-token-md overflow-hidden text-left p-3 flex items-end transition-transform hover:-translate-y-1"
+                style={{ background: `linear-gradient(135deg, var(--brand-grad-start), var(--brand-grad-end))`, filter: i % 2 ? "hue-rotate(18deg)" : "none" }}>
+              <span className="text-white font-black text-sm capitalize drop-shadow">{g.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Live stations */}
+      {flagships.length > 0 && (
+        <section data-testid="listen-hub-flagships">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Newspaper size={17} className="text-accent-electric" />
-              <h2 className="text-lg font-bold">News</h2>
-            </div>
-            <Link to="/radio/news" data-testid="listen-hub-news-seeall"
-              className="text-sm font-semibold text-accent-electric hover:underline flex items-center gap-1">
-              News Radio <ChevronRight size={15} />
+            <h2 className="text-lg font-bold">Live stations</h2>
+            <Link to="/radio/browse" data-testid="listen-hub-flagships-seeall"
+              className="text-sm font-semibold fz-brand hover:underline flex items-center gap-1">
+              Browse all <ChevronRight size={15} />
             </Link>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" data-testid="listen-hub-news-grid">
-            {news.slice(0, 6).map((n, idx) => (
-              <Link key={n.id || idx} to="/news" data-testid={`listen-hub-news-${idx}`}
-                className="flex items-center gap-3 rounded-token-md border border-white/[0.06] bg-bg-elevated p-3 hover:border-accent-electric/40 transition-colors">
-                {n.image_url
-                  ? <img src={n.image_url} alt="" className="w-14 h-14 rounded-token-sm object-cover shrink-0" />
-                  : <div className="w-14 h-14 rounded-token-sm bg-black/30 grid place-items-center shrink-0"><Newspaper size={18} className="text-text-secondary" /></div>}
-                <div className="text-[13.5px] font-semibold line-clamp-2">{n.headline_text || n.title || n.headline}</div>
-              </Link>
-            ))}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {flagships.map((s) => <StationCard key={s.slug || s.id} s={s} />)}
+          </div>
+        </section>
+      )}
+
+      {/* Trending now */}
+      {trending.length > 0 && (
+        <section data-testid="listen-trending">
+          <h2 className="text-lg font-bold mb-3">Trending Now</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {trending.map((s) => <StationCard key={`tr-${s.slug || s.id}`} s={s} />)}
+          </div>
+        </section>
+      )}
+
+      {/* Recommended for You */}
+      {recommended.length > 0 && (
+        <section data-testid="listen-recommended">
+          <h2 className="text-lg font-bold mb-3">Recommended for You</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {recommended.map((s) => <StationCard key={`rc-${s.slug || s.id}`} s={s} />)}
           </div>
         </section>
       )}

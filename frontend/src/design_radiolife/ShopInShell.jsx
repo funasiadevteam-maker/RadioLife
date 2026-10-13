@@ -16,10 +16,17 @@ export default function ShopInShell() {
   if (variant === "radiolife") return null;
   const Screen = screenFor(pathname);
   if (!Screen) return null;
+  // The Shop STOREFRONT (/shop) is now fully migrated to the unified
+  // Light/Dark theme system (ShopRadioLife reads the semantic CSS tokens), so
+  // it must NOT inherit the legacy always-dark remap. Other shop sub-screens
+  // (cart, menu, merchant…) stay on the dark-in-shell treatment until themed.
+  const isStorefront = pathname === "/shop";
   return (
     <div
       data-testid="rl-shop-inshell"
-      className="rl-root rl-shop-desktop-dark rl-shop-inshell mx-auto w-full max-w-md lg:max-w-6xl">
+      className={isStorefront
+        ? "mx-auto w-full max-w-md lg:max-w-6xl"
+        : "rl-root rl-shop-desktop-dark rl-shop-inshell mx-auto w-full max-w-md lg:max-w-6xl"}>
       <Screen />
     </div>
   );

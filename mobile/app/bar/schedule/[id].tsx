@@ -32,7 +32,7 @@ export default function BarScheduleLive() {
     const prompt = (title.trim() || `${bizName || 'bar'} live night`).slice(0, 180);
     setGenBusy(true);
     try {
-      const { data } = await api.post('/bar-games/cover-art', { prompt });
+      const { data } = await api.post('/bar-games/cover-art', { prompt, business_id: id });
       const base = process.env.EXPO_PUBLIC_BACKEND_URL || '';
       setCover(data.url?.startsWith('http') ? data.url : `${base}${data.url}`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});

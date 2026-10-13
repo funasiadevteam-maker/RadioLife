@@ -15,6 +15,7 @@ import { TSPACE, TRADIUS, TFONT } from '../../src/constants/tube';
 import { useAppTheme, useThemeTokens } from '../../src/theme/ThemeProvider';
 import type { ThemeTokens } from '../../src/theme/tokens';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
+import { useFeaturePrefs } from '../../src/stores/useFeaturePrefs';
 import { playImportedStation } from '../../src/services/playStation';
 
 const resolveImg = (u?: string | null) =>
@@ -30,7 +31,8 @@ const fireEvent = (event: string, extra: Record<string, any> = {}) => {
   api.post('/shell/home-events', { event, surface: 'mobile', ...extra }).catch(() => {});
 };
 
-// Your FUUSIC World — ecosystem pillars, Social first & featured.
+// Your FUUSIC World — ecosystem pillars, Social first & featured. Order +
+// visibility are personalized per user via /api/social/features.
 const FUUSIC_WORLD = [
   { key: 'social', label: 'Social', icon: 'people', to: '/(tabs)/social', bg: '#14b8a6', featured: true },
   { key: 'listen', label: 'Listen', icon: 'headset', to: '/(tabs)/listen', bg: '#a855f7' },
@@ -39,7 +41,9 @@ const FUUSIC_WORLD = [
   { key: 'play', label: 'Play', icon: 'game-controller', to: '/(tabs)/games', bg: '#8b5cf6' },
   { key: 'dining', label: 'Dining', icon: 'restaurant', to: '/dining', bg: '#fb923c' },
   { key: 'earn', label: 'Earn', icon: 'diamond', to: '/(tabs)/wallet', bg: '#f59e0b' },
+  { key: 'explore', label: 'Explore', icon: 'compass', to: '/(tabs)/social', bg: '#06b6d4' },
 ];
+const WORLD_MAP = Object.fromEntries(FUUSIC_WORLD.map((p) => [p.key, p]));
 
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
@@ -48,6 +52,12 @@ export default function HomeScreen() {
   const { activeChannelName, activeChannelThumb, currentSeg, playing } = usePlayerStore();
   const { t, theme, cycle } = useAppTheme();
   const s = makeStyles(t);
+  const featEnabled = useFeaturePrefs((st) => st.enabled);
+  const featBootstrap = useFeaturePrefs((st) => st.bootstrap);
+  useEffect(() => { featBootstrap(); }, [featBootstrap]);
+  const worldPills = (featEnabled && featEnabled.length)
+    ? featEnabled.map((k) => WORLD_MAP[k]).filter(Boolean)
+    : FUUSIC_WORLD;
 
   const [home, setHome] = useState<any>(null);
   const [socialHome, setSocialHome] = useState<any>(null);
@@ -178,7 +188,7 @@ export default function HomeScreen() {
           <Text style={s.worldHead}>Your FUUSIC World</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 10 }}>
-            {FUUSIC_WORLD.map((p) => (
+            {worldPills.map((p) => (
               <Pressable key={p.key} testID={`home-pillar-${p.key}`} style={[s.pill, p.featured && s.pillFeatured]}
                 onPress={() => { fireEvent(`home_${p.key}_click`); router.push(p.to as any); }}>
                 <View style={[s.pillIcon, { backgroundColor: p.bg }]}>

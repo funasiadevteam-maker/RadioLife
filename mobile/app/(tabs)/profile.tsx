@@ -155,6 +155,8 @@ export default function ProfileScreen() {
           <Text style={st.menuLabel}>ACCOUNT</Text>
           <MenuItem icon="person-outline" label="Edit Preferences" sub="Languages, genres, moods, RJ personality"
             onPress={() => setSection('prefs')} testID="menu-edit-prefs" />
+          <MenuItem icon="grid-outline" label="Personalize Home" sub="Choose & reorder the features on your Home"
+            onPress={() => router.push('/personalize')} testID="menu-personalize" />
           <MenuItem icon="location-outline" label="Switch City" sub={cityLabel ? `Currently: ${cityLabel}` : 'Change your local market'}
             onPress={() => setCityOpen(true)} testID="menu-switch-city" />
           <MenuItem icon="card-outline" label="Billing & Plans" sub="Manage subscription, upgrade, payment"

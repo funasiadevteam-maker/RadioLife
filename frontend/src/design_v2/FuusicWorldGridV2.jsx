@@ -33,7 +33,7 @@ export default function FuusicWorldGridV2({ title = "Your FUUSIC World", pillars
   const enabledFeatures = useFeaturePrefs((s) => s.enabled);
   const base = (pillars && pillars.length ? pillars : FALLBACK);
   const items = enabledFeatures
-    ? base.filter((p) => enabledFeatures.includes(p.key))
+    ? enabledFeatures.map((k) => base.find((p) => p.key === k)).filter(Boolean)
     : base;
 
   useEffect(() => {

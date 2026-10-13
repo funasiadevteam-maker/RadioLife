@@ -16,6 +16,17 @@
   --brand: var(--paw-pink);
 }
 
+/* Light-mode token overrides — themes the entire Play & Win surface. */
+[data-theme="light"] {
+  --paw-bg: #FFFFFF;
+  --paw-bg-2: #F4F4F5;
+  --paw-bg-3: #E9E9EC;
+  --paw-line: #E4E4E7;
+  --paw-text: #0B0B12;
+  --paw-text-dim: #5C6880;
+  --paw-text-muted: #8B93A9;
+}
+
 .paw-wrap, .advgames-wrap, .wizard-wrap {
   min-height: 100vh;
   background: radial-gradient(800px 500px at -10% -10%, rgba(255,45,149,0.07), transparent),

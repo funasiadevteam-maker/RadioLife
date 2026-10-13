@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
   ActivityIndicator, TextInput, FlatList, Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api, { BACKEND } from '../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS } from '../src/constants/theme';
@@ -53,12 +53,13 @@ type Station = {
 
 export default function StationsScreen() {
   const router = useRouter();
+  const sp = useLocalSearchParams<{ country?: string; category?: string; language?: string; q?: string }>();
   const [items, setItems] = useState<Station[]>([]);
-  const [query, setQuery] = useState('');
-  const [debounced, setDebounced] = useState('');
-  const [lang, setLang] = useState('All');
-  const [country, setCountry] = useState('All');
-  const [genre, setGenre] = useState('All');
+  const [query, setQuery] = useState(sp.q ? String(sp.q) : '');
+  const [debounced, setDebounced] = useState(sp.q ? String(sp.q) : '');
+  const [lang, setLang] = useState(sp.language ? String(sp.language) : 'All');
+  const [country, setCountry] = useState(sp.country ? String(sp.country) : 'All');
+  const [genre, setGenre] = useState(sp.category ? String(sp.category) : 'All');
   const [mode, setMode] = useState<'browse' | 'favorites' | 'recent'>('browse');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);

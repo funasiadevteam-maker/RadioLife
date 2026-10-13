@@ -1,0 +1,30 @@
+{
+  "summary": "iter_203 — Personalize Portal (web+mobile) + Cover-art security — ALL GREEN. Backend 8/8 pytest PASS. Web /settings/features: personalize-home-root + 68 testIDs incl. personalize-selected-list (3 features: listen/play/shop in saved order), personalize-discover (5 add buttons: dining/earn/explore/live/social), personalize-preview with 3 preview-tiles, 3 move-up / 3 move-down, 2 remove (play/shop; listen is mandatory & correctly non-removable), personalize-reset-defaults + personalize-home-save present; no '50K/50,000' text anywhere. Mobile /personalize: personalize-screen renders with identical structure (feats:3 up:3 down:3 remove:2 add:5 tiles:3), Reset button correctly labeled 'Reset to Dallas' (confirms per-city default wired through). Mobile Home tab pill rail renders home-pillar-listen, home-pillar-play, home-pillar-shop in exactly the saved order from backend PUT ['play','social','listen'] followed by overwrite to ['play','shop'] with listen forced-in = ['listen','play','shop']. Backend verifications: GET /api/social/features returns catalog + mandatory=['listen'] + enabled (ordered, listen forced) + default (Dallas preset puts shop before play for demo user) + home_city; catalog[0].desc = 'Live radio, AI radio & podcasts' (zero digits). PUT /api/social/features persists the exact order ['play','social','listen'] across reload. Cover-art security: 401 anon, 403 for demo w/ and w/o business_id (code='forbidden'), 200/429/502 (NOT 403) for owner test@bigfm.dubai + biz_karak_cafe_karama. All 7 review items PASS.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+    "mobile": { "ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": [] }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_personalize_portal.py",
+    "/app/test_reports/pytest/iter203_personalize.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/backend/core/features.py:67-81 normalize_features_ordered correctly preserves user order AND forces 'listen' mandatory to the front when omitted — verified by test_features_listen_forced_present.",
+    "/app/backend/routes/social_v2.py:1121-1147 _admin_default_features honors by_city override first, then falls back to CITY_FEATURE_DEFAULTS, then global default. Dallas preset (listen→social→shop→play→live→earn→explore) correctly reaches demo user (home_city=Dallas).",
+    "/app/backend/routes/bar_games.py:460-484 cover-art endpoint uses get_user_role_for_merchant and gates on role∈{admin,owner,manager} — security correctly enforced; 'forbidden' error code returned as spec.",
+    "Mobile mandatory 'listen' row correctly hides the remove button (2 remove buttons for 3 features — listen is non-removable) — matches web parity.",
+    "Mobile Reset button label 'Reset to Dallas' is a nice UX touch confirming per-city default is wired through the UI, not just the API."
+  ],
+  "updated_files": ["/app/backend/tests/test_personalize_portal.py"],
+  "success_rate": { "backend": "100% (8/8)", "frontend": "100% (web + mobile parity verified)" },
+  "test_credentials": "Used demo@bigfm.dubai / DemoPass123! (web+mobile), test@bigfm.dubai / TestUser123! (cover-art owner).",
+  "seed_data_creation": "none — used existing seed data; demo user's enabled_features is now ['listen','play','shop'] (listen forced-in after PUT ['play','shop']).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "demo@bigfm.dubai home_city=Dallas confirmed. After iter_203, demo enabled_features=['listen','play','shop']. test@bigfm.dubai owns biz_karak_cafe_karama for cover-art. Backend tests at /app/backend/tests/test_personalize_portal.py are reusable regression. Note: urllib.request POST to /api/auth/login returned 403 in testing — must use page.request.post or requests library (headers-based bot detection). For mobile Expo preview auth, use bearer token stored in localStorage['bigfm_session_token'] AFTER navigating to the Expo origin at least once.",
+  "rca of the issue": "N/A — no bugs."
+}

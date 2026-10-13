@@ -11,6 +11,8 @@ export const useFeaturePrefs = create((set, get) => ({
   enabled: null,          // null until loaded → treat everything as on (no flash)
   catalog: [],
   mandatory: [],
+  defaults: [],           // city-aware default set from the backend
+  homeCity: null,
   needsOnboarding: false,
   loaded: false,
   loading: false,
@@ -24,6 +26,8 @@ export const useFeaturePrefs = create((set, get) => ({
         enabled: r.data?.enabled || [],
         catalog: r.data?.catalog || [],
         mandatory: r.data?.mandatory || [],
+        defaults: r.data?.default || [],
+        homeCity: r.data?.home_city || null,
         needsOnboarding: !!r.data?.needs_onboarding,
         loaded: true,
       });

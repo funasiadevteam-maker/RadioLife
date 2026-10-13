@@ -62,8 +62,8 @@ export default function SocialV2() {
   };
 
   return (
-    <div className="min-h-screen text-white"
-              style={{ background: "linear-gradient(180deg,#080a16 0%,#0b0f1e 40%,#0a0a14 100%)" }}
+    <div className="min-h-screen fz-social-page fz-text"
+              style={{ background: "var(--app-bg)" }}
               data-testid="social-v2">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 pb-32">
         <Header home={home} onOpenFollowing={() => setFollowingOpen(true)} />

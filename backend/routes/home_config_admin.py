@@ -11,7 +11,8 @@ from fastapi import APIRouter, Body, Depends, Request
 
 from auth import require_admin
 from core.features import (
-    FEATURE_CATALOG, MANDATORY_FEATURES, DEFAULT_FEATURES, normalize_features,
+    FEATURE_CATALOG, MANDATORY_FEATURES, DEFAULT_FEATURES,
+    normalize_features, normalize_features_ordered,
 )
 from core.home_config import get_home_config, save_home_config, pillar_labels
 from services.demo_library import (
@@ -39,13 +40,15 @@ async def admin_put_home_config(request: Request, body: dict = Body(default={}),
 @router.get("/feature-defaults")
 async def admin_get_feature_defaults(request: Request,
                                      admin: dict = Depends(require_admin)):
-    """Global default feature set new users start with (before they personalize)."""
+    """Global + per-city default feature sets new users start with."""
     db = request.app.state.db
-    doc = await db.app_settings.find_one({"_id": "feature_defaults"})
-    base = (doc or {}).get("features")
+    doc = await db.app_settings.find_one({"_id": "feature_defaults"}) or {}
+    base = doc.get("features")
     feats = normalize_features(base if base is not None else DEFAULT_FEATURES)
+    by_city = {c: normalize_features_ordered(v)
+               for c, v in (doc.get("by_city") or {}).items()}
     return {"catalog": FEATURE_CATALOG, "mandatory": MANDATORY_FEATURES,
-            "features": feats}
+            "features": feats, "by_city": by_city}
 
 
 @router.put("/feature-defaults")
@@ -53,13 +56,19 @@ async def admin_put_feature_defaults(request: Request, body: dict = Body(default
                                      admin: dict = Depends(require_admin)):
     db = request.app.state.db
     feats = normalize_features((body or {}).get("features"))
+    update = {"features": feats,
+              "updated_at": datetime.now(timezone.utc).isoformat()}
+    raw_by_city = (body or {}).get("by_city")
+    if isinstance(raw_by_city, dict):
+        update["by_city"] = {str(c).strip().lower(): normalize_features_ordered(v)
+                             for c, v in raw_by_city.items() if str(c).strip()}
     await db.app_settings.update_one(
-        {"_id": "feature_defaults"},
-        {"$set": {"features": feats,
-                  "updated_at": datetime.now(timezone.utc).isoformat()}},
-        upsert=True)
+        {"_id": "feature_defaults"}, {"$set": update}, upsert=True)
+    doc = await db.app_settings.find_one({"_id": "feature_defaults"}) or {}
+    by_city = {c: normalize_features_ordered(v)
+               for c, v in (doc.get("by_city") or {}).items()}
     return {"catalog": FEATURE_CATALOG, "mandatory": MANDATORY_FEATURES,
-            "features": feats}
+            "features": feats, "by_city": by_city}
 
 
 def _rebuild_status_public(doc: dict) -> dict:
