@@ -77,7 +77,9 @@ export default function HomeScreen() {
   const [socialHome, setSocialHome] = useState<any>(null);
   const [feed, setFeed] = useState<any[]>([]);
   const [pendingFeed, setPendingFeed] = useState<any[]>([]);
+  const [newCount, setNewCount] = useState(0);
   const feedRef = useRef<any[]>([]);
+  const sinceRef = useRef<string>('');
   const [nearby, setNearby] = useState<any[]>([]);
   const [points, setPoints] = useState<number | null>(null);
   const [cityLabel, setCityLabel] = useState('');
@@ -110,7 +112,9 @@ export default function HomeScreen() {
         }
         setFeed(items);
         feedRef.current = items;
+        sinceRef.current = items[0]?.created_at || '';
         setPendingFeed([]);
+        setNewCount(0);
       } catch { /* ignore */ }
       // Near you now — friends who just checked in / paid at a place you follow.
       try {
@@ -124,20 +128,24 @@ export default function HomeScreen() {
   useEffect(() => { if (!authLoading && user) load(); }, [authLoading, user]);
 
   // Poll social so friends-live cards appear the moment friends go live.
-  // Also quietly fetch the social wall + 'near you now'. New wall items are
-  // STAGED (not swapped in) so a 'new activity' pill can reveal them on tap.
+  // The social wall is fetched wider (limit 20) and STAGED: we count how many
+  // items are newer than what's on screen so the 'new posts' pill keeps
+  // ticking up as more activity arrives while you read.
   useEffect(() => {
     if (!user) return undefined;
     const iv = setInterval(() => {
       api.get('/social/home').then((r) => setSocialHome(r.data || null)).catch(() => {});
-      api.get('/social/feed-v2', { params: { mode: 'following', limit: 4 } })
+      api.get('/social/feed-v2', { params: { mode: 'following', limit: 20 } })
         .then((r) => {
           const it = r.data?.items || [];
           if (!it.length) return;
-          const cur = feedRef.current;
-          if (!cur.length) { setFeed(it); feedRef.current = it; return; }
-          const curIds = new Set(cur.map((x: any) => x.id));
-          if (it.some((x: any) => !curIds.has(x.id))) setPendingFeed(it);
+          if (!feedRef.current.length) {
+            setFeed(it); feedRef.current = it; sinceRef.current = it[0]?.created_at || '';
+            return;
+          }
+          const since = sinceRef.current;
+          const cnt = since ? it.filter((x: any) => x.created_at && x.created_at > since).length : 0;
+          if (cnt > 0) { setPendingFeed(it); setNewCount(cnt); }
         })
         .catch(() => {});
       api.get('/social/friends-nearby')
@@ -149,16 +157,13 @@ export default function HomeScreen() {
 
   const revealNewPosts = () => {
     if (!pendingFeed.length) return;
-    fireEvent('home_feed_reveal');
+    fireEvent('home_feed_reveal', { count: newCount });
     setFeed(pendingFeed);
     feedRef.current = pendingFeed;
+    sinceRef.current = pendingFeed[0]?.created_at || sinceRef.current;
     setPendingFeed([]);
+    setNewCount(0);
   };
-  const newPostCount = (() => {
-    if (!pendingFeed.length) return 0;
-    const curIds = new Set(feed.map((x) => x.id));
-    return pendingFeed.filter((x) => !curIds.has(x.id)).length;
-  })();
 
   useEffect(() => {
     if (!user) return;
@@ -273,12 +278,12 @@ export default function HomeScreen() {
                 <Text style={s.seeAll}>See all</Text>
               </Pressable>
             </View>
-            {newPostCount > 0 && (
+            {newCount > 0 && (
               <Animated.View entering={FadeInDown.duration(300).springify()}
                 style={{ paddingHorizontal: TSPACE.md, marginBottom: 10 }}>
                 <Pressable testID="home-feed-new-pill" onPress={revealNewPosts} style={s.newPill}>
                   <Ionicons name="arrow-up-circle" size={16} color={t.onAccent} />
-                  <Text style={s.newPillTxt}>{newPostCount} new {newPostCount === 1 ? 'post' : 'posts'} — tap to view</Text>
+                  <Text style={s.newPillTxt}>{newCount >= 20 ? '20+' : newCount} new {newCount === 1 ? 'post' : 'posts'} — tap to view</Text>
                 </Pressable>
               </Animated.View>
             )}
@@ -345,10 +350,11 @@ export default function HomeScreen() {
                     <Text style={s.nearbyCtx} numberOfLines={1}>{n.activity === 'paid' ? 'paid at' : 'checked in at'}</Text>
                     <Text style={s.nearbyBiz} numberOfLines={1}>{n.business_name}</Text>
                     {n.offer && (
-                      <View style={s.nearbyDeal} testID={`home-nearby-${i}-deal`}>
+                      <Pressable style={s.nearbyDeal} testID={`home-nearby-${i}-deal`}
+                        onPress={() => { fireEvent('home_nearby_deal_claim', { offer_id: n.offer.offer_id, business_id: n.business_id }); router.push(`/offer/${n.offer.offer_id}` as any); }}>
                         <Ionicons name="pricetag" size={10} color={t.gold} />
-                        <Text style={s.nearbyDealTxt} numberOfLines={1}>{n.offer.label || n.offer.title}</Text>
-                      </View>
+                        <Text style={s.nearbyDealTxt} numberOfLines={1}>Claim {n.offer.label || n.offer.title}</Text>
+                      </Pressable>
                     )}
                   </Pressable>
                 </Animated.View>

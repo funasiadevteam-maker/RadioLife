@@ -2,6 +2,15 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🆕 Claim Deal CTA + Split From Receipt + Live Pill Count (testing agent iter208: backend 6/6 + mobile ALL GREEN)
+Three follow-up builds.
+- **Claim Deal CTA** (`mobile/app/(tabs)/home.tsx`): the "Near you now" deal is now a tappable chip ("Claim {offer}") that routes straight to `/offer/{offer_id}` (the existing claim screen `app/offer/[id].tsx`, which claims via `POST /api/commerce/offers/{id}/claim`), not the store. The card body still routes to `/store/{business_id}`. Demo offer `ofr_qa_onetime_demo` is one-time → re-claim returns 409 `max_per_user_reached` (expected).
+- **Split From Receipt** (`mobile/app/pay-checkout/[token].tsx`): the success receipt gained a "Split this" button beside "Share". New shared `doSplit()` calls `POST /api/scan-to-pay/splits` with the correct schema `{merchant_id, total_amount_cents, shares:[{share_amount_cents, display_name}]}` (post-pay, NO qr_token) and shares the friend's invite URL via RN `Share`. This also FIXED the pre-existing pre-pay "Split with a friend" button, which was posting a wrong/invalid payload (`payer_count` + `label`/`amount_cents` + no merchant_id) and would 422. Removed the now-unused `expo-sharing` import.
+- **Live Pill Count** (`mobile/app/(tabs)/home.tsx`): the quiet 25s poll now fetches the wall wider (`feed-v2` limit 20) and counts items newer than `sinceRef` (created_at of the newest displayed item); the `home-feed-new-pill` shows that count ("N new posts — tap to view", caps at "20+") and keeps ticking up across polls until `revealNewPosts()` swaps them in and resets. Event-driven (absent at idle).
+- **Demo sustainability**: `scripts/topup_demo_bigcoin.py` tops demo→10000 / freeuser→5000 BigCoin (idempotent; shortfall-only ledger credit) so the 100%-points scan-to-pay demo keeps working.
+- Files: `mobile/app/(tabs)/home.tsx`, `mobile/app/pay-checkout/[token].tsx`, `scripts/topup_demo_bigcoin.py`. Tests: `/app/backend/tests/test_iter208_fuusic.py` (6 passed). Report: `/app/test_reports/iteration_208.json`.
+
+
 ## 2026-06 (fork) — 🆕 Nearby Deal Hook + New Activity Pill + Receipt Share (testing agent iter207: backend 3/3 + mobile ALL GREEN)
 Three follow-up builds on the Home social-first + scan-to-pay work.
 - **Nearby Deal Hook** — `GET /api/social/friends-nearby` (`routes/social_v2.py`) now enriches each item with the followed business's live offer `{offer_id,title,label}` from the `offers` collection (active + unexpired; derives a `label` from `discount_label`/`discount_percent`/`discount_value_pct`). The mobile Home "Near you now" card (`home-nearby-N`) renders a gold deal pill (`home-nearby-N-deal`, e.g. "50% off Karak"). Seed `scripts/seed_nearby_demo.py` now also sets a clean `discount_label` on the demo merchant's active offer.

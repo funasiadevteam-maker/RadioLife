@@ -1,0 +1,41 @@
+{
+  "summary": "iter_208 FUUSIC (claim-deal CTA + split-from-receipt + live-pill) — ALL GREEN. Backend 6/6 passed: POST /api/scan-to-pay/splits with post-pay payload (merchant_id=biz_demo_karak, total_amount_cents=1500, 2 shares, NO qr_token) returns 200 with split_id, 2 shares each carrying share_id+invite_token+display_name, and invite_urls map keyed by share_id (verified both shares present); the pre-pay path with a fresh qr_token also returns 200. 100% BigPoints scan-to-pay regression intact (resolve amount=500 / settings.max_points_redemption_pct>=100, quote card_cents=0 + points_value_cents=500, authorize+capture receipt subtotal=500/charge=0/points_used=500). Offer feed contains ofr_qa_onetime_demo; demo claim POST returned 409 max_per_user_reached (expected — one-time offer already claimed by demo). /api/social/feed-v2?mode=following returns items with created_at. Mobile: home-nearby-0-deal shows 'Claim 50% off Karak', tapping routes to /offer/ofr_qa_onetime_demo (NOT /store) and renders offer-detail-screen; tapping offer-claim-btn calls POST /api/commerce/offers/ofr_qa_onetime_demo/claim and the server returns 409 (expected one-time). pay-checkout after 100% BigPoints pay renders receipt with Subtotal AED 5.00 / BigCoin used -500 BC / Total paid AED 0.00 (NO NaN); pay-share-btn ('Share') and pay-split-btn ('Split this') both render side-by-side at y=407, ABOVE pay-done-btn at y=473; tapping pay-split-btn does NOT crash (web Share.share throws caught by try/catch, receipt remains visible). Live Pill (home-feed-new-pill) absent at idle load — expected per iter_207 (no fresh staged items in the 25s poll window). The staging logic at home.tsx:134-156 is wired correctly (poll /social/feed-v2 following limit=20, count items newer than sinceRef, '20+' cap at line 286, revealNewPosts resets at line 158-166).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter208_fuusic.py",
+    "/app/test_reports/pytest/iter208.xml"
+  ],
+  "action_items": [
+    "None blocking. (Carry-over nice-to-have from iter_207) The live-pill (home-feed-new-pill) cannot be deterministically produced in the harness without injecting a fresh social_feed_items row for someone demo follows within the 25s poll window; the code path is verified-correct by inspection."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/scan_to_pay_splits.py:58-70 — body model allows qr_token=None (pre-pay optional). Confirmed both the post-pay (no qr_token) and pre-pay (with qr_token) code paths return 200 with the full {split_id, shares[], invite_urls} contract the mobile UI relies on.",
+    "mobile/app/pay-checkout/[token].tsx:77-104 — doSplit() correctly posts {merchant_id, total_amount_cents, description, shares:[2]} with NO qr_token when called from splitReceipt; builds the friend invite URL from invite_urls[friend.share_id]; wraps Share.share in try/catch so web preview gracefully no-ops without crashing the receipt (verified).",
+    "mobile/app/pay-checkout/[token].tsx:166-175 — receipt action row uses flexDirection:row with the two outlined buttons (Share, Split this) at flex:1 side-by-side, ABOVE the full-width Done primary button (verified y: share=407, split=407, done=473). Clean 44pt tap targets.",
+    "mobile/app/offer/[id].tsx:40-55 — claimOffer posts to /commerce/offers/{id}/claim with empty body; 409 'max_per_user_reached' surfaces via Alert.alert as-is (acceptable but could be humanized to 'You've already claimed this'). Non-blocking.",
+    "mobile/app/(tabs)/home.tsx:352-358 — nearby deal pill passes offer.offer_id into router.push(`/offer/${offer_id}`) and uses backend 'label' field (fallback to title). Matches backend social_v2.py offer object shape verified in iter_207.",
+    "Non-blocking console noise during Expo web preview: 'shadow* style props deprecated — use boxShadow', 'props.pointerEvents is deprecated', 'expo-notifications web warning', 'Require cycle app/(tabs)/social.tsx -> src/social/wall.tsx'. All pre-existing, not newly introduced by this build."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter208_fuusic.py",
+    "/app/test_reports/iteration_208.json"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (claim-deal CTA + split-from-receipt both verified end-to-end; live-pill verified by code review + absent-at-idle on screen)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (used for both backend pytest and mobile UI preview demo-login-btn). biz_demo_karak owner is demo (set in iter_206) so /api/merchant/scan-to-pay/qr/generate accepts demo cookie.",
+  "seed_data_creation": "None new. iter_207 added +1000 BC to demo (still has balance for 500-BC pay). biz_demo_karak retains max_points_redemption_pct=100.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter_208 regression suite /app/backend/tests/test_iter208_fuusic.py covers all 3 FUUSIC builds (6 tests). Key payload shapes verified: (a) POST /api/scan-to-pay/splits accepts a post-pay payload with NO qr_token and returns {split_id, shares:[{share_id, invite_token, display_name}], invite_urls:{share_id:url}}; (b) same endpoint also accepts qr_token for pre-pay. For UI retest: (1) home-nearby-0-deal → /offer/ofr_qa_onetime_demo path works, (2) 100%-points pay-checkout → receipt with Share + Split this + Done row (y=407/407/473 at 390x844 mobile viewport). The one-time offer ofr_qa_onetime_demo will keep returning 409 for demo — that's expected; use a different user (freeuser) if a fresh 200 claim is needed. Fresh QR tokens expire in 60s — regenerate immediately before use.",
+  "rca of the issue": "N/A — all green."
+}

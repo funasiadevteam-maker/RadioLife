@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Sharing from 'expo-sharing';
 import SafeImage from '../../src/components/SafeImage';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
@@ -75,28 +74,41 @@ export default function PayCheckoutScreen() {
     } finally { setPayBusy(false); }
   };
 
-  const startSplit = async () => {
-    if (!resolved) return;
+  const doSplit = async (merchantId?: string, totalCents?: number, label?: string) => {
+    if (!merchantId || !totalCents || totalCents <= 0) {
+      Alert.alert('Split', 'Nothing to split yet'); return;
+    }
     setSplitBusy(true);
     try {
+      const per = Math.floor(totalCents / 2);
       const r = await api.post('/scan-to-pay/splits', {
-        qr_token: token,
-        payer_count: 2,
+        merchant_id: merchantId,
+        total_amount_cents: totalCents,
+        description: label ? `Split at ${label}` : 'Split the bill',
         shares: [
-          { label: 'You', amount_cents: Math.floor((quote?.total_cents || 0) / 2) },
-          { label: 'Friend', amount_cents: Math.ceil((quote?.total_cents || 0) / 2) },
+          { share_amount_cents: totalCents - per, display_name: 'You' },
+          { share_amount_cents: per, display_name: 'Friend' },
         ],
       });
-      const inviteUrl = `https://mobile-games-v2.preview.emergentagent.com/split/${r.data.invite_token}`;
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(inviteUrl, { dialogTitle: 'Split the bill with a friend' });
-      } else {
-        Alert.alert('Share this link', inviteUrl);
-      }
+      const shares = r.data?.shares || [];
+      const invite = r.data?.invite_urls || {};
+      const friend = shares.find((sh: any) => (sh.display_name || '').toLowerCase() !== 'you') || shares[1] || shares[0];
+      const friendUrl = friend ? invite[friend.share_id] : undefined;
+      const msg = friendUrl
+        ? `Let's settle up${label ? ` for ${label}` : ''} — your half is ${formatCents(per)}. Pay your share here: ${friendUrl}`
+        : `Let's split ${formatCents(totalCents)} on FUUSIC!`;
+      try { await Share.share({ message: msg }); } catch { /* user dismissed */ }
     } catch (e: any) {
       Alert.alert('Split Error', e?.response?.data?.detail?.code || e?.message || 'Could not create split');
     } finally { setSplitBusy(false); }
   };
+
+  const startSplit = () => doSplit(resolved?.merchant?.merchant_id, quote?.total_cents, resolved?.merchant?.name);
+  const splitReceipt = () => doSplit(
+    receipt?.merchant?.merchant_id,
+    (receipt?.subtotal_cents || 0) + (receipt?.tip_cents || 0),
+    receipt?.merchant?.name,
+  );
 
   const shareReceipt = async () => {
     if (!receipt) return;
@@ -151,11 +163,16 @@ export default function PayCheckoutScreen() {
             <Text style={s.earnedText}>+{receipt.bigcoin_earned} BigCoin earned!</Text>
           </View>
         )}
-        <TouchableOpacity style={[s.shareBtn, { marginTop: SPACING.xl, width: '100%' }]}
-          onPress={shareReceipt} testID="pay-share-btn">
-          <Ionicons name="share-social" size={18} color={COLORS.primary} />
-          <Text style={s.shareBtnTxt}>Share receipt</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xl, width: '100%' }}>
+          <TouchableOpacity style={[s.shareBtn, { flex: 1 }]} onPress={shareReceipt} testID="pay-share-btn">
+            <Ionicons name="share-social" size={18} color={COLORS.primary} />
+            <Text style={s.shareBtnTxt}>Share</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.shareBtn, { flex: 1 }]} onPress={splitReceipt} disabled={splitBusy} testID="pay-split-btn">
+            {splitBusy ? <ActivityIndicator size="small" color={COLORS.primary} /> : <Ionicons name="people" size={18} color={COLORS.primary} />}
+            <Text style={s.shareBtnTxt}>Split this</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={[common.btnPrimary, { marginTop: SPACING.md, width: '100%' }]}
           onPress={() => router.replace('/(tabs)/wallet')} testID="pay-done-btn">
           <Text style={common.btnPrimaryText}>Done</Text>
