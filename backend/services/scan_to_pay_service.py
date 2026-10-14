@@ -31,6 +31,7 @@ from typing import Any, Dict, Optional
 
 from services.commission_service import calculate_platform_fee
 from services.points_service import PointsService
+from services.currency_util import currency_for_business
 
 logger = logging.getLogger("bigfm.scan_to_pay")
 
@@ -184,12 +185,14 @@ async def resolve_qr(db, *, token: str, user_id: Optional[str]
     return {
         "token":                          token,
         "amount_cents":              int(row["amount_cents"]),
+        "currency":                      currency_for_business(biz),
         "expires_at":                  exp.isoformat(),
         "merchant": {
             "merchant_id":            row["merchant_id"],
             "name":                          biz.get("name"),
             "logo_url":                    biz.get("logo_url"),
             "category":                    biz.get("category"),
+            "currency":                    currency_for_business(biz),
             "location_id":            row.get("location_id"),
         },
         "settings": {
@@ -219,9 +222,14 @@ def _compute_quote(*, amount_cents: int, tip_cents: int,
     card_cents = total_cents - points_value_cents
     if card_cents < 0:
         card_cents = 0
-    # Points earned on CARD portion only (points-only bill earns nothing).
-    dollars_on_card = card_cents / 100.0
-    points_earned = int(dollars_on_card * int(points_per_dollar or 0))
+    # Earning rule: the SUBTOTAL earns only on its card-funded portion
+    # (spending points never mints new points), but a TIP ALWAYS earns —
+    # we reward the gesture even when BigPoints cover the whole bill.
+    # Points are applied to the subtotal first, then the tip.
+    points_on_subtotal = min(points_value_cents, int(amount_cents))
+    subtotal_card_cents = int(amount_cents) - points_on_subtotal
+    ppd = int(points_per_dollar or 0)
+    points_earned = int((subtotal_card_cents / 100.0) * ppd) + int((tip_cents / 100.0) * ppd)
     return {
         "subtotal_cents":                int(amount_cents),
         "tip_cents":                        int(tip_cents),
@@ -244,6 +252,7 @@ async def quote(db, *, token: str, points_to_use: int, tip_cents: int,
         max_pct=resolved["settings"]["max_points_redemption_pct"],
         user_points_balance=resolved["user_points_balance"])
     q["merchant"]              = resolved["merchant"]
+    q["currency"]              = resolved.get("currency")
     q["user_points_balance"] = resolved["user_points_balance"]
     return q
 
@@ -315,7 +324,7 @@ async def authorize(db, *, token: str, user_id: str,
                 _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
                 intent = _stripe.PaymentIntent.create(
                     amount=int(q["card_cents"]),
-                    currency=(biz.get("currency") or "usd").lower(),
+                    currency=currency_for_business(biz),
                     automatic_payment_methods={
                         "enabled": True, "allow_redirects": "never"},
                     on_behalf_of=stripe_acct,
@@ -356,6 +365,7 @@ async def authorize(db, *, token: str, user_id: str,
         "tip_cents":                                int(q["tip_cents"]),
         "tax_cents":                                0,
         "total_cents":                            int(q["total_cents"]),
+        "currency":                                  resolved.get("currency") or currency_for_business(biz),
         "points_redeemed":                    int(q["points_to_use"]),
         "points_value_cents":              int(q["points_value_cents"]),
         "points_lock_entry_id":          points_lock_entry_id,
@@ -392,6 +402,7 @@ async def authorize(db, *, token: str, user_id: str,
     return {
         "transaction_id":                tx_id,
         "status":                                doc["status"],
+        "currency":                            doc["currency"],
         "card_cents":                        doc["card_charged_cents"],
         "points_redeemed":              doc["points_redeemed"],
         "points_earned":                doc["points_earned_awarded"],
@@ -483,6 +494,7 @@ async def capture(db, *, transaction_id: str,
         "ok":                                    True,
         "transaction_id":              transaction_id,
         "status":                              "captured",
+        "currency":                          tx.get("currency") or "aed",
         "card_cents":                      int(tx["card_charged_cents"]),
         "points_redeemed":            int(tx["points_redeemed"]),
         "points_earned":              int(tx["points_earned_awarded"]),

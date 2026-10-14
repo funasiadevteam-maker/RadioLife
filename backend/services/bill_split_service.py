@@ -35,6 +35,7 @@ from typing import Any, Dict, List, Optional
 
 from services.points_service import PointsService
 from services.commission_service import calculate_platform_fee
+from services.currency_util import currency_for_business
 
 logger = logging.getLogger("bigfm.bill_split")
 
@@ -174,17 +175,22 @@ async def _merchant_summary(db, merchant_id: str) -> Optional[Dict[str, Any]]:
     biz = await db.businesses.find_one({"business_id": merchant_id},
                                                                               {"business_id": 1,
                                                                                 "business_name": 1,
+                                                                                "name": 1,
                                                                                 "category_id": 1,
+                                                                                "category": 1,
                                                                                 "logo_url": 1,
-                                                                                "currency": 1})
+                                                                                "currency": 1,
+                                                                                "country": 1,
+                                                                                "city": 1,
+                                                                                "market": 1})
     if not biz:
         return None
     return {
         "merchant_id":      biz.get("business_id"),
-        "business_name":  biz.get("business_name"),
+        "business_name":  biz.get("business_name") or biz.get("name"),
         "logo_url":          biz.get("logo_url"),
-        "category":          biz.get("category_id"),
-        "currency":          (biz.get("currency") or "usd").lower(),
+        "category":          biz.get("category_id") or biz.get("category"),
+        "currency":          currency_for_business(biz),
     }
 
 
@@ -275,7 +281,7 @@ async def create_split(db, *, initiator_user_id: str, body: Dict[str, Any]
     expires_at = now + timedelta(minutes=SPLIT_TTL_MINUTES)
     split_id = _gen("bsplit")
     currency = (body.get("currency")
-                              or biz.get("currency") or "usd").lower()
+                              or currency_for_business(biz)).lower()
 
     # Precompute the intended aggregate application fee — the same
     # commission the merchant would owe on a single-payer flow.
@@ -559,7 +565,7 @@ async def pay_share(db, *, share_id: str, user_id: str,
         _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
         intent = _stripe.PaymentIntent.create(
             amount=share_amt,
-            currency=(sp.get("currency") or "usd").lower(),
+            currency=(sp.get("currency") or "aed").lower(),
             automatic_payment_methods={
                 "enabled": True, "allow_redirects": "never"},
             on_behalf_of=stripe_acct,

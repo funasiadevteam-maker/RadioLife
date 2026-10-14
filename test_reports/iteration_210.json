@@ -1,0 +1,34 @@
+{
+  "summary": "iter_210 FUUSIC currency propagation + splits/mine merchant fix — ALL GREEN. (A) Backend currency: /scan-to-pay/qr/{token} resolve, /quote, /authorize, /capture ALL return currency='aed' for biz_demo_karak (Dubai). Verified against the actual preview backend with a fresh QR per test. (B) 100%-BigPoints end-to-end: $5 subtotal + $2 tip → quote.card_cents=0, points_earned=20; authorize+capture succeed without Stripe; capture carries receipt fields (subtotal_cents=500, tip_cents=200, points_used=700, charge_cents=0, bigcoin_earned=20) + currency='aed'. (C) Tip-earns-points regression preserved: tip=0 at 100% BigPoints earns 0 BC. (D) /scan-to-pay/splits/mine for bsplit_demo_whospaid now returns merchant.business_name='Karak Cafe Dubai (QA Demo)' (was null in iter_209), merchant.category='cafe', merchant.currency='aed', split.currency='aed', status='partial', shares You=paid/Alex=pending. (E) Mobile pay-checkout: header 'Karak Cafe Dubai (QA Demo)', Subtotal 'AED 5.00', tip presets 'AED 1.00/AED 2.00/AED 5.00', 'You pay AED 5.00', pay button 'Pay AED 5.00' → switches to 'Pay with BigCoin' at 100% points. Receipt shows 'Payment Successful!', merchant name, Subtotal AED 5.00, BigCoin used -500 BC, Total paid AED 0.00, pay-share-btn + pay-split-btn visible. NO 'USD', NO 'NaN' anywhere. (F) Mobile /my-splits: split-card-bsplit_demo_whospaid shows real 'Karak Cafe Dubai (QA Demo)', AED 20.00 / AED 10.00 amounts, PARTIAL badge, '1/2 paid' progress, You PAID / Alex PENDING rows — no 'USD', no 'AED 0.00', no 'Merchant'/'Payer N' placeholders.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter210_currency_splits.py",
+    "/app/test_reports/pytest/iter210.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/currency_util.py — clean 42-line module, deterministic mapping (country→iso), AED default + Dubai city fallback. Lower-cased return value is consistent with Stripe currency param convention. No issues.",
+    "services/scan_to_pay_service.py — currency now derived from merchant via currency_for_business(biz) at resolve, authorize (persisted on doc), and capture (returned on receipt). Stripe PaymentIntent.create() also uses currency_for_business(biz) (line 327) — AED now flows through to Stripe metadata too. No hardcoded 'usd' remains.",
+    "services/bill_split_service.py:174-194 — _merchant_summary() now projects {business_name, name, category_id, category, country, city, market} and coalesces `business_name or name` + `category_id or category`. currency derived via currency_for_business(biz) — flows to split.currency on create (line 283-284 fallback: body.get('currency') or currency_for_business(biz)). Fixes iter_209 bug. One remaining micro-concern: pay_share() at line 568 still falls back to 'usd' when sp.currency is somehow missing (sp.get('currency') or 'usd').lower() — benign because create_split always writes currency, but could default to 'aed' for strict parity. Not blocking.",
+    "mobile/src/utils/currency.ts — simple ISO-prefix formatter 'AED 20.00'. Default 'AED' is correct for Dubai home market. OK.",
+    "mobile/app/pay-checkout/[token].tsx:32 — ccy derivation `receipt?.currency || resolved?.currency || 'AED'` chains correctly; fmt() wraps money() so ALL amounts on both checkout and receipt use merchant currency. Verified rendering end-to-end.",
+    "mobile/app/my-splits.tsx:96 — merchant name picked from `sp.merchant?.business_name || description.replace(/^Split at /,'') || 'Merchant'`; now backend ships real name so first branch wins. OK."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter210_currency_splits.py",
+    "/app/test_reports/iteration_210.json"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (mobile pay-checkout + my-splits verified)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (demo user has seeded split bsplit_demo_whospaid; BigCoin balance 7460 at test time — sufficient for 100%-points flow)",
+  "seed_data_creation": "None — re-used iter_209 seeds (bsplit_demo_whospaid preserved).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter_210 regression suite /app/backend/tests/test_iter210_currency_splits.py validates currency='aed' propagation across resolve/quote/authorize/capture + splits/mine merchant block. Run with: `REACT_APP_BACKEND_URL=https://mobile-games-v2.preview.emergentagent.com python -m pytest tests/test_iter210_currency_splits.py -v`. QR TTL 60s — the test uses services.scan_to_pay_service.generate_qr(db, merchant_id='biz_demo_karak', cashier_user_id='seed_cashier', amount_cents=X) via the backend module directly (bypasses merchant auth). biz_demo_karak has max_points_redemption_pct=100 and no stripe_charges_enabled — ONLY the 100%-points path is end-to-end testable (any card_cents>0 → merchant_stripe_missing, expected). Mobile seeded split 'Alex' share has display status='pending' (seed script value, not the service's 'invited' enum) — test allows both.",
+  "rca of the issue": "ROOT CAUSE of currency bug (fixed in this iter): previously hardcoded 'usd'/'aed' strings scattered across scan_to_pay_service.py (authorize doc, Stripe intent, capture return) and bill_split_service.py (create_split, pay_share PaymentIntent). FIX: new services/currency_util.currency_for_business(biz) maps merchant country/city → ISO code (default 'aed'), called at every point of persistence/response. ROOT CAUSE of splits/mine merchant-null bug (fixed): _merchant_summary() in bill_split_service.py projected only `business_name`/`category_id`, but biz_demo_karak stores `name`/`category`. FIX: broadened projection to include both pairs + coalesced in output. REPRO (pre-fix): resolve a biz_demo_karak QR → currency='usd' (or missing); GET /splits/mine → merchant.business_name=null. VERIFIED FIXED: all 5 pytest cases GREEN against live preview backend; mobile UI shows AED everywhere + real merchant name on both checkout and splits list."
+}

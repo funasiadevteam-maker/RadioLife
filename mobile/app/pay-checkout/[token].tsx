@@ -6,6 +6,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import SafeImage from '../../src/components/SafeImage';
+import { money } from '../../src/utils/currency';
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../../src/constants/theme';
 
@@ -25,6 +26,11 @@ export default function PayCheckoutScreen() {
   const [payBusy, setPayBusy] = useState(false);
   const [receipt, setReceipt] = useState<any>(null);
   const [splitBusy, setSplitBusy] = useState(false);
+
+  // Local currency follows the merchant (Dubai → AED). Derived from the
+  // resolved QR / receipt, default AED.
+  const ccy = (receipt?.currency || resolved?.currency || 'AED');
+  const fmt = (c?: number) => money(c, ccy);
 
   useEffect(() => {
     if (!token) return;
@@ -95,8 +101,8 @@ export default function PayCheckoutScreen() {
       const friend = shares.find((sh: any) => (sh.display_name || '').toLowerCase() !== 'you') || shares[1] || shares[0];
       const friendUrl = friend ? invite[friend.share_id] : undefined;
       const msg = friendUrl
-        ? `Let's settle up${label ? ` for ${label}` : ''} — your half is ${formatCents(per)}. Pay your share here: ${friendUrl}`
-        : `Let's split ${formatCents(totalCents)} on FUUSIC!`;
+        ? `Let's settle up${label ? ` for ${label}` : ''} — your half is ${fmt(per)}. Pay your share here: ${friendUrl}`
+        : `Let's split ${fmt(totalCents)} on FUUSIC!`;
       try { await Share.share({ message: msg }); } catch { /* user dismissed */ }
     } catch (e: any) {
       Alert.alert('Split Error', e?.response?.data?.detail?.code || e?.message || 'Could not create split');
@@ -113,7 +119,7 @@ export default function PayCheckoutScreen() {
   const shareReceipt = async () => {
     if (!receipt) return;
     const name = receipt.merchant?.name || 'a local spot';
-    const paid = formatCents(receipt.charge_cents || 0);
+    const paid = fmt(receipt.charge_cents || 0);
     const pts = receipt.points_used ? ` using ${receipt.points_used} BigCoin` : '';
     const earned = receipt.bigcoin_earned ? ` and earned ${receipt.bigcoin_earned} BigCoin` : '';
     const msg = `I just paid ${paid}${pts}${earned} at ${name} with FUUSIC 🎉 Scan, pay & earn with me on FUUSIC!`;
@@ -151,11 +157,11 @@ export default function PayCheckoutScreen() {
         <Text style={s.receiptTitle} testID="pay-receipt-title">Payment Successful!</Text>
         <Text style={s.receiptMerchant}>{receipt.merchant?.name || 'Merchant'}</Text>
         <View style={[common.card, { marginTop: SPACING.lg, width: '100%' }]}>
-          <Row label="Subtotal" value={formatCents(receipt.subtotal_cents)} />
-          {receipt.tip_cents > 0 && <Row label="Tip" value={formatCents(receipt.tip_cents)} />}
+          <Row label="Subtotal" value={fmt(receipt.subtotal_cents)} />
+          {receipt.tip_cents > 0 && <Row label="Tip" value={fmt(receipt.tip_cents)} />}
           {receipt.points_used > 0 && <Row label="BigCoin used" value={`-${receipt.points_used} BC`} />}
           <View style={s.divider} />
-          <Row label="Total paid" value={formatCents(receipt.charge_cents)} bold />
+          <Row label="Total paid" value={fmt(receipt.charge_cents)} bold />
         </View>
         {receipt.bigcoin_earned > 0 && (
           <View style={s.earnedCard} testID="pay-bigcoin-earned">
@@ -210,13 +216,13 @@ export default function PayCheckoutScreen() {
           {(resolved?.items || []).map((it: any, i: number) => (
             <View key={i} style={s.lineRow}>
               <Text style={s.lineLabel}>{it.name || `Item ${i+1}`}</Text>
-              <Text style={s.lineVal}>{formatCents(it.amount_cents)}</Text>
+              <Text style={s.lineVal}>{fmt(it.amount_cents)}</Text>
             </View>
           ))}
           <View style={s.divider} />
           <View style={s.lineRow}>
             <Text style={[s.lineLabel, { fontWeight: '800' }]}>Subtotal</Text>
-            <Text style={[s.lineVal, { fontWeight: '800' }]}>{formatCents(resolved?.amount_cents || 0)}</Text>
+            <Text style={[s.lineVal, { fontWeight: '800' }]}>{fmt(resolved?.amount_cents || 0)}</Text>
           </View>
         </View>
 
@@ -243,7 +249,7 @@ export default function PayCheckoutScreen() {
               <TouchableOpacity key={t} style={[common.pill, tipCents === t && common.pillActive]}
                 onPress={() => setTipCents(t)} testID={`tip-${t}`}>
                 <Text style={[common.pillText, tipCents === t && common.pillTextActive]}>
-                  {t === 0 ? 'No tip' : formatCents(t)}
+                  {t === 0 ? 'No tip' : fmt(t)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -253,11 +259,11 @@ export default function PayCheckoutScreen() {
         {/* Quote total */}
         {quote && (
           <View style={[common.card, { backgroundColor: COLORS.inputBg }]}>
-            <Row label="Subtotal" value={formatCents(quote.subtotal_cents)} />
-            {quote.tip_cents > 0 && <Row label="Tip" value={formatCents(quote.tip_cents)} />}
-            {quote.points_value_cents > 0 && <Row label="BigCoin discount" value={`-${formatCents(quote.points_value_cents)}`} />}
+            <Row label="Subtotal" value={fmt(quote.subtotal_cents)} />
+            {quote.tip_cents > 0 && <Row label="Tip" value={fmt(quote.tip_cents)} />}
+            {quote.points_value_cents > 0 && <Row label="BigCoin discount" value={`-${fmt(quote.points_value_cents)}`} />}
             <View style={s.divider} />
-            <Row label="You pay" value={formatCents(quote.card_cents)} bold />
+            <Row label="You pay" value={fmt(quote.card_cents)} bold />
           </View>
         )}
         {quoteBusy && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 8 }} />}
@@ -267,7 +273,7 @@ export default function PayCheckoutScreen() {
           onPress={pay} disabled={payBusy || !quote} testID="pay-submit-btn">
           {payBusy ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="card" size={18} color="#fff" />}
           <Text style={common.btnPrimaryText}>
-            {payBusy ? 'Processing...' : (quote && quote.card_cents === 0 ? 'Pay with BigCoin' : `Pay ${quote ? formatCents(quote.card_cents) : '...'}`)}
+            {payBusy ? 'Processing...' : (quote && quote.card_cents === 0 ? 'Pay with BigCoin' : `Pay ${quote ? fmt(quote.card_cents) : '...'}`)}
           </Text>
         </TouchableOpacity>
 
@@ -289,10 +295,6 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
       <Text style={[s.lineVal, bold && { fontWeight: '800', color: COLORS.text }]}>{value}</Text>
     </View>
   );
-}
-
-function formatCents(c: number): string {
-  return `AED ${(c / 100).toFixed(2)}`;
 }
 
 const s = StyleSheet.create({

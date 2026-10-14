@@ -165,6 +165,16 @@ export default function HomeScreen() {
     setNewCount(0);
   };
 
+  // Auto-reveal staged posts the moment you scroll back to the top, so the
+  // wall always feels fresh without having to tap the pill.
+  const atTopRef = useRef(true);
+  const onHomeScroll = (e: any) => {
+    const y = e?.nativeEvent?.contentOffset?.y ?? 0;
+    const atTop = y <= 8;
+    if (atTop && !atTopRef.current && pendingFeed.length > 0) revealNewPosts();
+    atTopRef.current = atTop;
+  };
+
   useEffect(() => {
     if (!user) return;
     api.get('/geo/resolve_city').then((r) => {
@@ -256,6 +266,7 @@ export default function HomeScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
+        onScroll={onHomeScroll} scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.electric}
           onRefresh={() => { setRefreshing(true); load(); }} />}>
 

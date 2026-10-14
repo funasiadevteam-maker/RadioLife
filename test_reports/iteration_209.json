@@ -1,0 +1,45 @@
+{
+  "summary": "iter_209 FUUSIC (TIP EARNS POINTS + WHO'S PAID TRACKER + PILL AUTO REVEAL) — 4/5 backend tests GREEN; 1 BACKEND BUG found in /api/scan-to-pay/splits/mine. (A) TIP EARNS POINTS ✅ all 3 cases pass: $5 subtotal + $2 tip at 100% BigPoints → capture.bigcoin_earned=20 (tip-portion only, points_per_dollar=10 * $2); same bill with tip_cents=0 earns 0 BC; same bill at full-card (via quote) earns 70 BC on whole total. The 100% points path never calls Stripe (card_cents=0), confirming no restricted-key charge. (B) WHO'S PAID TRACKER backend — splits/mine returns the seeded split with total_amount_cents=2000, 2 shares (You PAID AED 10/paid_at set, Alex PENDING AED 10), status=partial, and the mobile UI (data-testid='split-card-bsplit_demo_whospaid') renders KC avatar, 'Karak Cafe Dubai (QA Demo)', AED 20.00, PARTIAL badge, '1/2 paid' progress bar (data-testid 'split-bsplit_demo_whospaid-progress'), You PAID / Alex PENDING rows; all 4 filter chips present (All/Pending/Partial/Completed/Expired). NO 'AED 0.00' / 'Merchant' / 'Payer N' placeholders surface because the mobile UI falls back to `description.replace(/^Split at /,'')`. BUT the backend contract advertised in the review request `merchant{business_name,logo_url}` is INCORRECT: splits/mine returns `merchant.business_name=null, logo_url=null, category=null` for biz_demo_karak (the merchant doc actually stores `name` + `category`, not `business_name`+`category_id`). This masks only because the seeded description preserves the merchant name — a user-created split with a different description would show 'Merchant' placeholder. (C) PILL AUTO REVEAL — code is correctly wired at home.tsx:170-176 (onScroll calls revealNewPosts when transitioning to top with pending>0); home scroll does NOT crash; pill is absent at idle load — matches iter_207/208 (fresh followed-feed item cannot be deterministically produced in 25s poll window). (D) Regression: tab-scan-pay FAB present, home-nearby-0-deal visible with text 'Claim 50% off Karak'.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/scan-to-pay/splits/mine", "issue": "merchant.business_name + merchant.logo_url + merchant.category are null for biz_demo_karak. services/bill_split_service.py:173-188 _merchant_summary() queries fields `business_name`+`category_id` from the businesses collection, but the demo merchant stores `name`+`category`. Review request explicitly guarantees `merchant{business_name,logo_url}` — contract not honored. Mobile UI currently masks this with a `description.replace(/^Split at /,'')` fallback, so the seeded card renders correctly, but any split whose description doesn't start with 'Split at <name>' will display literal 'Merchant' placeholder and no logo."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter209_fuusic_tip_splits.py",
+    "/app/test_reports/pytest/iter209.xml"
+  ],
+  "action_items": [
+    "Fix services/bill_split_service.py:_merchant_summary — add fallback to `biz.get('business_name') or biz.get('name')` and `biz.get('category_id') or biz.get('category')` so the splits/mine payload honors the advertised contract. Also project `name` + `category` in the find_one projection (lines 174-179). Non-blocking for the seeded demo (UI fallback paints over it) but a latent bug for any real/user-created split."
+  ],
+  "critical_code_review_comments": [
+    "services/bill_split_service.py:173-188 — _merchant_summary projects only {business_id, business_name, category_id, logo_url, currency}. Demo merchant biz_demo_karak and most seeded businesses store `name` + `category`. Should defensively coalesce both (`business_name or name`, `category_id or category`). Low-risk 4-line patch.",
+    "services/scan_to_pay_service.py:222-229 — _compute_quote earn rule is correctly updated: `points_earned = int(subtotal_card_cents/100 * ppd) + int(tip_cents/100 * ppd)`. Points are applied to subtotal first (points_on_subtotal = min(points_value_cents, subtotal)), so a 100%-points bill with tip earns ONLY on tip. Verified end-to-end via capture.bigcoin_earned.",
+    "mobile/app/my-splits.tsx:95 — `const merchantName = sp.merchant?.business_name || (sp.description || '').replace(/^Split at /, '') || 'Merchant';` — graceful 3-tier fallback. This is why the seeded card renders 'Karak Cafe Dubai (QA Demo)' despite the backend bug. OK as defensive UI, but the backend should still ship the field.",
+    "mobile/app/(tabs)/home.tsx:170-176 — onHomeScroll correctly uses atTopRef sentinel so revealNewPosts only fires on a down→up transition (not on every top-tick). y<=8 threshold is reasonable. Non-crashing when pendingFeed empty (early-return at 159). Trigger cannot be reproduced in-harness (requires a fresh followed-user feed item within 25s poll) — code path is correct by inspection.",
+    "Non-blocking console noise: 'shadow* deprecated', 'props.pointerEvents deprecated', 'Require cycle app/(tabs)/social.tsx → src/social/wall.tsx', 'expo-notifications web unsupported'. All pre-existing (also noted in iter_207/208). Not newly introduced."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter209_fuusic_tip_splits.py",
+    "/app/test_reports/iteration_209.json"
+  ],
+  "success_rate": {"backend": "80% (4/5) — the 1 failure is the real bug flagged above, not a test issue", "frontend": "100% (my-splits UI renders correctly + home scroll + nearby-deal + Scan&Pay FAB all verified)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (demo user, 10000 BC after idempotent topup, has seeded split bsplit_demo_whospaid)",
+  "seed_data_creation": "Re-ran /app/scripts/seed_split_demo.py (idempotent re-upsert of bsplit_demo_whospaid: You paid AED 10 + Alex pending AED 10) and /app/scripts/topup_demo_bigcoin.py (demo +2500 BC to reach 10000 target; freeuser already at 5000).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "iter_209 regression suite /app/backend/tests/test_iter209_fuusic_tip_splits.py covers all 3 FUUSIC builds. Critical: scan-to-pay quote/authorize body uses key `qr_token` (NOT `token`). Use services.scan_to_pay_service.generate_qr for QR creation (merchant_id='biz_demo_karak', cashier_user_id='seed_cashier', amount_cents=X) — QR tokens expire 60s. biz_demo_karak has max_points_redemption_pct=100 and no stripe_charges_enabled, so ONLY 100%-points pay works end-to-end; any card_cents>0 returns merchant_stripe_missing (expected). TIP math verified at ppd=10: $2 tip → 20 BC earn even on 100%-points bill. For who's-paid tracker: once the _merchant_summary field-mapping bug is fixed, update the test to assert merchant.business_name=='Karak Cafe Dubai (QA Demo)' + logo_url (currently None). Mobile UI already masks the bug via description fallback.",
+  "rca of the issue": "ROOT CAUSE: services/bill_split_service.py:_merchant_summary() reads `business_name` + `category_id` fields that don't exist on the demo merchant doc (biz_demo_karak stores `name` + `category`). REPRO: curl -c cookies -b cookies -X POST ${BACKEND}/api/auth/login -H 'content-type: application/json' -d '{\"email\":\"demo@bigfm.dubai\",\"password\":\"DemoPass123!\"}' && curl -b cookies ${BACKEND}/api/scan-to-pay/splits/mine?status=partial  — observe items[0].merchant.business_name==null. MITIGATION: in bill_split_service.py:174-188 add `name`+`category` to the projection and coalesce both in the returned dict: `'business_name': biz.get('business_name') or biz.get('name'), 'category': biz.get('category_id') or biz.get('category')`. 4-line safe patch, no schema change."
+}

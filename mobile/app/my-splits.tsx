@@ -9,21 +9,26 @@ import api from '../src/api/client';
 import { useAuth } from '../src/contexts/AuthContext';
 import SafeImage from '../src/components/SafeImage';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../src/constants/theme';
+import { money } from '../src/utils/currency';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: COLORS.orange,
+  partial: COLORS.orange,
   paid: COLORS.green,
+  completed: COLORS.green,
   expired: COLORS.red,
   cancelled: COLORS.textMuted,
 };
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
+  partial: 'Partial',
   paid: 'Paid',
+  completed: 'Completed',
   partially_paid: 'Partial',
   expired: 'Expired',
   cancelled: 'Cancelled',
 };
-const FILTERS = ['all', 'pending', 'paid', 'expired'];
+const FILTERS = ['all', 'pending', 'partial', 'completed', 'expired'];
 
 export default function MySplitsScreen() {
   const router = useRouter();
@@ -88,15 +93,16 @@ export default function MySplitsScreen() {
           const statusColor = STATUS_COLORS[sp.status] || COLORS.textMuted;
           const paidShares = (sp.shares || []).filter((sh: any) => sh.status === 'paid').length;
           const totalShares = (sp.shares || []).length;
+          const merchantName = sp.merchant?.business_name || (sp.description || '').replace(/^Split at /, '') || 'Merchant';
           return (
             <TouchableOpacity key={sp.split_id || i} style={s.splitCard}
               testID={`split-card-${sp.split_id || i}`}
               onPress={() => { /* expand inline or navigate */ }}>
               <View style={s.splitTop}>
-                <SafeImage uri={sp.merchant?.logo_url} fallbackText={sp.merchant_name || 'M'} size={40} borderRadius={10} />
+                <SafeImage uri={sp.merchant?.logo_url} fallbackText={merchantName} size={40} borderRadius={10} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={s.splitMerchant}>{sp.merchant_name || 'Merchant'}</Text>
-                  <Text style={s.splitAmount}>AED {((sp.total_cents || 0) / 100).toFixed(2)}</Text>
+                  <Text style={s.splitMerchant} numberOfLines={1}>{merchantName}</Text>
+                  <Text style={s.splitAmount}>{money(sp.total_amount_cents, sp.currency)}</Text>
                 </View>
                 <View style={[s.statusPill, { borderColor: statusColor + '40', backgroundColor: statusColor + '10' }]}>
                   <View style={[s.statusDot, { backgroundColor: statusColor }]} />
@@ -106,19 +112,22 @@ export default function MySplitsScreen() {
               {/* Shares */}
               {totalShares > 0 && (
                 <View style={s.sharesRow}>
-                  <Text style={s.sharesLabel}>{paidShares}/{totalShares} paid</Text>
+                  <Text style={s.sharesLabel} testID={`split-${sp.split_id || i}-progress`}>{paidShares}/{totalShares} paid</Text>
                   <View style={s.sharesBar}>
                     <View style={[s.sharesFill, { width: `${(paidShares / totalShares) * 100}%` }]} />
                   </View>
                 </View>
               )}
-              {/* Participant list */}
+              {/* Participant list — who's paid */}
               {(sp.shares || []).map((sh: any, j: number) => (
-                <View key={j} style={s.shareRow}>
+                <View key={sh.share_id || j} style={s.shareRow} testID={`split-share-${sh.share_id || j}`}>
                   <Ionicons name={sh.status === 'paid' ? 'checkmark-circle' : 'ellipse-outline'}
                     size={14} color={sh.status === 'paid' ? COLORS.green : COLORS.textMuted} />
-                  <Text style={s.shareName}>{sh.label || sh.user_name || `Payer ${j+1}`}</Text>
-                  <Text style={s.shareAmt}>AED {((sh.amount_cents || 0) / 100).toFixed(2)}</Text>
+                  <Text style={s.shareName} numberOfLines={1}>{sh.display_name || `Payer ${j + 1}`}</Text>
+                  <Text style={[s.shareStatus, { color: STATUS_COLORS[sh.status] || COLORS.textMuted }]}>
+                    {sh.status === 'paid' ? 'Paid' : STATUS_LABELS[sh.status] || 'Pending'}
+                  </Text>
+                  <Text style={s.shareAmt}>{money(sh.share_amount_cents, sp.currency)}</Text>
                 </View>
               ))}
               <Text style={s.splitDate}>
@@ -156,6 +165,7 @@ const s = StyleSheet.create({
   sharesFill: { height: 4, borderRadius: 2, backgroundColor: COLORS.green },
   shareRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, marginTop: 4 },
   shareName: { flex: 1, fontSize: FONT.sm, color: COLORS.text },
+  shareStatus: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
   shareAmt: { fontSize: FONT.sm, color: COLORS.textDim, fontWeight: '600' },
   splitDate: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 8 },
 });
