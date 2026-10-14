@@ -327,6 +327,9 @@ import HomeNewLookV2 from "@/design_v2/HomeNewLookV2";
 import SocialFeedHomeV2 from "@/design_v2/socialfeed/SocialFeedHomeV2";
 import { useHomeView } from "@/store/useHomeView";
 import PublicHomeNewLookV2 from "@/design_v2/PublicHomeNewLookV2";
+import PublicSocialLandingV2 from "@/design_v2/publiclanding/PublicSocialLandingV2";
+import { useLandingConfig } from "@/hooks/useLandingConfig";
+import AdminLandingDesign from "@/pages/admin/AdminLandingDesign";
 import AdminSkipRules from "@/pages/admin/AdminSkipRules";
 import AdminPlatformFees from "@/pages/admin/AdminPlatformFees";
 import PayoutsOnboarding from "@/pages/payouts/PayoutsOnboarding";
@@ -567,6 +570,9 @@ function AppRouter() {
       } />
       <Route path="/admin/platform-fees" element={
         <ProtectedRoute requireAdmin><AdminPlatformFees /></ProtectedRoute>
+      } />
+      <Route path="/admin/landing-design" element={
+        <ProtectedRoute requireAdmin><AdminLandingDesign /></ProtectedRoute>
       } />
       <Route path="/payouts" element={
         <ProtectedRoute><PayoutsOnboarding /></ProtectedRoute>
@@ -1261,17 +1267,30 @@ export function RootGate() {
   const offerMonths = useLaunchStore((s) => s.offerMonths);
   const waitlistEnabled = useLaunchStore((s) => s.waitlistEnabled);
   const launchAt = useLaunchStore((s) => s.launchAt);
+  const landingCfg = useLandingConfig((s) => s.config);
+  _useEffect_(() => { useLandingConfig.getState().bootstrap(); }, []);
+  // New social-first landing is the public default; admins can disable it
+  // (config), and anyone can force the classic view via ?landing=classic.
+  let wantClassic = false;
+  try { wantClassic = new URLSearchParams(window.location.search).get("landing") === "classic"; } catch (_e) { /* ignore */ }
+  const newLandingOn = (landingCfg ? landingCfg.new_landing_enabled !== false : true) && !wantClassic;
   if (loading) return null;
   if (blocked) {
     // Business Setup Mode — everyone without bypass sees the Coming-Soon page
     // (including logged-in plain consumers).
+    if (newLandingOn) {
+      return <PublicSocialLandingV2 comingSoon offerMonths={offerMonths} waitlistEnabled={waitlistEnabled} />;
+    }
     return <PublicHomeNewLookV2 comingSoon offerMonths={offerMonths} waitlistEnabled={waitlistEnabled} launchAt={launchAt} />;
   }
   if (!user) {
     // New Look V2 is the standard look — anonymous visitors get the premium
     // V2 public landing so login just unlocks the personalized same product.
-    // Admin/QA can preview the legacy landing via ?design=classic_b|legacy.
-    return designVariant === "new_look_v2" ? <PublicHomeNewLookV2 /> : <Landing />;
+    // Admin/QA can preview the classic landing via ?landing=classic.
+    if (designVariant === "new_look_v2") {
+      return newLandingOn ? <PublicSocialLandingV2 /> : <PublicHomeNewLookV2 />;
+    }
+    return <Landing />;
   }
   if (designVariant === "new_look_v2") {
     return (homeView === "v2" || homeView === "v3")

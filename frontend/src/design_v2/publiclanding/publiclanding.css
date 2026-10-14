@@ -1,0 +1,65 @@
+/* FUUSIC public social landing — layout, responsive grid, motion.
+   Colors are injected via JS tokens (fplTokens) so Light/Dark stay in lock-step
+   with the Social-Feed surface. This file is layout/animation only. */
+.fpl {
+  font-family: "Inter", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+.fpl-shell { max-width: 1280px; margin: 0 auto; width: 100%; padding: 0 16px; }
+.fpl-noscroll::-webkit-scrollbar { display: none; }
+.fpl-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* three-column layout (left rail / feed / right rail) */
+.fpl-grid {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 300px;
+  gap: 22px;
+  align-items: start;
+  padding: 20px 0 96px;
+}
+.fpl-left, .fpl-right { position: sticky; top: 76px; }
+@media (max-width: 1180px) {
+  .fpl-left { display: none; }
+  .fpl-grid { grid-template-columns: minmax(0, 1fr) 300px; }
+}
+@media (max-width: 900px) {
+  .fpl-grid { grid-template-columns: 1fr; gap: 16px; }
+  .fpl-right { position: static; }
+}
+
+/* hero */
+.fpl-hero-grid {
+  display: grid;
+  grid-template-columns: 1.06fr 0.94fr;
+  gap: 24px;
+  align-items: center;
+  min-height: 320px;
+}
+@media (max-width: 860px) {
+  .fpl-hero-grid { grid-template-columns: 1fr; }
+  .fpl-hero-img { min-height: 220px !important; }
+}
+
+/* motion */
+@keyframes fplFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.fpl-fade { animation: fplFade .4s ease both; }
+.fpl-press { transition: transform .12s ease, background .15s ease, filter .15s ease, box-shadow .15s ease; }
+.fpl-press:active { transform: scale(.97); }
+.fpl-lift { transition: transform .16s ease, box-shadow .16s ease; }
+.fpl-lift:hover { transform: translateY(-2px); }
+
+@keyframes fplFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+.fpl-bubble { animation: fplFloat 4.5s ease-in-out infinite; }
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .fpl-fade, .fpl-bubble { animation: none; }
+  .fpl-press, .fpl-lift { transition: none; }
+}
+
+/* sticky player preview */
+.fpl-player {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}

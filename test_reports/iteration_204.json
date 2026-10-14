@@ -1,0 +1,30 @@
+{
+  "summary": "iter_204 — FUUSIC social-first PUBLIC landing (web+backend) — ALL GREEN. Backend 10/10 pytest PASS. Anonymous '/' renders new landing with every required testID (fpl-nav, fpl-hero, fpl-left-rail, fpl-wall, fpl-right-rail, fpl-player, fpl-footer, fpl-hero-headline='Everything You Love, Together.', fpl-hero-primary/secondary/business, fpl-composer, fpl-composer-input, fpl-together with 6 fpl-together-<key>, fpl-tab-following/foryou, fpl-feed, fpl-load-more, fpl-people with 3 fpl-person-follow, fpl-live-now, fpl-promos with 8 fpl-promo-<id>, fpl-appearance-light/dark/system). Default public theme = LIGHT (.fpl bg = rgb(238,241,248)) on a fresh visitor after localStorage.clear(). Clicking fpl-appearance-dark flips the whole page to dark (rgb(7,10,23)) WITHOUT reload (performance.navigation count stays 1) and persists to localStorage key 'fuusic.landing.theme'='dark' which survives reload. 4 illustrative cards flagged with fpl-illustrative-tag; 6 feed cards initially → 11 after fpl-load-more. Auth-gating works: anon clicks on fpl-composer-input, fpl-tab-following, and fpl-person-follow ALL navigate to /login. Explore Live Now scrolls (0 → 507px). /?landing=classic renders public-home-v2 and fpl-nav is absent. NO '50,000' / '50K' text anywhere on the page. Admin /admin/landing-design renders with ald-enabled, ald-allow-switch, ald-theme, ald-station-copy, ald-headline, ald-add-external, ald-save plus ald-house-{premium,business,bigpoints,dining,invite}. Admin round-trip verified: PUT station_copy=generic flips public GET /api/public/landing-config.station_copy_text to 'Radio stations from around the world'; disabling 'bigpoints' house promo removes it from GET /api/public/promos. Defaults restored (station_copy=thousands, promos.disabled=[]) — final public config confirms station_copy_text='Thousands of radio stations. One world of sound.' and all 5 house promos present. Regression: demo@bigfm.dubai login still renders SocialFeedHomeV2 (social-feed-shell + social-feed-home testIDs) at '/' and fpl-nav is absent for logged-in. The 401s on /api/auth/me, /api/me/ui-prefs, /api/takeovers for anon users are expected per spec.",
+  "platforms_tested": ["web"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+    "mobile": { "ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": [] }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter204_fuusic_landing.py",
+    "/app/test_reports/pytest/iter204_fuusic_landing.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/backend/routes/public_landing.py:170-182 landing-config correctly merges stored config over DEFAULT_LANDING_CONFIG (deep-merging hero), strips admin-only 'promos' from the public response, and derives station_copy_text from STATION_COPY_OPTIONS — clean, idempotent, no leakage.",
+    "/app/backend/routes/public_landing.py:216-243 live-now returns genuinely-live items (live:true) first and a clearly-flagged discover set (live:false, illustrative:true) when nothing is live — matches the no-fabricated-viewer-counts policy.",
+    "/app/backend/routes/public_landing.py:246-285 promos endpoint correctly honours admin disabled[] and appends external[] — tested round-trip with 'bigpoints' disable → re-enable.",
+    "/app/backend/routes/admin_landing.py:39-62 admin PUT whitelists _EDITABLE_KEYS, validates default_theme ∈ {light,dark,system} and station_copy ∈ {generic,thousands}; invalid values are silently dropped (not errored) — this is tolerant but could be stricter; low priority.",
+    "Public landing config returns admin keys like 'new_landing_enabled','allow_theme_switch','feed_modules','right_modules' which the anon client could use for recon; not sensitive but worth confirming you want those exposed publicly."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter204_fuusic_landing.py"],
+  "success_rate": { "backend": "100% (10/10)", "frontend": "100% (all required testIDs + flows verified)" },
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! (admin panel + restore), demo@bigfm.dubai / DemoPass123! (regression). Used page.request.post for login (urllib bot-blocked). Theme persistence key = 'fuusic.landing.theme' (confirmed; distinct from 'radiolife.theme').",
+  "seed_data_creation": "none — admin config was mutated during tests (station_copy=generic, promos.disabled=['bigpoints']) and RESTORED back to defaults (station_copy=thousands, promos.disabled=[]) at the end of the admin pytest class.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter_204 tests at /app/backend/tests/test_iter204_fuusic_landing.py are reusable regression — they mutate admin state and restore it. New landing is served to anon '/' by AppShellV2; logged-in '/' continues to render SocialFeedHomeV2 (social-feed-shell/social-feed-home). Classic view accessible via /?landing=classic. Mobile 'Phase B' not yet built — do not test mobile for FUUSIC landing. Theme persistence key for the public landing is 'fuusic.landing.theme' (not 'radiolife.theme'). Anon 401s on /api/auth/me, /api/me/ui-prefs, /api/takeovers are expected and NOT bugs.",
+  "rca of the issue": "N/A — no bugs."
+}

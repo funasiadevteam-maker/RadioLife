@@ -7493,6 +7493,11 @@ app.include_router(_shell_router)
 from routes.home_config_admin import router as _home_config_admin_router
 app.include_router(_home_config_admin_router)
 
+from routes.public_landing import router as _public_landing_router
+app.include_router(_public_landing_router)
+from routes.admin_landing import router as _admin_landing_router
+app.include_router(_admin_landing_router)
+
 
 @app.on_event("startup")
 async def _phase_fun1_bootstrap() -> None:

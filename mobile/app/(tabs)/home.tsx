@@ -27,6 +27,19 @@ const SCOPE_CHIPS = [
   { key: 'trending', label: 'Trending' },
 ];
 
+// Fallback verb when a social-wall item has no title/text of its own.
+const FEED_VERB: Record<string, string> = {
+  LISTEN_ROOM: 'is listening live — join the room',
+  LIVE_VIDEO: 'is live right now',
+  BUSINESS_LIVE: 'is live right now',
+  EVENT: 'has an upcoming experience',
+  TAROT_SHARE: 'shared a tarot reading',
+  DREAM: 'shared a dream',
+  CLUB_POST: 'posted in a club',
+  MOMENT: 'shared a moment',
+  STATION_ACTIVITY: 'posted a new update',
+};
+
 const fireEvent = (event: string, extra: Record<string, any> = {}) => {
   api.post('/shell/home-events', { event, surface: 'mobile', ...extra }).catch(() => {});
 };
@@ -61,6 +74,7 @@ export default function HomeScreen() {
 
   const [home, setHome] = useState<any>(null);
   const [socialHome, setSocialHome] = useState<any>(null);
+  const [feed, setFeed] = useState<any[]>([]);
   const [points, setPoints] = useState<number | null>(null);
   const [cityLabel, setCityLabel] = useState('');
   const [loading, setLoading] = useState(true);
@@ -81,6 +95,17 @@ export default function HomeScreen() {
       if (hm.status === 'fulfilled') setHome((hm.value as any).data || {});
       if (wl.status === 'fulfilled') setPoints((wl.value as any).data?.balance ?? null);
       if (sh.status === 'fulfilled') setSocialHome((sh.value as any).data || null);
+      // Social wall preview — lead the home with real activity from your
+      // circle; fall back to For-You discovery when Following is still empty.
+      try {
+        let fr = await api.get('/social/feed-v2', { params: { mode: 'following', limit: 4 } });
+        let items = fr.data?.items || [];
+        if (!items.length) {
+          fr = await api.get('/social/feed-v2', { params: { mode: 'for_you', limit: 4 } });
+          items = fr.data?.items || [];
+        }
+        setFeed(items);
+      } catch { /* ignore */ }
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -147,6 +172,19 @@ export default function HomeScreen() {
     else router.push('/(tabs)/shop');
   };
 
+  const openFeedItem = (it: any) => {
+    fireEvent('home_feed_open', { item_id: it.id, item_type: it.type });
+    const tgt = it.cta?.target;
+    switch (it.cta?.action) {
+      case 'open_room': router.push(`/social/room/${tgt}` as any); break;
+      case 'open_live': router.push('/(tabs)/social?tab=live' as any); break;
+      case 'open_dream': router.push('/social/dreams' as any); break;
+      case 'open_tarot': router.push('/social/tarot' as any); break;
+      case 'open_station': router.push('/stations' as any); break;
+      default: router.push('/(tabs)/social' as any); break;
+    }
+  };
+
   return (
     <View style={s.screen}>
       {/* Sticky header */}
@@ -183,22 +221,45 @@ export default function HomeScreen() {
           <Text style={s.greet}>Hi{firstName ? `, ${firstName}` : ''} — everything you love, together.</Text>
         </View>
 
-        {/* Your FUUSIC World — the whole ecosystem, Social first */}
-        <View style={s.worldWrap}>
-          <Text style={s.worldHead}>Your FUUSIC World</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 10 }}>
-            {worldPills.map((p) => (
-              <Pressable key={p.key} testID={`home-pillar-${p.key}`} style={[s.pill, p.featured && s.pillFeatured]}
-                onPress={() => { fireEvent(`home_${p.key}_click`); router.push(p.to as any); }}>
-                <View style={[s.pillIcon, { backgroundColor: p.bg }]}>
-                  <Ionicons name={p.icon as any} size={16} color={p.featured ? t.onAccent : '#fff'} />
-                </View>
-                <Text style={[s.pillLabel, p.featured && s.pillLabelFeatured]}>{p.label}</Text>
+        {/* SOCIAL-FIRST: lead the home with your live social wall — real
+            activity from the people, stations & places you follow. */}
+        {feed.length > 0 && (
+          <View style={s.shelf}>
+            <View style={s.shelfHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.shelfTitle}>Your Social Wall</Text>
+                <Text style={s.shelfSuffix}>FROM PEOPLE & PLACES YOU FOLLOW</Text>
+              </View>
+              <Pressable onPress={() => { fireEvent('home_feed_see_all'); router.push('/(tabs)/social'); }} hitSlop={8}>
+                <Text style={s.seeAll}>See all</Text>
               </Pressable>
-            ))}
-          </ScrollView>
-        </View>
+            </View>
+            <View style={{ paddingHorizontal: TSPACE.md, gap: 10 }}>
+              {feed.slice(0, 3).map((it, i) => (
+                <Pressable key={it.id || i} testID={`home-feed-${i}`} style={s.feedCard} onPress={() => openFeedItem(it)}>
+                  <View style={s.feedAvatarWrap}>
+                    {it.actor?.avatar_url
+                      ? <Image source={{ uri: resolveImg(it.actor.avatar_url) || undefined }} style={s.feedAvatar} contentFit="cover" transition={150} />
+                      : <View style={[s.feedAvatar, s.feedAvatarFallback]}><Text style={s.feedInitial}>{(it.actor?.name || '?').slice(0, 1).toUpperCase()}</Text></View>}
+                    {it.meta?.live && <View style={s.feedLiveDot} />}
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={s.feedTopRow}>
+                      <Text style={s.feedActor} numberOfLines={1}>{it.actor?.name || 'Someone'}</Text>
+                      {it.meta?.live && <View style={s.feedLivePill}><Text style={s.feedLivePillTxt}>LIVE</Text></View>}
+                    </View>
+                    <Text style={s.feedText} numberOfLines={2}>
+                      {it.title || it.text || FEED_VERB[it.type] || 'shared an update'}
+                    </Text>
+                  </View>
+                  {it.media_url
+                    ? <Image source={{ uri: resolveImg(it.media_url) || undefined }} style={s.feedThumb} contentFit="cover" transition={150} />
+                    : <View style={s.feedCta}><Text style={s.feedCtaTxt}>{it.cta?.label || 'Open'}</Text></View>}
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* What's Happening Now — Social bridge (real data / honest empty) */}
         {socialActive ? (
@@ -253,6 +314,23 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         )}
+
+        {/* Your FUUSIC World — the whole ecosystem, Social first */}
+        <View style={s.worldWrap}>
+          <Text style={s.worldHead}>Your FUUSIC World</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 10 }}>
+            {worldPills.map((p) => (
+              <Pressable key={p.key} testID={`home-pillar-${p.key}`} style={[s.pill, p.featured && s.pillFeatured]}
+                onPress={() => { fireEvent(`home_${p.key}_click`); router.push(p.to as any); }}>
+                <View style={[s.pillIcon, { backgroundColor: p.bg }]}>
+                  <Ionicons name={p.icon as any} size={16} color={p.featured ? t.onAccent : '#fff'} />
+                </View>
+                <Text style={[s.pillLabel, p.featured && s.pillLabelFeatured]}>{p.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* A · Continue Listening / Start My Radio */}
         {hasSession ? (
@@ -530,6 +608,25 @@ const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   friendCtx: { color: '#5eead4', fontSize: TFONT.xs, fontWeight: '600', textAlign: 'center' },
   sponsorBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: t.gold, borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
   sponsorBadgeText: { color: t.onAccent, fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+
+  feedCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: TSPACE.sm + 2, borderRadius: TRADIUS.lg,
+    backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line,
+  },
+  feedAvatarWrap: { width: 46, height: 46 },
+  feedAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: t.glass },
+  feedAvatarFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: t.brand },
+  feedInitial: { color: '#fff', fontSize: TFONT.lg, fontWeight: '900' },
+  feedLiveDot: { position: 'absolute', bottom: 0, right: 0, width: 13, height: 13, borderRadius: 7, backgroundColor: t.live, borderWidth: 2, borderColor: t.elevated },
+  feedTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  feedActor: { color: t.text, fontSize: TFONT.sm, fontWeight: '800', flexShrink: 1 },
+  feedLivePill: { backgroundColor: t.live, borderRadius: TRADIUS.full, paddingHorizontal: 6, paddingVertical: 1 },
+  feedLivePillTxt: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+  feedText: { color: t.textDim, fontSize: TFONT.xs, fontWeight: '600', marginTop: 2 },
+  feedThumb: { width: 52, height: 52, borderRadius: TRADIUS.md, backgroundColor: t.glass },
+  feedCta: { backgroundColor: t.brand, borderRadius: TRADIUS.full, paddingHorizontal: 14, paddingVertical: 8 },
+  feedCtaTxt: { color: t.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
 
   rewardCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,
