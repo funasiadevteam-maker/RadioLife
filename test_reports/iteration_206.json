@@ -1,0 +1,38 @@
+{
+  "summary": "iter_206 Phase C — Backend GREEN (3/3). Mobile Home GREEN. Mobile pay-checkout receipt flow BROKEN — critical field-name mismatch between backend contract and mobile UI causes 'AED NaN' and prevents the full-points demo from completing. Deprecated expo-notifications web warning present (minor, not deprecated per Expo Related Pointers list).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {
+      "ui_bugs": [
+        {"component": "pay-checkout/[token].tsx", "issue": "Shows 'AED NaN' for 'You pay' and 'Pay AED NaN' button; BigCoin pills section hidden because maxPoints computes to 0.", "testID": "pay-submit-btn", "priority": "CRITICAL"}
+      ],
+      "integration_issues": [
+        {"flow": "Scan-to-Pay full-points receipt (biz_demo_karak)", "issue": "Mobile pay-checkout reads WRONG backend field names. Resolve returns {amount_cents, user_points_balance, settings:{...}} but UI reads resolved.subtotal_cents / resolved.user_balance / resolved.max_points_allowed / resolved.items (all undefined). Quote returns {subtotal_cents, total_cents, points_value_cents, card_cents, points_to_use, points_earned} but UI reads quote.charge_cents / quote.points_discount_cents (undefined → NaN in formatCents). Because maxPoints = Math.min(undefined, undefined) = NaN, the BigCoin pill row never renders → the spec'd 'set BigCoin pills to max → pay AED 0.00 card' flow is impossible from mobile UI. Authorize is also sent with points_to_use=0 → 400 merchant_stripe_missing from backend (biz_demo_karak has no stripe_charges_enabled).", "affected_testIDs": ["pay-merchant-header","pay-submit-btn","pay-receipt-title"]}
+      ],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": ["/app/backend/tests/test_iter206_phase_c.py", "/app/test_reports/pytest/iter206.xml"],
+  "action_items": [
+    "Fix /app/mobile/app/pay-checkout/[token].tsx field mapping to match backend contract: resolved.user_points_balance (not user_balance); resolved.amount_cents (not subtotal_cents); drop resolved.items (backend returns a single amount, no line items) OR synthesize one row from amount_cents; compute maxPoints client-side as Math.floor(amount_cents * settings.max_points_redemption_pct / 100) capped by user_points_balance. For quote: use quote.card_cents (not charge_cents) and quote.points_value_cents (not points_discount_cents). The pay() function already sends correct keys (points_to_use, tip_cents, qr_token) — only the display/derivation is wrong.",
+    "After the field fix, 100%-points path should go: resolve → quote(points_to_use=amount_cents) → authorize (no payment_method required because card_cents=0) → capture → receipt renders with Subtotal=AED 5.00 / Total paid=AED 0.00 / 0 BigCoin earned (points-only bill correctly earns nothing)."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/social_v2.py:930 friends_nearby is cleanly implemented — merges scan_earn_events ('checked in') with captured scan_to_pay_transactions ('paid'), the latter outranks the former on same (user,merchant) key, 6h window. Returns {items:[]} for users with no friends or no followed businesses (verified for freeuser).",
+    "backend/services/scan_to_pay_service.py:265 correctly refuses zero-charge (card==0 && points==0). For 100%-points: authorize sets status='authorized' (no Stripe call because card_cents=0), capture awards 0 points_earned (card portion rule), writes ledger row with stripe_payment_intent_id='stq_local:<tx>'. Capture response includes all 5 receipt fields the mobile UI needs: subtotal_cents, tip_cents, points_used, charge_cents, bigcoin_earned.",
+    "mobile/app/(tabs)/home.tsx — Social Wall + Near-you-now implementations are solid: items wrapped in Animated.View with FadeInDown + LinearTransition, 25s silent setInterval poll on both /social/feed-v2 and /social/friends-nearby, no visible loader, falls back for_you when following is empty. testIDs home-feed-0..2 and home-nearby-0 all confirmed via Playwright. Nearby card shows storefront icon fallback when business_logo missing (correct).",
+    "mobile/app/pay-checkout/[token].tsx — field mismatches with backend contract (see integration_issues). This file has drifted from the scan_to_pay_service response shape; the backend is the source of truth per the capture() docstring."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter206_phase_c.py", "/app/test_reports/iteration_206.json"],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "66% — Home GREEN (wall + nearby + FAB), pay-checkout BROKEN by field mismatch"},
+  "test_credentials": "demo@bigfm.dubai/DemoPass123! (consumer, follows Karak); freeuser@bigfm.dubai/FreePass123! (control for empty nearby); test@bigfm.dubai/TestUser123! (merchant). biz_demo_karak was given owner_user_id=<demo> during setup so merchant QR gen could be called with demo auth in tests — idempotent, harmless.",
+  "seed_data_creation": "Set businesses.biz_demo_karak.owner_user_id = demo user_id so /api/merchant/scan-to-pay/qr/generate accepts demo-cookie auth from the test. All other data was already seeded by scripts/seed_scan_to_pay_demo.py and scripts/seed_nearby_demo.py.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend contract (verified green): resolve returns {token, amount_cents, expires_at, merchant{...}, settings{points_per_dollar, max_points_redemption_pct}, user_points_balance}. Quote returns {subtotal_cents, tip_cents, total_cents, points_to_use, points_value_cents, card_cents, points_earned, max_points_allowed, merchant, user_points_balance}. Capture returns {ok, transaction_id, status='captured', card_cents, points_redeemed, points_earned, subtotal_cents, tip_cents, points_used, charge_cents, bigcoin_earned}. Full-points path (card_cents=0) short-circuits Stripe entirely — safe to run against the restricted LIVE key. After main agent fixes the mobile pay-checkout field names, rerun /app/backend/tests/test_iter206_phase_c.py (regression) + the Playwright pay-checkout scenario (navigate /pay-checkout/<token>, pick max BigCoin pill, tap pay-submit-btn, assert pay-receipt-title + no 'NaN' in body).",
+  "rca of the issue": "Mobile pay-checkout UI was written against an older/draft backend contract (user_balance, max_points_allowed, charge_cents, points_discount_cents, items[]). The actual scan_to_pay_service returns user_points_balance / amount_cents / card_cents / points_value_cents and no per-item breakdown. Because JS silently returns undefined for missing keys and (undefined/100).toFixed(2) → 'NaN', the UI renders 'AED NaN' instead of blocking with an error. Fix is purely field-renames in /app/mobile/app/pay-checkout/[token].tsx — no backend change needed."
+}

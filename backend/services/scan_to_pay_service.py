@@ -486,6 +486,12 @@ async def capture(db, *, transaction_id: str,
         "card_cents":                      int(tx["card_charged_cents"]),
         "points_redeemed":            int(tx["points_redeemed"]),
         "points_earned":              int(tx["points_earned_awarded"]),
+        # Receipt fields consumed by the web + mobile pay-checkout screens.
+        "subtotal_cents":              int(tx["subtotal_cents"]),
+        "tip_cents":                        int(tx["tip_cents"]),
+        "points_used":                    int(tx["points_redeemed"]),
+        "charge_cents":                  int(tx["card_charged_cents"]),
+        "bigcoin_earned":              int(tx["points_earned_awarded"]),
     }
 
 

@@ -147,7 +147,10 @@ export default function PayCheckoutScreen() {
 
   // Checkout
   const merchant = resolved?.merchant;
-  const maxPoints = Math.min(resolved?.max_points_allowed || 0, resolved?.user_balance || 0);
+  const pointsPct = resolved?.settings?.max_points_redemption_pct || 0;
+  const pointsBalance = resolved?.user_points_balance || 0;
+  const baseCents = quote?.total_cents ?? ((resolved?.amount_cents || 0) + tipCents);
+  const maxPoints = Math.min(Math.floor(baseCents * pointsPct / 100), pointsBalance);
 
   return (
     <SafeAreaView style={common.screen}>
@@ -177,14 +180,14 @@ export default function PayCheckoutScreen() {
           <View style={s.divider} />
           <View style={s.lineRow}>
             <Text style={[s.lineLabel, { fontWeight: '800' }]}>Subtotal</Text>
-            <Text style={[s.lineVal, { fontWeight: '800' }]}>{formatCents(resolved?.subtotal_cents || 0)}</Text>
+            <Text style={[s.lineVal, { fontWeight: '800' }]}>{formatCents(resolved?.amount_cents || 0)}</Text>
           </View>
         </View>
 
         {/* Points slider */}
         {maxPoints > 0 && (
           <View style={common.card}>
-            <Text style={common.label}>USE BIGCOIN ({resolved?.user_balance || 0} available)</Text>
+            <Text style={common.label}>USE BIGCOIN ({resolved?.user_points_balance || 0} available)</Text>
             <View style={s.pointsRow}>
               {[0, Math.floor(maxPoints/4), Math.floor(maxPoints/2), maxPoints].map((v, i) => (
                 <TouchableOpacity key={i} style={[common.pill, pointsToUse === v && common.pillActive]}
@@ -216,9 +219,9 @@ export default function PayCheckoutScreen() {
           <View style={[common.card, { backgroundColor: COLORS.inputBg }]}>
             <Row label="Subtotal" value={formatCents(quote.subtotal_cents)} />
             {quote.tip_cents > 0 && <Row label="Tip" value={formatCents(quote.tip_cents)} />}
-            {quote.points_discount_cents > 0 && <Row label="BigCoin discount" value={`-${formatCents(quote.points_discount_cents)}`} />}
+            {quote.points_value_cents > 0 && <Row label="BigCoin discount" value={`-${formatCents(quote.points_value_cents)}`} />}
             <View style={s.divider} />
-            <Row label="You pay" value={formatCents(quote.charge_cents)} bold />
+            <Row label="You pay" value={formatCents(quote.card_cents)} bold />
           </View>
         )}
         {quoteBusy && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 8 }} />}
@@ -228,7 +231,7 @@ export default function PayCheckoutScreen() {
           onPress={pay} disabled={payBusy || !quote} testID="pay-submit-btn">
           {payBusy ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="card" size={18} color="#fff" />}
           <Text style={common.btnPrimaryText}>
-            {payBusy ? 'Processing...' : `Pay ${quote ? formatCents(quote.charge_cents) : '...'}`}
+            {payBusy ? 'Processing...' : (quote && quote.card_cents === 0 ? 'Pay with BigCoin' : `Pay ${quote ? formatCents(quote.card_cents) : '...'}`)}
           </Text>
         </TouchableOpacity>
 

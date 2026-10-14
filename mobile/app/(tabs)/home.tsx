@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useAuth } from '../../src/contexts/AuthContext';
 import api, { BACKEND } from '../../src/api/client';
 import TubeDrawer from '../../src/components/TubeDrawer';
@@ -75,6 +76,7 @@ export default function HomeScreen() {
   const [home, setHome] = useState<any>(null);
   const [socialHome, setSocialHome] = useState<any>(null);
   const [feed, setFeed] = useState<any[]>([]);
+  const [nearby, setNearby] = useState<any[]>([]);
   const [points, setPoints] = useState<number | null>(null);
   const [cityLabel, setCityLabel] = useState('');
   const [loading, setLoading] = useState(true);
@@ -106,6 +108,11 @@ export default function HomeScreen() {
         }
         setFeed(items);
       } catch { /* ignore */ }
+      // Near you now — friends who just checked in / paid at a place you follow.
+      try {
+        const nr = await api.get('/social/friends-nearby');
+        setNearby(nr.data?.items || []);
+      } catch { /* ignore */ }
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -113,12 +120,20 @@ export default function HomeScreen() {
   useEffect(() => { if (!authLoading && user) load(); }, [authLoading, user]);
 
   // Poll social so friends-live cards appear the moment friends go live.
+  // Also quietly refresh the social wall + 'near you now' so new activity
+  // slides in without a manual pull-down.
   useEffect(() => {
     if (!user) return undefined;
-    const t = setInterval(() => {
+    const iv = setInterval(() => {
       api.get('/social/home').then((r) => setSocialHome(r.data || null)).catch(() => {});
+      api.get('/social/feed-v2', { params: { mode: 'following', limit: 4 } })
+        .then((r) => { const it = r.data?.items || []; if (it.length) setFeed(it); })
+        .catch(() => {});
+      api.get('/social/friends-nearby')
+        .then((r) => setNearby(r.data?.items || []))
+        .catch(() => {});
     }, 25000);
-    return () => clearInterval(t);
+    return () => clearInterval(iv);
   }, [user]);
 
   useEffect(() => {
@@ -236,28 +251,70 @@ export default function HomeScreen() {
             </View>
             <View style={{ paddingHorizontal: TSPACE.md, gap: 10 }}>
               {feed.slice(0, 3).map((it, i) => (
-                <Pressable key={it.id || i} testID={`home-feed-${i}`} style={s.feedCard} onPress={() => openFeedItem(it)}>
-                  <View style={s.feedAvatarWrap}>
-                    {it.actor?.avatar_url
-                      ? <Image source={{ uri: resolveImg(it.actor.avatar_url) || undefined }} style={s.feedAvatar} contentFit="cover" transition={150} />
-                      : <View style={[s.feedAvatar, s.feedAvatarFallback]}><Text style={s.feedInitial}>{(it.actor?.name || '?').slice(0, 1).toUpperCase()}</Text></View>}
-                    {it.meta?.live && <View style={s.feedLiveDot} />}
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={s.feedTopRow}>
-                      <Text style={s.feedActor} numberOfLines={1}>{it.actor?.name || 'Someone'}</Text>
-                      {it.meta?.live && <View style={s.feedLivePill}><Text style={s.feedLivePillTxt}>LIVE</Text></View>}
+                <Animated.View key={it.id || i}
+                  entering={FadeInDown.duration(350).springify()}
+                  layout={LinearTransition.springify()}>
+                  <Pressable testID={`home-feed-${i}`} style={s.feedCard} onPress={() => openFeedItem(it)}>
+                    <View style={s.feedAvatarWrap}>
+                      {it.actor?.avatar_url
+                        ? <Image source={{ uri: resolveImg(it.actor.avatar_url) || undefined }} style={s.feedAvatar} contentFit="cover" transition={150} />
+                        : <View style={[s.feedAvatar, s.feedAvatarFallback]}><Text style={s.feedInitial}>{(it.actor?.name || '?').slice(0, 1).toUpperCase()}</Text></View>}
+                      {it.meta?.live && <View style={s.feedLiveDot} />}
                     </View>
-                    <Text style={s.feedText} numberOfLines={2}>
-                      {it.title || it.text || FEED_VERB[it.type] || 'shared an update'}
-                    </Text>
-                  </View>
-                  {it.media_url
-                    ? <Image source={{ uri: resolveImg(it.media_url) || undefined }} style={s.feedThumb} contentFit="cover" transition={150} />
-                    : <View style={s.feedCta}><Text style={s.feedCtaTxt}>{it.cta?.label || 'Open'}</Text></View>}
-                </Pressable>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={s.feedTopRow}>
+                        <Text style={s.feedActor} numberOfLines={1}>{it.actor?.name || 'Someone'}</Text>
+                        {it.meta?.live && <View style={s.feedLivePill}><Text style={s.feedLivePillTxt}>LIVE</Text></View>}
+                      </View>
+                      <Text style={s.feedText} numberOfLines={2}>
+                        {it.title || it.text || FEED_VERB[it.type] || 'shared an update'}
+                      </Text>
+                    </View>
+                    {it.media_url
+                      ? <Image source={{ uri: resolveImg(it.media_url) || undefined }} style={s.feedThumb} contentFit="cover" transition={150} />
+                      : <View style={s.feedCta}><Text style={s.feedCtaTxt}>{it.cta?.label || 'Open'}</Text></View>}
+                  </Pressable>
+                </Animated.View>
               ))}
             </View>
+          </View>
+        )}
+
+        {/* Near you now — friends who just checked in / paid at a place you
+            follow. Real check-in signals only; hidden when there are none. */}
+        {nearby.length > 0 && (
+          <View style={s.shelf}>
+            <View style={s.shelfHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.shelfTitle}>Near you now</Text>
+                <Text style={s.shelfSuffix}>FRIENDS AT PLACES YOU FOLLOW</Text>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 12 }}>
+              {nearby.map((n, i) => (
+                <Animated.View key={`${n.user_id}-${n.business_id}`}
+                  entering={FadeInDown.duration(350).springify()}
+                  layout={LinearTransition.springify()}>
+                  <Pressable testID={`home-nearby-${i}`} style={s.nearbyCard}
+                    onPress={() => { fireEvent('home_nearby_click', { business_id: n.business_id }); router.push(`/store/${n.business_id}` as any); }}>
+                    <View style={s.nearbyMedia}>
+                      {n.business_logo
+                        ? <Image source={{ uri: resolveImg(n.business_logo) || undefined }} style={s.nearbyLogo} contentFit="cover" transition={150} />
+                        : <View style={[s.nearbyLogo, s.nearbyLogoFallback]}><Ionicons name="storefront" size={20} color={t.electric} /></View>}
+                      <View style={s.nearbyAvatarWrap}>
+                        {n.avatar_url
+                          ? <Image source={{ uri: resolveImg(n.avatar_url) || undefined }} style={s.nearbyAvatar} contentFit="cover" transition={150} />
+                          : <View style={[s.nearbyAvatar, s.nearbyAvatarFallback]}><Text style={s.nearbyInitial}>{(n.name || '?').slice(0, 1).toUpperCase()}</Text></View>}
+                      </View>
+                    </View>
+                    <Text style={s.nearbyName} numberOfLines={1}>{n.name}</Text>
+                    <Text style={s.nearbyCtx} numberOfLines={1}>{n.activity === 'paid' ? 'paid at' : 'checked in at'}</Text>
+                    <Text style={s.nearbyBiz} numberOfLines={1}>{n.business_name}</Text>
+                  </Pressable>
+                </Animated.View>
+              ))}
+            </ScrollView>
           </View>
         )}
 
@@ -627,6 +684,18 @@ const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   feedThumb: { width: 52, height: 52, borderRadius: TRADIUS.md, backgroundColor: t.glass },
   feedCta: { backgroundColor: t.brand, borderRadius: TRADIUS.full, paddingHorizontal: 14, paddingVertical: 8 },
   feedCtaTxt: { color: t.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
+
+  nearbyCard: { width: 128, padding: TSPACE.sm, borderRadius: TRADIUS.lg, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line },
+  nearbyMedia: { width: 64, height: 64, marginBottom: 8 },
+  nearbyLogo: { width: 64, height: 64, borderRadius: TRADIUS.md, backgroundColor: t.glass },
+  nearbyLogoFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(34,211,238,0.12)' },
+  nearbyAvatarWrap: { position: 'absolute', bottom: -4, right: -4 },
+  nearbyAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: t.elevated, backgroundColor: t.glass },
+  nearbyAvatarFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: t.brand },
+  nearbyInitial: { color: '#fff', fontSize: TFONT.xs, fontWeight: '900' },
+  nearbyName: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
+  nearbyCtx: { color: t.textMuted, fontSize: 10, fontWeight: '700', marginTop: 1 },
+  nearbyBiz: { color: t.electric, fontSize: TFONT.xs, fontWeight: '700', marginTop: 1 },
 
   rewardCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,

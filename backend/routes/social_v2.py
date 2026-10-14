@@ -926,6 +926,78 @@ async def social_home(request: Request, user: dict = Depends(current_user)):
     }
 
 
+# ─────────────────── Friends near you (check-in signal) ────────────
+@router.get("/friends-nearby")
+async def friends_nearby(request: Request, user: dict = Depends(current_user)):
+    """Friends who recently checked in / paid at a business this user
+    follows — powers the Home 'Near you now' row. Real signals only
+    (scan_earn_events + captured scan_to_pay_transactions, last 6h)."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    friends = await _friend_ids(db, uid)
+    if not friends:
+        return {"items": []}
+    followed: set[str] = set()
+    async for r in db.user_business_relations.find(
+            {"user_id": uid, "kind": "follow", "active": True}, {"merchant_id": 1}):
+        bid = r.get("merchant_id")
+        if bid:
+            followed.add(bid)
+    if not followed:
+        return {"items": []}
+    cutoff = _now() - timedelta(hours=6)
+    fl, bl = list(friends), list(followed)
+    # Most-recent check-in per (friend, business); a captured payment
+    # outranks a plain scan when both exist.
+    seen: dict[tuple, dict] = {}
+    async for e in db.scan_earn_events.find(
+            {"user_id": {"$in": fl}, "merchant_id": {"$in": bl},
+              "at": {"$gte": cutoff}}).sort("at", -1).limit(60):
+        k = (e["user_id"], e["merchant_id"])
+        if k not in seen:
+            seen[k] = {"user_id": e["user_id"], "merchant_id": e["merchant_id"],
+                              "at": e.get("at"), "activity": "checked in"}
+    async for t in db.scan_to_pay_transactions.find(
+            {"user_id": {"$in": fl}, "merchant_id": {"$in": bl},
+              "status": "captured", "captured_at": {"$gte": cutoff}}
+            ).sort("captured_at", -1).limit(60):
+        k = (t["user_id"], t["merchant_id"])
+        prev = seen.get(k)
+        when = t.get("captured_at")
+        if not prev or (when and (not prev.get("at") or when > prev["at"])):
+            seen[k] = {"user_id": t["user_id"], "merchant_id": t["merchant_id"],
+                              "at": when, "activity": "paid"}
+    rows = sorted(seen.values(), key=lambda r: r["at"] or cutoff, reverse=True)[:12]
+    if not rows:
+        return {"items": []}
+    uids = list({r["user_id"] for r in rows})
+    mids = list({r["merchant_id"] for r in rows})
+    umap, bmap = {}, {}
+    async for u in db.users.find({"user_id": {"$in": uids}}):
+        umap[u["user_id"]] = u
+    async for b in db.businesses.find({"business_id": {"$in": mids}}):
+        bmap[b["business_id"]] = b
+    items = []
+    for r in rows:
+        u = umap.get(r["user_id"])
+        b = bmap.get(r["merchant_id"])
+        if not u or not b:
+            continue
+        items.append({
+            "user_id":              r["user_id"],
+            "name":                  u.get("name") or (u.get("email") or "").split("@")[0] or "Friend",
+            "avatar_url":        u.get("picture") or u.get("avatar_url"),
+            "business_id":      r["merchant_id"],
+            "business_name":  b.get("name") or b.get("slug") or "a spot you follow",
+            "business_logo":  b.get("logo_url") or b.get("cover_image_url") or b.get("cover_url"),
+            "business_slug":  b.get("slug"),
+            "activity":            r["activity"],
+            "when":                  _iso(r["at"]),
+        })
+    return {"items": items}
+
+
+
 # ───────────────────────── Following graph ─────────────────────────
 @router.get("/following")
 async def get_following(request: Request, user: dict = Depends(current_user)):
