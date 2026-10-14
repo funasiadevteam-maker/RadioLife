@@ -994,6 +994,7 @@ async def friends_nearby(request: Request, user: dict = Depends(current_user)):
             "offer_id":  o.get("offer_id") or str(o.get("_id")),
             "title":        o.get("title") or label or "Special offer",
             "label":        label,
+            "expires_at": _iso(o.get("expires_at")),
         }
     items = []
     for r in rows:

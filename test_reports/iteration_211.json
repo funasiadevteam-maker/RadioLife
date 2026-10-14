@@ -1,0 +1,32 @@
+{
+  "summary": "iter_211 FUUSIC — DEAL COUNTDOWN + SPLIT REMINDER NUDGE — ALL GREEN on web backend + mobile Expo preview. (A) Backend /api/social/friends-nearby returns the biz_demo_karak item with offer.offer_id='ofr_qa_onetime_demo', offer.label contains '50% off', offer.expires_at is a FUTURE ISO (~2h57m ahead, seeded +3h). Endpoint only returns active+non-expired offers (verified: no leaked expired). (B) Backend /api/scan-to-pay/splits/mine for bsplit_demo_whospaid returns status='partial', 2 shares (You=paid, Alex=pending), invite_urls map includes a real https:// URL for Alex's share_id, merchant.business_name='Karak Cafe Dubai (QA Demo)', currency='aed'. No regression on merchant block or AED currency from iter_210. Completed/expired splits in the same payload carry NO unpaid non-you share. (C) Mobile Home: home-nearby-0 card renders with 'Claim 50% off Karak' deal pill AND testID home-nearby-0-countdown showing 'Ends in 2h 54m' (live red color). (D) Mobile /my-splits: split-card-bsplit_demo_whospaid shows merchant 'Karak Cafe Dubai (QA Demo)', AED 20.00, PARTIAL pill, '1/2 paid' progress, You PAID / Alex PENDING rows, and the 'Remind unpaid' button (testID split-nudge-bsplit_demo_whospaid). Tapping it on web Share.share no-ops via try/catch and the card stays mounted (no crash). The 3 EXPIRED cards below in the list correctly DO NOT show the Remind button.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter211_countdown_nudge.py",
+    "/app/test_reports/pytest/iter211.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/social_v2.py:980-1017 friends_nearby — offers_by_biz already filters `expires_at>now` at the DB query; label fallback cascades discount_label → discount_percent → discount_value_pct → 'Special offer'. Clean, idempotent. The offer dict surfaces offer_id, title, label, expires_at — exactly what the mobile countdown reads.",
+    "mobile/app/(tabs)/home.tsx:160-172 — fmtCountdown() correctly guards against expired (returns null) and ticks every 30s via setInterval. Format matches spec: 'Ends in Xh Ym' / 'Ends in Xd' / 'Ends in Xm'. Countdown row only renders when offer.expires_at AND fmtCountdown>0 — hides automatically when offer has no expiry.",
+    "mobile/app/my-splits.tsx:148-154 — Remind button visibility correctly gated on status in {pending,partial} AND exists a pending non-'you' share. nudge() builds a readable multi-line message with per-friend pay links from invite_urls and Share.share is wrapped in try/catch, so the web no-op never crashes the screen. Verified in automation.",
+    "scripts/seed_nearby_demo.py — idempotent; re-seeds label + +3h expiry. During test run offer was already seeded fresh with ~2h57m remaining."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter211_countdown_nudge.py",
+    "/app/test_reports/iteration_211.json"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (home countdown + my-splits nudge verified on Expo web preview)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (mobile demo-login-btn → bearer; cookie login for backend pytest)",
+  "seed_data_creation": "Re-ran scripts/seed_nearby_demo.py — follow + check-ins already present; new nothing. Offer expiry was still ~2h57m in the future at test time (seeded earlier same session).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter_211 regression /app/backend/tests/test_iter211_countdown_nudge.py covers: friends-nearby offer+expires_at future, filters-out-expired invariant, splits/mine partial invite_urls+unpaid share, completed splits never carry unpaid non-you share, nearby offer_id routing. Run: `REACT_APP_BACKEND_URL=https://mobile-games-v2.preview.emergentagent.com python -m pytest tests/test_iter211_countdown_nudge.py -v`. If offer expiry has lapsed (seeded at startup +3h), re-run `cd /app && python scripts/seed_nearby_demo.py`. Mobile Home countdown ticks every 30s via a setInterval in home.tsx; test only verifies first render — explicit tick-over-time is unnecessary. Share.share is native-only; web preview must only verify no-crash on tap.",
+  "rca of the issue": ""
+}

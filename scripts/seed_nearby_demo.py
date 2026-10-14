@@ -65,12 +65,19 @@ async def main() -> None:
         print(f"check-in seeded: {fe} @ {MERCHANT} ({mins}m ago)")
 
     # 3) Ensure the merchant's active offer has a short discount_label so the
-    #    'Near you now' deal hook reads cleanly (e.g. "50% off").
+    #    'Near you now' deal hook reads cleanly (e.g. "50% off"), and a near
+    #    expiry so the deal countdown is visible in the demo.
     res = await db.offers.update_many(
         {"business_id": MERCHANT, "status": "active",
           "$or": [{"discount_label": None}, {"discount_label": {"$exists": False}}]},
         {"$set": {"discount_label": "50% off Karak"}})
     print(f"offer label set on {res.modified_count} active offer(s)")
+    exp = datetime.now(timezone.utc) + timedelta(hours=3)
+    res2 = await db.offers.update_many(
+        {"business_id": MERCHANT, "status": "active",
+          "$or": [{"expires_at": None}, {"expires_at": {"$exists": False}}]},
+        {"$set": {"expires_at": exp}})
+    print(f"offer expiry set (+3h) on {res2.modified_count} active offer(s)")
 
 
 if __name__ == "__main__":

@@ -81,6 +81,7 @@ export default function HomeScreen() {
   const feedRef = useRef<any[]>([]);
   const sinceRef = useRef<string>('');
   const [nearby, setNearby] = useState<any[]>([]);
+  const [nowTs, setNowTs] = useState(Date.now());
   const [points, setPoints] = useState<number | null>(null);
   const [cityLabel, setCityLabel] = useState('');
   const [loading, setLoading] = useState(true);
@@ -154,6 +155,21 @@ export default function HomeScreen() {
     }, 25000);
     return () => clearInterval(iv);
   }, [user]);
+
+  // Tick a clock so 'Near you now' deal countdowns stay live (urgency).
+  useEffect(() => {
+    const iv = setInterval(() => setNowTs(Date.now()), 30000);
+    return () => clearInterval(iv);
+  }, []);
+  const fmtCountdown = (iso?: string, nowMs?: number): string | null => {
+    if (!iso) return null;
+    const diff = new Date(iso).getTime() - (nowMs || Date.now());
+    if (!(diff > 0)) return null;
+    const mins = Math.floor(diff / 60000);
+    if (mins >= 1440) return `Ends in ${Math.floor(mins / 1440)}d`;
+    if (mins >= 60) return `Ends in ${Math.floor(mins / 60)}h ${mins % 60}m`;
+    return `Ends in ${Math.max(1, mins)}m`;
+  };
 
   const revealNewPosts = () => {
     if (!pendingFeed.length) return;
@@ -366,6 +382,12 @@ export default function HomeScreen() {
                         <Ionicons name="pricetag" size={10} color={t.gold} />
                         <Text style={s.nearbyDealTxt} numberOfLines={1}>Claim {n.offer.label || n.offer.title}</Text>
                       </Pressable>
+                    )}
+                    {n.offer?.expires_at && fmtCountdown(n.offer.expires_at, nowTs) && (
+                      <View style={s.nearbyCountdown} testID={`home-nearby-${i}-countdown`}>
+                        <Ionicons name="time-outline" size={10} color={t.live} />
+                        <Text style={s.nearbyCountdownTxt} numberOfLines={1}>{fmtCountdown(n.offer.expires_at, nowTs)}</Text>
+                      </View>
                     )}
                   </Pressable>
                 </Animated.View>
@@ -754,6 +776,8 @@ const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   nearbyBiz: { color: t.electric, fontSize: TFONT.xs, fontWeight: '700', marginTop: 1 },
   nearbyDeal: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(245,197,66,0.14)', borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 3 },
   nearbyDealTxt: { color: t.gold, fontSize: 10, fontWeight: '900', flexShrink: 1 },
+  nearbyCountdown: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
+  nearbyCountdownTxt: { color: t.live, fontSize: 10, fontWeight: '800', flexShrink: 1 },
   newPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: t.brand, borderRadius: TRADIUS.full, paddingVertical: 9 },
   newPillTxt: { color: t.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
 

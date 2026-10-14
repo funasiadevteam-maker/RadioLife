@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  SafeAreaView, ActivityIndicator, RefreshControl,
+  SafeAreaView, ActivityIndicator, RefreshControl, Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,6 +51,21 @@ export default function MySplitsScreen() {
   }, [filter]);
 
   useEffect(() => { if (!authLoading && user) load(); }, [authLoading, user, load]);
+
+  // Re-share the pay link to friends who haven't settled their share yet.
+  const nudge = async (sp: any) => {
+    const invite = sp.invite_urls || {};
+    const unpaid = (sp.shares || []).filter(
+      (sh: any) => sh.status === 'pending' && (sh.display_name || '').toLowerCase() !== 'you');
+    if (!unpaid.length) return;
+    const name = sp.merchant?.business_name || (sp.description || '').replace(/^Split at /, '') || 'our visit';
+    const lines = unpaid.map((sh: any) => {
+      const url = invite[sh.share_id] || '';
+      return `${sh.display_name || 'Friend'}: ${money(sh.share_amount_cents, sp.currency)}${url ? ` → ${url}` : ''}`;
+    });
+    const msg = `Friendly reminder to settle up for ${name} 🙂\n${lines.join('\n')}`;
+    try { await Share.share({ message: msg }); } catch { /* dismissed */ }
+  };
 
   if (authLoading || loading) return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 
@@ -130,6 +145,13 @@ export default function MySplitsScreen() {
                   <Text style={s.shareAmt}>{money(sh.share_amount_cents, sp.currency)}</Text>
                 </View>
               ))}
+              {(sp.status === 'pending' || sp.status === 'partial')
+                && (sp.shares || []).some((sh: any) => sh.status === 'pending' && (sh.display_name || '').toLowerCase() !== 'you') && (
+                <TouchableOpacity style={s.nudgeBtn} onPress={() => nudge(sp)} testID={`split-nudge-${sp.split_id || i}`}>
+                  <Ionicons name="notifications-outline" size={14} color={COLORS.primary} />
+                  <Text style={s.nudgeBtnTxt}>Remind unpaid</Text>
+                </TouchableOpacity>
+              )}
               <Text style={s.splitDate}>
                 {sp.created_at ? new Date(sp.created_at).toLocaleDateString() : ''}
               </Text>
@@ -168,4 +190,10 @@ const s = StyleSheet.create({
   shareStatus: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
   shareAmt: { fontSize: FONT.sm, color: COLORS.textDim, fontWeight: '600' },
   splitDate: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 8 },
+  nudgeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 12, paddingVertical: 10, borderRadius: RADIUS.md,
+    borderWidth: 1.5, borderColor: COLORS.primary,
+  },
+  nudgeBtnTxt: { fontSize: FONT.sm, fontWeight: '800', color: COLORS.primary },
 });

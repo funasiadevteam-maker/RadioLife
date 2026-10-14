@@ -2,6 +2,12 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🆕 Split Reminder Nudge + Deal Countdown (testing agent iter211: backend 5/5 + mobile ALL GREEN)
+- **Deal Countdown** — `GET /api/social/friends-nearby` now returns `offer.expires_at`; the Home "Near you now" card shows a live red countdown (`home-nearby-N-countdown`, "Ends in Xh Ym", ticks every 30s via a `nowTs` interval + `fmtCountdown`) beneath the "Claim {deal}" pill; hidden when the offer has no expiry. `scripts/seed_nearby_demo.py` now also sets a +3h expiry on the demo offer. Backend already filters out expired offers.
+- **Split Reminder Nudge** — `mobile/app/my-splits.tsx`: a "Remind unpaid" button (`split-nudge-{split_id}`) on pending/partial split cards that have at least one unpaid friend share. It opens the RN `Share` sheet with a reminder listing each unpaid friend, their amount (currency-aware `money()`), and their pay link from the split's `invite_urls`. Hidden on completed/expired splits or when the only unpaid share is "You".
+- Files: `backend/routes/social_v2.py`, `mobile/app/(tabs)/home.tsx`, `mobile/app/my-splits.tsx`, `scripts/seed_nearby_demo.py`. Tests: `/app/backend/tests/test_iter211_countdown_nudge.py` (5 passed). Report: `/app/test_reports/iteration_211.json`.
+
+
 ## 2026-06 (fork) — 🆕 Local currency (Dubai → AED) + 3 builds + splits/mine merchant fix (testing agent iter209 + iter210: ALL GREEN)
 **Builds** (Pill Auto Reveal, Tip Earns Points, Who's-Paid tracker) + a **currency** correctness fix the user requested.
 - **Currency follows the merchant** — new `backend/services/currency_util.py` `currency_for_business(biz)` maps a business's country/city → ISO code (UAE/Dubai→aed, US→usd, GB→gbp, IN→inr, GCC, …), default **aed** (Dubai home market); honours an explicit `biz.currency`. Wired through `scan_to_pay_service` (resolve/quote/authorize-doc/Stripe intent/capture now all carry `currency`) and `bill_split_service` (create_split + `_merchant_summary`). Removed the hardcoded `'usd'` fallbacks. Mobile: new `mobile/src/utils/currency.ts` `money(cents, currency)` → `"AED 20.00"` (ISO prefix, user-chosen format); `pay-checkout` formats via the resolved/receipt currency, `my-splits` via each split's currency. Re-tagged Dubai demo tx/splits to `aed`.
