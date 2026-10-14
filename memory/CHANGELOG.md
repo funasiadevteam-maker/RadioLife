@@ -2,6 +2,14 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🆕 Nearby Deal Hook + New Activity Pill + Receipt Share (testing agent iter207: backend 3/3 + mobile ALL GREEN)
+Three follow-up builds on the Home social-first + scan-to-pay work.
+- **Nearby Deal Hook** — `GET /api/social/friends-nearby` (`routes/social_v2.py`) now enriches each item with the followed business's live offer `{offer_id,title,label}` from the `offers` collection (active + unexpired; derives a `label` from `discount_label`/`discount_percent`/`discount_value_pct`). The mobile Home "Near you now" card (`home-nearby-N`) renders a gold deal pill (`home-nearby-N-deal`, e.g. "50% off Karak"). Seed `scripts/seed_nearby_demo.py` now also sets a clean `discount_label` on the demo merchant's active offer.
+- **New Activity Pill** — Home "Your Social Wall" no longer auto-swaps on the 25s quiet poll; fresh `/social/feed-v2` items are STAGED in `pendingFeed` (diffed against a `feedRef`). When new items exist a reanimated pill `home-feed-new-pill` ("N new posts — tap to view") appears under the wall header; `revealNewPosts()` swaps them in and clears the pill. Event-driven, so it's absent at idle (verified).
+- **Receipt Share** — `mobile/app/pay-checkout/[token].tsx` adds a "Share receipt" button (`pay-share-btn`) above Done on the success receipt, using the RN `Share` API with a celebratory message (amount paid + BigCoin used/earned + merchant). Native share sheet is device-only; the web preview no-ops safely via try/catch.
+- Files: `routes/social_v2.py`, `mobile/app/(tabs)/home.tsx`, `mobile/app/pay-checkout/[token].tsx`, `scripts/seed_nearby_demo.py`. Tests: `/app/backend/tests/test_iter207_phase_d.py`. Report: `/app/test_reports/iteration_207.json`.
+
+
 ## 2026-06 (fork) — 🆕 Home Live Wall Refresh + "Near you now" + end-to-end points-only receipt (testing agent iter206: backend 3/3 + mobile; pay-checkout NaN bug fixed & verified)
 Three follow-up builds on top of Phase B.
 - **Live Wall Refresh** (`mobile/app/(tabs)/home.tsx`): the "Your Social Wall" preview now quietly auto-refreshes on the existing 25s social poll (re-fetches `/api/social/feed-v2` + `/api/social/friends-nearby`, no visible loader/pull-down), and each wall row is wrapped in `react-native-reanimated` `Animated.View` (`FadeInDown` + `LinearTransition`) so new friend activity slides in.

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  SafeAreaView, ActivityIndicator, Alert,
+  SafeAreaView, ActivityIndicator, Alert, Share,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -98,6 +98,20 @@ export default function PayCheckoutScreen() {
     } finally { setSplitBusy(false); }
   };
 
+  const shareReceipt = async () => {
+    if (!receipt) return;
+    const name = receipt.merchant?.name || 'a local spot';
+    const paid = formatCents(receipt.charge_cents || 0);
+    const pts = receipt.points_used ? ` using ${receipt.points_used} BigCoin` : '';
+    const earned = receipt.bigcoin_earned ? ` and earned ${receipt.bigcoin_earned} BigCoin` : '';
+    const msg = `I just paid ${paid}${pts}${earned} at ${name} with FUUSIC 🎉 Scan, pay & earn with me on FUUSIC!`;
+    try {
+      await Share.share({ message: msg });
+    } catch (e: any) {
+      Alert.alert('Share', e?.message || 'Could not open the share sheet');
+    }
+  };
+
   if (loading) return <View style={common.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 
   // Error state
@@ -137,7 +151,12 @@ export default function PayCheckoutScreen() {
             <Text style={s.earnedText}>+{receipt.bigcoin_earned} BigCoin earned!</Text>
           </View>
         )}
-        <TouchableOpacity style={[common.btnPrimary, { marginTop: SPACING.xl, width: '100%' }]}
+        <TouchableOpacity style={[s.shareBtn, { marginTop: SPACING.xl, width: '100%' }]}
+          onPress={shareReceipt} testID="pay-share-btn">
+          <Ionicons name="share-social" size={18} color={COLORS.primary} />
+          <Text style={s.shareBtnTxt}>Share receipt</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[common.btnPrimary, { marginTop: SPACING.md, width: '100%' }]}
           onPress={() => router.replace('/(tabs)/wallet')} testID="pay-done-btn">
           <Text style={common.btnPrimaryText}>Done</Text>
         </TouchableOpacity>
@@ -272,6 +291,11 @@ const s = StyleSheet.create({
     backgroundColor: '#fffbeb', padding: 14, borderRadius: RADIUS.md, borderWidth: 1, borderColor: '#fef3c7',
   },
   earnedText: { fontSize: FONT.md, fontWeight: '700', color: COLORS.gold },
+  shareBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: COLORS.primary,
+  },
+  shareBtnTxt: { fontSize: FONT.md, fontWeight: '800', color: COLORS.primary },
   merchantHeader: { flexDirection: 'row', alignItems: 'center', marginVertical: SPACING.md },
   merchantName: { fontSize: FONT.xl, fontWeight: '800', color: COLORS.text },
   merchantAddr: { fontSize: FONT.sm, color: COLORS.textDim, marginTop: 2 },

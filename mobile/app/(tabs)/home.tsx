@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator,
   RefreshControl,
@@ -76,6 +76,8 @@ export default function HomeScreen() {
   const [home, setHome] = useState<any>(null);
   const [socialHome, setSocialHome] = useState<any>(null);
   const [feed, setFeed] = useState<any[]>([]);
+  const [pendingFeed, setPendingFeed] = useState<any[]>([]);
+  const feedRef = useRef<any[]>([]);
   const [nearby, setNearby] = useState<any[]>([]);
   const [points, setPoints] = useState<number | null>(null);
   const [cityLabel, setCityLabel] = useState('');
@@ -107,6 +109,8 @@ export default function HomeScreen() {
           items = fr.data?.items || [];
         }
         setFeed(items);
+        feedRef.current = items;
+        setPendingFeed([]);
       } catch { /* ignore */ }
       // Near you now — friends who just checked in / paid at a place you follow.
       try {
@@ -120,14 +124,21 @@ export default function HomeScreen() {
   useEffect(() => { if (!authLoading && user) load(); }, [authLoading, user]);
 
   // Poll social so friends-live cards appear the moment friends go live.
-  // Also quietly refresh the social wall + 'near you now' so new activity
-  // slides in without a manual pull-down.
+  // Also quietly fetch the social wall + 'near you now'. New wall items are
+  // STAGED (not swapped in) so a 'new activity' pill can reveal them on tap.
   useEffect(() => {
     if (!user) return undefined;
     const iv = setInterval(() => {
       api.get('/social/home').then((r) => setSocialHome(r.data || null)).catch(() => {});
       api.get('/social/feed-v2', { params: { mode: 'following', limit: 4 } })
-        .then((r) => { const it = r.data?.items || []; if (it.length) setFeed(it); })
+        .then((r) => {
+          const it = r.data?.items || [];
+          if (!it.length) return;
+          const cur = feedRef.current;
+          if (!cur.length) { setFeed(it); feedRef.current = it; return; }
+          const curIds = new Set(cur.map((x: any) => x.id));
+          if (it.some((x: any) => !curIds.has(x.id))) setPendingFeed(it);
+        })
         .catch(() => {});
       api.get('/social/friends-nearby')
         .then((r) => setNearby(r.data?.items || []))
@@ -135,6 +146,19 @@ export default function HomeScreen() {
     }, 25000);
     return () => clearInterval(iv);
   }, [user]);
+
+  const revealNewPosts = () => {
+    if (!pendingFeed.length) return;
+    fireEvent('home_feed_reveal');
+    setFeed(pendingFeed);
+    feedRef.current = pendingFeed;
+    setPendingFeed([]);
+  };
+  const newPostCount = (() => {
+    if (!pendingFeed.length) return 0;
+    const curIds = new Set(feed.map((x) => x.id));
+    return pendingFeed.filter((x) => !curIds.has(x.id)).length;
+  })();
 
   useEffect(() => {
     if (!user) return;
@@ -249,6 +273,15 @@ export default function HomeScreen() {
                 <Text style={s.seeAll}>See all</Text>
               </Pressable>
             </View>
+            {newPostCount > 0 && (
+              <Animated.View entering={FadeInDown.duration(300).springify()}
+                style={{ paddingHorizontal: TSPACE.md, marginBottom: 10 }}>
+                <Pressable testID="home-feed-new-pill" onPress={revealNewPosts} style={s.newPill}>
+                  <Ionicons name="arrow-up-circle" size={16} color={t.onAccent} />
+                  <Text style={s.newPillTxt}>{newPostCount} new {newPostCount === 1 ? 'post' : 'posts'} — tap to view</Text>
+                </Pressable>
+              </Animated.View>
+            )}
             <View style={{ paddingHorizontal: TSPACE.md, gap: 10 }}>
               {feed.slice(0, 3).map((it, i) => (
                 <Animated.View key={it.id || i}
@@ -311,6 +344,12 @@ export default function HomeScreen() {
                     <Text style={s.nearbyName} numberOfLines={1}>{n.name}</Text>
                     <Text style={s.nearbyCtx} numberOfLines={1}>{n.activity === 'paid' ? 'paid at' : 'checked in at'}</Text>
                     <Text style={s.nearbyBiz} numberOfLines={1}>{n.business_name}</Text>
+                    {n.offer && (
+                      <View style={s.nearbyDeal} testID={`home-nearby-${i}-deal`}>
+                        <Ionicons name="pricetag" size={10} color={t.gold} />
+                        <Text style={s.nearbyDealTxt} numberOfLines={1}>{n.offer.label || n.offer.title}</Text>
+                      </View>
+                    )}
                   </Pressable>
                 </Animated.View>
               ))}
@@ -696,6 +735,10 @@ const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   nearbyName: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
   nearbyCtx: { color: t.textMuted, fontSize: 10, fontWeight: '700', marginTop: 1 },
   nearbyBiz: { color: t.electric, fontSize: TFONT.xs, fontWeight: '700', marginTop: 1 },
+  nearbyDeal: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(245,197,66,0.14)', borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 3 },
+  nearbyDealTxt: { color: t.gold, fontSize: 10, fontWeight: '900', flexShrink: 1 },
+  newPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: t.brand, borderRadius: TRADIUS.full, paddingVertical: 9 },
+  newPillTxt: { color: t.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
 
   rewardCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: TSPACE.md, marginTop: TSPACE.lg,

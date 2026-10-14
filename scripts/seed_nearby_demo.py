@@ -64,6 +64,14 @@ async def main() -> None:
         })
         print(f"check-in seeded: {fe} @ {MERCHANT} ({mins}m ago)")
 
+    # 3) Ensure the merchant's active offer has a short discount_label so the
+    #    'Near you now' deal hook reads cleanly (e.g. "50% off").
+    res = await db.offers.update_many(
+        {"business_id": MERCHANT, "status": "active",
+          "$or": [{"discount_label": None}, {"discount_label": {"$exists": False}}]},
+        {"$set": {"discount_label": "50% off Karak"}})
+    print(f"offer label set on {res.modified_count} active offer(s)")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

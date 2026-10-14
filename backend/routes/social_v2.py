@@ -977,6 +977,24 @@ async def friends_nearby(request: Request, user: dict = Depends(current_user)):
         umap[u["user_id"]] = u
     async for b in db.businesses.find({"business_id": {"$in": mids}}):
         bmap[b["business_id"]] = b
+    # Live offer per business (deal hook on the 'Near you now' card).
+    offers_by_biz: dict[str, dict] = {}
+    async for o in db.offers.find(
+            {"business_id": {"$in": mids}, "status": "active",
+              "$or": [{"expires_at": None}, {"expires_at": {"$gt": _now()}}]}):
+        bid = o.get("business_id")
+        if bid in offers_by_biz:
+            continue
+        label = o.get("discount_label")
+        if not label and o.get("discount_percent"):
+            label = f"{int(o['discount_percent'])}% off"
+        if not label and o.get("discount_value_pct"):
+            label = f"{int(o['discount_value_pct'])}% off"
+        offers_by_biz[bid] = {
+            "offer_id":  o.get("offer_id") or str(o.get("_id")),
+            "title":        o.get("title") or label or "Special offer",
+            "label":        label,
+        }
     items = []
     for r in rows:
         u = umap.get(r["user_id"])
@@ -993,6 +1011,7 @@ async def friends_nearby(request: Request, user: dict = Depends(current_user)):
             "business_slug":  b.get("slug"),
             "activity":            r["activity"],
             "when":                  _iso(r["at"]),
+            "offer":                offers_by_biz.get(r["merchant_id"]),
         })
     return {"items": items}
 
