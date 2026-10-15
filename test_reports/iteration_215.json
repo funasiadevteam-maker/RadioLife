@@ -1,0 +1,48 @@
+{
+  "summary": "ITERATION 215 — Milestone 3 (Station Highlights + Clip&Share + Daily Readings + Business Posts/Boost) tested end-to-end on BOTH web and mobile against the shared FastAPI backend. BACKEND: 15/15 pytest cases pass (feed-v2 RADIO_CLIP cards present with media_type=audio; daily-highlights grouped by station; clip-eligibility allowed for seeded policy station imp_fun_talk_1003_uae and allowed:false for imp_fun_luv_1071_uae which has NO policy; POST /api/radio/clips/share creates user_clip; same idempotency_key returns duplicate:true + same clip_id; /radio/clips/{id}/status works; PUT /daily-readings/tarot generates today's reading via Emergent LLM; /daily-readings and /my-readings return subs + today; re-calling does NOT regenerate; feed-v2 following shows the owner's own READING card (is_mine=true) while freeuser never sees demo's reading; demo (follower of biz_demo_karak) sees BUSINESS_POST; premium demo sees ZERO SPONSORED_POST; freeuser sees sponsored card with meta.sponsored_label='Sponsored'; dismiss suggestions actor_type=sponsored_post removes it on reload). WEB (demo premium): 5 RADIO_CLIP cards with rc-play+rc-clipshare, clipshare-modal with start/comment/audience/submit works and clip is published, daily-readings-card with dr-toggle-tarot|horoscope|numerology all present, sf-card-READING renders 'Today's Card: The Star' with the disclaimer, 2 sf-card-BUSINESS_POST, 0 sponsored (premium ad-free). WEB (freeuser): sf-card-SPONSORED_POST=1 with sf-sponsored-label 'Sponsored' and sf-hide-ad — tapping sf-hide-ad removes it (1->0). MOBILE Expo (demo via demo-login-btn): Social wall shows wall-card-RADIO_CLIP x5 (via radio-clip-card with rc-play+rc-clipshare, clipshare-modal-m + clipshare-comment-m + clipshare-submit-m succeed), wall-card-READING x2 (owner's), wall-card-BUSINESS_POST x2, 0 wall-card-SPONSORED_POST (demo premium = ad-free, correct). Universal wall-like/share/save (20 each with id suffix) present on new card types. Following screen (/social/following) renders [data-testid=following-screen] + [data-testid=daily-readings-card] with dr-toggle-tarot|horoscope|numerology toggles. No critical or minor issues; all 4 features green.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Non-blocking (carried from iter_214): 'shadow*' style props deprecated on RN Web — migrate to 'boxShadow'. Not a blocker for M3."},
+        {"component": "require cycle app/(tabs)/social.tsx -> src/social/wall.tsx -> app/(tabs)/social.tsx", "issue": "Non-blocking cycle, carried from iter_214."},
+        {"component": "Image.resizeMode", "issue": "Non-blocking: use props.resizeMode instead of style.resizeMode. Carried from iter_214."}
+      ]
+    }
+  },
+  "parity_issues": [
+    {"flow": "RADIO_CLIP sponsored-label naming", "platform": "mobile", "issue": "Web uses sf-sponsored-label; mobile uses wall-sponsored-<id> prefix. Semantics equal (both render 'Sponsored' label on sponsored posts), but the exact testID string spec in the review request ([testID=wall-hidead-<id>]) matches mobile's actual naming. Flagged for awareness only — not a bug.", "expected": "Same testID across surfaces", "actual": "Different naming scheme; web uses sf-* and mobile uses wall-card-* / wall-<action>-<id>."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter215_milestone3_batch.py",
+    "/app/test_reports/pytest/iter215_milestone3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "radio_clips.share_clip: idempotency check is only indexed by (idempotency_key, created_by). Consider adding a unique partial index on {idempotency_key, created_by} to protect against race conditions under concurrent retries.",
+    "daily_readings._ensure_today: generation runs inline on each GET /daily-readings for every enabled+due subscription. For premium users with multiple subs this can add 10-20s to a feed response the first time of day. Consider scheduling off-request or firing-and-forget with a cached placeholder.",
+    "social_feed._inject_sponsored: uses ~1-per-7 cadence; verify the sampling is seeded deterministically or marked no-repeat to avoid showing the same sponsored post multiple times in a long scroll (not observed in this test).",
+    "RADIO_CLIP card payload keys differ between surfaces (web uses media_url, backend tests also expose media_url). Confirmed; just document for API consumers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter215_milestone3_batch.py",
+    "/app/test_reports/pytest/iter215_milestone3.xml",
+    "/app/test_reports/iteration_215.json"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100%"},
+  "test_credentials": "Web password login: demo@bigfm.dubai / DemoPass123! (Premium, follows biz_demo_karak + 2 catalog stations with seeded highlights + policy). Freeuser (non-premium for sponsored tests): freeuser@bigfm.dubai / FreePass123!. Mobile: tap data-testid=demo-login-btn -> POST /api/auth/demo (bearer).",
+  "seed_data_creation": "No new seed data. test_iter215 inserted one user_clip (idempotency key TEST_idem_*) on behalf of demo during the clip-share test — scoped to demo and does not affect other users; recreated per run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "M3 PASS. Reusable regression file: /app/backend/tests/test_iter215_milestone3_batch.py covers all 4 feature groups + privacy (freeuser must NEVER see demo's reading) + idempotency + ad-free premium + hide-ad persistence. Re-run before any changes to services/social_feed.py builders (_radio_clips, _readings, _business_posts, _inject_sponsored), routes/radio_clips.py, routes/daily_readings.py, or routes/social_posts._resolve_page. Note: imp_fun_talk_1003_uae has a seeded clip policy (buffer URL = SoundHelix sample) — use imp_fun_luv_1071_uae for a station WITHOUT a policy. Daily Readings are cached per-day via _id=`dr_{uid}_{rt}_{today}`; re-toggling sub does not regenerate — safe. feed-v2 returns {cards:[]} with card_type/type both populated (code uses `type`). RADIO_CLIP payload is `type='RADIO_CLIP'`, `media_type='audio'`, `media_url=<buffer url>`, meta.station_id/name/logo/slug. On mobile the wall uses wall-card-<TYPE> + wall-<action>-<id> prefixed testIDs (not sf-*). SPONSORED on mobile cannot be verified under demo (premium=true, ad-free). Verified via web freeuser instead.",
+  "rca of the issue": "N/A — no bug found."
+}

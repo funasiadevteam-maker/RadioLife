@@ -17,6 +17,7 @@ import { useThemeTokens } from '../theme/ThemeProvider';
 import type { ThemeTokens } from '../theme/tokens';
 import api from '../api/client';
 import { AvatarM } from '../../app/(tabs)/social';
+import { RadioClipCardM, ClipShareModalM } from './RadioClipCardM';
 
 const fireEvent = (event: string, extra: any = {}) =>
   api.post('/social/feed-events', { event, ...extra }).catch(() => {});
@@ -31,6 +32,7 @@ const TYPE_META: any = {
   CLUB_POST: { verb: 'posted in a club', icon: 'people', tone: '#A855F7' },
   TAROT_SHARE: { verb: 'shared a Tarot card', emoji: '🃏', tone: '#c084fc' },
   STATION_ACTIVITY: { verb: 'posted', icon: 'radio', tone: '#38bdf8' },
+  RADIO_CLIP: { verb: 'shared a clip', icon: 'mic', tone: '#A855F7' },
 };
 
 function RelChip({ rel }: any) {
@@ -62,6 +64,18 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
   const [followed, setFollowed] = useState(false);
   const isMine = !!item.is_mine || actor.kind === 'self';
   const pending = !!item.approval_status && item.approval_status !== 'approved';
+  const [clipOpen, setClipOpen] = useState(false);
+  const isSponsored = !!item.sponsored || item.type === 'SPONSORED_POST';
+  const isReading = item.type === 'READING';
+  const [hidden, setHidden] = useState(false);
+  const hideAd = async () => {
+    setHidden(true);
+    try {
+      const rawId = String(item.id).includes(':') ? String(item.id).split(':')[1] : item.id;
+      await api.post('/social/suggestions/dismiss',
+        { actor_type: 'sponsored_post', actor_id: rawId, action: 'hide' });
+    } catch (_) {}
+  };
 
   const openCta = () => {
     fireEvent('feed_item_open', { item_id: item.id, item_type: item.type, mode });
@@ -106,6 +120,7 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
   const showFollow = !isMine && mode === 'for_you' && item.follow_relationship === 'discovery'
     && actor.kind === 'user' && actor.id && !actor.anonymous;
 
+  if (hidden) return null;
   return (
     <View style={w.card} testID={`wall-card-${item.type}`}>
       <View style={w.cardHead}>
@@ -113,8 +128,14 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <Text style={w.actorName} numberOfLines={1}>{actor.name || 'FUUSIC'}</Text>
-            <Text style={w.verb} numberOfLines={1}>{meta.verb}</Text>
-            <RelChip rel={item.follow_relationship} />
+            {isSponsored ? (
+              <Text testID={`wall-sponsored-${item.id}`} style={[w.verb, { fontWeight: '800' }]}>Sponsored</Text>
+            ) : isReading ? (
+              <Text style={[w.verb, { color: t.magenta, fontWeight: '700' }]}>AI · for reflection</Text>
+            ) : (
+              <Text style={w.verb} numberOfLines={1}>{meta.verb}</Text>
+            )}
+            {!isSponsored && !isReading && <RelChip rel={item.follow_relationship} />}
             {isMine && pending && (
               <View testID={`wall-pending-${item.id}`} style={[w.relChip, { backgroundColor: `${t.gold || '#f59e0b'}22` }]}>
                 <Text style={[w.relChipTxt, { color: t.gold || '#f59e0b' }]}>Pending Review</Text>
@@ -122,25 +143,35 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
             )}
           </View>
         </View>
-        <View style={[w.typeIcon, { backgroundColor: `${meta.tone}22` }]}>
-          {meta.emoji ? <Text style={{ fontSize: 14 }}>{meta.emoji}</Text>
-            : <Ionicons name={meta.icon} size={14} color={meta.tone} />}
-        </View>
+        {isSponsored ? (
+          <Pressable onPress={hideAd} testID={`wall-hidead-${item.id}`} style={[w.relChip, { borderWidth: 1, borderColor: t.border }]}>
+            <Text style={[w.relChipTxt, { color: t.textMuted }]}>Hide Ad</Text>
+          </Pressable>
+        ) : (
+          <View style={[w.typeIcon, { backgroundColor: `${meta.tone}22` }]}>
+            {meta.emoji ? <Text style={{ fontSize: 14 }}>{meta.emoji}</Text>
+              : <Ionicons name={meta.icon} size={14} color={meta.tone} />}
+          </View>
+        )}
       </View>
 
       {(item.title || item.text) ? (
         <View style={{ paddingHorizontal: 14, paddingBottom: 8 }}>
           {item.title ? <Text style={w.title}>{item.title}</Text> : null}
+          {isReading && meta.headline ? <Text style={[w.text, { color: t.magenta, fontWeight: '700', marginBottom: 2 }]}>{meta.headline}</Text> : null}
           {item.text ? <Text style={w.text}>{item.text}</Text> : null}
+          {isReading && meta.disclaimer ? <Text style={{ color: t.textMuted, fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>{meta.disclaimer}</Text> : null}
           {item.meta?.tags?.length > 0 && (
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-              {item.meta.tags.map((t: string) => <Text key={t} style={w.tag}>#{t}</Text>)}
+              {item.meta.tags.map((tag: string) => <Text key={tag} style={w.tag}>#{tag}</Text>)}
             </View>
           )}
         </View>
       ) : null}
 
-      {item.media_url ? (
+      {item.media_type === 'audio' && item.media_url ? (
+        <RadioClipCardM item={item} t={t} onClip={() => setClipOpen(true)} />
+      ) : item.media_url ? (
         <Pressable onPress={openCta}>
           <Image source={{ uri: item.media_url }} style={w.media} contentFit="cover" transition={200} />
           {(item.type === 'LIVE_VIDEO' || item.type === 'BUSINESS_LIVE') && (
@@ -151,6 +182,10 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
           )}
         </Pressable>
       ) : null}
+
+      <ClipShareModalM visible={clipOpen} t={t} onClose={() => setClipOpen(false)}
+        onPosted={() => {}} station={{ id: item.meta?.station_id, name: item.meta?.station_name,
+          logo: item.meta?.station_logo, slug: item.meta?.station_slug }} />
 
       {item.meta?.products?.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false}

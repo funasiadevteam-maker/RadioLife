@@ -7,6 +7,7 @@ import {
   Heart, MessageCircle, Share2, MoreHorizontal, Play, BadgeCheck, Radio, Bookmark,
 } from "lucide-react";
 import { timeAgo, ctaTo, initials } from "./sfTheme";
+import { RadioClipPlayer, ClipShareModal } from "./RadioClip";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
@@ -20,6 +21,7 @@ const BADGE = {
   GAME: { label: "PLAY" },
   CLUB_POST: { label: "CLUB" },
   OFFER: { label: "OFFER" },
+  RADIO_CLIP: { label: "CLIP" },
 };
 
 export default function SocialFeedCard({ item, t, onFollow }) {
@@ -36,6 +38,7 @@ export default function SocialFeedCard({ item, t, onFollow }) {
   const [shares, setShares] = useState(meta.share_count ?? 0);
   const [followed, setFollowed] = useState(
     item.follow_relationship === "following" || item.follow_relationship === "friend_following");
+  const [clipOpen, setClipOpen] = useState(false);
 
   const log = (event) => {
     axios.post(`${API}/social/feed-events`, { event, item_id: item.id, item_type: item.type },
@@ -76,6 +79,20 @@ export default function SocialFeedCard({ item, t, onFollow }) {
   const follow = () => { setFollowed(true); onFollow && onFollow(actor.id); log("feed_follow_click"); };
 
   const products = meta.products || [];
+  const isSponsored = !!item.sponsored || item.type === "SPONSORED_POST";
+  const isReading = item.type === "READING";
+  const [hidden, setHidden] = useState(false);
+  const hideAd = async () => {
+    setHidden(true);
+    try {
+      const rawId = String(item.id).includes(":") ? item.id.split(":")[1] : item.id;
+      await axios.post(`${API}/social/suggestions/dismiss`,
+        { actor_type: "sponsored_post", actor_id: rawId, action: "hide" },
+        { withCredentials: true });
+    } catch (_e) { /* best effort */ }
+  };
+
+  if (hidden) return null;
 
   return (
     <article data-testid={`sf-card-${item.type}`} className="sf-fade-in"
@@ -92,8 +109,16 @@ export default function SocialFeedCard({ item, t, onFollow }) {
             )}
           </div>
           <div style={{ fontSize: 11.5, color: t.muted, display: "flex", gap: 6, alignItems: "center" }}>
-            <span>{timeAgo(item.created_at)}</span>
-            {item.ranking_reason && <span>· {item.ranking_reason}</span>}
+            {isSponsored ? (
+              <span data-testid="sf-sponsored-label" style={{ fontWeight: 800, color: t.text2 }}>Sponsored</span>
+            ) : isReading ? (
+              <span style={{ fontWeight: 700, color: t.accent }}>AI · for reflection</span>
+            ) : (
+              <>
+                <span>{timeAgo(item.created_at)}</span>
+                {item.ranking_reason && <span>· {item.ranking_reason}</span>}
+              </>
+            )}
           </div>
         </div>
         {isMine && pending && (
@@ -101,25 +126,38 @@ export default function SocialFeedCard({ item, t, onFollow }) {
             Pending Review
           </span>
         )}
-        {!isMine && !followed && actor.id && actor.kind !== "self" && (
+        {!isSponsored && !isReading && !isMine && !followed && actor.id && actor.kind !== "self" && (
           <button onClick={follow} data-testid="sf-card-follow" className="sf-press"
             style={{ fontSize: 12, fontWeight: 800, color: t.accent, background: t.accentSoft, border: "none", borderRadius: 999, padding: "6px 14px", cursor: "pointer" }}>
             Follow
           </button>
         )}
-        <button className="sf-press" style={{ background: "none", border: "none", color: t.muted, cursor: "pointer", padding: 4 }}><MoreHorizontal size={18} /></button>
+        {isSponsored ? (
+          <button onClick={hideAd} data-testid="sf-hide-ad" className="sf-press"
+            style={{ fontSize: 11.5, fontWeight: 700, color: t.muted, background: "none", border: `1px solid ${t.border}`, borderRadius: 999, padding: "5px 11px", cursor: "pointer" }}>
+            Hide Ad
+          </button>
+        ) : (
+          <button className="sf-press" style={{ background: "none", border: "none", color: t.muted, cursor: "pointer", padding: 4 }}><MoreHorizontal size={18} /></button>
+        )}
       </div>
 
       {/* text */}
       {(item.title || item.text) && (
         <div style={{ padding: "0 14px 10px" }}>
           {item.title && <div style={{ fontWeight: 800, fontSize: 15, color: t.text, marginBottom: 2 }}>{item.title}</div>}
-          {item.text && <div className="sf-clamp3" style={{ fontSize: 14, color: t.text2, lineHeight: 1.45 }}>{item.text}</div>}
+          {isReading && meta.headline && <div style={{ fontWeight: 700, fontSize: 13.5, color: t.accent, margin: "2px 0 6px" }}>{meta.headline}</div>}
+          {item.text && <div className={isReading ? "" : "sf-clamp3"} style={{ fontSize: 14, color: t.text2, lineHeight: 1.45 }}>{item.text}</div>}
+          {isReading && meta.disclaimer && (
+            <div style={{ marginTop: 8, fontSize: 11, color: t.muted, fontStyle: "italic" }}>{meta.disclaimer}</div>
+          )}
         </div>
       )}
 
       {/* media */}
-      {item.media_url && (
+      {item.media_type === "audio" && item.media_url ? (
+        <RadioClipPlayer item={item} t={t} onClip={() => setClipOpen(true)} />
+      ) : item.media_url && (
         <div style={{ position: "relative", background: t.cardAlt }}>
           <img src={item.media_url} alt="" loading="lazy"
             style={{ width: "100%", maxHeight: 420, objectFit: "cover", display: "block" }} />
@@ -135,6 +173,13 @@ export default function SocialFeedCard({ item, t, onFollow }) {
             </button>
           )}
         </div>
+      )}
+
+      {clipOpen && (
+        <ClipShareModal t={t} onClose={() => setClipOpen(false)}
+          onPosted={() => { setClipOpen(false); log("radio_clip_shared"); }}
+          station={{ id: meta.station_id, name: meta.station_name, logo: meta.station_logo,
+                     slug: meta.station_slug, show_name: meta.show_name }} />
       )}
 
       {/* product strip (live commerce) */}

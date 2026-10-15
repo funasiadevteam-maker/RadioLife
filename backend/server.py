@@ -6836,6 +6836,8 @@ from routes.social_v2 import router as _social_v2_router
 app.include_router(_social_v2_router)
 from routes.social_discovery import router as _social_discovery_router
 app.include_router(_social_discovery_router)
+from routes.daily_readings import router as _daily_readings_router
+app.include_router(_daily_readings_router)
 
 # Social V2 — Dreams & Guidance (dream sharing, AI reflection, advisors).
 from routes.dreams_guidance import (router as _dreams_router,
@@ -7925,6 +7927,8 @@ from routes.banner_ads_v2 import (
 )
 app.include_router(stations_router)
 app.include_router(community_router)
+from routes.radio_clips import router as _radio_clips_router
+app.include_router(_radio_clips_router)
 # Phase 41 S2.A — station feed lives at /api/stations/{slug}/posts...
 # Must mount AFTER stations_router so the /{slug}/posts path resolves
 # correctly via FastAPI's path matching (stations_router doesn't define

@@ -8,7 +8,7 @@ import logging
 import re
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -87,6 +87,11 @@ async def _resolve_page(db, page_id: str) -> Optional[dict]:
     c = await db.podcast_creators.find_one({"id": page_id})
     if c:
         return {**c, "_kind": "creator", "_owner_id": c["user_id"]}
+    # A business page (Merchant Portal → Social) posts organically.
+    b = await db.businesses.find_one({"business_id": page_id})
+    if b:
+        return {**b, "_kind": "business", "_owner_id": b.get("owner_user_id"),
+                "business_id": b.get("business_id")}
     return None
 
 
@@ -458,3 +463,48 @@ async def mark_notifications_read(request: Request, body: dict,
         {"user_id": user["user_id"], "_id": {"$in": ids}},
         {"$set": {"read": True, "read_at": _now()}})
     return {"ok": True, "marked": r.modified_count}
+
+
+
+# ─── Boost / Sponsored business post ──────────────────────────────────
+GOALS = {"profile_visits", "follow_business", "product_views", "orders",
+         "website_visits", "event_rsvps", "live_views", "coupon_claims"}
+
+
+@router.post("/posts/{post_id}/boost")
+async def boost_post(post_id: str, request: Request, body: dict,
+                     user: dict = Depends(current_user)):
+    """A business owner promotes one of their approved organic posts. Reuses
+    the post itself; a `boosted_posts` record drives labelled feed placement."""
+    db = request.app.state.db
+    p = await db.social_posts.find_one({"_id": post_id})
+    if not p:
+        raise HTTPException(404, {"code": "post_not_found"})
+    bizid = p.get("business_id")
+    if not bizid:
+        raise HTTPException(400, {"code": "not_a_business_post"})
+    b = await db.businesses.find_one({"business_id": bizid})
+    if not b or (b.get("owner_user_id") != user["user_id"] and user.get("role") != "admin"):
+        raise HTTPException(403, {"code": "not_business_owner"})
+    goal = body.get("goal") if body.get("goal") in GOALS else "profile_visits"
+    dur = max(1, min(int(body.get("duration_days") or 7), 90))
+    end = (datetime.now(timezone.utc) + timedelta(days=dur)).isoformat()
+    doc = {
+        "_id": f"boost_{post_id}", "post_id": post_id, "business_id": bizid,
+        "goal": goal, "budget_cents": int(body.get("budget_cents") or 0),
+        "cta_label": (body.get("cta_label") or "Learn More")[:40],
+        "destination": body.get("destination"),
+        "start_at": _now(), "end_at": end, "status": "active",
+        "created_by": user["user_id"], "created_at": _now()}
+    await db.boosted_posts.update_one({"_id": doc["_id"]}, {"$set": doc}, upsert=True)
+    return {"ok": True, "boost_id": doc["_id"], "status": "active", "end_at": end}
+
+
+@router.delete("/posts/{post_id}/boost")
+async def unboost_post(post_id: str, request: Request,
+                       user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await db.boosted_posts.update_one(
+        {"_id": f"boost_{post_id}", "created_by": user["user_id"]},
+        {"$set": {"status": "paused"}})
+    return {"ok": True}

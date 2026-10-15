@@ -10,6 +10,7 @@ import { TUBE, TSPACE, TRADIUS, TFONT } from '../../src/constants/tube';
 import api from '../../src/api/client';
 import { AvatarM } from '../(tabs)/social';
 import WhoToFollowM from '../../src/social/WhoToFollowM';
+import DailyReadingsCardM from '../../src/social/DailyReadingsCardM';
 
 const FILTERS = [
   { key: 'all', label: 'All' }, { key: 'people', label: 'People' },
@@ -100,6 +101,7 @@ export default function FollowingScreen() {
       ) : groups.length === 0 ? (
         <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
           <WhoToFollowM onFollowed={load} />
+          <DailyReadingsCardM />
           <View style={[s.center, { paddingTop: 24 }]}>
             <Ionicons name="people" size={28} color={TUBE.magenta} />
             <Text style={s.emptyTitle}>Build your FUUSIC feed</Text>
@@ -110,6 +112,7 @@ export default function FollowingScreen() {
         <ScrollView contentContainerStyle={{ paddingBottom: 130, gap: 20 }}
           showsVerticalScrollIndicator={false} testID="following-list">
           <View style={{ paddingTop: 12 }}><WhoToFollowM onFollowed={load} /></View>
+          <DailyReadingsCardM />
           <View style={{ paddingHorizontal: TSPACE.md, gap: 20 }}>
           {groups.map((g) => (
             <View key={g.key}>

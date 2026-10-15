@@ -25,7 +25,8 @@ SOURCE_LIMIT = 40                  # per-source candidate cap
 MAX_CANDIDATES = 200
 
 WALL_TYPES = {"MOMENT", "LIVE_VIDEO", "BUSINESS_LIVE", "EVENT", "LISTEN_ROOM",
-              "DREAM", "TAROT_SHARE", "CLUB_POST", "STATION_ACTIVITY"}
+              "DREAM", "TAROT_SHARE", "CLUB_POST", "STATION_ACTIVITY",
+              "RADIO_CLIP", "READING", "BUSINESS_POST", "SPONSORED_POST"}
 
 
 def _now() -> datetime:
@@ -372,6 +373,246 @@ async def _station_posts(db, uid: str, elig: dict, mode: str) -> list[dict]:
     return out
 
 
+async def _radio_clips(db, uid: str, elig: dict, mode: str) -> list[dict]:
+    """Radio clips in the wall — station daily HIGHLIGHTS from followed stations
+    plus listener 30s CLIP & SHARE posts (own + followed/friends, or public)."""
+    cutoff = _now() - timedelta(days=7)
+    if mode == "following":
+        actors = list(((elig["following"] | elig["friends"]) - elig["blocked"]) | {uid})
+        q = {"status": "published", "broadcast_at": {"$gte": cutoff}, "$or": [
+            {"kind": "station_highlight", "station_id": {"$in": list(elig["stations"])}},
+            {"kind": "user_clip", "created_by": {"$in": actors}},
+        ]}
+    else:
+        q = {"status": "published", "broadcast_at": {"$gte": cutoff}, "$or": [
+            {"kind": "station_highlight"},
+            {"kind": "user_clip", "visibility": "public"},
+        ]}
+    rows, uids = [], set()
+    async for c in db.radio_clips.find(q).sort("broadcast_at", -1).limit(SOURCE_LIMIT):
+        rows.append(c)
+        if c.get("kind") == "user_clip" and c.get("created_by"):
+            uids.add(c["created_by"])
+    umap = {}
+    if uids:
+        async for u in db.users.find({"user_id": {"$in": list(uids)}}):
+            umap[u["user_id"]] = u
+    comp_ids = [f"RADIO_CLIP:{c['_id']}" for c in rows]
+    liked, saved, likecounts = set(), set(), {}
+    if comp_ids:
+        async for l in db.social_feed_likes.find(
+                {"item_id": {"$in": comp_ids}, "user_id": uid}, {"item_id": 1}):
+            liked.add(l["item_id"])
+        async for s in db.social_saves.find(
+                {"item_id": {"$in": comp_ids}, "user_id": uid}, {"item_id": 1}):
+            saved.add(s["item_id"])
+        async for row in db.social_feed_likes.aggregate([
+                {"$match": {"item_id": {"$in": comp_ids}}},
+                {"$group": {"_id": "$item_id", "n": {"$sum": 1}}}]):
+            likecounts[row["_id"]] = row["n"]
+    out = []
+    for c in rows:
+        cid = f"RADIO_CLIP:{c['_id']}"
+        if c.get("kind") == "station_highlight":
+            actor = {"kind": "station", "id": c.get("station_id"),
+                     "name": c.get("station_name"), "avatar_url": c.get("station_logo")}
+            rel = "following" if c.get("station_id") in elig["stations"] else "discovery"
+            is_mine = False
+        else:
+            is_mine = c.get("created_by") == uid
+            u = umap.get(c.get("created_by"))
+            if not u and not is_mine:
+                continue
+            actor = _actor_user(u) if u else {"kind": "self", "id": uid, "name": "You"}
+            if is_mine:
+                actor = {"kind": "self", "id": uid,
+                         "name": (actor.get("name") or "You"),
+                         "avatar_url": actor.get("avatar_url")}
+            rel = "self" if is_mine else _rel(c.get("created_by"), elig)
+        out.append({
+            "id": cid, "type": "RADIO_CLIP",
+            "created_at": _iso(c.get("broadcast_at") or c.get("created_at")),
+            "_dt": _dt(c.get("broadcast_at") or c.get("created_at")),
+            "actor": actor, "title": c.get("title"), "is_mine": is_mine,
+            "text": c.get("caption") or c.get("commentary"),
+            "media_url": c.get("audio_url"), "media_type": "audio",
+            "cta": {"label": "Listen Live", "action": "open_station",
+                    "target": c.get("station_slug") or c.get("station_id")},
+            "meta": {"clip_kind": c.get("kind"),
+                     "duration_sec": int(c.get("duration_sec") or 30),
+                     "show_name": c.get("show_name"), "host_name": c.get("host_name"),
+                     "station_name": c.get("station_name"),
+                     "station_logo": c.get("station_logo"),
+                     "station_slug": c.get("station_slug"),
+                     "station_id": c.get("station_id"),
+                     "tags": c.get("tags") or [],
+                     "like_count": int(likecounts.get(cid, 0)),
+                     "comment_count": int(c.get("comment_count") or 0),
+                     "share_count": int(c.get("share_count") or 0),
+                     "liked_by_me": cid in liked, "saved_by_me": cid in saved},
+            "follow_relationship": rel, "candidate_source": "radio_clips",
+            "sponsored": False,
+        })
+    return out
+
+
+async def _readings(db, uid: str, elig: dict, mode: str) -> list[dict]:
+    """PRIVATE daily readings — only ever on the owner's own (following) wall."""
+    if mode != "following":
+        return []
+    today = _now().date().isoformat()
+    out = []
+    async for r in db.daily_readings.find({"user_id": uid, "date": today}).limit(6):
+        rt = r.get("reading_type")
+        out.append({
+            "id": f"READING:{r['_id']}", "type": "READING",
+            "created_at": _iso(r.get("created_at")), "_dt": _dt(r.get("created_at")),
+            "actor": {"kind": "self", "id": uid, "name": "Your Daily Reading",
+                      "avatar_url": None},
+            "title": r.get("title"), "text": r.get("body"), "is_mine": True,
+            "media_url": None, "media_type": None, "private": True,
+            "cta": {"label": "My Readings", "action": "open_readings", "target": rt},
+            "meta": {"reading_type": rt, "headline": r.get("headline"),
+                     "card": r.get("card"), "number": r.get("number"),
+                     "sign": r.get("sign"), "ai_generated": True,
+                     "disclaimer": r.get("disclaimer")},
+            "follow_relationship": "self", "candidate_source": "readings",
+            "sponsored": False,
+        })
+    return out
+
+
+async def _business_posts(db, uid: str, elig: dict, mode: str) -> list[dict]:
+    """Organic posts from businesses the user follows (no pay-to-reach-followers)."""
+    biz_ids = set()
+    async for r in db.user_business_relations.find(
+            {"user_id": uid, "kind": "follow", "active": {"$ne": False}},
+            {"merchant_id": 1}):
+        if r.get("merchant_id"):
+            biz_ids.add(r["merchant_id"])
+    if mode == "following":
+        if not biz_ids:
+            return []
+        q = {"business_id": {"$in": list(biz_ids)}, "approval_status": "approved",
+             "deleted_at": {"$exists": False}}
+    else:
+        q = {"business_id": {"$exists": True, "$ne": None},
+             "approval_status": "approved", "deleted_at": {"$exists": False},
+             "visibility": {"$ne": "private"}}
+    rows = []
+    async for p in db.social_posts.find(q).sort("created_at", -1).limit(SOURCE_LIMIT):
+        if p.get("business_id"):
+            rows.append(p)
+    bids = list({p["business_id"] for p in rows})
+    bmap = {}
+    async for b in db.businesses.find({"business_id": {"$in": bids}}):
+        bmap[b["business_id"]] = b
+    comp = [f"BUSINESS_POST:{p['_id']}" for p in rows]
+    liked, saved, lc = set(), set(), {}
+    if comp:
+        async for l in db.social_feed_likes.find(
+                {"item_id": {"$in": comp}, "user_id": uid}, {"item_id": 1}):
+            liked.add(l["item_id"])
+        async for sv in db.social_saves.find(
+                {"item_id": {"$in": comp}, "user_id": uid}, {"item_id": 1}):
+            saved.add(sv["item_id"])
+        async for row in db.social_feed_likes.aggregate([
+                {"$match": {"item_id": {"$in": comp}}},
+                {"$group": {"_id": "$item_id", "n": {"$sum": 1}}}]):
+            lc[row["_id"]] = row["n"]
+    out = []
+    for p in rows:
+        b = bmap.get(p["business_id"])
+        if not b:
+            continue
+        media = (p.get("media_urls") or [None])[0]
+        cid = f"BUSINESS_POST:{p['_id']}"
+        out.append({
+            "id": cid, "type": "BUSINESS_POST",
+            "created_at": _iso(p.get("created_at")), "_dt": _dt(p.get("created_at")),
+            "actor": {"kind": "business", "id": b["business_id"],
+                      "name": b.get("name"),
+                      "avatar_url": b.get("logo_url") or b.get("cover_image_url")},
+            "title": p.get("title"), "text": p.get("text"),
+            "media_url": media, "media_type": "photo" if media else None,
+            "cta": {"label": p.get("cta_label") or "View Business",
+                    "action": "open_business",
+                    "target": b.get("slug") or b["business_id"]},
+            "meta": {"business_id": b["business_id"], "category": b.get("category"),
+                     "like_count": int(lc.get(cid, 0)), "comment_count": 0,
+                     "share_count": 0, "liked_by_me": cid in liked,
+                     "saved_by_me": cid in saved,
+                     "products": (p.get("products") or [])[:3]},
+            "follow_relationship": "following" if p["business_id"] in biz_ids else "discovery",
+            "candidate_source": "business_posts", "sponsored": False,
+        })
+    return out
+
+
+async def _inject_sponsored(db, uid: str, cands: list[dict]) -> list[dict]:
+    """Inject labelled Sponsored business posts (reusing boosted_posts) ~1 per
+    ~7 organic items. Premium users are ad-free; Hide-Ad dismissals respected."""
+    u = await db.users.find_one({"user_id": uid}, {"is_premium": 1})
+    if (u or {}).get("is_premium"):
+        return cands
+    dismissed = set()
+    async for d in db.social_suggestion_dismissals.find(
+            {"user_id": uid, "actor_type": "sponsored_post"}, {"actor_id": 1}):
+        dismissed.add(d["actor_id"])
+    now = _now()
+    boosts = []
+    async for bp in db.boosted_posts.find({"status": "active"}).sort("created_at", -1).limit(12):
+        if bp.get("end_at") and _dt(bp["end_at"]) < now:
+            continue
+        if bp["post_id"] in dismissed:
+            continue
+        boosts.append(bp)
+    if not boosts:
+        return cands
+    pids = [b["post_id"] for b in boosts]
+    pmap = {}
+    async for p in db.social_posts.find({"_id": {"$in": pids}}):
+        pmap[p["_id"]] = p
+    bids = list({b.get("business_id") for b in boosts if b.get("business_id")})
+    bmap = {}
+    async for b in db.businesses.find({"business_id": {"$in": bids}}):
+        bmap[b["business_id"]] = b
+    cards = []
+    for bp in boosts:
+        p = pmap.get(bp["post_id"])
+        if not p:
+            continue
+        b = bmap.get(bp.get("business_id")) or {}
+        media = (p.get("media_urls") or [None])[0]
+        cards.append({
+            "id": f"SPONSORED_POST:{bp['post_id']}", "type": "SPONSORED_POST",
+            "created_at": _iso(p.get("created_at")), "actor": {
+                "kind": "business", "id": bp.get("business_id"),
+                "name": b.get("name") or "Sponsored",
+                "avatar_url": b.get("logo_url") or b.get("cover_image_url")},
+            "title": p.get("title"), "text": p.get("text"),
+            "media_url": media, "media_type": "photo" if media else None,
+            "cta": {"label": bp.get("cta_label") or "Learn More",
+                    "action": "open_business",
+                    "target": bp.get("destination") or b.get("slug") or bp.get("business_id")},
+            "meta": {"business_id": bp.get("business_id"), "sponsored_label": "Sponsored",
+                     "goal": bp.get("goal"), "like_count": 0, "comment_count": 0},
+            "follow_relationship": "discovery", "candidate_source": "boost",
+            "sponsored": True,
+        })
+    if not cards:
+        return cands
+    out, bi, FREQ = [], 0, 7
+    for i, c in enumerate(cands):
+        out.append(c)
+        if bi < len(cards) and (i + 1) % FREQ == 0:
+            out.append(cards[bi]); bi += 1
+    # Sparse feed: still surface one sponsored card (but never dominate).
+    if bi == 0 and cards and len(out) >= 2:
+        out.insert(min(3, len(out)), cards[0])
+    return out
+
+
 # ───────────────────────── scoring / diversity ─────────────────────
 _REL_BASE = {"self": 130, "friend_following": 100, "friend": 80,
              "following": 70, "discovery": 35}
@@ -480,7 +721,8 @@ async def build_feed(db, user: dict, *, mode: str = "following",
     elig = await _eligibility(db, uid)
 
     cands: list[dict] = []
-    for builder in (_moments, _live_shows, _rooms, _dreams, _tarot, _station_posts):
+    for builder in (_moments, _live_shows, _rooms, _dreams, _tarot, _station_posts,
+                    _radio_clips, _readings, _business_posts):
         try:
             cands.extend(await builder(db, uid, elig, mode))
         except Exception:
@@ -513,6 +755,12 @@ async def build_feed(db, user: dict, *, mode: str = "following",
         background_tasks.add_task(refresh_ai_order, db, uid, mode, summaries)
 
     cands = _diversify(cands)
+
+    # Labelled Sponsored business posts (Premium = ad-free; respects Hide Ad).
+    try:
+        cands = await _inject_sponsored(db, uid, cands)
+    except Exception:
+        pass
 
     offset = _decode_cursor(cursor)
     page = cands[offset:offset + limit]

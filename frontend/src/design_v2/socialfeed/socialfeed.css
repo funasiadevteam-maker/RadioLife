@@ -20,3 +20,8 @@
 
 .sf-spin { animation: sfSpin .8s linear infinite; }
 @keyframes sfSpin { to { transform: rotate(360deg); } }
+.rc-wave span { transition: height .2s ease; }
+.rc-wave-on span { animation: rcWave .9s ease-in-out infinite alternate; }
+.rc-wave-on span:nth-child(odd) { animation-delay: .15s; }
+.rc-wave-on span:nth-child(3n) { animation-delay: .3s; }
+@keyframes rcWave { from { transform: scaleY(.5); } to { transform: scaleY(1); } }
