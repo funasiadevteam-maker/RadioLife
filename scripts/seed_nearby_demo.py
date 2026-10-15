@@ -72,12 +72,11 @@ async def main() -> None:
           "$or": [{"discount_label": None}, {"discount_label": {"$exists": False}}]},
         {"$set": {"discount_label": "50% off Karak"}})
     print(f"offer label set on {res.modified_count} active offer(s)")
-    exp = datetime.now(timezone.utc) + timedelta(hours=3)
+    exp = datetime.now(timezone.utc) + timedelta(hours=6)
     res2 = await db.offers.update_many(
-        {"business_id": MERCHANT, "status": "active",
-          "$or": [{"expires_at": None}, {"expires_at": {"$exists": False}}]},
+        {"business_id": MERCHANT, "status": "active"},
         {"$set": {"expires_at": exp}})
-    print(f"offer expiry set (+3h) on {res2.modified_count} active offer(s)")
+    print(f"offer expiry refreshed (+6h) on {res2.modified_count} active offer(s)")
 
 
 if __name__ == "__main__":

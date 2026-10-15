@@ -2,6 +2,13 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🆕 Countdown Urgency + "Expiring soon" row + UTC timestamp fix (testing agent iter212: backend 5/5 + mobile ALL GREEN)
+- **Countdown Urgency** — shared `DealCountdown` component (`mobile/app/(tabs)/home.tsx`, module scope): normal red + clock icon when >15 min remain; switches to deeper red `#FF1E1E` + flame icon + a flashing opacity pulse (`react-native-reanimated` useSharedValue/withRepeat/withTiming, gated on `urgent = remaining<=15min`) in the final 15 minutes. Used by both "Near you now" and "Expiring soon".
+- **Expiring Soon row** — new `GET /api/social/deals-expiring?within_hours=24` (`routes/social_v2.py`): active offers from businesses the user follows expiring within the window, soonest-first (clamped 1..168h). New Home horizontal shelf "Expiring soon" (`home-expiring-N` cards + `home-expiring-N-countdown`) with merchant, gold deal label, title and live countdown; tap → `/offer/{offer_id}`; hidden when empty. `scripts/seed_nearby_demo.py` now refreshes the demo offer expiry to +6h on each run.
+- **BUGFIX (tz, from iter212 review)** `_iso()` in `social_v2.py` emitted naive ISO (Motor strips tzinfo) so mobile `new Date()` parsed stored UTC times as LOCAL → countdowns/`when` were off by the device offset. Now appends `Z` for naive datetimes. Also removed dead `nearbyCountdown*` styles after the DealCountdown refactor.
+- Files: `backend/routes/social_v2.py`, `mobile/app/(tabs)/home.tsx`, `scripts/seed_nearby_demo.py`. Tests: `/app/backend/tests/test_deals_expiring_iter212.py` (5 passed). Report: `/app/test_reports/iteration_212.json`.
+
+
 ## 2026-06 (fork) — 🆕 Split Reminder Nudge + Deal Countdown (testing agent iter211: backend 5/5 + mobile ALL GREEN)
 - **Deal Countdown** — `GET /api/social/friends-nearby` now returns `offer.expires_at`; the Home "Near you now" card shows a live red countdown (`home-nearby-N-countdown`, "Ends in Xh Ym", ticks every 30s via a `nowTs` interval + `fmtCountdown`) beneath the "Claim {deal}" pill; hidden when the offer has no expiry. `scripts/seed_nearby_demo.py` now also sets a +3h expiry on the demo offer. Backend already filters out expired offers.
 - **Split Reminder Nudge** — `mobile/app/my-splits.tsx`: a "Remind unpaid" button (`split-nudge-{split_id}`) on pending/partial split cards that have at least one unpaid friend share. It opens the RN `Share` sheet with a reminder listing each unpaid friend, their amount (currency-aware `money()`), and their pay link from the split's `invite_urls`. Hidden on completed/expired splits or when the only unpaid share is "You".

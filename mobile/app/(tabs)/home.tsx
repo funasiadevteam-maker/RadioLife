@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeInDown, LinearTransition, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import { useAuth } from '../../src/contexts/AuthContext';
 import api, { BACKEND } from '../../src/api/client';
 import TubeDrawer from '../../src/components/TubeDrawer';
@@ -40,6 +40,41 @@ const FEED_VERB: Record<string, string> = {
   MOMENT: 'shared a moment',
   STATION_ACTIVITY: 'posted a new update',
 };
+
+// Deal expiry countdown. Turns a deeper red and flashes in the final 15 min.
+function fmtCountdown(iso?: string, nowMs?: number): string | null {
+  if (!iso) return null;
+  const diff = new Date(iso).getTime() - (nowMs || Date.now());
+  if (!(diff > 0)) return null;
+  const mins = Math.floor(diff / 60000);
+  if (mins >= 1440) return `Ends in ${Math.floor(mins / 1440)}d`;
+  if (mins >= 60) return `Ends in ${Math.floor(mins / 60)}h ${mins % 60}m`;
+  return `Ends in ${Math.max(1, mins)}m`;
+}
+
+function DealCountdown({ expiresAt, nowTs, liveColor, testID }:
+  { expiresAt?: string; nowTs: number; liveColor: string; testID?: string }) {
+  const text = fmtCountdown(expiresAt, nowTs);
+  const remaining = expiresAt ? new Date(expiresAt).getTime() - nowTs : 0;
+  const urgent = remaining > 0 && remaining <= 15 * 60 * 1000;
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    pulse.value = urgent ? withRepeat(withTiming(0.3, { duration: 550 }), -1, true) : 1;
+  }, [urgent]);
+  const aStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  if (!text) return null;
+  const color = urgent ? '#FF1E1E' : liveColor;
+  return (
+    <Animated.View style={[cd.row, urgent ? aStyle : null]} testID={testID}>
+      <Ionicons name={urgent ? 'flame' : 'time-outline'} size={10} color={color} />
+      <Text style={[cd.txt, { color, fontWeight: urgent ? '900' : '800' }]} numberOfLines={1}>{text}</Text>
+    </Animated.View>
+  );
+}
+const cd = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
+  txt: { fontSize: 10, flexShrink: 1 },
+});
 
 const fireEvent = (event: string, extra: Record<string, any> = {}) => {
   api.post('/shell/home-events', { event, surface: 'mobile', ...extra }).catch(() => {});
@@ -81,6 +116,7 @@ export default function HomeScreen() {
   const feedRef = useRef<any[]>([]);
   const sinceRef = useRef<string>('');
   const [nearby, setNearby] = useState<any[]>([]);
+  const [expiring, setExpiring] = useState<any[]>([]);
   const [nowTs, setNowTs] = useState(Date.now());
   const [points, setPoints] = useState<number | null>(null);
   const [cityLabel, setCityLabel] = useState('');
@@ -122,6 +158,11 @@ export default function HomeScreen() {
         const nr = await api.get('/social/friends-nearby');
         setNearby(nr.data?.items || []);
       } catch { /* ignore */ }
+      // Expiring soon — deals from places you follow that are about to end.
+      try {
+        const ex = await api.get('/social/deals-expiring');
+        setExpiring(ex.data?.items || []);
+      } catch { /* ignore */ }
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -152,6 +193,9 @@ export default function HomeScreen() {
       api.get('/social/friends-nearby')
         .then((r) => setNearby(r.data?.items || []))
         .catch(() => {});
+      api.get('/social/deals-expiring')
+        .then((r) => setExpiring(r.data?.items || []))
+        .catch(() => {});
     }, 25000);
     return () => clearInterval(iv);
   }, [user]);
@@ -161,15 +205,6 @@ export default function HomeScreen() {
     const iv = setInterval(() => setNowTs(Date.now()), 30000);
     return () => clearInterval(iv);
   }, []);
-  const fmtCountdown = (iso?: string, nowMs?: number): string | null => {
-    if (!iso) return null;
-    const diff = new Date(iso).getTime() - (nowMs || Date.now());
-    if (!(diff > 0)) return null;
-    const mins = Math.floor(diff / 60000);
-    if (mins >= 1440) return `Ends in ${Math.floor(mins / 1440)}d`;
-    if (mins >= 60) return `Ends in ${Math.floor(mins / 60)}h ${mins % 60}m`;
-    return `Ends in ${Math.max(1, mins)}m`;
-  };
 
   const revealNewPosts = () => {
     if (!pendingFeed.length) return;
@@ -383,11 +418,8 @@ export default function HomeScreen() {
                         <Text style={s.nearbyDealTxt} numberOfLines={1}>Claim {n.offer.label || n.offer.title}</Text>
                       </Pressable>
                     )}
-                    {n.offer?.expires_at && fmtCountdown(n.offer.expires_at, nowTs) && (
-                      <View style={s.nearbyCountdown} testID={`home-nearby-${i}-countdown`}>
-                        <Ionicons name="time-outline" size={10} color={t.live} />
-                        <Text style={s.nearbyCountdownTxt} numberOfLines={1}>{fmtCountdown(n.offer.expires_at, nowTs)}</Text>
-                      </View>
+                    {n.offer?.expires_at && (
+                      <DealCountdown expiresAt={n.offer.expires_at} nowTs={nowTs} liveColor={t.live} testID={`home-nearby-${i}-countdown`} />
                     )}
                   </Pressable>
                 </Animated.View>
@@ -395,6 +427,41 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         )}
+
+        {/* Expiring soon — deals from places you follow that are about to
+            end. Sorted soonest-first; hidden when there are none. */}
+        {expiring.length > 0 && (
+          <View style={s.shelf}>
+            <View style={s.shelfHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.shelfTitle}>Expiring soon</Text>
+                <Text style={s.shelfSuffix}>DEALS ABOUT TO END NEAR YOU</Text>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: TSPACE.md, gap: 12 }}>
+              {expiring.map((d, i) => (
+                <Animated.View key={d.offer_id || i}
+                  entering={FadeInDown.duration(350).springify()}
+                  layout={LinearTransition.springify()}>
+                  <Pressable testID={`home-expiring-${i}`} style={s.dealCard}
+                    onPress={() => { fireEvent('home_expiring_deal_click', { offer_id: d.offer_id, business_id: d.business_id }); router.push(`/offer/${d.offer_id}` as any); }}>
+                    <View style={s.dealTop}>
+                      {d.business_logo
+                        ? <Image source={{ uri: resolveImg(d.business_logo) || undefined }} style={s.dealLogo} contentFit="cover" transition={150} />
+                        : <View style={[s.dealLogo, s.dealLogoFallback]}><Ionicons name="pricetags" size={18} color={t.gold} /></View>}
+                      <View style={s.dealPct}><Text style={s.dealPctTxt} numberOfLines={1}>{d.label || 'Deal'}</Text></View>
+                    </View>
+                    <Text style={s.dealBiz} numberOfLines={1}>{d.business_name}</Text>
+                    <Text style={s.dealTitle} numberOfLines={2}>{d.title}</Text>
+                    <DealCountdown expiresAt={d.expires_at} nowTs={nowTs} liveColor={t.live} testID={`home-expiring-${i}-countdown`} />
+                  </Pressable>
+                </Animated.View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
 
         {/* What's Happening Now — Social bridge (real data / honest empty) */}
         {socialActive ? (
@@ -776,8 +843,14 @@ const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   nearbyBiz: { color: t.electric, fontSize: TFONT.xs, fontWeight: '700', marginTop: 1 },
   nearbyDeal: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(245,197,66,0.14)', borderRadius: TRADIUS.full, paddingHorizontal: 7, paddingVertical: 3 },
   nearbyDealTxt: { color: t.gold, fontSize: 10, fontWeight: '900', flexShrink: 1 },
-  nearbyCountdown: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
-  nearbyCountdownTxt: { color: t.live, fontSize: 10, fontWeight: '800', flexShrink: 1 },
+  dealCard: { width: 150, padding: TSPACE.sm, borderRadius: TRADIUS.lg, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.line },
+  dealTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  dealLogo: { width: 40, height: 40, borderRadius: TRADIUS.md, backgroundColor: t.glass },
+  dealLogoFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(245,197,66,0.14)' },
+  dealPct: { backgroundColor: t.gold, borderRadius: TRADIUS.full, paddingHorizontal: 8, paddingVertical: 3, maxWidth: 92 },
+  dealPctTxt: { color: t.onAccent, fontSize: 10, fontWeight: '900' },
+  dealBiz: { color: t.electric, fontSize: TFONT.xs, fontWeight: '800' },
+  dealTitle: { color: t.text, fontSize: TFONT.sm, fontWeight: '700', marginTop: 2 },
   newPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: t.brand, borderRadius: TRADIUS.full, paddingVertical: 9 },
   newPillTxt: { color: t.onAccent, fontSize: TFONT.xs, fontWeight: '900' },
 

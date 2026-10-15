@@ -1,0 +1,35 @@
+{
+  "summary": "Verified both new builds end-to-end: (1) EXPIRING SOON backend GET /api/social/deals-expiring (cookie auth) returns Karak demo offer ofr_qa_onetime_demo for demo@bigfm.dubai with correct fields (offer_id/title/label/business_id/business_name/business_logo/expires_at future ISO), soonest-first ordering, ?within_hours clamping (1..168) honored, and returns {items:[]} for users following nothing (admin) + 401 unauthenticated. (2) Mobile Home shelf 'Expiring soon' renders home-expiring-0 with countdown 'Ends in 5h 58m' (home-expiring-0-countdown), tap routes to /offer/ofr_qa_onetime_demo. 'Near you now' row still intact — home-nearby-0 + home-nearby-0-countdown present with same copy. Countdown urgency code-verified in DealCountdown (home.tsx:55-73): urgent flag = remaining<=15min, flame icon, color #FF1E1E, flashing opacity pulse via useSharedValue+withRepeat+withTiming — correctly gated. 5/5 backend pytest green. Web home is a feed-centric layout and does NOT host these shelves (mobile-only build) which matches the review spec.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_deals_expiring_iter212.py",
+    "/app/test_reports/pytest/iter212.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: In DealCountdown useEffect (mobile/app/(tabs)/home.tsx:61), the deps array [urgent] is missing `pulse` — harmless because useSharedValue is stable, but eslint-plugin-react-hooks will flag it.",
+    "Minor: /api/social/deals-expiring (and friends-nearby) expires_at ISO is returned without tz suffix when Motor strips tzinfo from the DB datetime; mobile DealCountdown uses new Date(iso).getTime() which treats naive strings as LOCAL time — this can misreport countdown by (device_offset) hours on devices not in UTC. Consider forcing _iso() to append 'Z' for naive UTC datetimes.",
+    "Minor: Unused styles nearbyCountdown / nearbyCountdownTxt remain in makeStyles (home.tsx:846-847) after refactor to shared DealCountdown — safe to delete."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_deals_expiring_iter212.py"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "demo@bigfm.dubai / DemoPass123!, admin@bigfm.dubai / AdminPass123!",
+  "seed_data_creation": "Re-ran /app/scripts/seed_nearby_demo.py — refreshed Karak offer expires_at to +6h.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Expiring soon demo offer (ofr_qa_onetime_demo @ biz_demo_karak) expiry is time-based and must be refreshed via scripts/seed_nearby_demo.py if lapsed. To observe the urgent flame + flashing state, temporarily set db.offers {business_id: 'biz_demo_karak'} expires_at to now()+10min, then re-run the seed to restore. Mobile preview host = https://mobile-games-v2.expo.preview.emergentagent.com; backend = https://mobile-games-v2.preview.emergentagent.com.",
+  "rca of the issue": "N/A — all tests green."
+}

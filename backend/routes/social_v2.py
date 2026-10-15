@@ -69,7 +69,13 @@ def _now() -> datetime:
 
 
 def _iso(dt: Any) -> Optional[str]:
-    return dt.isoformat() if isinstance(dt, datetime) else dt
+    if not isinstance(dt, datetime):
+        return dt
+    # Stored datetimes are UTC; Motor strips tzinfo, so emit an explicit 'Z'
+    # offset so clients (e.g. mobile new Date()) don't parse it as local time.
+    if dt.tzinfo is None:
+        return dt.isoformat() + "Z"
+    return dt.isoformat()
 
 
 def _pair_key(a: str, b: str) -> str:
@@ -1015,6 +1021,56 @@ async def friends_nearby(request: Request, user: dict = Depends(current_user)):
             "offer":                offers_by_biz.get(r["merchant_id"]),
         })
     return {"items": items}
+
+
+# ───────────────── Deals expiring soon (followed merchants) ─────────
+@router.get("/deals-expiring")
+async def deals_expiring(request: Request, within_hours: int = 24,
+                                              user: dict = Depends(current_user)):
+    """Active offers from businesses this user follows that expire within the
+    next `within_hours`, soonest first — powers the Home 'Expiring soon' row."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    followed: set[str] = set()
+    async for r in db.user_business_relations.find(
+            {"user_id": uid, "kind": "follow", "active": True}, {"merchant_id": 1}):
+        bid = r.get("merchant_id")
+        if bid:
+            followed.add(bid)
+    if not followed:
+        return {"items": []}
+    now = _now()
+    horizon = now + timedelta(hours=max(1, min(int(within_hours or 24), 168)))
+    offers = []
+    async for o in db.offers.find(
+            {"business_id": {"$in": list(followed)}, "status": "active",
+              "expires_at": {"$gt": now, "$lte": horizon}}).sort("expires_at", 1).limit(20):
+        offers.append(o)
+    if not offers:
+        return {"items": []}
+    bids = list({o["business_id"] for o in offers})
+    bmap = {}
+    async for b in db.businesses.find({"business_id": {"$in": bids}}):
+        bmap[b["business_id"]] = b
+    items = []
+    for o in offers:
+        b = bmap.get(o["business_id"]) or {}
+        label = o.get("discount_label")
+        if not label and o.get("discount_percent"):
+            label = f"{int(o['discount_percent'])}% off"
+        if not label and o.get("discount_value_pct"):
+            label = f"{int(o['discount_value_pct'])}% off"
+        items.append({
+            "offer_id":          o.get("offer_id") or str(o.get("_id")),
+            "title":                o.get("title") or label or "Special offer",
+            "label":                label,
+            "business_id":      o["business_id"],
+            "business_name":  b.get("name") or b.get("slug") or "A place you follow",
+            "business_logo":  b.get("logo_url") or b.get("cover_image_url") or b.get("cover_url"),
+            "expires_at":        _iso(o.get("expires_at")),
+        })
+    return {"items": items}
+
 
 
 
