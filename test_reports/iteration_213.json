@@ -1,0 +1,41 @@
+{
+  "summary": "MILESTONE 1 — Social wall P0 repair verified across backend + web + mobile. Own-post disappearance bug is fixed (own moments appear with is_mine=true, actor.kind='self'). Wall engagement (like/save/share) persists through refetch via new /api/social/wall/* endpoints. Media upload returns a retrievable URL. Public landing Sign-In now visible on desktop (fpl-login) and in the mobile drawer (fpl-mobile-login/-business/-staff). Web composer modal (sf-composer-*) posts a moment and shows 'Your post has been shared!'. Mobile wall shows own post at top with no Follow button and wall-like/share/save controls present. Not tested: non-milestone features (games, dining, clip&share, daily readings, following-directory) per scope.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_milestone1_social_wall.py",
+    "/app/test_reports/pytest/iter213_milestone1.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/social_feed.py _moments(): correct fix — own user_id now included in Following actors set and NOT excluded in For You; own cards get actor.kind='self' and highest base score (130). Verified against live backend.",
+    "routes/social_together.py wall/like routes MOMENT → social_moment_likes (count on moment doc), STATION_ACTIVITY → social_post_reactions, else generic social_feed_likes. Idempotent toggles via unique indexes. Looks correct.",
+    "wall/share increments share_count on moment/post AND inserts into social_shares (dual-write); the card's meta.share_count comes from the moment doc counter. Verified ≥1 after a share.",
+    "Mobile composer testIDs (moment-composer, moment-caption, moment-camera, moment-attach, moment-visibility, moment-post) exist in /app/mobile/src/social/together.tsx but were not reached by the automation (sub-tab 'Moments' had 3 matches and the first wasn't the composer entry). Code review confirms the testIDs are correctly declared; recommend adding a stable top-level testID like 'social-subtab-moments' to make navigation deterministic for tests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_milestone1_social_wall.py",
+    "/app/test_reports/iteration_213.json"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "~95%" },
+  "test_credentials": "web: demo@bigfm.dubai / DemoPass123!; mobile: demo-login-btn (POST /api/auth/demo)",
+  "seed_data_creation": "Created ~3 TEST_* public moments under demo@ user during the run (TTL 7d, will auto-expire).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Milestone 1 is green. Backend covered by /app/backend/tests/test_milestone1_social_wall.py (3/3 pass). Confirmed via live preview: (1) desktop+mobile public login visibility, (2) web PostComposerModal full flow with 'shared!' toast + own post appears, (3) web like toggle persisted across hard reload, (4) mobile Social wall shows own moment at top with no Follow button and wall-like-/share-/save- testIDs on each card. Mobile Moments composer testIDs are declared in /app/mobile/src/social/together.tsx but the sub-tab click selector was ambiguous during automation — not a product bug.",
+  "rca of the issue": "P0 'own posts disappear' was caused by services/social_feed.py _moments() previously excluding m.user_id == uid on BOTH Following and For You branches. Fix adds the viewer uid into the Following actors set and removes the uid !=  filter in For You (for public visibility only), tags own cards with actor.kind='self' + is_mine, and gives them the top relationship score (130) so they rank above friend/following/discovery. Engagement persistence was caused by missing POST/GET endpoints — now covered by /api/social/wall/{like,save,share} + /api/social/wall/saved with per-type routing (MOMENT → moment likes, STATION_ACTIVITY → post reactions, else generic social_feed_likes), and feed-v2 _moments() reads liked/saved sets per viewer so refetch reflects state."
+}

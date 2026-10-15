@@ -103,37 +103,58 @@ def _rel(actor_id: str, elig: dict) -> str:
 async def _moments(db, uid: str, elig: dict, mode: str) -> list[dict]:
     cutoff = _now() - timedelta(days=7)
     if mode == "following":
-        actors = list((elig["following"] | elig["friends"]) - elig["blocked"])
-        if not actors:
-            return []
+        # INVARIANT: the owner ALWAYS sees their own posts on their wall —
+        # a user never has to follow themselves. Plus followed people + friends.
+        actors = list(((elig["following"] | elig["friends"]) - elig["blocked"]) | {uid})
         q = {"created_at": {"$gte": cutoff}, "user_id": {"$in": actors}}
     else:
+        # For You: public posts (INCLUDING the owner's own public posts, which
+        # become eligible for discovery), minus blocked authors.
         q = {"created_at": {"$gte": cutoff}, "visibility": "public",
-             "user_id": {"$nin": list(elig["blocked"] | {uid})}}
+             "user_id": {"$nin": list(elig["blocked"])}}
     rows, ids = [], set()
     async for m in db.social_moments.find(q).sort("created_at", -1).limit(SOURCE_LIMIT):
-        if m["user_id"] == uid:
-            continue
         rows.append(m)
         ids.add(m["user_id"])
     umap = {}
     async for u in db.users.find({"user_id": {"$in": list(ids)}}):
         umap[u["user_id"]] = u
+    # Viewer engagement state so a refresh keeps like / save reflected.
+    mom_ids = [m["_id"] for m in rows]
+    liked: set = set()
+    saved: set = set()
+    if mom_ids:
+        async for l in db.social_moment_likes.find(
+                {"moment_id": {"$in": mom_ids}, "user_id": uid}, {"moment_id": 1}):
+            liked.add(l["moment_id"])
+        async for s in db.social_saves.find(
+                {"item_id": {"$in": [f"MOMENT:{i}" for i in mom_ids]},
+                 "user_id": uid}, {"item_id": 1}):
+            saved.add(s["item_id"])
     out = []
     for m in rows:
         u = umap.get(m["user_id"])
         if not u:
             continue
-        rel = _rel(m["user_id"], elig)
+        is_mine = m["user_id"] == uid
+        actor = _actor_user(u)
+        if is_mine:
+            actor["kind"] = "self"
+        rel = "self" if is_mine else _rel(m["user_id"], elig)
+        cid = f"MOMENT:{m['_id']}"
         out.append({
-            "id": f"MOMENT:{m['_id']}", "type": "MOMENT",
+            "id": cid, "type": "MOMENT",
             "created_at": _iso(m.get("created_at")), "_dt": _dt(m.get("created_at")),
-            "actor": _actor_user(u), "title": None,
+            "actor": actor, "title": None, "is_mine": is_mine,
             "text": m.get("caption"), "media_url": m.get("media_url"),
             "media_type": m.get("media_type") or "photo",
+            "approval_status": m.get("approval_status") or "approved",
             "cta": {"label": "Comment", "action": "open_moment", "target": m["_id"]},
             "meta": {"like_count": int(m.get("like_count") or 0),
                      "comment_count": int(m.get("comment_count") or 0),
+                     "share_count": int(m.get("share_count") or 0),
+                     "liked_by_me": m["_id"] in liked,
+                     "saved_by_me": cid in saved,
                      "context": m.get("context")},
             "follow_relationship": rel, "candidate_source": "moments",
             "sponsored": False,
@@ -352,8 +373,8 @@ async def _station_posts(db, uid: str, elig: dict, mode: str) -> list[dict]:
 
 
 # ───────────────────────── scoring / diversity ─────────────────────
-_REL_BASE = {"friend_following": 100, "friend": 80, "following": 70,
-             "discovery": 35}
+_REL_BASE = {"self": 130, "friend_following": 100, "friend": 80,
+             "following": 70, "discovery": 35}
 
 
 def _score(c: dict, now: datetime) -> tuple[float, str]:

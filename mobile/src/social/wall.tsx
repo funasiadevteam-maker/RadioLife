@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator,
-  RefreshControl, TextInput, Modal,
+  RefreshControl, TextInput, Modal, Share,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,9 +55,13 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
   const w = makeStyles(t);
   const meta = TYPE_META[item.type] || { verb: '', icon: 'sparkles', tone: t.magenta };
   const actor = item.actor || {};
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(!!item.meta?.liked_by_me);
   const [likeCount, setLikeCount] = useState(item.meta?.like_count || 0);
+  const [saved, setSaved] = useState(!!item.meta?.saved_by_me);
+  const [shares, setShares] = useState(item.meta?.share_count || 0);
   const [followed, setFollowed] = useState(false);
+  const isMine = !!item.is_mine || actor.kind === 'self';
+  const pending = !!item.approval_status && item.approval_status !== 'approved';
 
   const openCta = () => {
     fireEvent('feed_item_open', { item_id: item.id, item_type: item.type, mode });
@@ -73,12 +77,23 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
   };
 
   const like = async () => {
-    if (item.type !== 'MOMENT') return;
-    const id = String(item.id).split(':')[1];
-    setLiked((v) => !v); setLikeCount((c: number) => c + (liked ? -1 : 1));
+    const next = !liked;
+    setLiked(next); setLikeCount((c: number) => Math.max(0, c + (next ? 1 : -1)));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    try { const r = await api.post(`/social/moments/${id}/like`); setLiked(r.data.liked_by_me); setLikeCount(r.data.like_count); }
-    catch (_) { setLiked((v) => !v); }
+    try { const r = await api.post('/social/wall/like', { item_id: item.id }); setLiked(!!r.data.liked); if (typeof r.data.like_count === 'number') setLikeCount(r.data.like_count); }
+    catch (_) { setLiked(!next); setLikeCount((c: number) => Math.max(0, c + (next ? -1 : 1))); }
+  };
+
+  const save = async () => {
+    const next = !saved; setSaved(next);
+    Haptics.selectionAsync().catch(() => {});
+    try { const r = await api.post('/social/wall/save', { item_id: item.id }); setSaved(!!r.data.saved); }
+    catch (_) { setSaved(!next); }
+  };
+
+  const share = async () => {
+    try { const r = await api.post('/social/wall/share', { item_id: item.id }); if (typeof r.data?.share_count === 'number') setShares(r.data.share_count); } catch (_) {}
+    try { await Share.share({ message: `${actor.name || 'FUUSIC'} on FUUSIC — ${item.text || item.title || 'Check this out'}` }); } catch (_) {}
   };
 
   const follow = async () => {
@@ -88,7 +103,7 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
     catch (_) { setFollowed(false); }
   };
 
-  const showFollow = mode === 'for_you' && item.follow_relationship === 'discovery'
+  const showFollow = !isMine && mode === 'for_you' && item.follow_relationship === 'discovery'
     && actor.kind === 'user' && actor.id && !actor.anonymous;
 
   return (
@@ -100,6 +115,11 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
             <Text style={w.actorName} numberOfLines={1}>{actor.name || 'FUUSIC'}</Text>
             <Text style={w.verb} numberOfLines={1}>{meta.verb}</Text>
             <RelChip rel={item.follow_relationship} />
+            {isMine && pending && (
+              <View testID={`wall-pending-${item.id}`} style={[w.relChip, { backgroundColor: `${t.gold || '#f59e0b'}22` }]}>
+                <Text style={[w.relChipTxt, { color: t.gold || '#f59e0b' }]}>Pending Review</Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={[w.typeIcon, { backgroundColor: `${meta.tone}22` }]}>
@@ -144,18 +164,23 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
       )}
 
       <View style={w.cardActions}>
+        <Pressable onPress={like} testID={`wall-like-${item.id}`} style={w.actBtn}>
+          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? t.pink : t.textMuted} />
+          <Text style={w.actTxt}>{likeCount > 0 ? likeCount : 'Like'}</Text>
+        </Pressable>
         {item.type === 'MOMENT' && (
-          <>
-            <Pressable onPress={like} testID={`wall-like-${item.id}`} style={w.actBtn}>
-              <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? t.pink : t.textMuted} />
-              <Text style={w.actTxt}>{likeCount}</Text>
-            </Pressable>
-            <Pressable onPress={openCta} style={w.actBtn}>
-              <Ionicons name="chatbubble-outline" size={17} color={t.textMuted} />
-              <Text style={w.actTxt}>{item.meta?.comment_count || 0}</Text>
-            </Pressable>
-          </>
+          <Pressable onPress={openCta} testID={`wall-comment-${item.id}`} style={w.actBtn}>
+            <Ionicons name="chatbubble-outline" size={17} color={t.textMuted} />
+            <Text style={w.actTxt}>{item.meta?.comment_count || 0}</Text>
+          </Pressable>
         )}
+        <Pressable onPress={share} testID={`wall-share-${item.id}`} style={w.actBtn}>
+          <Ionicons name="arrow-redo-outline" size={17} color={t.textMuted} />
+          <Text style={w.actTxt}>{shares > 0 ? shares : 'Share'}</Text>
+        </Pressable>
+        <Pressable onPress={save} testID={`wall-save-${item.id}`} style={w.actBtn}>
+          <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={17} color={saved ? t.magenta : t.textMuted} />
+        </Pressable>
         <View style={{ flex: 1 }} />
         {showFollow ? (
           <Pressable onPress={follow} disabled={followed} testID={`wall-follow-${item.id}`}>

@@ -87,15 +87,7 @@ function MomentComposer({ onPosted }: any) {
   const [ctxLabel, setCtxLabel] = useState('');
   const [vis, setVis] = useState('friends');
 
-  const pick = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      if (!perm.canAskAgain) Linking.openSettings();
-      return;
-    }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.7 });
-    if (res.canceled || !res.assets?.length) return;
-    const a = res.assets[0];
+  const uploadAsset = async (a: any) => {
     setUploading(true);
     try {
       const fd = new FormData();
@@ -106,6 +98,28 @@ function MomentComposer({ onPosted }: any) {
       const { data } = await api.post('/social/media/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setMedia({ url: data.url, media_type: data.media_type });
     } catch (_) {} finally { setUploading(false); }
+  };
+
+  const pick = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      if (!perm.canAskAgain) Linking.openSettings();
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.7 });
+    if (res.canceled || !res.assets?.length) return;
+    await uploadAsset(res.assets[0]);
+  };
+
+  const takePhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      if (!perm.canAskAgain) Linking.openSettings();
+      return;
+    }
+    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images', 'videos'], quality: 0.7 });
+    if (res.canceled || !res.assets?.length) return;
+    await uploadAsset(res.assets[0]);
   };
 
   const post = async () => {
@@ -150,6 +164,10 @@ function MomentComposer({ onPosted }: any) {
           placeholderTextColor={t.textMuted} style={st.ctxInput} testID="moment-ctx-label" />
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+        <Pressable onPress={takePhoto} disabled={uploading} style={st.smallBtn} testID="moment-camera">
+          <Ionicons name="camera" size={16} color={t.text} />
+          <Text style={st.smallBtnTxt}>Camera</Text>
+        </Pressable>
         <Pressable onPress={pick} disabled={uploading} style={st.smallBtn} testID="moment-attach">
           {uploading ? <ActivityIndicator size="small" color={t.text} /> : <Ionicons name="image" size={16} color={t.text} />}
           <Text style={st.smallBtnTxt}>Media</Text>

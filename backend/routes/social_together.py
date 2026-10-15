@@ -112,6 +112,15 @@ async def ensure_social_together(db) -> None:
         [("session_id", 1), ("user_id", 1)], unique=True, name="pio_uniq")
     await db.share_cards.create_index([("user_id", 1), ("created_at", -1)],
                                       name="sc_user_time")
+    # Wall engagement — generic save / like / share keyed by composite feed id.
+    await db.social_saves.create_index(
+        [("user_id", 1), ("item_id", 1)], unique=True, name="save_uniq")
+    await db.social_saves.create_index([("user_id", 1), ("created_at", -1)],
+                                       name="save_user_time")
+    await db.social_feed_likes.create_index(
+        [("user_id", 1), ("item_id", 1)], unique=True, name="fl_uniq")
+    await db.social_shares.create_index([("item_id", 1), ("created_at", -1)],
+                                        name="share_item_time")
 
 
 # ═══════════════════════════ Media upload ══════════════════════════
@@ -343,6 +352,145 @@ async def delete_moment(mid: str, request: Request,
     await db.social_moment_likes.delete_many({"moment_id": mid})
     await db.social_moment_comments.delete_many({"moment_id": mid})
     return {"ok": True}
+
+
+# ════════════════════ Wall engagement (shared feed-card actions) ═════════════
+# The combined wall renders polymorphic cards whose id is "TYPE:raw_id"
+# (e.g. "MOMENT:mom_x", "STATION_ACTIVITY:post_y"). These endpoints give the
+# web + mobile feed cards ONE contract to persist a like / save / share and
+# route to the correct source-of-truth collection so a refresh keeps state.
+
+class WallActionBody(BaseModel):
+    item_id: str = Field(..., min_length=3, max_length=160)
+
+
+def _split_item(item_id: str) -> tuple[str, str]:
+    if ":" in item_id:
+        typ, raw = item_id.split(":", 1)
+        return typ.upper(), raw
+    return "", item_id
+
+
+async def _moment_like_toggle(db, mid: str, uid: str) -> dict:
+    existing = await db.social_moment_likes.find_one(
+        {"moment_id": mid, "user_id": uid})
+    if existing:
+        await db.social_moment_likes.delete_one({"_id": existing["_id"]})
+        await db.social_moments.update_one(
+            {"_id": mid, "like_count": {"$gt": 0}}, {"$inc": {"like_count": -1}})
+        liked = False
+    else:
+        await db.social_moment_likes.update_one(
+            {"moment_id": mid, "user_id": uid},
+            {"$setOnInsert": {"_id": f"ml_{uuid.uuid4().hex[:16]}",
+                              "moment_id": mid, "user_id": uid,
+                              "created_at": _now()}}, upsert=True)
+        await db.social_moments.update_one({"_id": mid}, {"$inc": {"like_count": 1}})
+        liked = True
+    m = await db.social_moments.find_one({"_id": mid}, {"like_count": 1})
+    return {"liked": liked, "like_count": int((m or {}).get("like_count") or 0)}
+
+
+async def _generic_like_toggle(db, item_id: str, uid: str) -> dict:
+    existing = await db.social_feed_likes.find_one(
+        {"item_id": item_id, "user_id": uid})
+    if existing:
+        await db.social_feed_likes.delete_one({"_id": existing["_id"]})
+        liked = False
+    else:
+        await db.social_feed_likes.update_one(
+            {"item_id": item_id, "user_id": uid},
+            {"$setOnInsert": {"item_id": item_id, "user_id": uid,
+                              "created_at": _now()}}, upsert=True)
+        liked = True
+    n = await db.social_feed_likes.count_documents({"item_id": item_id})
+    return {"liked": liked, "like_count": int(n)}
+
+
+@router.post("/wall/like")
+async def wall_like(body: WallActionBody, request: Request,
+                    user: dict = Depends(current_user)):
+    """Toggle a like on any wall card, routed to its source collection so the
+    reaction persists and the count stays consistent with the item's own page."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    typ, raw = _split_item(body.item_id)
+    if typ == "MOMENT":
+        res = await _moment_like_toggle(db, raw, uid)
+    elif typ == "STATION_ACTIVITY":
+        p = await db.social_posts.find_one({"post_id": raw})
+        if not p:
+            raise HTTPException(404, {"code": "not_found"})
+        existing = await db.social_post_reactions.find_one(
+            {"post_id": raw, "user_id": uid})
+        if existing:
+            await db.social_post_reactions.delete_one({"_id": existing["_id"]})
+            liked = False
+        else:
+            await db.social_post_reactions.update_one(
+                {"post_id": raw, "user_id": uid},
+                {"$set": {"reaction_type": "like", "created_at": _now()}},
+                upsert=True)
+            liked = True
+        n = await db.social_post_reactions.count_documents({"post_id": raw})
+        await db.social_posts.update_one(
+            {"post_id": raw}, {"$set": {"reaction_counts": {"like": int(n)}}})
+        res = {"liked": liked, "like_count": int(n)}
+    else:
+        res = await _generic_like_toggle(db, body.item_id, uid)
+    return {"ok": True, **res}
+
+
+@router.post("/wall/save")
+async def wall_save(body: WallActionBody, request: Request,
+                    user: dict = Depends(current_user)):
+    """Toggle Save/bookmark for any wall card (powers the profile Saved list)."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    typ, _raw = _split_item(body.item_id)
+    existing = await db.social_saves.find_one(
+        {"item_id": body.item_id, "user_id": uid})
+    if existing:
+        await db.social_saves.delete_one({"_id": existing["_id"]})
+        saved = False
+    else:
+        await db.social_saves.update_one(
+            {"item_id": body.item_id, "user_id": uid},
+            {"$setOnInsert": {"item_id": body.item_id, "user_id": uid,
+                              "item_type": typ, "created_at": _now()}}, upsert=True)
+        saved = True
+    return {"ok": True, "saved": saved}
+
+
+@router.post("/wall/share")
+async def wall_share(body: WallActionBody, request: Request,
+                     user: dict = Depends(current_user)):
+    """Record a share on any wall card and bump the item's share counter."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    typ, raw = _split_item(body.item_id)
+    await db.social_shares.insert_one(
+        {"_id": f"sh_{uuid.uuid4().hex[:16]}", "item_id": body.item_id,
+         "item_type": typ, "user_id": uid, "created_at": _now()})
+    if typ == "MOMENT":
+        await db.social_moments.update_one({"_id": raw}, {"$inc": {"share_count": 1}})
+    elif typ == "STATION_ACTIVITY":
+        await db.social_posts.update_one({"post_id": raw}, {"$inc": {"share_count": 1}})
+    n = await db.social_shares.count_documents({"item_id": body.item_id})
+    return {"ok": True, "shared": True, "share_count": int(n)}
+
+
+@router.get("/wall/saved")
+async def wall_saved(request: Request, user: dict = Depends(current_user)):
+    """The current user's saved items, newest first (profile → Saved)."""
+    db = request.app.state.db
+    out = []
+    async for s in db.social_saves.find(
+            {"user_id": user["user_id"]}).sort("created_at", -1).limit(200):
+        out.append({"item_id": s.get("item_id"), "item_type": s.get("item_type"),
+                    "saved_at": _iso(s.get("created_at"))})
+    return {"count": len(out), "items": out}
+
 
 
 # ═══════════════════════════ Go Together ═══════════════════════════

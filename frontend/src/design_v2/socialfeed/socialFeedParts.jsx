@@ -1,13 +1,14 @@
 // Building blocks for SocialFeedHomeV2 — header, moments, composer, together
 // row, mode tabs, sidebars, discovery, audio dock, bottom nav.
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Home, Users, Headphones, ShoppingBag, Gamepad2, Bell, Coins, Search,
   Plus, Image as ImageIcon, Music2, Mic, MoreHorizontal, MapPin, Play, Pause,
   X, Utensils, Gift, Bookmark, Radio, ListMusic, Sparkles, Moon, Crown, Store,
-  Headphones as Head2, Heart, ChevronRight,
+  Headphones as Head2, Heart, ChevronRight, Camera, Video, Globe, Type,
+  Loader2, Check, AlertCircle, ChevronDown,
 } from "lucide-react";
 import { useGeoStore } from "@/store/useGeoStore";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -114,56 +115,190 @@ function Momentcircle({ t, img, label, add, live, onClick }) {
 }
 
 /* ─────────────────────────── Composer ─────────────────────────── */
+// The FUUSIC Post Composer — Text / Camera / Photo-Video with real upload,
+// preview, audience choice and publish. No "paste image URL" anywhere.
 export function Composer({ t, onPosted }) {
-  const nav = useNavigate();
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const post = async () => {
-    if (!text.trim()) return;
-    setBusy(true);
-    try {
-      await axios.post(`${API}/social/moments`, { caption: text.trim(), visibility: "public" }, { withCredentials: true });
-      setText(""); setOpen(false); onPosted && onPosted();
-    } catch (_e) { /* soft */ } finally { setBusy(false); }
-  };
+  const [intent, setIntent] = useState(null); // null | "camera" | "gallery"
+  const start = (i) => { setIntent(i); setOpen(true); };
   const QA = [
-    { icon: ImageIcon, label: "Moment", c: "#ec4899", onClick: () => setOpen(true) },
-    { icon: ImageIcon, label: "Photo", c: "#22c55e", onClick: () => nav("/social") },
-    { icon: Music2, label: "Music", c: t.accent, onClick: () => nav("/listen") },
-    { icon: Mic, label: "Voice", c: "#f59e0b", onClick: () => setOpen(true) },
-    { icon: MoreHorizontal, label: "More", c: t.text2, onClick: () => nav("/social") },
+    { icon: Type, label: "Text", c: "#ec4899", onClick: () => start(null) },
+    { icon: Camera, label: "Camera", c: "#22c55e", onClick: () => start("camera") },
+    { icon: ImageIcon, label: "Photo", c: t.accent, onClick: () => start("gallery") },
+    { icon: Mic, label: "Voice", c: "#f59e0b", onClick: () => start("gallery") },
+    { icon: MoreHorizontal, label: "More", c: t.text2, onClick: () => start(null) },
   ];
   return (
-    <div data-testid="sf-composer" style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 18, boxShadow: t.shadow, padding: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ width: 40, height: 40, borderRadius: 999, flexShrink: 0, display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, background: t.accentGrad }}>U</span>
-        <button onClick={() => setOpen((v) => !v)} data-testid="sf-composer-open" className="sf-press"
-          style={{ flex: 1, textAlign: "left", padding: "10px 16px", borderRadius: 999, border: `1px solid ${t.border}`, background: t.chip, color: t.muted, cursor: "pointer", fontSize: 14 }}>
-          What's on your mind?
-        </button>
+    <>
+      <div data-testid="sf-composer" style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 18, boxShadow: t.shadow, padding: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 40, height: 40, borderRadius: 999, flexShrink: 0, display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, background: t.accentGrad }}>U</span>
+          <button onClick={() => start(null)} data-testid="sf-composer-open" className="sf-press"
+            style={{ flex: 1, textAlign: "left", padding: "10px 16px", borderRadius: 999, border: `1px solid ${t.border}`, background: t.chip, color: t.muted, cursor: "pointer", fontSize: 14 }}>
+            What's on your mind?
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: 2, marginTop: 10, borderTop: `1px solid ${t.border}`, paddingTop: 8 }}>
+          {QA.map(({ icon: Icon, label, c, onClick }) => (
+            <button key={label} onClick={onClick} data-testid={`sf-qa-${label.toLowerCase()}`} className="sf-press"
+              style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 4px", borderRadius: 10, border: "none", background: "transparent", color: t.text2, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+              <Icon size={17} color={c} /><span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
       {open && (
-        <div className="sf-fade-in" style={{ marginTop: 10 }}>
-          <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} data-testid="sf-composer-input"
-            placeholder="Share a moment with FUUSIC…" rows={3}
-            style={{ width: "100%", resize: "vertical", padding: 12, borderRadius: 12, border: `1px solid ${t.border}`, background: t.cardAlt, color: t.text, fontSize: 14, outline: "none" }} />
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-            <button onClick={() => { setOpen(false); setText(""); }} style={{ padding: "8px 16px", borderRadius: 999, border: `1px solid ${t.border}`, background: "transparent", color: t.text2, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-            <button onClick={post} disabled={busy || !text.trim()} data-testid="sf-composer-post"
-              style={{ padding: "8px 20px", borderRadius: 999, border: "none", background: t.accentGrad, color: "#fff", fontWeight: 800, cursor: "pointer", opacity: busy || !text.trim() ? .6 : 1 }}>
-              {busy ? "Posting…" : "Post"}
-            </button>
-          </div>
-        </div>
+        <PostComposerModal t={t} intent={intent}
+          onClose={() => setOpen(false)}
+          onPosted={() => { setOpen(false); onPosted && onPosted(); }} />
       )}
-      <div style={{ display: "flex", gap: 2, marginTop: 10, borderTop: `1px solid ${t.border}`, paddingTop: 8 }}>
-        {QA.map(({ icon: Icon, label, c, onClick }) => (
-          <button key={label} onClick={onClick} data-testid={`sf-qa-${label.toLowerCase()}`} className="sf-press"
-            style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 4px", borderRadius: 10, border: "none", background: "transparent", color: t.text2, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-            <Icon size={17} color={c} /><span className="hidden sm:inline">{label}</span>
-          </button>
-        ))}
+    </>
+  );
+}
+
+const AUDIENCES = [
+  { k: "public", label: "Public", Icon: Globe, hint: "Anyone on FUUSIC" },
+  { k: "friends", label: "Friends", Icon: Users, hint: "Only your friends" },
+];
+
+export function PostComposerModal({ t, intent, onClose, onPosted }) {
+  const [text, setText] = useState("");
+  const [media, setMedia] = useState(null); // {url, media_type, name}
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [audience, setAudience] = useState("public");
+  const [audOpen, setAudOpen] = useState(false);
+  const [err, setErr] = useState(null);
+  const [done, setDone] = useState(false);
+  const galleryRef = useRef(null);
+  const cameraRef = useRef(null);
+
+  useEffect(() => {
+    if (intent === "camera") cameraRef.current?.click();
+    else if (intent === "gallery") galleryRef.current?.click();
+  }, [intent]);
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setErr(null); setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await axios.post(`${API}/social/media/upload`, fd, {
+        withCredentials: true, headers: { "Content-Type": "multipart/form-data" } });
+      setMedia({ url: r.data?.url, key: r.data?.key, media_type: r.data?.media_type, name: file.name });
+    } catch (_e) {
+      setErr("Upload failed — please try again.");
+    } finally { setUploading(false); }
+  };
+
+  const publish = async () => {
+    if (!text.trim() && !media) { setErr("Add a caption or a photo first."); return; }
+    setBusy(true); setErr(null);
+    try {
+      await axios.post(`${API}/social/moments`, {
+        caption: text.trim(),
+        media_url: media?.url || null,
+        media_key: media?.key || null,
+        media_type: media?.media_type || null,
+        visibility: audience,
+      }, { withCredentials: true });
+      setDone(true);
+      setTimeout(() => onPosted && onPosted(), 650);
+    } catch (_e) {
+      // Keep the content so the user can retry — never discard on failure.
+      setErr("Couldn't share your post. Your content is safe — tap Share to retry.");
+    } finally { setBusy(false); }
+  };
+
+  const Aud = AUDIENCES.find((a) => a.k === audience) || AUDIENCES[0];
+  return (
+    <div data-testid="sf-composer-modal" onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(8,11,22,.55)", backdropFilter: "blur(4px)", display: "grid", placeItems: "center", padding: 14 }}>
+      <div onClick={(e) => e.stopPropagation()} className="sf-fade-in"
+        style={{ width: "100%", maxWidth: 520, background: t.card, border: `1px solid ${t.border}`, borderRadius: 20, boxShadow: t.shadow, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${t.border}` }}>
+          <span style={{ fontWeight: 900, fontSize: 16, color: t.text }}>Create Post</span>
+          <button onClick={onClose} data-testid="sf-composer-close" className="sf-press" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: t.chip, color: t.text2, cursor: "pointer", display: "grid", placeItems: "center" }}><X size={18} /></button>
+        </div>
+
+        {done ? (
+          <div style={{ padding: "44px 20px", textAlign: "center" }}>
+            <span style={{ width: 60, height: 60, borderRadius: 999, display: "inline-grid", placeItems: "center", background: t.accentSoft, marginBottom: 12 }}><Check size={30} color={t.accent} /></span>
+            <div style={{ fontWeight: 800, fontSize: 17, color: t.text }}>Your post has been shared!</div>
+          </div>
+        ) : (
+          <div style={{ padding: 16 }}>
+            {/* audience picker */}
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <button onClick={() => setAudOpen((v) => !v)} data-testid="sf-composer-audience" className="sf-press"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, border: `1px solid ${t.border}`, background: t.chip, color: t.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                <Aud.Icon size={14} color={t.accent} /> {Aud.label} <ChevronDown size={14} />
+              </button>
+              {audOpen && (
+                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 6, width: 220, background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, boxShadow: t.shadow, padding: 6, zIndex: 10 }}>
+                  {AUDIENCES.map((a) => (
+                    <button key={a.k} data-testid={`sf-audience-${a.k}`} onClick={() => { setAudience(a.k); setAudOpen(false); }} className="sf-press"
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: audience === a.k ? t.accentSoft : "transparent", border: "none", borderRadius: 9, padding: "9px 10px", cursor: "pointer" }}>
+                      <a.Icon size={16} color={t.accent} />
+                      <span><span style={{ display: "block", fontWeight: 700, fontSize: 13.5, color: t.text }}>{a.label}</span><span style={{ display: "block", fontSize: 11.5, color: t.muted }}>{a.hint}</span></span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} data-testid="sf-composer-input"
+              placeholder="Share a moment with FUUSIC…" rows={4}
+              style={{ width: "100%", resize: "vertical", padding: 12, borderRadius: 12, border: `1px solid ${t.border}`, background: t.cardAlt, color: t.text, fontSize: 15, outline: "none" }} />
+
+            {/* media preview */}
+            {uploading && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, color: t.text2, fontSize: 13 }}>
+                <Loader2 size={16} className="sf-spin" /> Uploading…
+              </div>
+            )}
+            {media && !uploading && (
+              <div data-testid="sf-composer-preview" style={{ position: "relative", marginTop: 10, borderRadius: 14, overflow: "hidden", border: `1px solid ${t.border}`, background: t.cardAlt }}>
+                {media.media_type === "video"
+                  ? <video src={media.url} controls style={{ width: "100%", maxHeight: 300, display: "block" }} />
+                  : <img src={media.url} alt="" style={{ width: "100%", maxHeight: 300, objectFit: "cover", display: "block" }} />}
+                <button onClick={() => setMedia(null)} data-testid="sf-composer-remove-media" className="sf-press"
+                  style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 999, border: "none", cursor: "pointer", background: "rgba(0,0,0,.6)", color: "#fff", display: "grid", placeItems: "center" }}><X size={16} /></button>
+              </div>
+            )}
+
+            {err && (
+              <div data-testid="sf-composer-error" style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10, padding: "8px 11px", borderRadius: 10, background: `${t.live}18`, color: t.live, fontSize: 12.5, fontWeight: 600 }}>
+                <AlertCircle size={15} /> {err}
+              </div>
+            )}
+
+            {/* attach actions */}
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button onClick={() => cameraRef.current?.click()} data-testid="sf-composer-camera" className="sf-press"
+                style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 11, border: `1px solid ${t.border}`, background: t.chip, color: t.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                <Camera size={17} color="#22c55e" /> Camera
+              </button>
+              <button onClick={() => galleryRef.current?.click()} data-testid="sf-composer-gallery" className="sf-press"
+                style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 11, border: `1px solid ${t.border}`, background: t.chip, color: t.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                <ImageIcon size={17} color={t.accent} /> Photo / Video
+              </button>
+            </div>
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onFile} style={{ display: "none" }} />
+            <input ref={galleryRef} type="file" accept="image/*,video/*" onChange={onFile} style={{ display: "none" }} />
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button onClick={onClose} className="sf-press" style={{ padding: "10px 18px", borderRadius: 999, border: `1px solid ${t.border}`, background: "transparent", color: t.text2, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+              <button onClick={publish} disabled={busy || uploading} data-testid="sf-composer-post" className="sf-press"
+                style={{ padding: "10px 24px", borderRadius: 999, border: "none", background: t.accentGrad, color: "#fff", fontWeight: 800, cursor: "pointer", opacity: busy || uploading ? .6 : 1, display: "inline-flex", alignItems: "center", gap: 7 }}>
+                {busy ? <><Loader2 size={15} className="sf-spin" /> Sharing…</> : "Share"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

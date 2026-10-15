@@ -90,10 +90,10 @@ export default function PublicNav({ t, mode, setMode, allowThemeSwitch, comingSo
             <Search size={16} />
           </button>
           <AppearanceSwitcher t={t} mode={mode} setMode={setMode} enabled={allowThemeSwitch} />
-          <button data-testid="fpl-login" onClick={() => onAuth("login")} className="fpl-press"
-            style={{ background: "none", border: "none", cursor: "pointer", color: t.text,
-              fontWeight: 700, fontSize: 14, padding: "8px 10px", display: "none" }}
-            data-desktop="1">
+          <button data-testid="fpl-login" onClick={() => onAuth("login")} className="fpl-press fpl-login-btn"
+            style={{ cursor: "pointer", color: t.accent, fontWeight: 800, fontSize: 14,
+              padding: "8px 18px", borderRadius: 999, background: "transparent",
+              border: `1.5px solid ${t.accent}`, display: "none" }}>
             Log In
           </button>
           <button data-testid="fpl-signup" onClick={() => onAuth(comingSoon ? "waitlist" : "signup")}
@@ -124,14 +124,46 @@ export default function PublicNav({ t, mode, setMode, allowThemeSwitch, comingSo
               {l.label}
             </button>
           ))}
+          {/* Auth actions — always reachable from the mobile menu. */}
+          <div style={{ borderTop: `1px solid ${t.navBorder}`, marginTop: 8, paddingTop: 10,
+            display: "flex", flexDirection: "column", gap: 8 }}>
+            <button data-testid="fpl-mobile-signup" onClick={() => { setMobileOpen(false); onAuth(comingSoon ? "waitlist" : "signup"); }}
+              className="fpl-press" style={{ width: "100%", cursor: "pointer", color: "#fff",
+                fontWeight: 800, fontSize: 15, padding: "12px 10px", borderRadius: 12, border: "none",
+                background: t.accentGrad }}>
+              {signupLabel}
+            </button>
+            <button data-testid="fpl-mobile-login" onClick={() => { setMobileOpen(false); onAuth("login"); }}
+              className="fpl-press" style={{ width: "100%", cursor: "pointer", color: t.accent,
+                fontWeight: 800, fontSize: 15, padding: "12px 10px", borderRadius: 12,
+                background: "transparent", border: `1.5px solid ${t.accent}` }}>
+              Log In
+            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button data-testid="fpl-mobile-business" onClick={() => { setMobileOpen(false); onAuth("business"); }}
+                className="fpl-press" style={{ flex: 1, cursor: "pointer", color: t.text,
+                  fontWeight: 700, fontSize: 13, padding: "10px 8px", borderRadius: 11,
+                  background: t.tag, border: `1px solid ${t.navBorder}` }}>
+                Business Sign In
+              </button>
+              <button data-testid="fpl-mobile-staff" onClick={() => { setMobileOpen(false); onAuth("staff"); }}
+                className="fpl-press" style={{ flex: 1, cursor: "pointer", color: t.text,
+                  fontWeight: 700, fontSize: 13, padding: "10px 8px", borderRadius: 11,
+                  background: t.tag, border: `1px solid ${t.navBorder}` }}>
+                Staff / Admin
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       <style>{`
+        @media (min-width: 640px) {
+          [data-testid="fpl-login"].fpl-login-btn { display: inline-block !important; }
+        }
         @media (min-width: 1024px) {
           .fpl-navlinks { display: flex !important; }
           .fpl-navspacer { display: none; }
-          [data-testid="fpl-login"][data-desktop="1"] { display: inline-block !important; }
         }
         @media (max-width: 1023px) { .fpl-hamburger { display: grid !important; } }
       `}</style>

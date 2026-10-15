@@ -129,8 +129,10 @@ export default function PublicSocialLandingV2({ comingSoon = false, offerMonths 
 
   const wallRef = useRef(null);
   const onAuth = useCallback((kind) => {
-    if (comingSoon) { navigate("/waitlist"); return; }
+    // Business + staff/admin sign-in stay reachable even in Setup/ComingSoon.
     if (kind === "business") { navigate("/for-business"); return; }
+    if (kind === "staff") { navigate("/portal/login"); return; }
+    if (comingSoon) { navigate("/waitlist"); return; }
     navigate("/login");
   }, [comingSoon, navigate]);
 

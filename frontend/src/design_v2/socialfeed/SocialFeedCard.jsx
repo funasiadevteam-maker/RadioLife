@@ -28,16 +28,50 @@ export default function SocialFeedCard({ item, t, onFollow }) {
   const meta = item.meta || {};
   const cta = item.cta;
   const badge = BADGE[item.type];
-  const [liked, setLiked] = useState(false);
+  const isMine = !!item.is_mine || actor.kind === "self";
+  const pending = !!item.approval_status && item.approval_status !== "approved";
+  const [liked, setLiked] = useState(!!meta.liked_by_me);
   const [likes, setLikes] = useState(meta.like_count ?? 0);
-  const [saved, setSaved] = useState(false);
-  const [followed, setFollowed] = useState(item.follow_relationship === "following");
+  const [saved, setSaved] = useState(!!meta.saved_by_me);
+  const [shares, setShares] = useState(meta.share_count ?? 0);
+  const [followed, setFollowed] = useState(
+    item.follow_relationship === "following" || item.follow_relationship === "friend_following");
 
   const log = (event) => {
     axios.post(`${API}/social/feed-events`, { event, item_id: item.id, item_type: item.type },
       { withCredentials: true }).catch(() => {});
   };
-  const like = () => { setLiked((v) => !v); setLikes((n) => (liked ? n - 1 : n + 1)); log("feed_like"); };
+
+  // Real like — optimistic, reconciled with the server, reverts on failure.
+  const like = async () => {
+    const next = !liked;
+    setLiked(next); setLikes((n) => Math.max(0, n + (next ? 1 : -1)));
+    try {
+      const r = await axios.post(`${API}/social/wall/like`, { item_id: item.id }, { withCredentials: true });
+      if (r.data) { setLiked(!!r.data.liked); if (typeof r.data.like_count === "number") setLikes(r.data.like_count); }
+      log("feed_like");
+    } catch (_e) { setLiked(!next); setLikes((n) => Math.max(0, n + (next ? -1 : 1))); }
+  };
+  const save = async () => {
+    const next = !saved; setSaved(next);
+    try {
+      const r = await axios.post(`${API}/social/wall/save`, { item_id: item.id }, { withCredentials: true });
+      if (r.data) setSaved(!!r.data.saved);
+      log("feed_save");
+    } catch (_e) { setSaved(!next); }
+  };
+  const share = async () => {
+    try {
+      const r = await axios.post(`${API}/social/wall/share`, { item_id: item.id }, { withCredentials: true });
+      if (r.data && typeof r.data.share_count === "number") setShares(r.data.share_count);
+    } catch (_e) { /* best-effort counter */ }
+    try {
+      const url = window.location.origin + ctaTo(cta);
+      if (navigator.share) await navigator.share({ title: actor.name || "FUUSIC", url });
+      else if (navigator.clipboard) await navigator.clipboard.writeText(url);
+    } catch (_e) { /* user dismissed */ }
+    log("feed_share");
+  };
   const openCta = () => { log("feed_item_open"); nav(ctaTo(cta)); };
   const follow = () => { setFollowed(true); onFollow && onFollow(actor.id); log("feed_follow_click"); };
 
@@ -62,7 +96,12 @@ export default function SocialFeedCard({ item, t, onFollow }) {
             {item.ranking_reason && <span>· {item.ranking_reason}</span>}
           </div>
         </div>
-        {!followed && actor.id && actor.kind !== "self" && (
+        {isMine && pending && (
+          <span data-testid="sf-card-pending" style={{ fontSize: 10.5, fontWeight: 800, color: t.gold, background: t.goldBg, border: `1px solid ${t.gold}44`, borderRadius: 999, padding: "4px 10px" }}>
+            Pending Review
+          </span>
+        )}
+        {!isMine && !followed && actor.id && actor.kind !== "self" && (
           <button onClick={follow} data-testid="sf-card-follow" className="sf-press"
             style={{ fontSize: 12, fontWeight: 800, color: t.accent, background: t.accentSoft, border: "none", borderRadius: 999, padding: "6px 14px", cursor: "pointer" }}>
             Follow
@@ -128,8 +167,8 @@ export default function SocialFeedCard({ item, t, onFollow }) {
       <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 8px 10px", borderTop: `1px solid ${t.border}`, marginTop: 10 }}>
         <FooterBtn t={t} active={liked} activeColor={t.live} icon={Heart} label={likes > 0 ? String(likes) : "Like"} onClick={like} testid="sf-like" />
         <FooterBtn t={t} icon={MessageCircle} label={meta.comment_count ? String(meta.comment_count) : "Comment"} onClick={openCta} testid="sf-comment" />
-        <FooterBtn t={t} icon={Share2} label="Share" onClick={() => log("feed_share")} testid="sf-share" />
-        <FooterBtn t={t} active={saved} activeColor={t.accent} icon={Bookmark} label="" onClick={() => { setSaved((v) => !v); log("feed_save"); }} testid="sf-save" />
+        <FooterBtn t={t} icon={Share2} label={shares > 0 ? String(shares) : "Share"} onClick={share} testid="sf-share" />
+        <FooterBtn t={t} active={saved} activeColor={t.accent} icon={Bookmark} label="" onClick={save} testid="sf-save" />
       </div>
     </article>
   );

@@ -2,6 +2,15 @@
 
 The Universal Advertising API (Partner API v1, Phases A→F) is COMPLETE (see CHANGELOG.md). Consumer features were paused to build it and can now resume.
 
+## 🔜 FUUSIC SOCIAL-FIRST PROGRAM (2026-06 fork) — milestone backlog
+Milestone 1 (Production Repair + login visibility) is DONE & tested green (see CHANGELOG). Remaining milestones, in order:
+- **M2 — Complete Following ecosystem**: unified Following directory (People/Creators/Stations/Businesses/Clubs/Advisors), follow ANY catalog station (50k+ via stable canonical ids, lightweight follow mapping for third-party stations), interest-based "Who to Follow" recommendations (music genre / language / region / business / club / advisor) with Follow / Not Interested / Hide + explanation labels.
+- **M3 — Station social automation**: Station Portal → Shows & Clips (schedule, host, rights, publish mode: Manual/AI Draft/Approved Auto-Publish, default AI Draft), authorized short-buffer recording, AI clip drafts, daily highlights digest + notifications, StationActivityFeedAdapter to unify social_posts + station_posts into one wall item.
+- **M4 — Daily Readings**: user-controlled Daily Horoscope / Tarot / Numerology / Fortune subscription (Daily/Weekly/Off, timezone, dedupe/cache), PRIVATE reading cards on the owner's own feed only, AI-generated disclaimers, never in public feed metadata.
+- **M5 — Business monetization**: organic business posts from the Merchant Portal (no pay-to-reach-followers), Boost/Sponsored Post wizard reusing existing advertiser/campaign/billing infra, Sponsored feed card (labelled, Hide/Report), configurable placement (1 after ~6–10 organic), Premium ad-free respected, Admin → Social Operations + "Why is this post not showing?" diagnostic.
+- **M6 — Clip & Share + My Feed Preferences**: authorized 30s radio-clip creation (server buffer, waveform select, RadioClipSocialCard), Follow Show + reminders, and `/settings/feed` feed-preferences (All Updates / Daily Highlights / Live Only / Mute per followed entity) + DailyFeedDigestService.
+- **M7 — Premium Games visual redesign**: AI artwork (GPT Image — user choice) persisted to object storage, real interactive Wheel/Dice/Trivia/Scratch/Predict (server-authoritative outcomes), Play Home redesign (desktop + mobile), social sharing of real wins.
+
 ## ✅ DONE (2026-06 fork, iter182) — Background import + sample banners + banner cleanups
 - **Background bulk import** ✅: `/api/admin/tracks/bulk-upload?background=1` spools then returns 202 + job_id and processes off-request (poll `/api/me/bulk-upload/jobs/{job_id}`); admin can close the tab. Web toggle + live job tracker.
 - **Sample banners** ✅: 118 category-themed Pillow composites (123 total house sample campaigns) populate the advertiser rail rotation with variety. Re-run `python -m scripts.seed_sample_banners` from /app/backend.
