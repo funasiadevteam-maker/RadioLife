@@ -110,23 +110,55 @@ async def resolve_following(db, uid: str) -> dict:
     except Exception:
         pass
 
-    # ── Stations / hosts (station_followers → community_radio_stations) ──
+    # ── Stations / hosts (station_followers → community OR 50k+ catalog) ──
     stations: list[dict] = []
     st_rows = []
     async for sf in db.station_followers.find({"user_id": uid}):
         st_rows.append(sf)
     st_ids = [r["station_id"] for r in st_rows if r.get("station_id")]
     st_since = {r["station_id"]: _iso(r.get("followed_at")) for r in st_rows}
+    comm: dict[str, dict] = {}
     if st_ids:
         async for s in db.community_radio_stations.find(
                 {"station_id": {"$in": st_ids}}):
+            comm[s.get("station_id")] = s
+    # Imported-catalog fallback for any followed station without a community page
+    # and without a stored snapshot (legacy rows).
+    missing = [r["station_id"] for r in st_rows
+               if r.get("station_id") and r["station_id"] not in comm
+               and not r.get("station_snapshot")]
+    imp_map: dict[str, dict] = {}
+    if missing:
+        async for im in db.imported_radio_stations.find({"id": {"$in": missing}}):
+            imp_map[im.get("id")] = im
+    for r in st_rows:
+        sid = r.get("station_id")
+        if not sid:
+            continue
+        s = comm.get(sid)
+        if s:
             stations.append({
-                "station_id": s.get("station_id"), "slug": s.get("slug"),
+                "station_id": sid, "slug": s.get("slug"),
                 "name": s.get("name") or s.get("slug"),
                 "avatar_url": s.get("cover_image_url"),
-                "category": s.get("page_type") or "station",
-                "type": "station",
-                "following_since": st_since.get(s.get("station_id")),
+                "category": s.get("page_type") or "station", "type": "station",
+                "station_kind": "community", "following_since": st_since.get(sid),
+            })
+            continue
+        snap = r.get("station_snapshot") or {}
+        im = imp_map.get(sid)
+        if not snap and im:
+            snap = {"name": im.get("name"), "logo": im.get("favicon"),
+                    "slug": im.get("flagship_slug"), "country": im.get("country"),
+                    "kind": "imported", "category": im.get("country") or "station"}
+        if snap:
+            stations.append({
+                "station_id": sid, "slug": snap.get("slug"),
+                "name": snap.get("name") or sid,
+                "avatar_url": snap.get("logo"),
+                "category": snap.get("category") or snap.get("country") or "station",
+                "type": "station", "station_kind": snap.get("kind") or "imported",
+                "following_since": st_since.get(sid),
             })
 
     # ── Clubs (dream_club_members → dream_clubs) ─────────────────────

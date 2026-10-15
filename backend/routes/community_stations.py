@@ -483,28 +483,44 @@ async def search_stations(request: Request,
 async def follow_station(station_id: str, request: Request,
                           user: dict = Depends(current_user)):
     db = request.app.state.db
+    uid = user["user_id"]
     s = await db.community_radio_stations.find_one({"station_id": station_id})
-    if not s:
-        raise HTTPException(404, {"code": "not_found"})
-    if s["owner_user_id"] == user["user_id"]:
-        raise HTTPException(400, {"code": "cannot_follow_own"})
-    # Idempotent — unique (user_id, station_id)
+    is_community = bool(s)
+    if s:
+        if s.get("owner_user_id") == uid:
+            raise HTTPException(400, {"code": "cannot_follow_own"})
+        snap = {"name": s.get("name") or s.get("slug"), "logo": s.get("cover_image_url"),
+                "slug": s.get("slug"), "kind": "community",
+                "country": s.get("audience"), "category": s.get("page_type") or "station"}
+    else:
+        # Fall through to the 50,000+ imported catalog using the canonical id.
+        imp = await db.imported_radio_stations.find_one({"id": station_id})
+        if not imp:
+            raise HTTPException(404, {"code": "not_found"})
+        snap = {"name": imp.get("name"), "logo": imp.get("favicon"),
+                "slug": imp.get("flagship_slug"), "kind": "imported",
+                "country": imp.get("country"), "city": imp.get("city"),
+                "category": imp.get("country") or "station"}
+    # Idempotent — unique (user_id, station_id); snapshot lets ANY catalog
+    # station render in the Following directory without a managed social page.
     r = await db.station_followers.update_one(
-        {"user_id": user["user_id"], "station_id": station_id},
-        {"$setOnInsert": {"followed_at": _now().isoformat()}},
+        {"user_id": uid, "station_id": station_id},
+        {"$setOnInsert": {"followed_at": _now().isoformat()},
+         "$set": {"station_snapshot": snap, "station_kind": snap["kind"]}},
         upsert=True)
-    if r.upserted_id:
+    if r.upserted_id and is_community:
         await db.community_radio_stations.update_one(
             {"station_id": station_id}, {"$inc": {"follower_count": 1}})
-    # Phase 41M.B — fire-and-forget first_follower + vip badge grant.
-    try:
-        from services.station_badge_engine import grant_safe
-        asyncio.create_task(grant_safe(
-            db, user_id=user["user_id"], station_id=station_id,
-            station_slug=s.get("slug"),
-            only_types={"first_follower", "vip"}))
-    except Exception as e:
-        log.warning("[community_stations] badge hook (follow) failed: %s", e)
+    # Phase 41M.B — fire-and-forget first_follower + vip badge grant (community).
+    if is_community:
+        try:
+            from services.station_badge_engine import grant_safe
+            asyncio.create_task(grant_safe(
+                db, user_id=uid, station_id=station_id,
+                station_slug=s.get("slug"),
+                only_types={"first_follower", "vip"}))
+        except Exception as e:
+            log.warning("[community_stations] badge hook (follow) failed: %s", e)
     return {"ok": True, "now_following": True}
 
 

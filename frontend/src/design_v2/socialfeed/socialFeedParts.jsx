@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { fireConfetti } from "./confetti";
 import {
   Home, Users, Headphones, ShoppingBag, Gamepad2, Bell, Coins, Search,
   Plus, Image as ImageIcon, Music2, Mic, MoreHorizontal, MapPin, Play, Pause,
@@ -206,6 +207,11 @@ export function PostComposerModal({ t, intent, onClose, onPosted }) {
         visibility: audience,
       }, { withCredentials: true });
       setDone(true);
+      // Celebrate the first post of the day landing on the member's own wall.
+      try {
+        const k = `fuusic_confetti_${new Date().toISOString().slice(0, 10)}`;
+        if (!localStorage.getItem(k)) { localStorage.setItem(k, "1"); fireConfetti(); }
+      } catch (_e) { /* storage blocked */ }
       setTimeout(() => onPosted && onPosted(), 650);
     } catch (_e) {
       // Keep the content so the user can retry — never discard on failure.

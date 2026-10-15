@@ -11,6 +11,7 @@ import { sfTokens } from "./sfTheme";
 import { useHomeView } from "@/store/useHomeView";
 import { useThemeStore } from "@/theme/useTheme";
 import SocialFeedCard from "./SocialFeedCard";
+import WhoToFollow from "./WhoToFollow";
 import {
   MomentsRow, Composer, TogetherRow, ModeTabs, FeedSkeleton, EmptyState,
 } from "./socialFeedParts";
@@ -113,6 +114,7 @@ export default function SocialFeedHomeV2() {
       <Composer t={t} onPosted={() => loadFeed(mode)} />
       <TogetherRow t={t} />
       <ModeTabs t={t} mode={mode} setMode={switchMode} />
+      <WhoToFollow t={t} onFollowed={() => loadFeed(mode)} />
 
       {newCount > 0 && (
         <button onClick={refreshTop} data-testid="sf-new-posts" className="sf-press sf-fade-in"

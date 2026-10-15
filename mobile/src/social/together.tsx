@@ -16,6 +16,7 @@ import type { ThemeTokens } from '../theme/tokens';
 import api, { BACKEND } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import MiniToast from '../components/MiniToast';
+import ConfettiBurstM from './ConfettiBurstM';
 import { useRouter } from 'expo-router';
 
 const REFERRAL_POINTS = 500;
@@ -86,6 +87,7 @@ function MomentComposer({ onPosted }: any) {
   const [ctxKind, setCtxKind] = useState('custom');
   const [ctxLabel, setCtxLabel] = useState('');
   const [vis, setVis] = useState('friends');
+  const [celebrate, setCelebrate] = useState(false);
 
   const uploadAsset = async (a: any) => {
     setUploading(true);
@@ -132,12 +134,14 @@ function MomentComposer({ onPosted }: any) {
         context: { kind: ctxKind, label },
       });
       setCaption(''); setMedia(null); setCtxLabel(''); setCtxKind('custom');
+      setCelebrate(true);
       onPosted?.();
     } catch (_) {} finally { setPosting(false); }
   };
 
   return (
     <View style={st.composer} testID="moment-composer">
+      {celebrate && <ConfettiBurstM onDone={() => setCelebrate(false)} />}
       <TextInput value={caption} onChangeText={setCaption} placeholder="What’s the moment? What are you listening to?"
         placeholderTextColor={t.textMuted} style={st.captionInput} multiline testID="moment-caption" />
       {media && (

@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TUBE, TSPACE, TRADIUS, TFONT } from '../../src/constants/tube';
 import api from '../../src/api/client';
 import { AvatarM } from '../(tabs)/social';
+import WhoToFollowM from '../../src/social/WhoToFollowM';
 
 const FILTERS = [
   { key: 'all', label: 'All' }, { key: 'people', label: 'People' },
@@ -97,14 +98,19 @@ export default function FollowingScreen() {
       {loading ? (
         <View style={s.center}><ActivityIndicator color={TUBE.magenta} /></View>
       ) : groups.length === 0 ? (
-        <View style={s.center}>
-          <Ionicons name="people" size={28} color={TUBE.magenta} />
-          <Text style={s.emptyTitle}>Build your FUUSIC feed</Text>
-          <Text style={s.emptyTxt}>Follow people, businesses, creators and clubs you care about.</Text>
-        </View>
+        <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
+          <WhoToFollowM onFollowed={load} />
+          <View style={[s.center, { paddingTop: 24 }]}>
+            <Ionicons name="people" size={28} color={TUBE.magenta} />
+            <Text style={s.emptyTitle}>Build your FUUSIC feed</Text>
+            <Text style={s.emptyTxt}>Follow people, businesses, creators and clubs you care about.</Text>
+          </View>
+        </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: TSPACE.md, paddingBottom: 130, gap: 20 }}
+        <ScrollView contentContainerStyle={{ paddingBottom: 130, gap: 20 }}
           showsVerticalScrollIndicator={false} testID="following-list">
+          <View style={{ paddingTop: 12 }}><WhoToFollowM onFollowed={load} /></View>
+          <View style={{ paddingHorizontal: TSPACE.md, gap: 20 }}>
           {groups.map((g) => (
             <View key={g.key}>
               <Text style={s.groupTitle}>{g.label} · {g.items.length}</Text>
@@ -129,6 +135,7 @@ export default function FollowingScreen() {
               </View>
             </View>
           ))}
+          </View>
         </ScrollView>
       )}
     </View>

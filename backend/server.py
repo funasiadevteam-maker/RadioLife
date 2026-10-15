@@ -6834,6 +6834,8 @@ app.include_router(_portal_context_router)
 # Social V2 — Phase 1 (friends, Listen Together rooms, social home).
 from routes.social_v2 import router as _social_v2_router
 app.include_router(_social_v2_router)
+from routes.social_discovery import router as _social_discovery_router
+app.include_router(_social_discovery_router)
 
 # Social V2 — Dreams & Guidance (dream sharing, AI reflection, advisors).
 from routes.dreams_guidance import (router as _dreams_router,
