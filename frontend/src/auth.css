@@ -3,6 +3,43 @@
    Reuses tokens from index.css (--pink, --cyan, --bg, etc.)
    =========================================================== */
 
+/* Legacy auth design tokens. These were historically undefined, which left
+   the auth card transparent and the submit button background empty — fine on
+   the dark page, but invisible (white-on-white) once the app is in Light mode.
+   Define them here, scoped to the auth shell, mapped to each theme. */
+.auth-shell {
+    --pink: #EC4899;
+    --pink-glow: rgba(236, 72, 153, 0.22);
+    --cyan: #7BD3F7;
+    --cyan-glow: rgba(123, 211, 247, 0.22);
+    --bg: #0B0F19;
+    --bg-2: #151B2B;
+    --bg-3: #1E2436;
+    --text: #FFFFFF;
+    --text-dim: rgba(255, 255, 255, 0.64);
+    --text-faint: rgba(255, 255, 255, 0.42);
+    --line-2: rgba(255, 255, 255, 0.16);
+    --danger: #F43F5E;
+    --warn: #F59E0B;
+    --ch-color: #EC4899;
+}
+[data-theme="light"] .auth-shell {
+    --pink: #DB2777;
+    --pink-glow: rgba(219, 39, 119, 0.14);
+    --cyan: #0E7490;
+    --cyan-glow: rgba(14, 116, 144, 0.14);
+    --bg: #FFFFFF;
+    --bg-2: #F5F6F8;
+    --bg-3: #ECEEF3;
+    --text: #0B0F19;
+    --text-dim: rgba(10, 10, 20, 0.64);
+    --text-faint: rgba(10, 10, 20, 0.44);
+    --line-2: rgba(10, 10, 20, 0.18);
+    --danger: #E11D48;
+    --warn: #D97706;
+    --ch-color: #DB2777;
+}
+
 /* Shared layout */
 .auth-shell {
     position: relative;

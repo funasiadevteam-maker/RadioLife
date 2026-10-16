@@ -9,7 +9,7 @@ import {
   Plus, Image as ImageIcon, Music2, Mic, MoreHorizontal, MapPin, Play, Pause,
   X, Utensils, Gift, Bookmark, Radio, ListMusic, Sparkles, Moon, Crown, Store,
   Headphones as Head2, Heart, ChevronRight, Camera, Video, Globe, Type,
-  Loader2, Check, AlertCircle, ChevronDown,
+  Loader2, Check, AlertCircle, ChevronDown, RotateCcw, Square, Upload,
 } from "lucide-react";
 import { useGeoStore } from "@/store/useGeoStore";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -120,13 +120,13 @@ function Momentcircle({ t, img, label, add, live, onClick }) {
 // preview, audience choice and publish. No "paste image URL" anywhere.
 export function Composer({ t, onPosted }) {
   const [open, setOpen] = useState(false);
-  const [intent, setIntent] = useState(null); // null | "camera" | "gallery"
+  const [intent, setIntent] = useState(null); // null | "camera" | "gallery" | "voice"
   const start = (i) => { setIntent(i); setOpen(true); };
   const QA = [
     { icon: Type, label: "Text", c: "#ec4899", onClick: () => start(null) },
     { icon: Camera, label: "Camera", c: "#22c55e", onClick: () => start("camera") },
     { icon: ImageIcon, label: "Photo", c: t.accent, onClick: () => start("gallery") },
-    { icon: Mic, label: "Voice", c: "#f59e0b", onClick: () => start("gallery") },
+    { icon: Mic, label: "Voice", c: "#f59e0b", onClick: () => start("voice") },
     { icon: MoreHorizontal, label: "More", c: t.text2, onClick: () => start(null) },
   ];
   return (
@@ -162,6 +162,175 @@ const AUDIENCES = [
   { k: "friends", label: "Friends", Icon: Users, hint: "Only your friends" },
 ];
 
+// Live in-app camera capture (getUserMedia). Falls back gracefully when the
+// camera is unavailable/denied — the user can still use "Photo / Video".
+function CameraCapture({ t, onBlob, onCancel }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }, audio: false });
+        if (!active) { stream.getTracks().forEach((tr) => tr.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setReady(true);
+      } catch (_e) { setErr("Camera unavailable or permission denied. Use Photo / Video instead."); }
+    })();
+    return () => { active = false; streamRef.current?.getTracks().forEach((tr) => tr.stop()); };
+  }, []);
+  const snap = () => {
+    const v = videoRef.current; if (!v) return;
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth || 720; c.height = v.videoHeight || 1280;
+    c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+    c.toBlob((blob) => {
+      if (!blob) return;
+      streamRef.current?.getTracks().forEach((tr) => tr.stop());
+      onBlob(new File([blob], `camera_${Date.now()}.jpg`, { type: "image/jpeg" }));
+    }, "image/jpeg", 0.9);
+  };
+  return (
+    <div style={{ padding: 16 }} data-testid="sf-camera-capture">
+      {err ? (
+        <div data-testid="sf-camera-error" style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 12px", borderRadius: 10, background: `${t.live}18`, color: t.live, fontSize: 13, fontWeight: 600 }}>
+          <AlertCircle size={16} /> {err}
+        </div>
+      ) : (
+        <video ref={videoRef} playsInline muted data-testid="sf-camera-video"
+          style={{ width: "100%", maxHeight: 360, objectFit: "cover", borderRadius: 14, background: "#000", display: "block" }} />
+      )}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button onClick={onCancel} data-testid="sf-camera-cancel" className="sf-press"
+          style={{ flex: 1, padding: "11px", borderRadius: 11, border: `1px solid ${t.border}`, background: "transparent", color: t.text2, fontWeight: 700, cursor: "pointer" }}>
+          Back
+        </button>
+        {!err && (
+          <button onClick={snap} disabled={!ready} data-testid="sf-camera-snap" className="sf-press"
+            style={{ flex: 2, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px", borderRadius: 11, border: "none", background: t.accentGrad, color: "#fff", fontWeight: 800, cursor: "pointer", opacity: ready ? 1 : 0.6 }}>
+            <Camera size={17} /> Take Photo
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Voice-note recorder (MediaRecorder) with record / stop / preview / re-record,
+// plus an "upload an audio file instead" escape hatch.
+function VoiceRecorder({ t, onBlob, onCancel, onUploadClick }) {
+  const [phase, setPhase] = useState("idle"); // idle | recording | recorded
+  const [secs, setSecs] = useState(0);
+  const [url, setUrl] = useState(null);
+  const [err, setErr] = useState(null);
+  const mrRef = useRef(null);
+  const chunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const timerRef = useRef(null);
+  const blobRef = useRef(null);
+  const supported = typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof window.MediaRecorder !== "undefined";
+
+  const stop = () => {
+    clearInterval(timerRef.current);
+    try { if (mrRef.current && mrRef.current.state !== "inactive") mrRef.current.stop(); } catch (_e) { /* noop */ }
+  };
+  const begin = async () => {
+    setErr(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mime = window.MediaRecorder.isTypeSupported?.("audio/webm") ? "audio/webm" : "";
+      const mr = new window.MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
+        blobRef.current = blob;
+        setUrl(URL.createObjectURL(blob));
+        setPhase("recorded");
+        streamRef.current?.getTracks().forEach((tr) => tr.stop());
+      };
+      mrRef.current = mr;
+      mr.start();
+      setPhase("recording"); setSecs(0);
+      timerRef.current = setInterval(() => setSecs((s) => {
+        if (s >= 120) { stop(); return s; }
+        return s + 1;
+      }), 1000);
+    } catch (_e) { setErr("Microphone unavailable or permission denied."); }
+  };
+  const use = () => {
+    const b = blobRef.current; if (!b) return;
+    const ext = (b.type || "").includes("ogg") ? "ogg" : (b.type || "").includes("mp4") ? "m4a" : "webm";
+    onBlob(new File([b], `voice_${Date.now()}.${ext}`, { type: b.type || "audio/webm" }));
+  };
+  const reset = () => { setPhase("idle"); setSecs(0); setUrl(null); blobRef.current = null; };
+  useEffect(() => () => {
+    clearInterval(timerRef.current);
+    streamRef.current?.getTracks().forEach((tr) => tr.stop());
+  }, []);
+  const mmss = `${String(Math.floor(secs / 60)).padStart(1, "0")}:${String(secs % 60).padStart(2, "0")}`;
+
+  return (
+    <div style={{ padding: 16 }} data-testid="sf-voice-recorder">
+      <div style={{ borderRadius: 16, border: `1px solid ${t.border}`, background: t.cardAlt, padding: "26px 16px", textAlign: "center" }}>
+        {err && (
+          <div data-testid="sf-voice-error" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 14, color: t.live, fontSize: 13, fontWeight: 600 }}>
+            <AlertCircle size={15} /> {err}
+          </div>
+        )}
+        {phase === "recorded" && url ? (
+          <>
+            <audio src={url} controls data-testid="sf-voice-preview" style={{ width: "100%", marginBottom: 14 }} />
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button onClick={reset} data-testid="sf-voice-reset" className="sf-press"
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 999, border: `1px solid ${t.border}`, background: "transparent", color: t.text2, fontWeight: 700, cursor: "pointer" }}>
+                <RotateCcw size={15} /> Re-record
+              </button>
+              <button onClick={use} data-testid="sf-voice-use" className="sf-press"
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 20px", borderRadius: 999, border: "none", background: t.accentGrad, color: "#fff", fontWeight: 800, cursor: "pointer" }}>
+                <Check size={15} /> Use recording
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 30, fontWeight: 900, color: t.text, letterSpacing: 1, marginBottom: 4 }} data-testid="sf-voice-timer">{mmss}</div>
+            <div style={{ fontSize: 12.5, color: t.muted, marginBottom: 18 }}>
+              {phase === "recording" ? "Recording… tap to stop" : "Tap the mic to record a voice note (max 2 min)"}
+            </div>
+            <button onClick={phase === "recording" ? stop : begin} disabled={!supported}
+              data-testid="sf-voice-toggle" className="sf-press"
+              style={{ width: 72, height: 72, borderRadius: 999, border: "none", cursor: supported ? "pointer" : "not-allowed",
+                background: phase === "recording" ? t.live : t.accentGrad, display: "inline-grid", placeItems: "center",
+                boxShadow: phase === "recording" ? `0 0 0 8px ${t.live}22` : "0 8px 22px rgba(168,85,247,.32)", opacity: supported ? 1 : 0.5 }}>
+              {phase === "recording" ? <Square size={26} color="#fff" fill="#fff" /> : <Mic size={28} color="#fff" />}
+            </button>
+          </>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button onClick={onCancel} data-testid="sf-voice-cancel" className="sf-press"
+          style={{ flex: 1, padding: "11px", borderRadius: 11, border: `1px solid ${t.border}`, background: "transparent", color: t.text2, fontWeight: 700, cursor: "pointer" }}>
+          Back
+        </button>
+        <button onClick={onUploadClick} data-testid="sf-voice-upload" className="sf-press"
+          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px", borderRadius: 11, border: `1px solid ${t.border}`, background: t.chip, color: t.text, fontWeight: 700, cursor: "pointer" }}>
+          <Upload size={16} /> Upload file
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 export function PostComposerModal({ t, intent, onClose, onPosted }) {
   const [text, setText] = useState("");
   const [media, setMedia] = useState(null); // {url, media_type, name}
@@ -171,17 +340,18 @@ export function PostComposerModal({ t, intent, onClose, onPosted }) {
   const [audOpen, setAudOpen] = useState(false);
   const [err, setErr] = useState(null);
   const [done, setDone] = useState(false);
+  const [view, setView] = useState("form"); // form | camera | voice
   const galleryRef = useRef(null);
   const cameraRef = useRef(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
-    if (intent === "camera") cameraRef.current?.click();
+    if (intent === "camera") setView("camera");
+    else if (intent === "voice") setView("voice");
     else if (intent === "gallery") galleryRef.current?.click();
   }, [intent]);
 
-  const onFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
+  const uploadFile = async (file) => {
     if (!file) return;
     setErr(null); setUploading(true);
     try {
@@ -189,10 +359,17 @@ export function PostComposerModal({ t, intent, onClose, onPosted }) {
       fd.append("file", file);
       const r = await axios.post(`${API}/social/media/upload`, fd, {
         withCredentials: true, headers: { "Content-Type": "multipart/form-data" } });
-      setMedia({ url: r.data?.url, key: r.data?.key, media_type: r.data?.media_type, name: file.name });
+      setMedia({ url: r.data?.url, key: r.data?.key, media_type: r.data?.media_type, name: file.name || "upload" });
+      setView("form");
     } catch (_e) {
       setErr("Upload failed — please try again.");
     } finally { setUploading(false); }
+  };
+
+  const onFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    uploadFile(file);
   };
 
   const publish = async () => {
@@ -230,11 +407,20 @@ export function PostComposerModal({ t, intent, onClose, onPosted }) {
           <button onClick={onClose} data-testid="sf-composer-close" className="sf-press" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: t.chip, color: t.text2, cursor: "pointer", display: "grid", placeItems: "center" }}><X size={18} /></button>
         </div>
 
+        {/* Hidden file inputs — always mounted so the camera/voice views can reach them */}
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onFile} style={{ display: "none" }} />
+        <input ref={galleryRef} type="file" accept="image/*,video/*" onChange={onFile} style={{ display: "none" }} />
+        <input ref={audioRef} type="file" accept="audio/*" onChange={onFile} style={{ display: "none" }} />
+
         {done ? (
           <div style={{ padding: "44px 20px", textAlign: "center" }}>
             <span style={{ width: 60, height: 60, borderRadius: 999, display: "inline-grid", placeItems: "center", background: t.accentSoft, marginBottom: 12 }}><Check size={30} color={t.accent} /></span>
             <div style={{ fontWeight: 800, fontSize: 17, color: t.text }}>Your post has been shared!</div>
           </div>
+        ) : view === "camera" ? (
+          <CameraCapture t={t} onBlob={uploadFile} onCancel={() => setView("form")} />
+        ) : view === "voice" ? (
+          <VoiceRecorder t={t} onBlob={uploadFile} onCancel={() => setView("form")} onUploadClick={() => audioRef.current?.click()} />
         ) : (
           <div style={{ padding: 16 }}>
             {/* audience picker */}
@@ -270,6 +456,8 @@ export function PostComposerModal({ t, intent, onClose, onPosted }) {
               <div data-testid="sf-composer-preview" style={{ position: "relative", marginTop: 10, borderRadius: 14, overflow: "hidden", border: `1px solid ${t.border}`, background: t.cardAlt }}>
                 {media.media_type === "video"
                   ? <video src={media.url} controls style={{ width: "100%", maxHeight: 300, display: "block" }} />
+                  : (media.media_type === "audio" || media.media_type === "voice")
+                  ? <div style={{ padding: 14 }}><audio src={media.url} controls data-testid="sf-composer-audio-preview" style={{ width: "100%" }} /></div>
                   : <img src={media.url} alt="" style={{ width: "100%", maxHeight: 300, objectFit: "cover", display: "block" }} />}
                 <button onClick={() => setMedia(null)} data-testid="sf-composer-remove-media" className="sf-press"
                   style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 999, border: "none", cursor: "pointer", background: "rgba(0,0,0,.6)", color: "#fff", display: "grid", placeItems: "center" }}><X size={16} /></button>
@@ -284,17 +472,19 @@ export function PostComposerModal({ t, intent, onClose, onPosted }) {
 
             {/* attach actions */}
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button onClick={() => cameraRef.current?.click()} data-testid="sf-composer-camera" className="sf-press"
+              <button onClick={() => setView("camera")} data-testid="sf-composer-camera" className="sf-press"
                 style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 11, border: `1px solid ${t.border}`, background: t.chip, color: t.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 <Camera size={17} color="#22c55e" /> Camera
               </button>
               <button onClick={() => galleryRef.current?.click()} data-testid="sf-composer-gallery" className="sf-press"
                 style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 11, border: `1px solid ${t.border}`, background: t.chip, color: t.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                <ImageIcon size={17} color={t.accent} /> Photo / Video
+                <ImageIcon size={17} color={t.accent} /> Photo
+              </button>
+              <button onClick={() => setView("voice")} data-testid="sf-composer-voice" className="sf-press"
+                style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 11, border: `1px solid ${t.border}`, background: t.chip, color: t.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                <Mic size={17} color="#f59e0b" /> Voice
               </button>
             </div>
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onFile} style={{ display: "none" }} />
-            <input ref={galleryRef} type="file" accept="image/*,video/*" onChange={onFile} style={{ display: "none" }} />
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
               <button onClick={onClose} className="sf-press" style={{ padding: "10px 18px", borderRadius: 999, border: `1px solid ${t.border}`, background: "transparent", color: t.text2, fontWeight: 700, cursor: "pointer" }}>Cancel</button>

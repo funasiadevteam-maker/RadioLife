@@ -155,7 +155,7 @@ export default function SocialFeedCard({ item, t, onFollow }) {
       )}
 
       {/* media */}
-      {item.media_type === "audio" && item.media_url ? (
+      {(item.media_type === "audio" || item.media_type === "voice") && item.media_url ? (
         <RadioClipPlayer item={item} t={t} onClip={() => setClipOpen(true)} />
       ) : item.media_url && (
         <div style={{ position: "relative", background: t.cardAlt }}>

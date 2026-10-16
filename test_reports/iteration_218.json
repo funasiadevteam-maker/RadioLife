@@ -1,0 +1,36 @@
+{
+  "summary": "Validated 3 FUUSIC web bug fixes. LIGHT/DARK theme login buttons both render as solid pink (#DB2777 / #EC4899) with white text — the invisible-button bug is fixed. Composer Voice QA now correctly opens the in-app VoiceRecorder (sf-voice-recorder with sf-voice-timer, sf-voice-toggle, sf-voice-cancel, sf-voice-upload all present) — no longer opens the OS file chooser. Composer Camera QA opens the CameraCapture view (sf-camera-capture + sf-camera-cancel) — no white screen / JS crash; in this preview, headless chromium's fake video device actually succeeds, so sf-camera-error isn't shown (sf-camera-video + sf-camera-snap render instead). The three hidden file inputs (image/* capture=environment, image/*,video/*, audio/*) are always mounted. Text-only publish succeeds. **BUT**: discovered a HIGH-priority follow-up — the voice-note end-to-end is broken because the backend returns `media_type: \"voice\"` for audio uploads while the composer-preview AND the feed card both check for `media_type === \"audio\"`. Result: after uploading an audio file via sf-voice-upload the view switches back to the form but no sf-composer-audio-preview is rendered, and any voice-note moment in the feed would not render the RadioClipPlayer (rc-play). Needs a one-character string alignment.",
+  "platforms_tested": ["web"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "Composer (socialFeedParts.jsx)", "issue": "After uploading an audio file (via sf-voice-upload hidden input accept=audio/*) the backend returns `media_type: 'voice'` but the preview condition checks `media.media_type === 'audio'` (line ~460). Neither preview nor error is shown — the upload silently 'succeeds' without a visible preview. Fix: either accept both ('voice' || 'audio') or map on write.", "selector": "[data-testid=sf-composer-audio-preview]", "priority": "HIGH"},
+        {"component": "SocialFeedCard.jsx:158", "issue": "`item.media_type === 'audio'` check will not match voice-note moments (backend media_type='voice'), so RadioClipPlayer / rc-play will not render on voice posts in the feed. Fix: `['audio','voice'].includes(item.media_type)`.", "selector": "[data-testid=rc-play]", "priority": "HIGH"}
+      ],
+      "integration_issues": [
+        {"flow": "Voice note publish → feed audio playback", "issue": "Audio upload returns media_type='voice' from /api/social/media/upload but composer preview + feed card only match 'audio' — voice posts publish with media_type=voice but neither the preview nor the feed audio player renders.", "affected_selectors": ["[data-testid=sf-composer-audio-preview]", "[data-testid=rc-play]"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "Align the 'voice' vs 'audio' media_type string between backend (routes/social_together.py returns 'voice') and the two frontend consumers: (a) design_v2/socialfeed/socialFeedParts.jsx composer preview conditional (line ~459 — `media.media_type === 'audio'`), and (b) design_v2/socialfeed/SocialFeedCard.jsx line 158 (`item.media_type === 'audio'`). Simplest fix: have both frontend conditions accept either literal (`['audio','voice'].includes(x)`), which keeps backward-compat with any legacy 'audio' records.",
+    "After fix, retest voice upload → preview → publish → feed shows RadioClipPlayer (rc-play) on the posted voice note."
+  ],
+  "critical_code_review_comments": [
+    "In the composer uploadFile() helper, when the backend returns an error (e.g. unsupported_media), setErr IS called correctly, but when it succeeds with an unexpected media_type the UI silently shows no preview. Consider showing a generic 'media attached' chip even when the specific media_type isn't recognised, so users never think the attach silently failed.",
+    "/api/social/media/upload normalises audio to 'voice' (routes/social_together.py:_media_kind). That contract diverges from the feed card expectation ('audio') and is undocumented — add a shared constant / enum."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only task)", "frontend": "80% (3/3 primary bugs fixed; 1 downstream string-mismatch found that breaks voice-note preview + feed playback)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (or demo-login-btn)",
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Primary bug fixes verified: (1) Light theme Sign in button is solid pink (rgb(219,39,119)=#DB2777) ✓; (2) sf-qa-voice opens sf-voice-recorder with timer/mic/back/upload ✓; (3) sf-qa-camera opens sf-camera-capture ✓ (no crash — in headless preview the fake video device makes camera succeed instead of showing sf-camera-error; both paths are coded). Composer text publish works. The 'voice vs audio' media_type string mismatch is a NEW regression surfaced by the voice-recorder path — fix the two frontend consumers to accept either 'audio' or 'voice' then retest the voice upload → preview → publish → feed card RadioClipPlayer (rc-play) flow.",
+  "rca of the issue": "ROOT CAUSE of the newly-found 'no voice-note preview / no feed audio player' bug: /app/backend/routes/social_together.py `_media_kind()` returns 'voice' for any content-type starting with 'audio/' (line 79-ish). But /app/frontend/src/design_v2/socialfeed/socialFeedParts.jsx composer preview (line 459) and /app/frontend/src/design_v2/socialfeed/SocialFeedCard.jsx (line 158) both compare strictly against the literal 'audio'. REPRO: login as demo@bigfm.dubai → open composer → click Voice (sf-qa-voice) → click Upload file (sf-voice-upload) → pick any .wav/.mp3 file. Expected: audio preview + Share. Actual: view returns to form, no preview, no error. Published post gets media_type='voice' which also won't render RadioClipPlayer in the feed. MITIGATION: in both frontend files replace `item.media_type === 'audio'` with `['audio','voice'].includes(item.media_type)` (two-line change, no backend change needed)."
+}
