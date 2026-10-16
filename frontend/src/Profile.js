@@ -6,6 +6,7 @@ import axios from "axios";
 import {
   ArrowLeft, LogOut, RefreshCw, Save, Loader2, Check, Shield, Crown, ExternalLink,
   Gamepad2, BarChart3, BadgeCheck, Newspaper, Share2, ChevronRight, Sparkles,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { API, useAuth } from "./AuthContext";
@@ -176,6 +177,24 @@ export default function Profile() {
           <span style={{ display: "block", fontWeight: 800, color: "#fff" }}>Personalize Home</span>
           <span style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
             Choose which features show on your Home &amp; menu
+          </span>
+        </span>
+        <ChevronRight size={18} color="rgba(255,255,255,0.5)" />
+      </Link>
+
+      <Link to="/settings/feed" className="feed-prefs-link" data-testid="profile-feed-prefs"
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
+                 margin: "0 0 4px", borderRadius: 16, textDecoration: "none",
+                 border: "1px solid rgba(168,85,247,0.25)",
+                 background: "linear-gradient(135deg, rgba(168,85,247,0.10), rgba(236,72,153,0.10))" }}>
+        <span style={{ width: 40, height: 40, borderRadius: 12, display: "grid", placeItems: "center",
+                       background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+          <SlidersHorizontal size={18} color="#fff" />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontWeight: 800, color: "#fff" }}>My Feed Preferences</span>
+          <span style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+            How often each account you follow shows up
           </span>
         </span>
         <ChevronRight size={18} color="rgba(255,255,255,0.5)" />

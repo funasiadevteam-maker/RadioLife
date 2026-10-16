@@ -7945,6 +7945,22 @@ app.include_router(stations_router)
 app.include_router(community_router)
 from routes.radio_clips import router as _radio_clips_router
 app.include_router(_radio_clips_router)
+
+# Feature B — My Feed Preferences (per-entity frequency control).
+try:
+    from routes.feed_preferences import router as _feed_prefs_router
+    from services.feed_preferences_service import ensure_indexes as _feed_prefs_indexes
+    app.include_router(_feed_prefs_router)
+
+    async def _feed_prefs_bootstrap():
+        try:
+            await _feed_prefs_indexes(db)
+        except Exception as _e_fp:
+            logger.warning(f"feed_preferences bootstrap: {_e_fp}")
+    app.add_event_handler("startup", _feed_prefs_bootstrap)
+    logger.info("Feed preferences routes registered")
+except Exception as _e_fpr:
+    logger.warning(f"Feed preferences routes failed ({_e_fpr})")
 # Phase 41 S2.A — station feed lives at /api/stations/{slug}/posts...
 # Must mount AFTER stations_router so the /{slug}/posts path resolves
 # correctly via FastAPI's path matching (stations_router doesn't define

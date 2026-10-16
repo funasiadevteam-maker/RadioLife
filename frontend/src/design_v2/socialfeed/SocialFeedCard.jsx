@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { toast } from "sonner";
 import {
   Heart, MessageCircle, Share2, MoreHorizontal, Play, BadgeCheck, Radio, Bookmark,
+  SlidersHorizontal, Check,
 } from "lucide-react";
 import { timeAgo, ctaTo, initials } from "./sfTheme";
 import { RadioClipPlayer, ClipShareModal } from "./RadioClip";
+import { FEED_MODES } from "@/pages/FeedPreferences";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
@@ -138,7 +141,7 @@ export default function SocialFeedCard({ item, t, onFollow }) {
             Hide Ad
           </button>
         ) : (
-          <button className="sf-press" style={{ background: "none", border: "none", color: t.muted, cursor: "pointer", padding: 4 }}><MoreHorizontal size={18} /></button>
+          <FeedCardMenu item={item} t={t} />
         )}
       </div>
 
@@ -216,6 +219,83 @@ export default function SocialFeedCard({ item, t, onFollow }) {
         <FooterBtn t={t} active={saved} activeColor={t.accent} icon={Bookmark} label="" onClick={save} testid="sf-save" />
       </div>
     </article>
+  );
+}
+
+const KIND_TO_TYPE = { user: "person", station: "station", business: "business" };
+
+function FeedCardMenu({ item, t }) {
+  const nav = useNavigate();
+  const actor = item.actor || {};
+  const isMine = !!item.is_mine || actor.kind === "self";
+  const type = KIND_TO_TYPE[actor.kind];
+  const settable = !isMine && !!type && !!actor.id;
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(null);
+  const [picked, setPicked] = useState(null);
+
+  const setMode = async (mode) => {
+    setBusy(mode);
+    try {
+      await axios.put(`${API}/social/feed-preferences/${type}/${actor.id}`,
+        { frequency_mode: mode }, { withCredentials: true });
+      setPicked(mode);
+      const m = FEED_MODES.find((x) => x.key === mode);
+      toast.success(`${actor.name || "This account"} · ${m?.full || mode}`);
+      setTimeout(() => setOpen(false), 350);
+    } catch (_e) {
+      toast.error("Couldn't update — try again");
+    } finally { setBusy(null); }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setOpen((v) => !v)} data-testid="sf-card-menu-btn" aria-label="Feed options" className="sf-press"
+        style={{ background: "none", border: "none", color: t.muted, cursor: "pointer", padding: 4 }}>
+        <MoreHorizontal size={18} />
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <div data-testid="sf-card-menu" className="sf-fade-in"
+            style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, width: 240, zIndex: 50,
+                     background: t.card, border: `1px solid ${t.border}`, borderRadius: 14, boxShadow: t.shadow, padding: 6 }}>
+            {settable && (
+              <>
+                <div style={{ padding: "6px 10px 4px", fontSize: 11, fontWeight: 800, color: t.muted }}>
+                  How often from {actor.name || "this account"}?
+                </div>
+                {FEED_MODES.map((m) => {
+                  const active = picked === m.key;
+                  return (
+                    <button key={m.key} onClick={() => setMode(m.key)} disabled={!!busy}
+                      data-testid={`sf-card-menu-mode-${m.key}`} className="sf-press"
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+                               background: active ? t.accentSoft : "transparent", border: "none", borderRadius: 10,
+                               padding: "9px 10px", cursor: busy ? "default" : "pointer", color: t.text }}>
+                      <m.Icon size={16} color={active ? t.accent : t.text2} />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontWeight: 700, fontSize: 13 }}>{m.full}</span>
+                        <span style={{ display: "block", fontSize: 11, color: t.muted }}>{m.desc}</span>
+                      </span>
+                      {active && <Check size={15} color={t.accent} />}
+                    </button>
+                  );
+                })}
+                <div style={{ height: 1, background: t.border, margin: "6px 4px" }} />
+              </>
+            )}
+            <button onClick={() => { setOpen(false); nav("/settings/feed"); }}
+              data-testid="sf-card-menu-manage" className="sf-press"
+              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+                       background: "transparent", border: "none", borderRadius: 10, padding: "9px 10px",
+                       cursor: "pointer", color: t.text, fontWeight: 700, fontSize: 13 }}>
+              <SlidersHorizontal size={16} color={t.text2} /> Manage feed settings
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

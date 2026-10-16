@@ -207,6 +207,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Onboarding from "@/Onboarding";
 import Profile from "@/Profile";
 import PersonalizeHome from "@/pages/PersonalizeHome";
+import FeedPreferences from "@/pages/FeedPreferences";
 import AuthCallback from "@/AuthCallback";
 import AppleAuthReturn from "@/AppleAuthReturn";
 import ProtectedRoute from "@/ProtectedRoute";
@@ -758,6 +759,9 @@ function AppRouter() {
       } />
       <Route path="/profile" element={
         <ProtectedRoute><Profile /></ProtectedRoute>
+      } />
+      <Route path="/settings/feed" element={
+        <ProtectedRoute><FeedPreferences /></ProtectedRoute>
       } />
       <Route path="/settings/features" element={
         <ProtectedRoute><PersonalizeHome /></ProtectedRoute>

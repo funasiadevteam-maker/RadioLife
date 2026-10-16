@@ -5,6 +5,7 @@
 // quick actions, Following/For-You tabs, an auto-refresh "N new posts" banner,
 // and an infinite-scroll stream of mixed feed cards from GET /social/feed-v2.
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ArrowUp } from "lucide-react";
 import { sfTokens } from "./sfTheme";
@@ -22,6 +23,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 export default function SocialFeedHomeV2() {
   const appearance = useThemeStore((s) => s.theme);
   const t = sfTokens(appearance);
+  const nav = useNavigate();
   const [mode, setMode] = useState("following");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,7 @@ export default function SocialFeedHomeV2() {
       <MomentsRow t={t} moments={moments} />
       <Composer t={t} onPosted={() => loadFeed(mode)} />
       <TogetherRow t={t} />
-      <ModeTabs t={t} mode={mode} setMode={switchMode} />
+      <ModeTabs t={t} mode={mode} setMode={switchMode} onSettings={() => nav("/settings/feed")} />
       <WhoToFollow t={t} onFollowed={() => loadFeed(mode)} />
       <DailyReadingsCard t={t} onChanged={() => loadFeed(mode)} />
 

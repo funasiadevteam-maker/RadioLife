@@ -26,7 +26,10 @@ MAX_CANDIDATES = 200
 
 WALL_TYPES = {"MOMENT", "LIVE_VIDEO", "BUSINESS_LIVE", "EVENT", "LISTEN_ROOM",
               "DREAM", "TAROT_SHARE", "CLUB_POST", "STATION_ACTIVITY",
-              "RADIO_CLIP", "READING", "BUSINESS_POST", "SPONSORED_POST"}
+              "RADIO_CLIP", "READING", "BUSINESS_POST", "SPONSORED_POST",
+              "DAILY_DIGEST"}
+
+from services.feed_preferences_service import get_pref_map, effective_mode
 
 
 def _now() -> datetime:
@@ -613,6 +616,112 @@ async def _inject_sponsored(db, uid: str, cands: list[dict]) -> list[dict]:
     return out
 
 
+# ───────────────────────── feed preferences (Feature B) ────────────
+_DIGEST_LABEL = {
+    "station": "Your Radio Highlights Today",
+    "business": "Business Highlights",
+    "person": "Highlights From People You Follow",
+}
+
+
+def _cand_actor(c: dict):
+    """(actor_type, actor_id) for preference lookup, or None for own/system."""
+    a = c.get("actor") or {}
+    kind = a.get("kind")
+    if kind == "user":
+        return ("person", a.get("id"))
+    if kind == "station":
+        return ("station", a.get("id"))
+    if kind == "business":
+        return ("business", a.get("id"))
+    return None
+
+
+def _is_live(c: dict) -> bool:
+    if c.get("type") in ("LIVE_VIDEO", "BUSINESS_LIVE"):
+        return True
+    return bool((c.get("meta") or {}).get("live"))
+
+
+def _slim(it: dict) -> dict:
+    d = dict(it)
+    d.pop("_dt", None)
+    d.pop("score", None)
+    return d
+
+
+def _build_digest_cards(buckets: dict) -> list[dict]:
+    cards = []
+    for atype, items in buckets.items():
+        by_actor: dict = {}
+        for c in items:
+            by_actor.setdefault((c.get("actor") or {}).get("id"), []).append(c)
+        entries = []
+        for aid, lst in by_actor.items():
+            lst.sort(key=lambda x: x["_dt"], reverse=True)
+            a0 = lst[0].get("actor") or {}
+            entries.append({"actor_id": aid, "actor_type": atype,
+                            "actor_name": a0.get("name"),
+                            "avatar_url": a0.get("avatar_url"),
+                            "count": len(lst),
+                            "preview": lst[0].get("title") or lst[0].get("text")})
+        entries.sort(key=lambda e: e["count"], reverse=True)
+        top_items = sorted(items, key=lambda x: x["_dt"], reverse=True)[:8]
+        cards.append({
+            "id": f"DAILY_DIGEST:{atype}", "type": "DAILY_DIGEST",
+            "created_at": _iso(_now()), "_dt": _now(),
+            "actor": {"kind": "system", "id": atype,
+                      "name": _DIGEST_LABEL.get(atype, "Daily Highlights"),
+                      "avatar_url": None},
+            "title": _DIGEST_LABEL.get(atype, "Daily Highlights"), "text": None,
+            "media_url": None, "media_type": None,
+            "meta": {"category": atype, "total": sum(e["count"] for e in entries),
+                     "entries": entries[:12], "items": [_slim(it) for it in top_items]},
+            "follow_relationship": "following", "candidate_source": "digest",
+            "sponsored": False,
+        })
+    return cards
+
+
+async def _apply_feed_preferences(db, uid: str, cands: list[dict], mode: str) -> list[dict]:
+    """Deterministic eligibility filtering by the user's feed preferences —
+    runs BEFORE ranking so Mute / Live Only / Daily Highlights always win over AI.
+    Mute is respected in every mode; Live Only + Daily Highlights apply to the
+    Following feed (For You stays discovery)."""
+    try:
+        pref_map = await get_pref_map(db, uid)
+    except Exception:
+        return cands
+    if not pref_map and mode != "following":
+        return cands
+    kept: list[dict] = []
+    buckets: dict = {}
+    for c in cands:
+        am = _cand_actor(c)
+        if am is None or not am[1]:
+            kept.append(c)
+            continue
+        atype, aid = am
+        emode = effective_mode(pref_map, atype, aid)
+        if emode == "mute":
+            continue
+        if mode == "following" and emode == "live_only":
+            if _is_live(c):
+                kept.append(c)
+            continue
+        if mode == "following" and emode == "daily_highlights":
+            buckets.setdefault(atype, []).append(c)
+            continue
+        kept.append(c)
+    # A single item per category stays inline (no silly 1-item digest);
+    # 2+ collapse into one grouped digest card so the wall isn't flooded.
+    for atype, items in list(buckets.items()):
+        if len(items) < 2:
+            kept.extend(items)
+            del buckets[atype]
+    return kept + _build_digest_cards(buckets)
+
+
 # ───────────────────────── scoring / diversity ─────────────────────
 _REL_BASE = {"self": 130, "friend_following": 100, "friend": 80,
              "following": 70, "discovery": 35}
@@ -737,6 +846,9 @@ async def build_feed(db, user: dict, *, mode: str = "following",
     for c in cands:
         seen[c["id"]] = c
     cands = list(seen.values())[:MAX_CANDIDATES]
+
+    # Feature B — apply the user's feed preferences (mute / live-only / digest).
+    cands = await _apply_feed_preferences(db, uid, cands, mode)
 
     now = _now()
     for c in cands:

@@ -35,6 +35,61 @@ const TYPE_META: any = {
   RADIO_CLIP: { verb: 'shared a clip', icon: 'mic', tone: '#A855F7' },
 };
 
+const KIND_TO_TYPE: any = { user: 'person', station: 'station', business: 'business' };
+const PREF_MODES = [
+  { key: 'all_updates', label: 'All', full: 'All Updates', icon: 'albums-outline', desc: 'Every post, as it happens' },
+  { key: 'daily_highlights', label: 'Daily', full: 'Daily Highlights', icon: 'sparkles-outline', desc: 'Grouped into one daily digest' },
+  { key: 'live_only', label: 'Live', full: 'Live Only', icon: 'flash-outline', desc: 'Only when they go live' },
+  { key: 'mute', label: 'Mute', full: 'Mute', icon: 'notifications-off-outline', desc: 'Hidden from feed (still followed)' },
+];
+
+function FeedPrefSheet({ visible, onClose, t, actorType, actorId, name }: any) {
+  const w = makeStyles(t);
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const set = async (mode: string) => {
+    setBusy(mode);
+    try {
+      await api.put(`/social/feed-preferences/${actorType}/${actorId}`, { frequency_mode: mode });
+      setPicked(mode);
+      Haptics.selectionAsync().catch(() => {});
+      setTimeout(onClose, 300);
+    } catch (_) {} finally { setBusy(null); }
+  };
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={w.modalWrap} onPress={onClose}>
+        <Pressable style={w.sheet} onPress={() => {}} testID="wall-pref-sheet">
+          <Text style={w.sheetTitle} numberOfLines={1}>How often from {name || 'this account'}?</Text>
+          {PREF_MODES.map((m) => {
+            const active = picked === m.key;
+            return (
+              <Pressable key={m.key} onPress={() => set(m.key)} disabled={!!busy}
+                testID={`wall-pref-${m.key}`} style={w.sheetRow}>
+                <View style={[w.sheetIcon, { backgroundColor: `${t.magenta}22` }]}>
+                  {busy === m.key ? <ActivityIndicator color={t.magenta} size="small" />
+                    : <Ionicons name={m.icon as any} size={16} color={t.magenta} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={w.sheetRowTitle}>{m.full}</Text>
+                  <Text style={w.sheetRowDesc}>{m.desc}</Text>
+                </View>
+                {active && <Ionicons name="checkmark-circle" size={18} color={t.magenta} />}
+              </Pressable>
+            );
+          })}
+          <Pressable onPress={() => { onClose(); router.push('/social/feed-settings' as any); }}
+            testID="wall-pref-manage" style={w.sheetManage}>
+            <Ionicons name="options-outline" size={16} color={t.text} />
+            <Text style={w.sheetManageTxt}>Manage feed settings</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function RelChip({ rel }: any) {
   const t = useThemeTokens();
   const w = makeStyles(t);
@@ -67,6 +122,9 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
   const [clipOpen, setClipOpen] = useState(false);
   const isSponsored = !!item.sponsored || item.type === 'SPONSORED_POST';
   const isReading = item.type === 'READING';
+  const [prefOpen, setPrefOpen] = useState(false);
+  const prefType = KIND_TO_TYPE[actor.kind];
+  const settable = !isSponsored && !isMine && !!prefType && !!actor.id;
   const [hidden, setHidden] = useState(false);
   const hideAd = async () => {
     setHidden(true);
@@ -148,9 +206,16 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
             <Text style={[w.relChipTxt, { color: t.textMuted }]}>Hide Ad</Text>
           </Pressable>
         ) : (
-          <View style={[w.typeIcon, { backgroundColor: `${meta.tone}22` }]}>
-            {meta.emoji ? <Text style={{ fontSize: 14 }}>{meta.emoji}</Text>
-              : <Ionicons name={meta.icon} size={14} color={meta.tone} />}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[w.typeIcon, { backgroundColor: `${meta.tone}22` }]}>
+              {meta.emoji ? <Text style={{ fontSize: 14 }}>{meta.emoji}</Text>
+                : <Ionicons name={meta.icon} size={14} color={meta.tone} />}
+            </View>
+            {settable && (
+              <Pressable onPress={() => setPrefOpen(true)} testID={`wall-prefs-${item.id}`} hitSlop={8} style={{ padding: 2 }}>
+                <Ionicons name="ellipsis-horizontal" size={18} color={t.textMuted} />
+              </Pressable>
+            )}
           </View>
         )}
       </View>
@@ -186,6 +251,11 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
       <ClipShareModalM visible={clipOpen} t={t} onClose={() => setClipOpen(false)}
         onPosted={() => {}} station={{ id: item.meta?.station_id, name: item.meta?.station_name,
           logo: item.meta?.station_logo, slug: item.meta?.station_slug }} />
+
+      {settable && (
+        <FeedPrefSheet visible={prefOpen} onClose={() => setPrefOpen(false)} t={t}
+          actorType={prefType} actorId={actor.id} name={actor.name} />
+      )}
 
       {item.meta?.products?.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -386,6 +456,9 @@ export default function SocialWall({ actions, onOpenFollowing, onNavigateTab }: 
             );
           })}
           <View style={{ flex: 1 }} />
+          <Pressable onPress={() => router.push('/social/feed-settings' as any)} testID="wall-feed-settings" hitSlop={8} style={{ paddingHorizontal: 6 }}>
+            <Ionicons name="options-outline" size={18} color={t.textMuted} />
+          </Pressable>
           <Pressable onPress={onOpenFollowing} testID="wall-open-following">
             <Text style={w.manage}>Manage following</Text>
           </Pressable>
@@ -503,4 +576,12 @@ const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   modalInput2: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: t.line, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, color: t.text, fontSize: TFONT.sm, marginTop: 8 },
   modalPost: { height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   modalPostTxt: { color: '#fff', fontSize: TFONT.sm, fontWeight: '900' },
+  sheet: { backgroundColor: t.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, paddingBottom: 34, borderColor: t.line, borderWidth: 1, gap: 4 },
+  sheetTitle: { color: t.text, fontSize: TFONT.md, fontWeight: '900', marginBottom: 8, paddingHorizontal: 4 },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 14 },
+  sheetIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  sheetRowTitle: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
+  sheetRowDesc: { color: t.textMuted, fontSize: TFONT.xs, marginTop: 1 },
+  sheetManage: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingVertical: 12, paddingHorizontal: 6, borderTopWidth: 1, borderTopColor: t.line },
+  sheetManageTxt: { color: t.text, fontSize: TFONT.sm, fontWeight: '800' },
 });

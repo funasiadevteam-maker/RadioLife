@@ -9,7 +9,7 @@ import {
   Plus, Image as ImageIcon, Music2, Mic, MoreHorizontal, MapPin, Play, Pause,
   X, Utensils, Gift, Bookmark, Radio, ListMusic, Sparkles, Moon, Crown, Store,
   Headphones as Head2, Heart, ChevronRight, Camera, Video, Globe, Type,
-  Loader2, Check, AlertCircle, ChevronDown, RotateCcw, Square, Upload,
+  Loader2, Check, AlertCircle, ChevronDown, RotateCcw, Square, Upload, SlidersHorizontal,
 } from "lucide-react";
 import { useGeoStore } from "@/store/useGeoStore";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -523,7 +523,7 @@ export function TogetherRow({ t }) {
 }
 
 /* ─────────────────────────── Mode tabs ─────────────────────────── */
-export function ModeTabs({ t, mode, setMode }) {
+export function ModeTabs({ t, mode, setMode, onSettings }) {
   const Tab = ({ k, label }) => (
     <button onClick={() => setMode(k)} data-testid={`sf-mode-${k}`} className="sf-press"
       style={{ flex: 1, padding: "10px", borderRadius: 11, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 13.5, background: mode === k ? t.accentSoft : "transparent", color: mode === k ? t.accent : t.text2, borderBottom: mode === k ? `2px solid ${t.accent}` : "2px solid transparent" }}>
@@ -534,6 +534,12 @@ export function ModeTabs({ t, mode, setMode }) {
     <div style={{ display: "flex", gap: 4, background: t.card, border: `1px solid ${t.border}`, borderRadius: 14, padding: 4, boxShadow: t.shadow }}>
       <Tab k="following" label="Following" />
       <Tab k="for_you" label="For You" />
+      {onSettings && (
+        <button onClick={onSettings} data-testid="sf-feed-settings" title="My Feed Preferences" className="sf-press"
+          style={{ flex: "0 0 auto", width: 44, borderRadius: 11, border: "none", cursor: "pointer", background: "transparent", color: t.text2, display: "grid", placeItems: "center" }}>
+          <SlidersHorizontal size={18} />
+        </button>
+      )}
     </div>
   );
 }

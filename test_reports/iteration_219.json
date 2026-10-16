@@ -1,0 +1,41 @@
+{
+  "summary": "Milestone 3 — My Feed Preferences UI validated end-to-end on BOTH web and mobile, plus backend regression. Everything in scope works. (1) Backend: GET /api/social/feed-preferences returns 8 people + 0 stations + 1 business for demo@bigfm.dubai; PUT /api/social/feed-preferences/person/{id} with {frequency_mode:'mute'} persists and GET round-trip reflects the change; invalid mode -> 400, invalid actor_type -> 400 (both verified via curl). (2) WEB /settings/feed (feed-prefs-root): loads with People(8) + Businesses(1) groups and rows for each followed entity; the 4-segment selector (feed-prefs-mode-{type}-{id}-{all_updates|daily_highlights|live_only|mute}) is present; tapping 'mute' on Layla Nour fires PUT, shows sonner toast 'Layla Nour · Mute', and on full page reload the mute button renders with the active accent style (bg rgb(239,233,255), color rgb(124,58,237)) while all_updates stays inactive — optimistic + server persistence confirmed. (3) WEB Profile page link profile-feed-prefs navigates to /settings/feed. (4) WEB ModeTabs gear sf-feed-settings on the Social Feed home (?design=new_look_v2) navigates to /settings/feed. (5) WEB per-post 3-dot sf-card-menu-btn opens sf-card-menu and renders sf-card-menu-manage; the 4 sf-card-menu-mode-{mode} buttons only render for settable actors (user/station/business, not for self/sponsored/reading) — in the current demo data the social feed API returned 0 followed-actor items so only self/reading cards were visible, and their 3-dot correctly showed only 'Manage feed settings'. Code review of SocialFeedCard.jsx:230-299 confirms the settable guard and all 4 mode-option buttons render correctly for the right actors. Reachability-only concern, flagged per spec. (6) MOBILE /social/feed-settings (feed-settings-screen): loads with the same groups, Layla row + 4-segment selector works; tapping mute persists on reload (active button bg = rgb(168,85,247) = TUBE.magenta). (7) MOBILE wall 3-dot wall-prefs-{itemId} opens wall-pref-sheet with all 4 wall-pref-{mode} rows + wall-pref-manage; tapping wall-pref-mute fires PUT (verified via backend GET showing 'Stella Moon = mute' after the tap) and wall-pref-manage routes to /social/feed-settings. (8) MOBILE wall gear wall-feed-settings routes to /social/feed-settings. Parity: no divergence between web and mobile for the covered flows. Test data was restored to all_updates after each run.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "Expo web runtime warning", "issue": "Repeated 'shadow* style props are deprecated — use boxShadow' and 'props.pointerEvents is deprecated — use style.pointerEvents' warnings in console (not from the new Feed Preferences code — pre-existing). Reference: various StyleSheet usages across mobile app."},
+        {"component": "Require cycle", "issue": "'app/(tabs)/social.tsx -> src/social/wall.tsx -> app/(tabs)/social.tsx' — pre-existing cyclic import; not blocking but can lead to uninitialized values. Reference: /app/mobile/app/(tabs)/social.tsx <-> /app/mobile/src/social/wall.tsx."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "(Optional, non-blocking) The web Social Feed home currently returns 0 feed items for the demo user (GET /api/social/feed = {count:0,items:[]}) which prevented live interaction with the 4-mode per-post sf-card-menu — the code renders correctly (SocialFeedCard.jsx:263-287) but there is no feed card from a settable actor to click. If main agent wants a browser proof of the mode options rendering on a real card, seed at least one post from a followed user (e.g., Layla Nour / Luv Legends) so the Social Feed home surfaces it; otherwise this is a seed-data gap, not a code bug.",
+    "(Optional cleanup, not blocking Milestone 3) Address pre-existing mobile console noise: migrate StyleSheet entries using shadow* to boxShadow and props.pointerEvents to style.pointerEvents (not caused by this milestone)."
+  ],
+  "critical_code_review_comments": [
+    "Backend contract alignment is clean — the frontend uses the same mode keys (all_updates / daily_highlights / live_only / mute) that the API accepts; 400 is returned for anything else. Confirmed by curl.",
+    "Both FeedPreferences.jsx (web) and feed-settings.tsx (mobile) correctly implement optimistic UI with error rollback via re-load() — good UX pattern.",
+    "The settable guard is consistent across platforms: web SocialFeedCard.jsx uses `settable = !isMine && !!type && !!actor.id`, mobile wall.tsx uses `settable = !isSponsored && !isMine && !!prefType && !!actor.id`. Minor parity nit: web doesn't short-circuit on sponsored_post explicitly — relies on actor.kind not being in KIND_TO_TYPE for sponsored cards; verify sponsored actor.kind on feed never resolves to user/station/business. Not blocking but worth a 1-line hardening on web for consistency.",
+    "No MongoDB _id leakage, no hardcoded URLs, env-var usage is correct on both surfaces."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100% (6/6 curl checks)", "frontend": "100% web settings page + profile link + gear + mobile settings + mobile wall sheet + mobile wall gear; web per-post 3-dot code verified but could not exercise mode buttons due to empty feed data" },
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (web cookie); demo-login-btn (mobile bearer)",
+  "seed_data_creation": "None. Test mutations (Layla->mute, Stella->mute via mobile) were restored to all_updates at the end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Milestone 3 (Feed Preferences UI) is green on both surfaces. The ONLY unverified-by-live-UI piece is the web per-post 3-dot's 4 mode buttons, because the demo user's /api/social/feed currently returns 0 items (no posts from followed actors). The code path IS correct (SocialFeedCard.jsx:263-287 under settable guard). If asked to prove it live, main agent should seed a single feed post from Layla Nour (user_46a921f6686f4d45) or similar followed actor; the testid pattern sf-card-menu-mode-{all_updates|daily_highlights|live_only|mute} will then appear in the DOM. Backend regression curl file isn't needed — flow is simple and verified inline.",
+  "rca of the issue": "No bugs found. The web per-post mode-switch sub-test could not be interactively exercised because the demo user's social feed is empty of followed-actor posts (GET /api/social/feed returned {count:0, items:[]}). Code inspection of SocialFeedCard.jsx:230-299 confirms the sf-card-menu renders all 4 mode buttons under the correct `settable` guard; the open sf-card-menu we did observe on the home (shown with only sf-card-menu-manage) correctly belonged to a self/reading card where modes are hidden by design."
+}
