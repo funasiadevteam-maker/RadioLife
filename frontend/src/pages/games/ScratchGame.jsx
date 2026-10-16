@@ -5,6 +5,7 @@ import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Volume2, VolumeX, Ticket, Coins } from "lucide-react";
 import { API } from "@/AuthContext";
+import { GAME_ART } from "@/assets/gameArt";
 
 function ScratchTile({ label, color, onDone, revealAll }) {
   const cvs = useRef(null);
@@ -47,9 +48,12 @@ function ScratchTile({ label, color, onDone, revealAll }) {
 
   return (
     <div className="relative w-full aspect-square rounded-2xl overflow-hidden select-none"
-      style={{ background: color || "#1c1830" }} data-testid="scratch-tile">
+      style={{ background: color || "linear-gradient(145deg,#2a1b4e,#140d2a)",
+        border: "1px solid rgba(251,191,36,0.25)",
+        boxShadow: "inset 0 2px 10px rgba(0,0,0,0.4)" }} data-testid="scratch-tile">
       <div className="absolute inset-0 grid place-items-center text-center px-1">
-        <span className="text-sm font-black text-white leading-tight">{label}</span>
+        <span className="text-sm font-black text-white leading-tight"
+          style={{ textShadow: "0 2px 6px rgba(0,0,0,0.6)" }}>{label}</span>
       </div>
       <canvas ref={cvs} width={120} height={120} data-testid="scratch-canvas"
         className="absolute inset-0 w-full h-full cursor-pointer touch-none"
@@ -131,7 +135,28 @@ export default function ScratchGame() {
           </div>
         )}
 
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+        {/* Premium AI-art hero */}
+        <div className="relative rounded-3xl overflow-hidden mb-4" data-testid="scratch-hero"
+          style={{ minHeight: 128,
+            backgroundImage: `linear-gradient(90deg, rgba(14,8,34,0.92) 0%, rgba(14,8,34,0.4) 60%, rgba(14,8,34,0.15) 100%), url(${GAME_ART.scratch_win})`,
+            backgroundSize: "cover", backgroundPosition: "center",
+            boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
+          <div className="p-4">
+            <div className="inline-block text-[10px] font-black tracking-[0.14em] px-2.5 py-1 rounded-full"
+              style={{ color: "#fff", background: "linear-gradient(135deg,#fbbf24,#f59e0b)" }}>
+              DAILY SCRATCH
+            </div>
+            <div className="text-xl font-black mt-2 text-white">Scratch, match &amp; win instantly</div>
+            <div className="text-xs mt-1" style={{ color: "#e3d9fb" }}>
+              Reveal all three panels — match 3 to win BigPoints or coupons.
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl p-5" data-testid="scratch-card-frame"
+          style={{ border: "1px solid rgba(251,191,36,0.25)",
+            background: "linear-gradient(160deg, rgba(36,20,54,0.92), rgba(11,12,22,0.96))",
+            boxShadow: "0 18px 50px rgba(0,0,0,0.5)" }}>
           <div className="text-center text-[11px] text-slate-400 mb-3">Match 3 to win — scratch each panel</div>
           <div className="grid grid-cols-3 gap-3">
             {(card?.tiles || cfg.segments?.slice(0, 3).map((s) => s.label) || ["?", "?", "?"]).map((lbl, i) => (

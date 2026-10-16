@@ -13,6 +13,9 @@ import {
 import type { SubmitResult, GameError } from '../api/gamesApi';
 import useBigCoinStore from '../stores/useBigCoinStore';
 import RewardModal from './RewardModal';
+import { Image as ExpoImage } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { gameArtFor } from '../constants/gameArt';
 
 /* ── Shared quiz engine (Phase 39M.3) ──
    Drives every `tpl_quiz` games_v2 campaign (Music Trivia, Lyric Hunt).
@@ -256,6 +259,16 @@ export default function QuizGame({
       {Header}
 
       <View style={s.body}>
+        {/* Premium AI-art header band */}
+        <View style={s.artBanner} testID={`${testIDPrefix}-art`}>
+          <ExpoImage source={{ uri: gameArtFor(testIDPrefix, 'trivia') }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <LinearGradient colors={['rgba(14,8,34,0.9)', 'rgba(14,8,34,0.25)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+          <View style={s.artBannerBody}>
+            <Text style={s.artEyebrow}>{headerTitle.toUpperCase()}</Text>
+            <Text style={s.artTitle}>Answer fast — win bigger</Text>
+          </View>
+        </View>
+
         {/* Streak + earnings */}
         <View style={s.metaRow}>
           {streak > 0 && (
@@ -342,6 +355,13 @@ export default function QuizGame({
                     activeOpacity={0.85}
                     testID={`${testIDPrefix}-option-${i}`}
                   >
+                    <LinearGradient
+                      colors={isCorrect ? ['#16a34a', '#16a34a'] : isWrong ? ['#e11d48', '#e11d48'] : [accent, '#ec4899']}
+                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                      style={s.optChip}
+                    >
+                      <Text style={s.optChipTxt}>{String.fromCharCode(65 + i)}</Text>
+                    </LinearGradient>
                     <Text style={s.optionText}>{opt}</Text>
                     {isCorrect && <Ionicons name="checkmark-circle" size={18} color="#16a34a" />}
                     {isWrong && <Ionicons name="close-circle" size={18} color="#e11d48" />}
@@ -422,6 +442,12 @@ const s = StyleSheet.create({
   backBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   topTitle: { fontSize: FONT.lg, fontWeight: '900', color: COLORS.text },
   body: { flex: 1, padding: SPACING.lg },
+  artBanner: { width: '100%', height: 92, borderRadius: RADIUS.lg, overflow: 'hidden', marginBottom: 14, justifyContent: 'flex-end' },
+  artBannerBody: { padding: 12 },
+  artEyebrow: { color: '#93c5fd', fontSize: FONT.xs, fontWeight: '900', letterSpacing: 1.2 },
+  artTitle: { color: '#fff', fontSize: FONT.lg, fontWeight: '900', marginTop: 2 },
+  optChip: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  optChipTxt: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
   metaRow: {
     flexDirection: 'row', gap: 8, justifyContent: 'center',
     flexWrap: 'wrap', marginBottom: 12,

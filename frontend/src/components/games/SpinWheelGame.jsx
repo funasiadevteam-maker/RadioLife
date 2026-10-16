@@ -18,9 +18,23 @@ import {
   useCallback, useEffect, useLayoutEffect, useRef, useState,
 } from "react";
 import { Loader2 } from "lucide-react";
+import { WHEEL_BACKDROP } from "../../assets/gameArt";
 
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 const FONT = "'Geist Mono', 'Trebuchet MS', system-ui, sans-serif";
+const PALETTE = ["#7c3aed", "#ec4899", "#f59e0b", "#06b6d4", "#3b82f6", "#a855f7",
+                 "#d946ef", "#f43f5e"];
+
+function _lighten(hex, amt) {
+  try {
+    const h = hex.replace("#", "");
+    const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    const r = Math.min(255, Math.round(parseInt(n.slice(0, 2), 16) + 255 * amt));
+    const g = Math.min(255, Math.round(parseInt(n.slice(2, 4), 16) + 255 * amt));
+    const b = Math.min(255, Math.round(parseInt(n.slice(4, 6), 16) + 255 * amt));
+    return `rgb(${r},${g},${b})`;
+  } catch (_e) { return hex; }
+}
 
 
 function defaultSegments(brand) {
@@ -61,43 +75,82 @@ export default function SpinWheelGame({
     const ctx = ctxRef.current || c.getContext("2d");
     if (!ctx) return;
     ctx.globalCompositeOperation = "source-over";
-    const cx = SIZE / 2, cy = SIZE / 2, r = SIZE / 2 - 8;
+    const cx = SIZE / 2, cy = SIZE / 2;
+    const rimOuter = SIZE / 2 - 4;
+    const rimInner = rimOuter - 16;      // gold rim band
+    const r = rimInner - 3;              // segment radius
     ctx.clearRect(0, 0, SIZE, SIZE);
+
+    // ── rotating colored segments (glossy) ──
     for (let i = 0; i < N; i++) {
       const start = rot + i * ARC;
-      const seg    = segments[i];
-      const color = seg.color || seg.accent_color
-                              || (i % 2 ? "#3b0764" : "#7c3aed");
+      const seg = segments[i];
+      const base = seg.color || seg.accent_color || PALETTE[i % PALETTE.length];
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.arc(cx, cy, r, start, start + ARC);
       ctx.closePath();
-      ctx.fillStyle = color;
+      const g = ctx.createRadialGradient(cx, cy, r * 0.18, cx, cy, r);
+      g.addColorStop(0, _lighten(base, 0.28));
+      g.addColorStop(1, base);
+      ctx.fillStyle = g;
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.65)";
-      ctx.lineWidth    = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 2;
       ctx.stroke();
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(start + ARC / 2);
-      ctx.fillStyle    = "#fff";
-      ctx.font              = `bold 13px ${FONT}`;
-      ctx.textAlign    = "right";
+      ctx.fillStyle = "#fff";
+      ctx.font = `800 13px ${FONT}`;
+      ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      const label = (seg.label || seg.display_label
-                                  || seg.title || "—").slice(0, 14);
-      ctx.fillText(label, r - 12, 0);
+      ctx.shadowColor = "rgba(0,0,0,.45)";
+      ctx.shadowBlur = 3;
+      const label = (seg.label || seg.display_label || seg.title || "—").slice(0, 13);
+      ctx.fillText(label, r - 14, 0);
       ctx.restore();
     }
-    // Center hub.
+    ctx.shadowBlur = 0;
+
+    // ── fixed gold rim band ──
+    const rim = ctx.createLinearGradient(0, 0, SIZE, SIZE);
+    rim.addColorStop(0, "#fde68a"); rim.addColorStop(0.5, "#d4a017");
+    rim.addColorStop(1, "#b8860b");
     ctx.beginPath();
-    ctx.arc(cx, cy, 22, 0, 2 * Math.PI);
-    ctx.fillStyle = "#fff";
-    ctx.fill();
-    ctx.strokeStyle = accent;
-    ctx.lineWidth    = 3;
+    ctx.arc(cx, cy, (rimOuter + rimInner) / 2, 0, 2 * Math.PI);
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = rimOuter - rimInner;
     ctx.stroke();
-  }, [ARC, N, accent, segments]);
+
+    // ── glowing rim bulbs ──
+    const bulbR = (rimOuter + rimInner) / 2;
+    const BULBS = Math.max(12, N * 2);
+    for (let b = 0; b < BULBS; b++) {
+      const a = (b / BULBS) * 2 * Math.PI;
+      const bx = cx + Math.cos(a) * bulbR;
+      const by = cy + Math.sin(a) * bulbR;
+      ctx.beginPath();
+      ctx.arc(bx, by, 2.6, 0, 2 * Math.PI);
+      ctx.fillStyle = b % 2 ? "#fffbe6" : "#fff2a8";
+      ctx.shadowColor = "#ffe9a8"; ctx.shadowBlur = 6;
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+
+    // ── center gold hub with crown ──
+    const hubR = 26;
+    const hg = ctx.createRadialGradient(cx - 6, cy - 8, 4, cx, cy, hubR);
+    hg.addColorStop(0, "#fff6cf"); hg.addColorStop(0.55, "#e9b949");
+    hg.addColorStop(1, "#b8860b");
+    ctx.beginPath(); ctx.arc(cx, cy, hubR, 0, 2 * Math.PI);
+    ctx.fillStyle = hg; ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = "#7c3aed";
+    ctx.font = "16px system-ui";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("\u265B", cx, cy + 1);   // crown glyph
+  }, [ARC, N, segments]);
 
   // DPR-aware initial mount.  useLayoutEffect runs synchronously
   // after DOM mutation but before paint — closes the StrictMode race.
@@ -199,36 +252,39 @@ export default function SpinWheelGame({
             style={{ display: "flex", flexDirection: "column",
                             alignItems: "center", gap: 14,
                             "--tpl-accent": accent }}>
-      <div style={{ position: "relative", width: SIZE, height: SIZE,
-                                    filter: "drop-shadow(0 16px 40px rgba(0,0,0,0.45))" }}>
-        {/* Top pointer */}
+      <div style={{ position: "relative", width: SIZE + 44, height: SIZE + 44,
+                    display: "grid", placeItems: "center", borderRadius: 28,
+                    overflow: "hidden",
+                    backgroundImage: `linear-gradient(rgba(10,6,28,.35),rgba(10,6,28,.55)), url(${WHEEL_BACKDROP})`,
+                    backgroundSize: "cover", backgroundPosition: "center",
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+        {/* Premium top pointer */}
         <div data-testid="spin-wheel-pointer"
-                style={{ position: "absolute", top: -4, left: "50%",
+                style={{ position: "absolute", top: 10, left: "50%",
                                 transform: "translateX(-50%)", width: 0, height: 0,
-                                borderLeft: "12px solid transparent",
-                                borderRight: "12px solid transparent",
-                                borderTop: `18px solid ${accent}`,
-                                zIndex: 2, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.6))" }}/>
+                                borderLeft: "15px solid transparent",
+                                borderRight: "15px solid transparent",
+                                borderTop: "26px solid #fde68a",
+                                zIndex: 3, filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.7))" }}/>
         <canvas ref={canvasRef}
                         data-testid="spin-wheel-canvas"
                         width={SIZE} height={SIZE}
-                        style={{ borderRadius: "50%",
-                                        background: "#15151a",
-                                        border: `3px solid ${accent}` }}/>
+                        style={{ borderRadius: "50%", background: "transparent",
+                                        filter: "drop-shadow(0 10px 28px rgba(0,0,0,0.45))" }}/>
       </div>
       <button onClick={onSpin}
                   disabled={spinning || submitting || !!result}
                   data-testid="spin-wheel-spin-btn"
                   style={{ border: "none", cursor: "pointer",
-                                  padding: "13px 36px", borderRadius: 999,
-                                  fontSize: 15, fontWeight: 800, letterSpacing: 0.6,
+                                  padding: "14px 44px", borderRadius: 999,
+                                  fontSize: 16, fontWeight: 900, letterSpacing: 0.8,
                                   color: "#fff",
-                                  background: `linear-gradient(135deg, ${accent}, #6d28d9)`,
-                                  boxShadow: `0 10px 24px ${accent}55`,
+                                  background: "linear-gradient(135deg,#a855f7,#ec4899)",
+                                  boxShadow: "0 12px 28px rgba(168,85,247,.5)",
                                   opacity: spinning || submitting ? 0.6 : 1 }}>
         {submitting
           ? <><Loader2 size={14} className="spin"/> Loading…</>
-          : spinning ? "Spinning…" : "SPIN"}
+          : spinning ? "Spinning…" : "SPIN NOW"}
       </button>
     </div>
   );

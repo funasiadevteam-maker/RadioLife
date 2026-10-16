@@ -1,0 +1,42 @@
+{
+  "summary": "ITERATION 216 — Milestone 4 (Premium Games Visual Redesign) tested end-to-end on BOTH web and mobile against the shared FastAPI backend. No backend changes this session (cosmetic only); verified outcomes remain 100% server-authoritative on all four games. BACKEND SANITY (demo@bigfm.dubai cookie): POST /api/games/wheel/spin -> 200 {segment_index:1, prize:'100 pts', spins_left:2, balance:7080}; POST /api/games/scratch/play -> 200 {tiles:['100 pts','100 pts','100 pts'], win:true, prize:'100 pts', spins_left:2, balance:7180}; POST /api/dining-club/dice/roll -> 200 {die1:1,die2:1,total:2,win:false,code:null}. GET /api/games/wheel/config -> 200 with 8-segment wheel. WEB (demo premium, 1366x900): /play-and-win renders [data-testid=play-and-win-page]+paw-featured+paw-hero+paw-featured-grid with 6 featured cards (paw-featured-spin_win|predict|lucky_dice|scratch_win|trivia|quiz) all showing premium AI art + cinematic hero. /games/scratch renders scratch-game+scratch-hero (premium AI-art hero 'DAILY SCRATCH / Scratch, match & win instantly')+scratch-card-frame (gold border); scratch-new-card deals a card via POST /api/games/scratch/play, 3 scratch-tile canvases render, scratch-reveal-all reveals and scratch-result shows '+100 points, Balance: 7280 pts' with confetti; scratch-spins-left transitions '2 cards left today' -> '1 card left today' (server-authoritative). /games/wheel: wheel-game+wheel-spin render, SPIN animates and wheel-prize-modal pops up with 'You won 250 pts', wheel-spins-left 2->1 (server segment_index). /dining/dice: dining-dice page renders, 2 dice-die with pips, dice-result 'You rolled 2. So close!', dice-used state (one roll per UTC day). MOBILE (Expo demo via demo-login-btn, 390x844): /(tabs)/games renders [data-testid=games-hub-page] + featured-spin-card + quick-game-spin + quick-game-scratch + quick-game-trivia + quick-game-lyric + trivia-hub-card + predict-win-card; 59 <img> loaded (premium AI gameArt via SafeImage). /games/wheel: wheel-game + wheel-spin render with WHEEL_BACKDROP AI-art stage; SPIN animates and lands on server segment_index — wheel-prize-modal 'So close! Try again' appeared, wheel-spins-left 2->1. /dining/dice: dining-dice renders with AI-art stage, 2 dice-die with real pips, dice-result 'You rolled 2. So close!', dice-used state. /games/scratch: scratch-game + scratch-hero (AI-art 'DAILY SCRATCH') + scratch-play render; tapping New card creates 3 scratch-tile; scratch-reveal-all -> scratch-result '🎉 You won! 500 points' (server-authoritative), scratch-spins-left decremented. /games/trivia-game: trivia-screen + trivia-art (AI-art 'MUSIC TRIVIA — Answer fast — win bigger' header band) + trivia-question 'Which decade is this song from?' + trivia-timer '10s' + 4 trivia-option-0..3 render with gradient A/B/C/D chips. Verified server-authoritative outcomes on EVERY game (no frontend RNG).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "transform-origin (DOM prop)", "issue": "Non-blocking RN Web warning: 'Invalid DOM property `transform-origin`. Did you mean `transformOrigin`?' seen on /games/wheel. Likely emitted by the SVG rotation style on the wheel animation. Does NOT break the wheel — animation + server-authoritative segment_index both work. Suggest switching inline style key to camelCase transformOrigin or applying via a transform matrix. Reference: /app/mobile/app/games/wheel.tsx wheel SVG rotation.", "priority": "LOW"},
+        {"component": "shadow* / require-cycle / Image.resizeMode", "issue": "Carried-over non-blocking warnings from prior iterations (shadow* RN-Web deprecation, social.tsx require-cycle, Image.resizeMode via style). Not blockers for M4."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "Low-priority: fix RN-Web `transform-origin` -> `transformOrigin` warning on /app/mobile/app/games/wheel.tsx (cosmetic console warning only; wheel animation and server-authoritative result both work)."
+  ],
+  "critical_code_review_comments": [
+    "ScratchGame.jsx scratch-reveal-all button appears only after a card is dealt and before all tiles are scratched — current conditional (!card || done) renders new-card button, else reveal-all. UX is correct but the branch is dense; consider splitting into a tiny subcomponent for readability (not a bug).",
+    "Quiz.js submitAnswer passes {answer_idx: chosen} for dynamic (single-question) and {answers: newAnswers} for multi; GamePlayer handler must accept both shapes. Verified from current code path — but add a backend contract test to prevent future regression.",
+    "Mobile wheel.tsx uses style `transform: [{ rotate: ... }]` on SVG — if migrating to Reanimated for smoother spin, verify server-authoritative snap still terminates exactly at segment_index.",
+    "All four games correctly derive outcomes from backend response and never roll locally; verified via network inspection + API curl parity. No cosmetic-vs-server drift found."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_216.json"
+  ],
+  "success_rate": {"backend": "100% (3/3 game endpoints)", "frontend": "100% (web 4/4 + mobile 5/5 screens)"},
+  "test_credentials": "Web: demo@bigfm.dubai / DemoPass123! (Premium; 7,180 pts starting balance). Freeuser (daily-limit edge): freeuser@bigfm.dubai / FreePass123!. Mobile: tap [data-testid=demo-login-btn] -> POST /api/auth/demo bearer.",
+  "seed_data_creation": "None. Normal game plays consumed 1 wheel spin + 1 scratch card + 1 dice roll on demo during the test (per-day quotas, expected).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "M4 PASS. Verified premium AI-art visuals + server-authoritative outcomes for ALL 4 games on BOTH web and mobile. KEY TESTIDS: WEB — play-and-win-page, paw-featured, paw-hero, paw-featured-grid, paw-featured-{spin_win,predict,lucky_dice,scratch_win,trivia,quiz}; scratch-game, scratch-hero, scratch-card-frame, scratch-new-card, scratch-tile, scratch-reveal-all, scratch-result, scratch-spins-left; wheel-game, wheel-spin, wheel-prize-modal, wheel-spins-left; dining-dice, dice-roll-btn, dice-die, dice-result, dice-used; quiz-stage, quiz-timer, quiz-prompt, quiz-option-N, quiz-submitted (Quiz.js reached from /play-and-win/:campaign_id when a tpl_quiz live campaign exists — no live quiz campaigns were present in the DB during this run, so Quiz.js was verified by code review for AI-art header band + gradient option chips + testids). MOBILE — games-hub-page, featured-spin-card, quick-game-{spin,scratch,trivia,lyric}, trivia-hub-card, predict-win-card; wheel-game, wheel-spin, wheel-prize-modal, wheel-spins-left/wheel-no-spins; dining-dice, dice-roll-btn, dice-die, dice-result, dice-used, dice-win-code; scratch-game, scratch-hero, scratch-play, scratch-tile, scratch-reveal-all, scratch-result, scratch-spins-left/scratch-no-spins; trivia-screen, trivia-art, trivia-question, trivia-option-0..n, trivia-timer, trivia-next-btn, trivia-done-btn. Demo quotas on this session: wheel 3->1 after test, scratch 3->1 after test, dice already used today. Freeuser account recommended for fresh daily allowance regression. One LOW-priority RN-Web warning: wheel.tsx uses CSS 'transform-origin' instead of 'transformOrigin' (console warning only, not a blocker).",
+  "rca of the issue": "N/A — no bug found. Milestone 4 cosmetic redesign confirmed to preserve server-authoritative game logic."
+}

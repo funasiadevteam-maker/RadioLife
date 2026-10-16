@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { TUBE, TFONT } from '../../src/constants/tube';
+import { WHEEL_BACKDROP } from '../../src/constants/gameArt';
 import api from '../../src/api/client';
 
 const VB = 320, CX = 160, CY = 160, R = 150, LABEL_R = 100;
@@ -174,34 +175,38 @@ export default function WheelGameScreen() {
         </View>
       ) : null}
 
-      <View style={{ width: size, height: size + 20, alignSelf: 'center', marginTop: 12 }}>
-        <View style={st.pointer} />
-        <Animated.View style={[wheelStyle, { width: size, height: size }]}>
-          <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
-            <Defs>
-              <RadialGradient id="gloss" cx="50%" cy="38%" r="65%">
-                <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.35" />
-                <Stop offset="45%" stopColor="#ffffff" stopOpacity="0.06" />
-                <Stop offset="100%" stopColor="#000000" stopOpacity="0.28" />
-              </RadialGradient>
-            </Defs>
-            <Circle cx={CX} cy={CY} r={R + 6} fill="#1e1030" stroke="#fbbf24" strokeWidth={4} />
-            {segs.map((s: any) => (
-              <Path key={s.i} d={s.path} fill={s.color} stroke="rgba(0,0,0,0.25)" strokeWidth={1.5} />
-            ))}
-            {segs.map((s: any) => (
-              <G key={`l${s.i}`} rotation={s.am} origin={`${s.lx}, ${s.ly}`}>
-                <SvgText x={s.lx} y={s.ly - 2} fill="#fff" fontSize={15} fontWeight="900" textAnchor="middle">{s.big}</SvgText>
-                <SvgText x={s.lx} y={s.ly + 11} fill="rgba(255,255,255,0.85)" fontSize={8} fontWeight="700" textAnchor="middle">{s.small}</SvgText>
-              </G>
-            ))}
-            <Circle cx={CX} cy={CY} r={R} fill="url(#gloss)" />
-          </Svg>
-        </Animated.View>
-        <Pressable onPress={spin} disabled={spinning || out} testID="wheel-spin"
-                   style={[st.hub, { left: size / 2 - 40, top: size / 2 - 40, opacity: (spinning || out) ? 0.7 : 1 }]}>
-          {spinning ? <ActivityIndicator color="#000" /> : <Text style={st.hubTxt}>SPIN</Text>}
-        </Pressable>
+      <View style={[st.stage, { marginTop: 12 }]}>
+        <ExpoImage source={{ uri: WHEEL_BACKDROP }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10,6,28,0.5)' }]} />
+        <View style={{ width: size, height: size + 20 }}>
+          <View style={st.pointer} />
+          <Animated.View style={[wheelStyle, { width: size, height: size }]}>
+            <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+              <Defs>
+                <RadialGradient id="gloss" cx="50%" cy="38%" r="65%">
+                  <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.35" />
+                  <Stop offset="45%" stopColor="#ffffff" stopOpacity="0.06" />
+                  <Stop offset="100%" stopColor="#000000" stopOpacity="0.28" />
+                </RadialGradient>
+              </Defs>
+              <Circle cx={CX} cy={CY} r={R + 6} fill="#1e1030" stroke="#fbbf24" strokeWidth={4} />
+              {segs.map((s: any) => (
+                <Path key={s.i} d={s.path} fill={s.color} stroke="rgba(0,0,0,0.25)" strokeWidth={1.5} />
+              ))}
+              {segs.map((s: any) => (
+                <G key={`l${s.i}`} rotation={s.am} origin={`${s.lx}, ${s.ly}`}>
+                  <SvgText x={s.lx} y={s.ly - 2} fill="#fff" fontSize={15} fontWeight="900" textAnchor="middle">{s.big}</SvgText>
+                  <SvgText x={s.lx} y={s.ly + 11} fill="rgba(255,255,255,0.85)" fontSize={8} fontWeight="700" textAnchor="middle">{s.small}</SvgText>
+                </G>
+              ))}
+              <Circle cx={CX} cy={CY} r={R} fill="url(#gloss)" />
+            </Svg>
+          </Animated.View>
+          <Pressable onPress={spin} disabled={spinning || out} testID="wheel-spin"
+                     style={[st.hub, { left: size / 2 - 40, top: size / 2 - 40, opacity: (spinning || out) ? 0.7 : 1 }]}>
+            {spinning ? <ActivityIndicator color="#000" /> : <Text style={st.hubTxt}>SPIN</Text>}
+          </Pressable>
+        </View>
       </View>
 
       <View style={{ alignItems: 'center', marginTop: 16 }}>
@@ -237,6 +242,7 @@ const st = StyleSheet.create({
   hTitle: { color: '#fff', fontWeight: '900', fontSize: TFONT.md },
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   sponsor: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2 },
+  stage: { alignSelf: 'center', borderRadius: 28, overflow: 'hidden', padding: 20, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 20, shadowOffset: { width: 0, height: 16 } },
   logo: { width: 34, height: 34, borderRadius: 17 },
   sponsorTxt: { color: '#cbd5e1', fontSize: TFONT.xs },
   pointer: { position: 'absolute', top: -2, alignSelf: 'center', zIndex: 20, width: 0, height: 0, borderLeftWidth: 15, borderRightWidth: 15, borderTopWidth: 26, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#fbbf24' },

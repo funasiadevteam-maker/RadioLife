@@ -1,6 +1,7 @@
 // Quiz: 1-N questions, timer, submit answers.
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Clock } from "lucide-react";
+import { GAME_ART } from "../assets/gameArt";
 
 export default function Quiz({ config, onSubmit, submitting, result, brand, onAnimationComplete }) {
   const questions = config.questions || [];
@@ -78,48 +79,95 @@ export default function Quiz({ config, onSubmit, submitting, result, brand, onAn
 
   if (submitting || result) {
     return (
-      <div className="quiz-shell submitted" data-testid="quiz-submitted">
-        <Loader2 size={24} className="spin" />
-        <p>Grading…</p>
+      <div className="quiz-shell submitted" data-testid="quiz-submitted"
+        style={{ display: "flex", flexDirection: "column", alignItems: "center",
+          gap: 12, padding: 44, borderRadius: 24, color: "#fff",
+          background: "linear-gradient(165deg, rgba(30,18,58,.96), rgba(11,12,22,.98))",
+          border: "1px solid rgba(59,130,246,.3)",
+          boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+        <Loader2 size={28} className="spin" />
+        <p style={{ margin: 0, fontWeight: 800 }}>Grading your answers…</p>
       </div>
     );
   }
 
+  const lowTime = remaining <= 5;
   return (
-    <div className="quiz-shell" data-testid="quiz-stage">
-      <div className="quiz-progress">
-        <div className="mono">Q{idx + 1} / {questions.length}</div>
-        <div className="quiz-timer mono" data-testid="quiz-timer">
-          <Clock size={11} /> {remaining}s
+    <div className="quiz-shell" data-testid="quiz-stage"
+      style={{ display: "flex", flexDirection: "column", gap: 16, padding: 18,
+        borderRadius: 24,
+        background: "linear-gradient(165deg, rgba(30,18,58,.96), rgba(11,12,22,.98))",
+        border: "1px solid rgba(59,130,246,.3)",
+        boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+      {/* AI-art header band */}
+      <div style={{ position: "relative", borderRadius: 16, overflow: "hidden",
+        minHeight: 96, display: "flex", alignItems: "flex-end", padding: 14,
+        backgroundImage: `linear-gradient(90deg, rgba(14,8,34,.92), rgba(14,8,34,.3)), url(${GAME_ART.trivia})`,
+        backgroundSize: "cover", backgroundPosition: "center" }}>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: ".12em", color: "#93c5fd" }}>
+            MUSIC TRIVIA
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginTop: 2 }}>
+            Answer fast — win bigger
+          </div>
+        </div>
+        <div data-testid="quiz-timer"
+          style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6,
+            background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)",
+            padding: "7px 13px", borderRadius: 999, fontWeight: 900, fontSize: 15,
+            color: lowTime ? "#f87171" : "#fff",
+            border: `1px solid ${lowTime ? "rgba(248,113,113,.6)" : "rgba(255,255,255,.2)"}` }}>
+          <Clock size={13} /> {remaining}s
         </div>
       </div>
-      <div className="quiz-bar">
-        <div className="quiz-bar-fill"
-                style={{ width: `${(remaining / timePerQ) * 100}%`,
-                        background: brand || "#ff2d95" }} />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+        fontSize: 12, fontWeight: 800, color: "#c4b5fd" }}>
+        <span>Question {idx + 1} of {questions.length}</span>
+        <span>Need {minCorrect} correct to win</span>
       </div>
-      <h2 className="quiz-prompt" data-testid="quiz-prompt">{q.prompt}</h2>
+
+      {/* Timer bar */}
+      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${(remaining / timePerQ) * 100}%`,
+          background: lowTime
+            ? "linear-gradient(90deg,#f87171,#ef4444)"
+            : "linear-gradient(90deg,#60a5fa,#a855f7)",
+          transition: "width 1s linear" }} />
+      </div>
+
+      <h2 data-testid="quiz-prompt"
+        style={{ fontSize: 20, fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1.25 }}>
+        {q.prompt}
+      </h2>
       {(q.track || q.song) && (
-        <div className="quiz-subtitle mono">
+        <div style={{ fontSize: 12.5, color: "#a5b4fc" }}>
           {q.song
             ? <>From <i>"{q.song}"</i>{q.artist ? ` — ${q.artist}` : ""}</>
             : <>About <i>{q.track?.title}</i>{q.track?.artist ? ` by ${q.track.artist}` : ""}</>}
         </div>
       )}
-      <div className="quiz-options">
+
+      <div style={{ display: "grid", gap: 10 }}>
         {(q.options || []).map((opt, i) => (
-          <button key={i}
-                    className="quiz-option"
-                    onClick={() => submitAnswer(i)}
-                    data-testid={`quiz-option-${i}`}>
-            <span className="quiz-option-letter">{String.fromCharCode(65 + i)}</span>
+          <button key={i} onClick={() => submitAnswer(i)} data-testid={`quiz-option-${i}`}
+            style={{ display: "flex", alignItems: "center", gap: 12, textAlign: "left",
+              cursor: "pointer", padding: "14px 16px", borderRadius: 14, color: "#fff",
+              background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.12)",
+              fontSize: 15, fontWeight: 700,
+              transition: "transform .12s ease, background .12s ease, border-color .12s ease" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(59,130,246,.18)"; e.currentTarget.style.borderColor = "#3b82f6"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,.05)"; e.currentTarget.style.borderColor = "rgba(255,255,255,.12)"; e.currentTarget.style.transform = "none"; }}>
+            <span style={{ display: "grid", placeItems: "center", width: 30, height: 30,
+              flexShrink: 0, borderRadius: 9, fontSize: 14, fontWeight: 900, color: "#fff",
+              background: "linear-gradient(135deg,#3b82f6,#a855f7)" }}>
+              {String.fromCharCode(65 + i)}
+            </span>
             <span>{opt}</span>
           </button>
         ))}
       </div>
-      <p className="quiz-rule mono">
-        Need <b>{minCorrect}</b> correct out of <b>{questions.length}</b> to win.
-      </p>
     </div>
   );
 }

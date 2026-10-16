@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useAuth, API } from "@/AuthContext";
 import { themeFor } from "@/components/games";
+import { GAME_ART, GAME_HERO } from "@/assets/gameArt";
 import "./PlayAndWin.css";
 // Phase 42-E2.2 — Universal share button.
 import ShareButton from "@/components/ShareButton";
@@ -83,6 +84,8 @@ export default function PlayAndWin() {
         </button>
       </header>
 
+      <FeaturedGamesHero />
+
       {drivingMode && (
         <div className="paw-driving-banner" data-testid="driving-banner">
           <ShieldCheck size={14} />
@@ -111,6 +114,75 @@ export default function PlayAndWin() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+const FEATURED = [
+  { key: "spin_win", name: "Spin & Win", desc: "Spin daily, win BigPoints & rewards", to: "/games/wheel", tag: "Spin", big: true },
+  { key: "predict", name: "Predict & Win", desc: "Call sports, music & events", to: "/predict-win", tag: "Predict", big: true },
+  { key: "lucky_dice", name: "Lucky Dice", desc: "Roll & win a free meal for 8", to: "/dining/dice", tag: "Dice" },
+  { key: "scratch_win", name: "Daily Scratch", desc: "Scratch, match & win instantly", to: "/games/scratch", tag: "Scratch" },
+  { key: "trivia", name: "Trivia Live", desc: "Play live, climb the leaderboard", to: "/play", tag: "Trivia" },
+  { key: "quiz", name: "Quiz Rush", desc: "Fast questions, bigger rewards", to: "/play", tag: "Quiz" },
+];
+
+function FeaturedGamesHero() {
+  const navigate = useNavigate();
+  return (
+    <div data-testid="paw-featured">
+      {/* Cinematic hero */}
+      <div data-testid="paw-hero" onClick={() => navigate("/games/wheel")}
+        style={{ position: "relative", borderRadius: 24, overflow: "hidden", cursor: "pointer",
+          minHeight: 190, display: "flex", alignItems: "flex-end", padding: 22, marginBottom: 18,
+          backgroundImage: `linear-gradient(90deg, rgba(14,8,34,.92) 0%, rgba(14,8,34,.55) 45%, rgba(14,8,34,.15) 100%), url(${GAME_HERO})`,
+          backgroundSize: "cover", backgroundPosition: "center right",
+          boxShadow: "0 20px 50px rgba(0,0,0,.5)" }}>
+        <div style={{ maxWidth: 460 }}>
+          <span style={{ display: "inline-block", fontSize: 11, fontWeight: 900, letterSpacing: ".1em",
+            color: "#fff", background: "linear-gradient(135deg,#a855f7,#ec4899)", padding: "4px 12px", borderRadius: 999 }}>
+            PLAY · WIN · EARN
+          </span>
+          <h2 style={{ fontSize: 30, fontWeight: 900, color: "#fff", margin: "10px 0 6px", lineHeight: 1.05 }}>
+            Play, Win &amp; Earn BigPoints!
+          </h2>
+          <p style={{ color: "#d8cdf5", fontSize: 14, margin: "0 0 14px" }}>Fun games. Real rewards. Play solo or with friends.</p>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "linear-gradient(135deg,#a855f7,#ec4899)",
+            color: "#fff", fontWeight: 800, fontSize: 14, padding: "11px 22px", borderRadius: 999 }}>
+            Play Now <ArrowRight size={16} />
+          </span>
+        </div>
+      </div>
+
+      {/* Featured games grid */}
+      <section className="paw-section" data-testid="paw-featured-grid">
+        <h2 className="mono"><Sparkles size={14} /> Featured Games</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 14 }}>
+          {FEATURED.map((g) => (
+            <button key={g.key} onClick={() => navigate(g.to)}
+              data-testid={`paw-featured-${g.key}`}
+              style={{ position: "relative", textAlign: "left", cursor: "pointer", border: "none", padding: 0,
+                borderRadius: 20, overflow: "hidden", minHeight: 150,
+                backgroundImage: `linear-gradient(180deg, rgba(14,8,34,.15) 0%, rgba(14,8,34,.55) 55%, rgba(14,8,34,.95) 100%), url(${GAME_ART[g.key]})`,
+                backgroundSize: "cover", backgroundPosition: "center",
+                boxShadow: "0 12px 30px rgba(0,0,0,.4)", color: "#fff" }}>
+              <span style={{ position: "absolute", top: 12, left: 12, fontSize: 10, fontWeight: 900, letterSpacing: ".08em",
+                background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", padding: "4px 10px", borderRadius: 999 }}>
+                {g.tag.toUpperCase()}
+              </span>
+              <div style={{ position: "absolute", left: 14, right: 14, bottom: 14 }}>
+                <div style={{ fontSize: 18, fontWeight: 900 }}>{g.name}</div>
+                <div style={{ fontSize: 12.5, color: "#e3d9fb", marginTop: 2 }}>{g.desc}</div>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10,
+                  background: "linear-gradient(135deg,#a855f7,#ec4899)", padding: "7px 16px", borderRadius: 999,
+                  fontSize: 13, fontWeight: 800 }}>
+                  Play Now <ArrowRight size={14} />
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

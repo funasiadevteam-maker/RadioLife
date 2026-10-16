@@ -10,6 +10,7 @@ import { Image as ExpoImage } from 'expo-image';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { createAudioPlayer } from 'expo-audio';
 import api from '../../src/api/client';
+import { GAME_ART } from '../../src/constants/gameArt';
 
 const P = { bg: '#0b0c16', card: '#15131f', line: 'rgba(255,255,255,0.1)', text: '#fff', muted: '#8b8b9e', gold: '#fbbf24', violet: '#a855f7' };
 const { width } = Dimensions.get('window');
@@ -81,6 +82,17 @@ export default function ScratchScreen() {
         <Pressable onPress={toggleMute} testID="scratch-mute" style={st.hBtn}><Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={20} color={P.muted} /></Pressable>
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center' }} testID="scratch-game">
+        {/* Premium AI-art hero */}
+        <View style={st.hero} testID="scratch-hero">
+          <ExpoImage source={{ uri: GAME_ART.scratch_win }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <LinearGradient colors={['rgba(14,8,34,0.92)', 'rgba(14,8,34,0.2)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+          <View style={st.heroBody}>
+            <View style={st.heroPill}><Text style={st.heroPillTxt}>DAILY SCRATCH</Text></View>
+            <Text style={st.heroTitle}>Scratch, match & win</Text>
+            <Text style={st.heroSub}>Reveal all three — match 3 to win BigPoints or coupons.</Text>
+          </View>
+        </View>
+
         {cfg?.logo_url ? (
           <View style={st.sponsor} testID="scratch-sponsor">
             <ExpoImage source={{ uri: cfg.logo_url }} style={st.logo} contentFit="contain" />
@@ -138,7 +150,13 @@ const st = StyleSheet.create({
   logo: { width: 64, height: 64, borderRadius: 14, marginBottom: 4 },
   sponsorTxt: { color: P.muted, fontSize: 11, fontWeight: '700' },
   brand: { color: P.violet, fontSize: 13, fontWeight: '900', marginBottom: 10 },
-  cardBox: { width: '100%', minHeight: 140, borderRadius: 20, borderWidth: 1, borderColor: P.line, backgroundColor: P.card, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  hero: { width: '100%', minHeight: 128, borderRadius: 24, overflow: 'hidden', marginBottom: 16, justifyContent: 'flex-end', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 12 } },
+  heroBody: { padding: 16 },
+  heroPill: { alignSelf: 'flex-start', backgroundColor: P.gold, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 8 },
+  heroPillTxt: { color: '#1a1206', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  heroTitle: { color: '#fff', fontSize: 20, fontWeight: '900' },
+  heroSub: { color: '#e3d9fb', fontSize: 12, marginTop: 4 },
+  cardBox: { width: '100%', minHeight: 140, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(251,191,36,0.25)', backgroundColor: '#1a1330', alignItems: 'center', justifyContent: 'center', padding: 16 },
   hint: { color: P.muted, fontSize: 13, textAlign: 'center', lineHeight: 19 },
   tile: { width: TILE, height: TILE, borderRadius: 14, borderWidth: 1, backgroundColor: '#0f0e1a', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tileLabel: { fontSize: 12, fontWeight: '900', textAlign: 'center', paddingHorizontal: 4 },

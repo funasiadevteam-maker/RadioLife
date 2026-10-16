@@ -7,16 +7,37 @@ import { toast } from "sonner";
 import { ChevronLeft, Loader2, Dices, Trophy, Ticket } from "lucide-react";
 import { diningApi, DINE, errCode } from "./diningApi";
 import { Shell, NeonBtn } from "./DiningHome";
+import { DICE_STAGE } from "../../assets/gameArt";
+
+// 3x3 pip layout per face (grid cells 0..8 that are filled).
+const PIPS = {
+  1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8],
+};
 
 function Die({ value, rolling }) {
+  const on = new Set(PIPS[value] || [4]);
   return (
     <motion.div
-      animate={rolling ? { rotate: [0, -18, 18, -10, 0] } : { rotate: 0 }}
-      transition={{ duration: 0.5, repeat: rolling ? Infinity : 0 }}
-      className="grid place-items-center font-black" data-testid="dice-die"
-      style={{ width: 84, height: 84, borderRadius: 18, background: "#fff", color: "#0a0c18",
-        fontSize: 44, boxShadow: `0 0 30px ${DINE.gold}66`, border: `3px solid ${DINE.gold}` }}>
-      {value}
+      animate={rolling
+        ? { rotate: [0, -24, 22, -14, 10, 0], y: [0, -10, 0, -6, 0], scale: [1, 1.06, 1] }
+        : { rotate: 0, y: 0, scale: 1 }}
+      transition={{ duration: 0.55, repeat: rolling ? Infinity : 0, ease: "easeInOut" }}
+      data-testid="dice-die"
+      style={{ width: 90, height: 90, borderRadius: 20, padding: 12,
+        display: "grid", gridTemplateColumns: "repeat(3,1fr)", gridTemplateRows: "repeat(3,1fr)",
+        background: "radial-gradient(circle at 32% 28%, #ffffff, #efe8ff 70%, #e3d6ff)",
+        boxShadow: `0 14px 30px rgba(124,58,237,.35), inset 0 -6px 12px rgba(124,58,237,.18), inset 0 4px 8px #fff`,
+        border: `3px solid ${DINE.gold}` }}>
+      {Array.from({ length: 9 }).map((_, i) => (
+        <span key={i} style={{ display: "grid", placeItems: "center" }}>
+          {on.has(i) && (
+            <span style={{ width: 15, height: 15, borderRadius: 999,
+              background: "radial-gradient(circle at 35% 30%, #a855f7, #6d28d9)",
+              boxShadow: "inset 0 -2px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25)" }} />
+          )}
+        </span>
+      ))}
     </motion.div>
   );
 }
@@ -85,9 +106,13 @@ export default function DiningDice() {
           Winning odds: {cfg.win_chance || "1 in 12"}
         </div>
 
-        <div className="flex items-center justify-center gap-5 my-10">
+        <div className="flex items-center justify-center gap-5 my-8 mx-auto"
+          style={{ maxWidth: 360, borderRadius: 28, padding: "34px 20px",
+            backgroundImage: `linear-gradient(rgba(10,6,28,.45),rgba(10,6,28,.65)), url(${DICE_STAGE})`,
+            backgroundSize: "cover", backgroundPosition: "center",
+            boxShadow: "0 18px 50px rgba(0,0,0,.5)" }}>
           <Die value={d1} rolling={rolling} />
-          <span className="text-2xl font-black" style={{ color: DINE.muted }}>+</span>
+          <span className="text-2xl font-black" style={{ color: "#fff" }}>+</span>
           <Die value={d2} rolling={rolling} />
         </div>
 
