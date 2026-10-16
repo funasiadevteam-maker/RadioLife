@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import current_user, require_admin
+from routes.game_rewards import touch_streak, record_game_win
 from core.config import STRIPE_API_KEY
 from services import dining_club as dc
 from services import premium_gate
@@ -301,7 +302,11 @@ async def dice_roll(request: Request, user: dict = Depends(current_user)):
         "redeemed": False, "created_at": dc._now(),
     }
     await db.dining_dice_rolls.insert_one(doc)
-    return _dice_public(doc)
+    if win:
+        await record_game_win(db, user, "lucky_dice",
+                              {"kind": "coupon", "label": "Free meal for 8", "points": 0})
+    streak = await touch_streak(db, user["user_id"])
+    return {**_dice_public(doc), "streak": streak}
 
 
 @router.post("/selection/start")

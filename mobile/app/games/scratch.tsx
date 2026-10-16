@@ -11,6 +11,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-na
 import { createAudioPlayer } from 'expo-audio';
 import api from '../../src/api/client';
 import { GAME_ART } from '../../src/constants/gameArt';
+import { gameFx, haptic } from '../../src/utils/gameFX';
 
 const P = { bg: '#0b0c16', card: '#15131f', line: 'rgba(255,255,255,0.1)', text: '#fff', muted: '#8b8b9e', gold: '#fbbf24', violet: '#a855f7' };
 const { width } = Dimensions.get('window');
@@ -70,8 +71,14 @@ export default function ScratchScreen() {
       if (e?.response?.status === 429) setSpinsLeft(0);
     } finally { setBusy(false); }
   };
-  const reveal = (i: number) => setRevealed((r) => r.map((v, idx) => (idx === i ? true : v)));
-  const revealAll = () => setRevealed([true, true, true]);
+  const fx = (k: any, h: any) => { if (!muted) gameFx(k, h); else haptic(h); };
+  const reveal = (i: number) => { if (!revealed[i]) fx('reveal', 'light'); setRevealed((r) => r.map((v, idx) => (idx === i ? true : v))); };
+  const revealAll = () => { fx('reveal', 'light'); setRevealed([true, true, true]); };
+  const prevDone = useRef(false);
+  useEffect(() => {
+    if (done && !prevDone.current) { prevDone.current = true; if (card?.win) fx('win', 'success'); else fx('lose', 'light'); }
+    if (!done) prevDone.current = false;
+  }, [done]);
 
   const prize = card?.prize;
   return (
@@ -118,6 +125,11 @@ export default function ScratchScreen() {
           <View style={[st.result, { borderColor: card.win ? P.gold : P.line }]} testID="scratch-result">
             <Text style={[st.resultTitle, { color: card.win ? P.gold : P.muted }]}>{card.win ? '🎉 You won!' : 'No match this time'}</Text>
             <Text style={st.resultPrize}>{card.win ? (prize?.kind === 'coupon' ? prize.label : `${prize?.points || 0} points`) : 'Try another card'}</Text>
+            {card.streak?.bonus?.awarded ? (
+              <Text style={st.streakLine} testID="scratch-streak-bonus">
+                🔥 Day {card.streak.bonus.streak_day} streak · +{card.streak.bonus.points} pts{card.streak.bonus.bonus_spin ? ' · +1 bonus spin!' : ''}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -165,6 +177,7 @@ const st = StyleSheet.create({
   result: { marginTop: 14, width: '100%', borderRadius: 16, borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.03)', padding: 14, alignItems: 'center' },
   resultTitle: { fontSize: 16, fontWeight: '900' },
   resultPrize: { color: P.text, fontSize: 20, fontWeight: '900', marginTop: 2 },
+  streakLine: { color: '#fb923c', fontSize: 13, fontWeight: '800', marginTop: 10, textAlign: 'center' },
   spins: { color: P.muted, fontSize: 12, fontWeight: '700', marginTop: 14 },
   noSpins: { color: P.muted, fontSize: 13, textAlign: 'center', marginTop: 12 },
   playBtn: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },

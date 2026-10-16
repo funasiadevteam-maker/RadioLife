@@ -16,6 +16,8 @@ import { fetchPlayAndWin, HOUSE_CAMPAIGNS } from '../../src/api/gamesApi';
 import useBigCoinStore from '../../src/stores/useBigCoinStore';
 import api from '../../src/api/client';
 import { useReward } from '../../src/components/RewardOverlay';
+import WinnersTicker from '../../src/components/WinnersTicker';
+import StreakBadge from '../../src/components/StreakBadge';
 
 function DailyStreakBanner() {
   const { celebrate } = useReward();
@@ -229,6 +231,9 @@ export default function GamesHub() {
         <Text style={s.headerSubtitle}>
           Spin the wheel, test your music trivia, or make predictions to win prizes.
         </Text>
+
+        <StreakBadge />
+        <WinnersTicker />
 
         <NewCityBanner />
 

@@ -13,6 +13,8 @@ import { GAME_ART, GAME_HERO } from "@/assets/gameArt";
 import "./PlayAndWin.css";
 // Phase 42-E2.2 — Universal share button.
 import ShareButton from "@/components/ShareButton";
+import WinnersTicker from "@/components/games/WinnersTicker";
+import StreakBadge from "@/components/games/StreakBadge";
 
 const TEMPLATE_ICON = {
   tpl_spin_wheel: "🎡",
@@ -83,6 +85,13 @@ export default function PlayAndWin() {
           <Car size={14} /> Driving mode {drivingMode ? "ON" : "OFF"}
         </button>
       </header>
+
+      <div style={{ margin: "0 0 12px" }}>
+        <StreakBadge />
+      </div>
+      <div style={{ margin: "0 0 18px" }}>
+        <WinnersTicker />
+      </div>
 
       <FeaturedGamesHero />
 

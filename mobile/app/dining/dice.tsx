@@ -16,6 +16,7 @@ import Animated, {
 import api from '../../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import { DICE_STAGE } from '../../src/constants/gameArt';
+import { gameFx } from '../../src/utils/gameFX';
 
 // 3x3 pip layout per face (grid cells 0..8 that are filled).
 const PIPS: Record<number, number[]> = {
@@ -60,6 +61,7 @@ export default function DiningDice() {
   const [d1, setD1] = useState(1);
   const [d2, setD2] = useState(1);
   const [result, setResult] = useState<any>(null);
+  const [streak, setStreak] = useState<any>(null);
   const spinRef = useRef<any>(null);
 
   const load = () => api.get('/dining-club/dice').then((r) => {
@@ -71,6 +73,7 @@ export default function DiningDice() {
   const roll = async () => {
     if (rolling) return;
     setRolling(true); setResult(null);
+    gameFx('dice', 'medium');
     spinRef.current = setInterval(() => {
       setD1(1 + Math.floor(Math.random() * 6));
       setD2(1 + Math.floor(Math.random() * 6));
@@ -79,7 +82,9 @@ export default function DiningDice() {
       const r = await api.post('/dining-club/dice/roll');
       setTimeout(() => {
         clearInterval(spinRef.current);
-        setD1(r.data.die1); setD2(r.data.die2); setResult(r.data); setRolling(false); load();
+        setD1(r.data.die1); setD2(r.data.die2); setResult(r.data);
+        setStreak(r.data.streak || null); setRolling(false); load();
+        if (r.data.win) gameFx('win', 'success'); else gameFx('lose', 'light');
       }, 1400);
     } catch (e: any) {
       clearInterval(spinRef.current); setRolling(false);
@@ -134,6 +139,11 @@ export default function DiningDice() {
                 <Text style={s.winSub}>Only a double six (12) wins. Come back tomorrow.</Text>
               </>
             )}
+            {streak?.bonus?.awarded ? (
+              <Text style={s.streakLine} testID="dice-streak-bonus">
+                🔥 Day {streak.bonus.streak_day} streak · +{streak.bonus.points} pts{streak.bonus.bonus_spin ? ' · +1 bonus spin!' : ''}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -171,6 +181,7 @@ const s = StyleSheet.create({
   codeBox: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1, borderStyle: 'dashed', borderColor: COLORS.gold, backgroundColor: COLORS.inputBg },
   codeTxt: { color: COLORS.gold, fontWeight: '900', fontSize: FONT.md, letterSpacing: 1 },
   fine: { color: COLORS.textDim, fontSize: FONT.xs, marginTop: 10, textAlign: 'center' },
+  streakLine: { color: '#fb923c', fontSize: FONT.sm, fontWeight: '800', marginTop: 12, textAlign: 'center' },
   cta: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.lg, paddingVertical: 16, width: '100%' },
   ctaText: { color: '#fff', fontWeight: '800', fontSize: FONT.md },
   used: { color: COLORS.textDim, fontSize: FONT.sm, textAlign: 'center', marginTop: SPACING.sm },

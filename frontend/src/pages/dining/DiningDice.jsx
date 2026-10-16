@@ -8,6 +8,7 @@ import { ChevronLeft, Loader2, Dices, Trophy, Ticket } from "lucide-react";
 import { diningApi, DINE, errCode } from "./diningApi";
 import { Shell, NeonBtn } from "./DiningHome";
 import { DICE_STAGE } from "../../assets/gameArt";
+import { playFx, vibrate } from "../../utils/gameFX";
 
 // 3x3 pip layout per face (grid cells 0..8 that are filled).
 const PIPS = {
@@ -49,6 +50,7 @@ export default function DiningDice() {
   const [d1, setD1] = useState(1);
   const [d2, setD2] = useState(1);
   const [result, setResult] = useState(null);
+  const [streak, setStreak] = useState(null);
 
   const load = () => diningApi.diceStatus().then((r) => {
     setData(r);
@@ -59,6 +61,7 @@ export default function DiningDice() {
   const roll = async () => {
     if (rolling) return;
     setRolling(true); setResult(null);
+    playFx("dice"); vibrate(30);
     const spin = setInterval(() => {
       setD1(1 + Math.floor(Math.random() * 6));
       setD2(1 + Math.floor(Math.random() * 6));
@@ -67,9 +70,10 @@ export default function DiningDice() {
       const r = await diningApi.diceRoll();
       setTimeout(() => {
         clearInterval(spin);
-        setD1(r.die1); setD2(r.die2); setResult(r); setRolling(false);
+        setD1(r.die1); setD2(r.die2); setResult(r); setStreak(r.streak || null); setRolling(false);
         load();
-        if (r.win) toast.success("You won a free meal for 8!");
+        if (r.win) { toast.success("You won a free meal for 8!"); playFx("win"); vibrate([0, 40, 30, 40]); }
+        else { playFx("lose"); vibrate(25); }
       }, 1400);
     } catch (e) {
       clearInterval(spin); setRolling(false);
@@ -137,6 +141,11 @@ export default function DiningDice() {
                 <div className="text-xl font-black" style={{ color: DINE.text }}>You rolled {result.total}. So close!</div>
                 <div className="text-sm mt-1" style={{ color: DINE.muted }}>Only a double six (12) wins. Come back tomorrow for another roll.</div>
               </>
+            )}
+            {streak?.bonus?.awarded && (
+              <div className="text-sm font-bold mt-3" style={{ color: "#fb923c" }} data-testid="dice-streak-bonus">
+                🔥 Day {streak.bonus.streak_day} streak · +{streak.bonus.points} pts{streak.bonus.bonus_spin ? " · +1 bonus spin!" : ""}
+              </div>
             )}
           </motion.div>
         )}

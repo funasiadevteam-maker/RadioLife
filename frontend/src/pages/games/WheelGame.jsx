@@ -4,6 +4,7 @@ import axios from "axios";
 import confetti from "canvas-confetti";
 import { API } from "@/AuthContext";
 import { ArrowLeft, Volume2, VolumeX, Loader2, Gift, Sparkles } from "lucide-react";
+import { playFx, vibrate } from "@/utils/gameFX";
 
 const CX = 160, CY = 160, R = 150, LABEL_R = 100;
 
@@ -38,6 +39,7 @@ export default function WheelGame() {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [prize, setPrize] = useState(null);
+  const [streak, setStreak] = useState(null);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState(null);
   const audioRef = useRef(null);
@@ -65,6 +67,8 @@ export default function WheelGame() {
   const spin = async () => {
     if (spinning || !cfg || cfg.spins_left <= 0) return;
     setSpinning(true); setPrize(null);
+    if (!muted) playFx("spin");
+    vibrate(20);
     // start BGM on the user gesture
     if (audioRef.current && !muted) { audioRef.current.volume = 0.35; audioRef.current.play().catch(() => {}); }
     try {
@@ -80,7 +84,9 @@ export default function WheelGame() {
         setSpinning(false);
         setCfg((c) => ({ ...c, spins_left: data.spins_left }));
         setPrize(data.prize);
-        if (data.prize.kind !== "none") fireConfetti();
+        setStreak(data.streak || null);
+        if (data.prize.kind !== "none") { fireConfetti(); if (!muted) playFx("win"); vibrate([0, 40, 30, 40]); }
+        else { if (!muted) playFx("lose"); vibrate(25); }
       }, 4300);
     } catch (e) {
       setSpinning(false);
@@ -187,6 +193,11 @@ export default function WheelGame() {
             <div className="text-2xl font-black mb-2" style={{ color: prize.kind === "none" ? "#94a3b8" : "#fbbf24" }}>{prize.label}</div>
             {prize.kind === "coupon" && <div className="text-xs text-slate-300 mb-2">Saved to your wallet{prize.sponsor ? ` · ${prize.sponsor}` : ""}</div>}
             {prize.kind === "points" && <div className="text-xs text-slate-300 mb-2">Added to your balance</div>}
+            {streak?.bonus?.awarded && (
+              <div className="text-sm font-bold mb-2" style={{ color: "#fb923c" }} data-testid="wheel-streak-bonus">
+                🔥 Day {streak.bonus.streak_day} streak · +{streak.bonus.points} pts{streak.bonus.bonus_spin ? " · +1 bonus spin!" : ""}
+              </div>
+            )}
             <button onClick={() => setPrize(null)} data-testid="wheel-prize-close" className="mt-2 w-full h-11 rounded-full font-black text-white" style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
               {out ? "Done" : "Spin again"}
             </button>

@@ -14,6 +14,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { TUBE, TFONT } from '../../src/constants/tube';
 import { WHEEL_BACKDROP } from '../../src/constants/gameArt';
 import api from '../../src/api/client';
+import { gameFx, haptic } from '../../src/utils/gameFX';
 
 const VB = 320, CX = 160, CY = 160, R = 150, LABEL_R = 100;
 let createAudioPlayer: any;
@@ -81,6 +82,7 @@ export default function WheelGameScreen() {
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confetti, setConfetti] = useState(0);
+  const [streak, setStreak] = useState<any>(null);
 
   const rot = useSharedValue(0);
   const rotRef = useRef(0);
@@ -117,12 +119,19 @@ export default function WheelGameScreen() {
     setSpinning(false);
     setCfg((c: any) => ({ ...c, spins_left: data.spins_left }));
     setPrize(data.prize);
-    if (data.prize.kind !== 'none') setConfetti((n) => n + 1);
+    setStreak(data.streak || null);
+    if (data.prize.kind !== 'none') {
+      setConfetti((n) => n + 1);
+      if (!muted) gameFx('win', 'success'); else haptic('success');
+    } else {
+      if (!muted) gameFx('lose', 'light'); else haptic('light');
+    }
   };
 
   const spin = async () => {
     if (spinning || !cfg || cfg.spins_left <= 0) return;
     setSpinning(true); setPrize(null);
+    if (!muted) gameFx('spin', 'medium'); else haptic('medium');
     startBgm();
     try {
       const { data } = await api.post('/games/wheel/spin', { game_id: gameId });
@@ -226,6 +235,11 @@ export default function WheelGameScreen() {
             <Text style={[st.prizeVal, { color: prize?.kind === 'none' ? '#94a3b8' : '#fbbf24' }]}>{prize?.label}</Text>
             {prize?.kind === 'coupon' ? <Text style={st.prizeSub}>Saved to your wallet{prize?.sponsor ? ` · ${prize.sponsor}` : ''}</Text> : null}
             {prize?.kind === 'points' ? <Text style={st.prizeSub}>Added to your balance</Text> : null}
+            {streak?.bonus?.awarded ? (
+              <Text style={st.streakLine} testID="wheel-streak-bonus">
+                🔥 Day {streak.bonus.streak_day} streak · +{streak.bonus.points} pts{streak.bonus.bonus_spin ? ' · +1 bonus spin!' : ''}
+              </Text>
+            ) : null}
             <Pressable onPress={() => setPrize(null)} testID="wheel-prize-close" style={st.prizeBtn}><Text style={{ color: '#fff', fontWeight: '900' }}>{out ? 'Done' : 'Spin again'}</Text></Pressable>
           </Pressable>
         </Pressable>
@@ -254,5 +268,6 @@ const st = StyleSheet.create({
   prizeH: { color: '#fff', fontSize: TFONT.md, fontWeight: '900', marginBottom: 4 },
   prizeVal: { fontSize: 26, fontWeight: '900', marginBottom: 6 },
   prizeSub: { color: '#cbd5e1', fontSize: TFONT.xs, marginBottom: 8 },
+  streakLine: { color: '#fb923c', fontSize: TFONT.sm, fontWeight: '800', marginBottom: 4, textAlign: 'center' },
   prizeBtn: { marginTop: 8, width: '100%', height: 46, borderRadius: 23, backgroundColor: '#a855f7', alignItems: 'center', justifyContent: 'center' },
 });

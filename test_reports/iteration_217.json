@@ -1,0 +1,47 @@
+{
+  "summary": "Iter 217 (Game SFX/Haptics P1 + Winners Ticker P2 + Streak Rewards P3) verified end-to-end on web and mobile against the shared backend. Backend: 12/12 pytest cases pass covering /api/games/streak shape+auth, /api/games/recent-wins (>=8 items, real-before-sample ordering, auth), streak once-per-UTC-day idempotency across wheel/scratch/dice (bonus.points == min(day,7)*10, 2nd play awarded=false), real-win recording to game_wins surfacing in ticker with sample=false, and regression that wheel segment_index, scratch tiles/win, and dining-dice die1/die2 are still returned. WEB /play-and-win renders StreakBadge (streak-badge, streak-count='1-day streak') and WinnersTicker (winners-ticker, winner-item-0) above the hero. WEB game pages (/games/wheel, /games/scratch, /dining/dice) load; wheel-prize-modal / wheel-streak-bonus / scratch-streak-bonus / dice-streak-bonus testIDs are all present in source and will fire on a user's first play of the day (freeuser consumed their day during backend tests, so the on-screen streak line was not re-asserted — expected). MOBILE /games renders flame StreakBadge + WinnersTicker alongside the pre-existing Daily Streak card as spec'd; wheel-prize-modal fires after SPIN; scratch-result renders a win card; trivia-game loads with no red-screen. No JS/console errors from expo-audio/expo-haptics on web preview (degrades gracefully). Streak bonus text lines on mobile intentionally hidden for demo because demo has already played today (per task note).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/play-and-win StreakBadge", "issues": ["Minor: on narrow viewports the streak-count label can wrap under the Bonus-claimed sub-label (cosmetic only, legible)"]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "DOM warnings", "issue": "Non-blocking web-preview console warnings: 'shadow* style props are deprecated. Use boxShadow', 'props.pointerEvents is deprecated. Use style.pointerEvents', and 'Invalid DOM property transform-origin (did you mean transformOrigin?)'. These are RN-web transpilation warnings, do not cause red-screen. Likely upstream in a dependency / older style usage; worth tracking but no functional impact."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter217_game_rewards.py",
+    "/app/test_reports/pytest/iter217_results.xml"
+  ],
+  "action_items": [
+    "No functional changes required for iter 217 — ship-ready.",
+    "(Optional, non-blocking) Clean up RN-web console warnings on mobile: migrate 'shadow*' -> boxShadow, 'pointerEvents' prop -> style.pointerEvents, and the stray transform-origin DOM prop. These do not affect iter 217 flows."
+  ],
+  "critical_code_review_comments": [
+    "routes/game_rewards.py:touch_streak correctly guards double-credit via PointsService idempotency_key 'streak:{uid}:{today}' AND skips bonus_spin counter increment on idempotency_hit — good; 2nd-play test confirms awarded=false.",
+    "touch_streak returns the same current_streak even when played_today==True (new_cur=cur) — the UI should treat bonus.awarded=false as 'already claimed' rather than reading streak_day==0 (confirmed: StreakBadge shows 'Bonus claimed today').",
+    "recent_wins uses stable Random(_day()) for sample shuffle — nice, keeps ticker visually stable within the UTC day.",
+    "record_game_win silently swallows all exceptions (try/except Exception: pass) — fine for a non-critical ticker write but consider logging at WARN so a broken index doesn't go unnoticed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter217_game_rewards.py (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% of critical selectors verified; streak-bonus text line gated by first-play-of-day — not re-asserted after backend tests consumed the day"},
+  "test_credentials": "web: freeuser@bigfm.dubai / FreePass123! and demo@bigfm.dubai / DemoPass123!. mobile: demo-login-btn -> POST /api/auth/demo.",
+  "seed_data_creation": "None. The pytest run exercised freeuser's wheel/scratch/dice daily limits — subsequent manual UI verification on freeuser hit 'Out of spins'/'You've used today's roll' which is expected.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter 217 is green. If re-testing streak-bonus text lines on-screen on the same UTC day, use a user whose last_play_day != today (e.g. a fresh seeded user or clear game_streaks for that uid). The 4 streak-line testIDs are wheel-streak-bonus, scratch-streak-bonus, dice-streak-bonus on both web+mobile. Mobile uses testID 'wheel-spin' and 'scratch-play' (NOT ...-btn); web uses 'wheel-spin-btn' etc. Both the new StreakBadge (streak-badge) and the pre-existing games_v2 'Daily Streak' card correctly coexist on the mobile hub.",
+  "rca of the issue": ""
+}

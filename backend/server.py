@@ -6885,6 +6885,22 @@ try:
 except Exception as _e_games:
     logger.warning(f"Instant games routes failed ({_e_games})")
 
+# Game rewards — daily-play streaks + live winners ticker.
+try:
+    from routes.game_rewards import (router as _game_rewards_router,
+                                      seed_game_rewards as _seed_game_rewards)
+    app.include_router(_game_rewards_router)
+
+    async def _game_rewards_bootstrap():
+        try:
+            await _seed_game_rewards(db)
+        except Exception as _e_gr:
+            logger.warning(f"game_rewards bootstrap: {_e_gr}")
+    app.add_event_handler("startup", _game_rewards_bootstrap)
+    logger.info("Game rewards routes registered")
+except Exception as _e_grg:
+    logger.warning(f"Game rewards routes failed ({_e_grg})")
+
 # Payouts Hub — unified Stripe Connect (advisor 15% / merchant 5% split,
 # onboarding gate, earnings). Supersedes the retired vendor_payments module;
 # routes onto the SAME Standard accounts used by dream_payouts + payment_service.

@@ -16,6 +16,7 @@ import RewardModal from './RewardModal';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { gameArtFor } from '../constants/gameArt';
+import { gameFx } from '../utils/gameFX';
 
 /* ── Shared quiz engine (Phase 39M.3) ──
    Drives every `tpl_quiz` games_v2 campaign (Music Trivia, Lyric Hunt).
@@ -126,6 +127,7 @@ export default function QuizGame({
       setShowReward(true);
       setSessionId(null);
       const correct = res.result === 'win' || res.quiz_meta?.correct === true;
+      if (correct) gameFx('win', 'success'); else gameFx('lose', 'light');
       setStreak((p) => (correct ? p + 1 : 0));
       const earned = Number(res.bigcoin_earned) || 0;
       if (earned > 0) {
@@ -144,6 +146,7 @@ export default function QuizGame({
     if (answeredRef.current || submitting || !sessionId) return;
     answeredRef.current = true;
     setChosen(idx);
+    gameFx('reveal', 'light');
     const next = [...answers];
     next[qIndex] = idx;
     setAnswers(next);

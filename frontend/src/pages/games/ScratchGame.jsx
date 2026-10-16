@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2, Volume2, VolumeX, Ticket, Coins } from "lucide-react";
 import { API } from "@/AuthContext";
 import { GAME_ART } from "@/assets/gameArt";
+import { playFx, vibrate } from "@/utils/gameFX";
 
 function ScratchTile({ label, color, onDone, revealAll }) {
   const cvs = useRef(null);
@@ -107,11 +108,18 @@ export default function ScratchGame() {
 
   const onTileDone = () => setRevealed((n) => {
     const next = n + 1;
+    if (!muted) playFx("reveal");
+    vibrate(12);
     if (next >= 3 && !done) {
       setDone(true);
       if (card?.win) {
         confetti({ particleCount: 130, spread: 75, origin: { y: 0.6 } });
         toast.success(card.prize?.kind === "coupon" ? `You won: ${card.prize.label}! 🎟️` : `You won ${card.prize?.points || 0} points! 🎉`);
+        if (!muted) playFx("win");
+        vibrate([0, 40, 30, 40]);
+      } else {
+        if (!muted) playFx("lose");
+        vibrate(20);
       }
     }
     return next;
@@ -172,6 +180,11 @@ export default function ScratchGame() {
                 ? <div className="text-lg font-black text-amber-300 flex items-center justify-center gap-2"><Coins size={18} /> {card.prize?.kind === "coupon" ? card.prize.label : `+${card.prize?.points || 0} points`}</div>
                 : <div className="text-sm font-bold text-slate-300">No match this time — try again!</div>}
               {typeof card?.balance === "number" && <div className="text-[11px] text-slate-400 mt-1">Balance: {card.balance} pts</div>}
+              {card?.streak?.bonus?.awarded && (
+                <div className="text-sm font-bold mt-2" style={{ color: "#fb923c" }} data-testid="scratch-streak-bonus">
+                  🔥 Day {card.streak.bonus.streak_day} streak · +{card.streak.bonus.points} pts{card.streak.bonus.bonus_spin ? " · +1 bonus spin!" : ""}
+                </div>
+              )}
             </div>
           )}
 

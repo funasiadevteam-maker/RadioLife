@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Clock } from "lucide-react";
 import { GAME_ART } from "../assets/gameArt";
+import { playFx, vibrate } from "../utils/gameFX";
 
 export default function Quiz({ config, onSubmit, submitting, result, brand, onAnimationComplete }) {
   const questions = config.questions || [];
@@ -38,6 +39,9 @@ export default function Quiz({ config, onSubmit, submitting, result, brand, onAn
   // (the "Grading…" surface already covers that window).
   useEffect(() => {
     if (!result) return;
+    const won = result.result === "win" || result.won === true;
+    if (won) { playFx("win"); vibrate([0, 40, 30, 40]); }
+    else { playFx("lose"); vibrate(20); }
     const t = setTimeout(() => onAnimationComplete?.(result), 1000);
     return () => clearTimeout(t);
   }, [result, onAnimationComplete]);
@@ -61,6 +65,7 @@ export default function Quiz({ config, onSubmit, submitting, result, brand, onAn
 
   const submitAnswer = (chosen) => {
     clearInterval(tickRef.current);
+    if (chosen >= 0) { playFx("reveal"); vibrate(12); }
     const newAnswers = [...answers, chosen];
     setAnswers(newAnswers);
     if (idx + 1 >= questions.length) {

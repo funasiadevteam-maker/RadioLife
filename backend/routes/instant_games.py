@@ -23,6 +23,8 @@ from auth import current_user, require_admin
 from services.merchant_rbac_service import resolve_merchant_with_role
 from services.object_storage import get_storage
 from services.points_service import PointsService
+from routes.game_rewards import (touch_streak, record_game_win,
+                                  bonus_spins_today)
 
 router = APIRouter(prefix="/api/games", tags=["instant_games"])
 
@@ -104,7 +106,11 @@ def _public_segments(game: dict) -> list[dict]:
 async def _spins_left(db, user_id: str, game: dict) -> int:
     used = await db.wheel_spins.count_documents(
         {"user_id": user_id, "game_id": game["_id"], "day": _today()})
-    return max(0, int(game.get("daily_spins") or DEFAULT_DAILY_SPINS) - used)
+    base = int(game.get("daily_spins") or DEFAULT_DAILY_SPINS)
+    # 7-day streak milestone grants a bonus spin on the house games.
+    if game["_id"] in ("wheel_house", "scratch_house"):
+        base += await bonus_spins_today(db, user_id)
+    return max(0, base - used)
 
 
 def _bgm_url(request: Request, game: dict) -> Optional[str]:
@@ -223,10 +229,12 @@ async def wheel_spin(request: Request, body: SpinBody = Body(default=SpinBody())
         {"_id": f"ws_{spin_id}", "user_id": uid, "game_id": game["_id"],
          "day": _today(), "segment_index": idx, "prize": prize,
          "created_at": _now()})
+    await record_game_win(db, user, "spin_win", prize)
+    streak = await touch_streak(db, uid)
     left = await _spins_left(db, uid, game)
     bal = await PointsService(db).get_balance(uid)
     return {"segment_index": idx, "prize": prize, "spins_left": left,
-            "balance": bal}
+            "balance": bal, "streak": streak}
 
 
 class ScratchBody(BaseModel):
@@ -276,10 +284,13 @@ async def scratch_play(request: Request,
         {"_id": f"sc_{play_id}", "user_id": uid, "game_id": game["_id"],
          "day": _today(), "segment_index": idx, "prize": prize,
          "tiles": tiles, "created_at": _now()})
+    if win:
+        await record_game_win(db, user, "scratch_win", prize)
+    streak = await touch_streak(db, uid)
     left = await _spins_left(db, uid, game)
     bal = await PointsService(db).get_balance(uid)
     return {"tiles": tiles, "win": win, "prize": prize,
-            "spins_left": left, "balance": bal}
+            "spins_left": left, "balance": bal, "streak": streak}
 
 
 @router.get("/bgm/wheel")
