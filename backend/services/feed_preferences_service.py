@@ -31,6 +31,9 @@ CATEGORY_DEFAULTS = {
     "club": "all_updates",
 }
 
+# Single global doc holding admin overrides over CATEGORY_DEFAULTS.
+_DEFAULTS_DOC_ID = "global"
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -54,11 +57,39 @@ async def get_pref_map(db, uid: str) -> dict:
     return out
 
 
-def effective_mode(pref_map: dict, actor_type: str, actor_id: str) -> str:
+def effective_mode(pref_map: dict, actor_type: str, actor_id: str,
+                   defaults: dict | None = None) -> str:
     m = pref_map.get((actor_type, actor_id))
     if m in VALID_MODES:
         return m
-    return CATEGORY_DEFAULTS.get(actor_type, "all_updates")
+    return (defaults or CATEGORY_DEFAULTS).get(actor_type, "all_updates")
+
+
+async def get_category_defaults(db) -> dict:
+    """Admin-editable per-category defaults merged over the baseline constants."""
+    out = dict(CATEGORY_DEFAULTS)
+    try:
+        doc = await db.feed_category_defaults.find_one({"_id": _DEFAULTS_DOC_ID})
+    except Exception:
+        doc = None
+    if doc:
+        for k, v in (doc.get("defaults") or {}).items():
+            if k in VALID_ACTOR_TYPES and v in VALID_MODES:
+                out[k] = v
+    return out
+
+
+async def set_category_defaults(db, updates: dict) -> dict:
+    """Persist per-category default modes (admin). Validates keys & values."""
+    clean = {k: v for k, v in (updates or {}).items()
+             if k in VALID_ACTOR_TYPES and v in VALID_MODES}
+    if not clean:
+        raise ValueError("no_valid_defaults")
+    sets = {f"defaults.{k}": v for k, v in clean.items()}
+    sets["updated_at"] = _now()
+    await db.feed_category_defaults.update_one(
+        {"_id": _DEFAULTS_DOC_ID}, {"$set": sets}, upsert=True)
+    return await get_category_defaults(db)
 
 
 async def set_pref(db, uid: str, actor_type: str, actor_id: str,
@@ -78,6 +109,7 @@ async def list_following_entities(db, uid: str) -> dict:
     """Followed people / stations / businesses with display info, grouped by
     category, each annotated with its current effective frequency mode."""
     pref_map = await get_pref_map(db, uid)
+    defaults = await get_category_defaults(db)
 
     friends: set = set()
     async for fr in db.social_friendships.find(
@@ -88,7 +120,7 @@ async def list_following_entities(db, uid: str) -> dict:
         return {
             "actor_type": actor_type, "actor_id": actor_id,
             "name": name or "Unknown", "avatar_url": avatar,
-            "frequency_mode": effective_mode(pref_map, actor_type, actor_id),
+            "frequency_mode": effective_mode(pref_map, actor_type, actor_id, defaults),
             "explicitly_set": (actor_type, actor_id) in pref_map,
         }
 
@@ -128,9 +160,10 @@ async def list_following_entities(db, uid: str) -> dict:
                                       b.get("logo_url") or b.get("cover_image_url")))
 
     return {"people": people, "stations": stations, "businesses": businesses,
-            "defaults": CATEGORY_DEFAULTS, "modes": sorted(VALID_MODES)}
+            "defaults": defaults, "modes": sorted(VALID_MODES)}
 
 
 __all__ = ["VALID_MODES", "VALID_ACTOR_TYPES", "CATEGORY_DEFAULTS",
            "ensure_indexes", "get_pref_map", "effective_mode", "set_pref",
+           "get_category_defaults", "set_category_defaults",
            "list_following_entities"]

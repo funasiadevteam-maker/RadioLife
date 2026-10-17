@@ -100,6 +100,7 @@ const SECTIONS = [
       { to: "/admin/moderation/tracks",         label: "Tracks (UGC)",     testid: "adnav-cq-moderation" },
       { to: "/admin/personas/safety",             label: "Persona Safety",   testid: "adnav-cq-persona" },
       { to: "/admin/news",                             label: "News Radio",         testid: "adnav-cq-news" },
+      { to: "/admin/feed-defaults",               label: "Feed Defaults",     testid: "adnav-cq-feed-defaults" },
     ],
   },
   {

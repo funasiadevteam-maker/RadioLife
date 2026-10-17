@@ -29,7 +29,8 @@ WALL_TYPES = {"MOMENT", "LIVE_VIDEO", "BUSINESS_LIVE", "EVENT", "LISTEN_ROOM",
               "RADIO_CLIP", "READING", "BUSINESS_POST", "SPONSORED_POST",
               "DAILY_DIGEST"}
 
-from services.feed_preferences_service import get_pref_map, effective_mode
+from services.feed_preferences_service import (
+    get_pref_map, effective_mode, get_category_defaults)
 
 
 def _now() -> datetime:
@@ -694,6 +695,10 @@ async def _apply_feed_preferences(db, uid: str, cands: list[dict], mode: str) ->
         return cands
     if not pref_map and mode != "following":
         return cands
+    try:
+        defaults = await get_category_defaults(db)
+    except Exception:
+        defaults = None
     kept: list[dict] = []
     buckets: dict = {}
     for c in cands:
@@ -702,7 +707,7 @@ async def _apply_feed_preferences(db, uid: str, cands: list[dict], mode: str) ->
             kept.append(c)
             continue
         atype, aid = am
-        emode = effective_mode(pref_map, atype, aid)
+        emode = effective_mode(pref_map, atype, aid, defaults)
         if emode == "mute":
             continue
         if mode == "following" and emode == "live_only":

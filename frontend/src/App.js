@@ -302,6 +302,7 @@ import AdminRadioClaims from "@/Admin/AdminRadioClaims";
 import AdminSubscriptions from "@/Admin/AdminSubscriptions";
 // Phase F-1 — Points engine admin dashboard.
 import AdminPoints from "@/Admin/AdminPoints";
+import AdminFeedDefaults from "@/Admin/AdminFeedDefaults";
 // Phase 42-E1.3 — Predict & Win self-serve admin + advertiser surfaces.
 import AdminPredictWinSelfServe from "@/Admin/AdminPredictWinSelfServe";
 import AdvertiserPredictWin from "@/Advertiser/AdvertiserPredictWin";
@@ -568,6 +569,9 @@ function AppRouter() {
       } />
       <Route path="/admin/points" element={
         <ProtectedRoute requireAdmin><AdminPoints /></ProtectedRoute>
+      } />
+      <Route path="/admin/feed-defaults" element={
+        <ProtectedRoute requireAdmin><AdminFeedDefaults /></ProtectedRoute>
       } />
       <Route path="/admin/platform-fees" element={
         <ProtectedRoute requireAdmin><AdminPlatformFees /></ProtectedRoute>

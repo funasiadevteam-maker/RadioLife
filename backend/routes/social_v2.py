@@ -156,31 +156,40 @@ async def seed_social_v2_demo(db) -> None:
             {"user_id": uid, "station_id": st["station_id"]},
             {"$setOnInsert": {"followed_at": _now().isoformat()}}, upsert=True)
         # A followed-station post → STATION_ACTIVITY card.
-        if not await db.social_posts.find_one({"_id": "post_demo_social_1"}):
-            await db.social_posts.insert_one({
-                "_id": "post_demo_social_1", "post_id": "post_demo_social_1",
+        # Upsert + refresh timestamp each boot so the demo post stays inside the
+        # feed's 7-day window (otherwise it ages out and the demo feed goes empty).
+        await db.social_posts.update_one(
+            {"_id": "post_demo_social_1"},
+            {"$set": {
+                "post_id": "post_demo_social_1",
                 "page_id": st["station_id"], "author_user_id": st.get("owner_user_id"),
                 "post_type": "text", "text": "New mix dropping tonight — tune in! 🎧",
                 "media_urls": [], "visibility": "public",
                 "approval_status": "approved", "status": "approved",
-                "reaction_counts": {}, "comment_count": 0, "share_count": 0,
-                "created_at": _now().isoformat()})
+                "created_at": _now().isoformat()},
+             "$setOnInsert": {"reaction_counts": {}, "comment_count": 0,
+                              "share_count": 0}},
+            upsert=True)
 
     if not advisor_ids:
         return
     a0 = advisor_ids[0]
 
     # A public moment from a followed advisor → MOMENT card.
-    if not await db.social_moments.find_one({"_id": "mom_demo_social_1"}):
-        await db.social_moments.insert_one({
-            "_id": "mom_demo_social_1", "user_id": a0,
+    # Upsert + refresh timestamps each boot so this followed-advisor moment stays
+    # within the 7-day feed window — keeps the demo feed (and the per-post 3-dot
+    # feed controls) populated on web and mobile.
+    await db.social_moments.update_one(
+        {"_id": "mom_demo_social_1"},
+        {"$set": {
+            "user_id": a0,
             "media_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000",
             "media_type": "photo",
             "caption": "Golden hour on the marina 🌇 good energy tonight ✨",
-            "context": None, "visibility": "public",
-            "city": "Dubai", "like_count": 12, "comment_count": 3,
-            "created_at": _now(),
-            "expires_at": _now() + timedelta(days=7)})
+            "context": None, "visibility": "public", "city": "Dubai",
+            "created_at": _now(), "expires_at": _now() + timedelta(days=7)},
+         "$setOnInsert": {"like_count": 12, "comment_count": 3}},
+        upsert=True)
 
     # A shared tarot reading from a followed advisor → TAROT_SHARE card.
     if not await db.ai_readings.find_one({"_id": "rd_demo_social_tarot_1"}):
