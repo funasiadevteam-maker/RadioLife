@@ -98,6 +98,16 @@ export default function TravelHome() {
           </View>
         </TouchableOpacity>
 
+        <TouchableOpacity activeOpacity={0.9} testID="travel-live-search-btn"
+          onPress={() => router.push('/shop/travel/search' as any)} style={s.liveBtn}>
+          <Ionicons name="airplane" size={18} color="#fff" />
+          <View style={{ flex: 1 }}>
+            <Text style={s.liveBtnTitle}>Search live flights &amp; hotels</Text>
+            <Text style={s.liveBtnSub}>Real-time prices · powered by Travelpayouts</Text>
+          </View>
+          <View style={s.liveBadge}><Text style={s.liveBadgeTxt}>LIVE</Text></View>
+        </TouchableOpacity>
+
         <View style={s.search}>
           <Ionicons name="search" size={18} color={COLORS.textMuted} />
           <TextInput value={q} onChangeText={setQ} placeholder="Search destinations, deals…"
@@ -201,4 +211,9 @@ const s = StyleSheet.create({
   ratingBox: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 'auto' },
   ratingTxt: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
   empty: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '700', marginTop: 40 },
+  liveBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#111827', marginHorizontal: SPACING.md, marginTop: 6, marginBottom: 2, borderRadius: RADIUS.lg, padding: 14 },
+  liveBtnTitle: { color: '#fff', fontSize: FONT.sm, fontWeight: '900' },
+  liveBtnSub: { color: 'rgba(255,255,255,0.7)', fontSize: FONT.xs, fontWeight: '600', marginTop: 1 },
+  liveBadge: { backgroundColor: COLORS.red, borderRadius: RADIUS.full, paddingHorizontal: 9, paddingVertical: 3 },
+  liveBadgeTxt: { color: '#fff', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
 });

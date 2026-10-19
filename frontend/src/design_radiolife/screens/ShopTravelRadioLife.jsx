@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import { Search, Plane, BedDouble, Luggage, Compass, Ship, Star, Coins, Bell, BellRing } from "lucide-react";
 import { API } from "@/AuthContext";
+import TravelWidget from "./TravelWidget";
 
 const money = (c) => `$${Math.round((c || 0) / 100)}`;
 
@@ -107,6 +108,15 @@ export default function ShopTravelRadioLife() {
           Book your next trip. Earn BigPoints.
         </h1>
       </header>
+
+      <section className="fz-card rounded-2xl p-4" data-testid="travel-live-search">
+        <div className="flex items-center gap-2 mb-3">
+          <Plane size={18} className="fz-brand" />
+          <h2 className="text-lg font-black fz-text">Search live flights &amp; hotels</h2>
+          <span className="ml-auto text-[10px] font-black text-white px-2 py-0.5 rounded-full" style={{ background: "var(--live)" }}>LIVE</span>
+        </div>
+        <TravelWidget />
+      </section>
 
       <button onClick={toggleFollow} disabled={followBusy} data-testid="travel-follow-btn"
         className={`w-full flex items-center gap-3 rounded-2xl p-4 transition-opacity hover:opacity-95 ${following ? "fz-brand-soft" : "fz-grad"}`}>
