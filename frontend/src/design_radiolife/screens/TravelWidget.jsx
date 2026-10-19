@@ -13,6 +13,7 @@ function loadTravelpayoutsOnce() {
   window.TPWL_CONFIGURATION = {
     ...(window.TPWL_CONFIGURATION || {}),
     resultsURL: `${window.location.origin}/shop/travel`,
+    sub_id: "fuusic_app",
   };
   if (document.querySelector(`script[data-tpwl-main="${WL_ID}"]`)) {
     window.__tpwlLoadPromise = Promise.resolve();

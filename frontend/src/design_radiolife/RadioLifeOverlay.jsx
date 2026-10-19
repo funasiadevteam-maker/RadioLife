@@ -87,6 +87,7 @@ import ConciergeRadioLife from "./screens/ConciergeRadioLife";
 import ShopNearMeRadioLife from "./screens/ShopNearMeRadioLife";
 import ShopTravelRadioLife from "./screens/ShopTravelRadioLife";
 import ShopTravelDealRadioLife from "./screens/ShopTravelDealRadioLife";
+import ShopTravelTripsRadioLife from "./screens/ShopTravelTripsRadioLife";
 import ShopOrderTrackerRadioLife from "./screens/ShopOrderTrackerRadioLife";
 import MerchantFulfillmentRadioLife from "./screens/MerchantFulfillmentRadioLife";
 
@@ -128,6 +129,7 @@ export function screenFor(pathname) {
   if (pathname === "/shop/merchant/fulfillment") return MerchantFulfillmentRadioLife;
   if (pathname === "/shop/near-me") return ShopNearMeRadioLife;
   if (pathname === "/shop/travel") return ShopTravelRadioLife;
+  if (pathname === "/shop/travel/trips") return ShopTravelTripsRadioLife;
   if (pathname.startsWith("/shop/travel/")) return ShopTravelDealRadioLife;
   if (pathname.startsWith("/shop/order/")) return ShopOrderTrackerRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;

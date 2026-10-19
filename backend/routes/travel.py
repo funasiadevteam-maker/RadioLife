@@ -7,10 +7,12 @@ reuses the BigPoints demo flow. Admins manage the catalogue via /admin/deals.
 Platform-agnostic (web + mobile)."""
 from __future__ import annotations
 
+import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
@@ -20,6 +22,81 @@ router = APIRouter(prefix="/api/travel", tags=["travel"])
 
 DEAL_TYPES = ["flight", "hotel", "package", "experience", "cruise"]
 TRAVEL_TOPIC = "travel"
+
+# ---- Live "Trending routes" (Travelpayouts Data API) ----------------------
+_TP_CITY_DIRECTIONS = "https://api.travelpayouts.com/v1/city-directions"
+_TRENDING_TTL_H = 24
+# Curated IATA → city map so the trending row stays recognisable (unknown
+# codes are filtered out to keep the row clean).
+IATA_NAMES: Dict[str, Dict[str, str]] = {
+    "LON": {"city": "London", "country": "UK", "emoji": "🇬🇧"},
+    "PAR": {"city": "Paris", "country": "France", "emoji": "🇫🇷"},
+    "CDG": {"city": "Paris", "country": "France", "emoji": "🇫🇷"},
+    "IST": {"city": "Istanbul", "country": "Türkiye", "emoji": "🇹🇷"},
+    "MOW": {"city": "Moscow", "country": "Russia", "emoji": "🇷🇺"},
+    "BKK": {"city": "Bangkok", "country": "Thailand", "emoji": "🇹🇭"},
+    "SIN": {"city": "Singapore", "country": "Singapore", "emoji": "🇸🇬"},
+    "KUL": {"city": "Kuala Lumpur", "country": "Malaysia", "emoji": "🇲🇾"},
+    "DEL": {"city": "Delhi", "country": "India", "emoji": "🇮🇳"},
+    "BOM": {"city": "Mumbai", "country": "India", "emoji": "🇮🇳"},
+    "CMB": {"city": "Colombo", "country": "Sri Lanka", "emoji": "🇱🇰"},
+    "MLE": {"city": "Maldives", "country": "Maldives", "emoji": "🏝️"},
+    "KWI": {"city": "Kuwait City", "country": "Kuwait", "emoji": "🇰🇼"},
+    "DOH": {"city": "Doha", "country": "Qatar", "emoji": "🇶🇦"},
+    "RUH": {"city": "Riyadh", "country": "Saudi Arabia", "emoji": "🇸🇦"},
+    "JED": {"city": "Jeddah", "country": "Saudi Arabia", "emoji": "🇸🇦"},
+    "CAI": {"city": "Cairo", "country": "Egypt", "emoji": "🇪🇬"},
+    "BEY": {"city": "Beirut", "country": "Lebanon", "emoji": "🇱🇧"},
+    "AMM": {"city": "Amman", "country": "Jordan", "emoji": "🇯🇴"},
+    "SLL": {"city": "Salalah", "country": "Oman", "emoji": "🇴🇲"},
+    "MCT": {"city": "Muscat", "country": "Oman", "emoji": "🇴🇲"},
+    "TAS": {"city": "Tashkent", "country": "Uzbekistan", "emoji": "🇺🇿"},
+    "TBS": {"city": "Tbilisi", "country": "Georgia", "emoji": "🇬🇪"},
+    "EVN": {"city": "Yerevan", "country": "Armenia", "emoji": "🇦🇲"},
+    "BAK": {"city": "Baku", "country": "Azerbaijan", "emoji": "🇦🇿"},
+    "AUH": {"city": "Abu Dhabi", "country": "UAE", "emoji": "🇦🇪"},
+    "DXB": {"city": "Dubai", "country": "UAE", "emoji": "🇦🇪"},
+    "JFK": {"city": "New York", "country": "USA", "emoji": "🇺🇸"},
+    "LAX": {"city": "Los Angeles", "country": "USA", "emoji": "🇺🇸"},
+    "NYC": {"city": "New York", "country": "USA", "emoji": "🇺🇸"},
+    "BCN": {"city": "Barcelona", "country": "Spain", "emoji": "🇪🇸"},
+    "MAD": {"city": "Madrid", "country": "Spain", "emoji": "🇪🇸"},
+    "ROM": {"city": "Rome", "country": "Italy", "emoji": "🇮🇹"},
+    "FCO": {"city": "Rome", "country": "Italy", "emoji": "🇮🇹"},
+    "MIL": {"city": "Milan", "country": "Italy", "emoji": "🇮🇹"},
+    "AMS": {"city": "Amsterdam", "country": "Netherlands", "emoji": "🇳🇱"},
+    "FRA": {"city": "Frankfurt", "country": "Germany", "emoji": "🇩🇪"},
+    "BER": {"city": "Berlin", "country": "Germany", "emoji": "🇩🇪"},
+    "ATH": {"city": "Athens", "country": "Greece", "emoji": "🇬🇷"},
+    "LIS": {"city": "Lisbon", "country": "Portugal", "emoji": "🇵🇹"},
+    "HKG": {"city": "Hong Kong", "country": "Hong Kong", "emoji": "🇭🇰"},
+    "TYO": {"city": "Tokyo", "country": "Japan", "emoji": "🇯🇵"},
+    "NRT": {"city": "Tokyo", "country": "Japan", "emoji": "🇯🇵"},
+    "DPS": {"city": "Bali", "country": "Indonesia", "emoji": "🏝️"},
+    "ZNZ": {"city": "Zanzibar", "country": "Tanzania", "emoji": "🏝️"},
+    "MRU": {"city": "Mauritius", "country": "Mauritius", "emoji": "🏝️"},
+    "SEZ": {"city": "Seychelles", "country": "Seychelles", "emoji": "🏝️"},
+    "NBO": {"city": "Nairobi", "country": "Kenya", "emoji": "🇰🇪"},
+    "JNB": {"city": "Johannesburg", "country": "South Africa", "emoji": "🇿🇦"},
+    "KHI": {"city": "Karachi", "country": "Pakistan", "emoji": "🇵🇰"},
+    "LHE": {"city": "Lahore", "country": "Pakistan", "emoji": "🇵🇰"},
+}
+
+
+def _trending_deep_link(origin: str, dest: str, dep_at: str, ret_at: str) -> str:
+    """Attributed Aviasales search deep link (marker = partner.subid)."""
+    marker = os.environ.get("TRAVELPAYOUTS_WL_MARKER", "")
+    sub = os.environ.get("TRAVELPAYOUTS_SUBID", "")
+    m = f"{marker}.{sub}" if (marker and sub) else marker
+
+    def ddmm(iso: str) -> str:
+        try:
+            return f"{iso[8:10]}{iso[5:7]}"
+        except Exception:
+            return ""
+    slug = f"{origin}{ddmm(dep_at)}{dest}{ddmm(ret_at)}1"
+    base = f"https://www.aviasales.com/search/{slug}"
+    return f"{base}?marker={m}" if m else base
 
 
 def _now() -> datetime:
@@ -52,6 +129,52 @@ def _admin_doc(d: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ----------------------------------------------------------------------------- consumer
+
+@router.get("/trending")
+async def trending(request: Request, origin: str = "DXB", limit: int = 8):
+    """Live 'trending routes' from an origin with real cheapest prices
+    (Travelpayouts Data API), cached 24h. Unknown/obscure destinations are
+    filtered out so the row stays recognisable."""
+    db = request.app.state.db
+    origin = (origin or "DXB").upper()[:3]
+    now_ts = _now().timestamp()
+    cache = await db.travel_trending_cache.find_one({"_id": origin})
+    if cache and isinstance(cache.get("fetched_ts"), (int, float)) \
+            and (now_ts - cache["fetched_ts"]) < _TRENDING_TTL_H * 3600:
+        return {"origin": origin, "items": (cache.get("items") or [])[:limit], "cached": True}
+
+    token = os.environ.get("TRAVELPAYOUTS_API_TOKEN")
+    items: List[Dict[str, Any]] = []
+    if token:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(_TP_CITY_DIRECTIONS,
+                                      params={"origin": origin, "currency": "usd", "token": token})
+            data = (r.json() or {}).get("data") or {}
+            for row in sorted(data.values(), key=lambda x: x.get("price") or 1e9):
+                dest = row.get("destination")
+                meta = IATA_NAMES.get(dest)
+                if not meta or dest == origin:
+                    continue
+                items.append({
+                    "origin": origin, "destination": dest,
+                    "city": meta["city"], "country": meta["country"], "emoji": meta["emoji"],
+                    "price": int(row.get("price") or 0), "currency": "USD",
+                    "airline": row.get("airline"), "transfers": int(row.get("transfers") or 0),
+                    "departure_at": row.get("departure_at"), "return_at": row.get("return_at"),
+                    "deep_link": _trending_deep_link(origin, dest,
+                                                     row.get("departure_at") or "",
+                                                     row.get("return_at") or ""),
+                })
+        except Exception:
+            items = []
+    if items:
+        await db.travel_trending_cache.update_one(
+            {"_id": origin}, {"$set": {"items": items, "fetched_ts": now_ts}}, upsert=True)
+    elif cache:
+        items = cache.get("items") or []  # stale fallback on API failure
+    return {"origin": origin, "items": items[:limit], "cached": False}
+
 
 @router.get("/deals")
 async def list_deals(request: Request, q: Optional[str] = None,

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
-  ActivityIndicator, TextInput,
+  ActivityIndicator, TextInput, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,61 @@ type Deal = {
 };
 
 const money = (c: number) => `$${Math.round((c || 0) / 100)}`;
+
+type Trend = {
+  destination: string; city: string; country: string; emoji: string;
+  price: number; airline?: string; transfers: number; deep_link: string;
+};
+
+function TrendingRow() {
+  const [items, setItems] = useState<Trend[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let on = true;
+    api.get('/travel/trending?origin=DXB&limit=8')
+      .then((r) => { if (on) setItems(r.data?.items || []); })
+      .catch(() => {})
+      .finally(() => { if (on) setLoading(false); });
+    return () => { on = false; };
+  }, []);
+  if (!loading && items.length === 0) return null;
+  return (
+    <View style={{ marginTop: 6 }} testID="travel-trending">
+      <View style={tr.head}>
+        <Ionicons name="trending-up" size={15} color={COLORS.primary} />
+        <Text style={tr.headTxt}>Trending from Dubai</Text>
+        <View style={tr.liveDot}><Text style={tr.liveDotTxt}>LIVE</Text></View>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 10 }}>
+        {loading
+          ? [0, 1, 2, 3].map((i) => <View key={i} style={[tr.card, { backgroundColor: COLORS.inputBg }]} />)
+          : items.map((it) => (
+              <TouchableOpacity key={it.destination} activeOpacity={0.85} testID={`trending-${it.destination}`}
+                onPress={() => Linking.openURL(it.deep_link).catch(() => {})} style={tr.card}>
+                <Text style={{ fontSize: 22 }}>{it.emoji}</Text>
+                <Text style={tr.city} numberOfLines={1}>{it.city}</Text>
+                <Text style={tr.country} numberOfLines={1}>{it.country}</Text>
+                <Text style={tr.price}>from {money(it.price * 100)}</Text>
+                <Text style={tr.sub}>{it.transfers === 0 ? 'Direct' : `${it.transfers} stop`} · {it.airline}</Text>
+              </TouchableOpacity>
+            ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+const tr = StyleSheet.create({
+  head: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, marginBottom: 8 },
+  headTxt: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
+  liveDot: { backgroundColor: COLORS.red, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 2 },
+  liveDotTxt: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.4 },
+  card: { width: 136, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.lg, padding: 11, gap: 1, minHeight: 104 },
+  city: { color: COLORS.text, fontSize: FONT.sm, fontWeight: '900', marginTop: 4 },
+  country: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
+  price: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900', marginTop: 3 },
+  sub: { color: COLORS.textDim, fontSize: 10, fontWeight: '600' },
+});
 const TYPES: { key: string; label: string; icon: any }[] = [
   { key: 'all', label: 'All', icon: 'globe-outline' },
   { key: 'flight', label: 'Flights', icon: 'airplane-outline' },
@@ -76,7 +131,11 @@ export default function TravelHome() {
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={s.topTitle}>Travel</Text>
-        <View style={{ width: 22 }} />
+        <TouchableOpacity onPress={() => router.push('/shop/travel/trips' as any)} testID="travel-my-trips"
+          hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Ionicons name="briefcase-outline" size={16} color={COLORS.primary} />
+          <Text style={{ color: COLORS.primary, fontSize: FONT.xs, fontWeight: '900' }}>My Trips</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 90 }} testID="travel-home-root"
@@ -107,6 +166,8 @@ export default function TravelHome() {
           </View>
           <View style={s.liveBadge}><Text style={s.liveBadgeTxt}>LIVE</Text></View>
         </TouchableOpacity>
+
+        <TrendingRow />
 
         <View style={s.search}>
           <Ionicons name="search" size={18} color={COLORS.textMuted} />

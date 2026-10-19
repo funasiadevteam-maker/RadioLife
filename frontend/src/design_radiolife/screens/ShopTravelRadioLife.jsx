@@ -6,7 +6,8 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import { Search, Plane, BedDouble, Luggage, Compass, Ship, Star, Coins, Bell, BellRing } from "lucide-react";
 import { API } from "@/AuthContext";
-import TravelWidget from "./TravelWidget";
+import TravelLiveSearch from "./TravelLiveSearch";
+import TravelTrending from "./TravelTrending";
 
 const money = (c) => `$${Math.round((c || 0) / 100)}`;
 
@@ -102,21 +103,22 @@ export default function ShopTravelRadioLife() {
 
   return (
     <div className="px-4 pt-6 pb-8 space-y-4 fz-text" data-testid="rl-travel-page">
-      <header>
-        <div className="fz-brand text-[11px] font-black tracking-widest">FUUSIC TRAVEL</div>
-        <h1 className="text-3xl font-black tracking-tight fz-text leading-tight mt-1">
-          Book your next trip. Earn BigPoints.
-        </h1>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <div className="fz-brand text-[11px] font-black tracking-widest">FUUSIC TRAVEL</div>
+          <h1 className="text-3xl font-black tracking-tight fz-text leading-tight mt-1">
+            Book your next trip. Earn BigPoints.
+          </h1>
+        </div>
+        <Link to="/shop/travel/trips" data-testid="travel-my-trips"
+          className="fz-card shrink-0 inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-bold fz-text mt-1">
+          <Luggage size={15} /> My Trips
+        </Link>
       </header>
 
-      <section className="fz-card rounded-2xl p-4" data-testid="travel-live-search">
-        <div className="flex items-center gap-2 mb-3">
-          <Plane size={18} className="fz-brand" />
-          <h2 className="text-lg font-black fz-text">Search live flights &amp; hotels</h2>
-          <span className="ml-auto text-[10px] font-black text-white px-2 py-0.5 rounded-full" style={{ background: "var(--live)" }}>LIVE</span>
-        </div>
-        <TravelWidget />
-      </section>
+      <TravelLiveSearch />
+
+      <TravelTrending origin="DXB" />
 
       <button onClick={toggleFollow} disabled={followBusy} data-testid="travel-follow-btn"
         className={`w-full flex items-center gap-3 rounded-2xl p-4 transition-opacity hover:opacity-95 ${following ? "fz-brand-soft" : "fz-grad"}`}>
