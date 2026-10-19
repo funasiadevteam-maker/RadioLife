@@ -25,6 +25,7 @@ const BADGE = {
   CLUB_POST: { label: "CLUB" },
   OFFER: { label: "OFFER" },
   RADIO_CLIP: { label: "CLIP" },
+  TRAVEL_DEAL: { label: "TRAVEL DEAL" },
 };
 
 export default function SocialFeedCard({ item, t, onFollow }) {

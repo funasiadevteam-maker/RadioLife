@@ -101,6 +101,7 @@ const SECTIONS = [
       { to: "/admin/personas/safety",             label: "Persona Safety",   testid: "adnav-cq-persona" },
       { to: "/admin/news",                             label: "News Radio",         testid: "adnav-cq-news" },
       { to: "/admin/feed-defaults",               label: "Feed Defaults",     testid: "adnav-cq-feed-defaults" },
+      { to: "/admin/travel-deals",                label: "Travel Deals",      testid: "adnav-cq-travel-deals" },
     ],
   },
   {

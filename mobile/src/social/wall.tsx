@@ -33,6 +33,7 @@ const TYPE_META: any = {
   TAROT_SHARE: { verb: 'shared a Tarot card', emoji: '🃏', tone: '#c084fc' },
   STATION_ACTIVITY: { verb: 'posted', icon: 'radio', tone: '#38bdf8' },
   RADIO_CLIP: { verb: 'shared a clip', icon: 'mic', tone: '#A855F7' },
+  TRAVEL_DEAL: { verb: 'travel deal', icon: 'airplane', tone: '#A855F7' },
 };
 
 const KIND_TO_TYPE: any = { user: 'person', station: 'station', business: 'business' };
@@ -144,6 +145,7 @@ function WallCard({ item, mode, onFollow, onNavigateTab }: any) {
       case 'open_dream': fireEvent('feed_dream_similar', { item_id: item.id }); router.push('/social/dreams' as any); break;
       case 'open_tarot': fireEvent('feed_tarot_open', { item_id: item.id }); router.push('/social/tarot' as any); break;
       case 'open_station': router.push('/stations' as any); break;
+      case 'open_travel': router.push(`/shop/travel/${tgt}` as any); break;
       case 'open_moment': default: onNavigateTab?.('moments'); break;
     }
   };

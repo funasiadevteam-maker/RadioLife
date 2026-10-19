@@ -47,6 +47,7 @@ export function ctaTo(cta) {
     case "open_tarot": return "/social/tarot";
     case "open_moment": return "/social";
     case "view_offer": return "/shop";
+    case "open_travel": return t ? `/shop/travel/${t}` : "/shop/travel";
     case "open_game": return "/play-and-win";
     case "open_event": return "/social";
     default: return "/social";

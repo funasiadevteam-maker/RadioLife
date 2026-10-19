@@ -1363,6 +1363,10 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_social_v2(db)
     except Exception as e: logger.warning(f"social_v2 bootstrap: {e}")
     try:
+        from routes.travel import ensure_travel
+        await ensure_travel(db)
+    except Exception as e: logger.warning(f"travel bootstrap: {e}")
+    try:
         from routes.social_together import ensure_social_together
         await ensure_social_together(db)
     except Exception as e: logger.warning(f"social_together bootstrap: {e}")
@@ -7945,6 +7949,14 @@ app.include_router(stations_router)
 app.include_router(community_router)
 from routes.radio_clips import router as _radio_clips_router
 app.include_router(_radio_clips_router)
+
+# FUUSIC Travel — curated travel-deals vertical under Shop.
+try:
+    from routes.travel import router as _travel_router
+    app.include_router(_travel_router)
+    logger.info("Travel routes registered")
+except Exception as _e_tr:
+    logger.warning(f"Travel routes failed ({_e_tr})")
 
 # Feature B — My Feed Preferences (per-entity frequency control).
 try:

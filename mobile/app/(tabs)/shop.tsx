@@ -132,6 +132,16 @@ export default function ShopHome() {
             <Text style={s.nearMeText}>Explore shops &amp; services near you</Text>
             <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
           </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.9} testID="shop-travel-entry"
+            onPress={() => router.push('/shop/travel')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.primary, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, marginTop: 8 }}>
+            <Ionicons name="airplane" size={18} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>Travel deals ✈️</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600' }}>Flights, hotels, packages, cruises &amp; more</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#fff" />
+          </TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false}

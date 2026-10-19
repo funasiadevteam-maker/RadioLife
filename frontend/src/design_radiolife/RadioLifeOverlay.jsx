@@ -85,6 +85,8 @@ import MerchantSpecialsRadioLife from "./screens/MerchantSpecialsRadioLife";
 // Phase F — AI ordering concierge.
 import ConciergeRadioLife from "./screens/ConciergeRadioLife";
 import ShopNearMeRadioLife from "./screens/ShopNearMeRadioLife";
+import ShopTravelRadioLife from "./screens/ShopTravelRadioLife";
+import ShopTravelDealRadioLife from "./screens/ShopTravelDealRadioLife";
 import ShopOrderTrackerRadioLife from "./screens/ShopOrderTrackerRadioLife";
 import MerchantFulfillmentRadioLife from "./screens/MerchantFulfillmentRadioLife";
 
@@ -125,6 +127,8 @@ export function screenFor(pathname) {
   if (pathname === "/shop/merchant/promote") return MerchantPromoteRadioLife;
   if (pathname === "/shop/merchant/fulfillment") return MerchantFulfillmentRadioLife;
   if (pathname === "/shop/near-me") return ShopNearMeRadioLife;
+  if (pathname === "/shop/travel") return ShopTravelRadioLife;
+  if (pathname.startsWith("/shop/travel/")) return ShopTravelDealRadioLife;
   if (pathname.startsWith("/shop/order/")) return ShopOrderTrackerRadioLife;
   if (pathname.startsWith("/shop/menu/")) return ShopMenuRadioLife;
   if (pathname.startsWith("/shop/services/")) return ShopServicesRadioLife;

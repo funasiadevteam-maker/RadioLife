@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar, Sparkles, Navigation, RotateCcw, Eye } from "lucide-react";
+import { Search, Star, Store, ArrowRight, Coins, ShoppingCart, Crown, CreditCard, QrCode, User, Receipt, LayoutDashboard, X, Calendar, Sparkles, Navigation, RotateCcw, Eye, Plane } from "lucide-react";
 import { API } from "@/AuthContext";
 import { useProductCart } from "../useProductCart";
 import { useShopCart } from "../useShopCart";
@@ -230,6 +230,16 @@ export default function ShopRadioLife() {
         <Navigation size={16} className="fz-brand" />
         <span className="flex-1 text-sm font-bold fz-text">Explore shops &amp; services near you</span>
         <ArrowRight size={16} className="fz-muted" />
+      </Link>
+
+      <Link to="/shop/travel" data-testid="shop-travel-entry"
+        className="fz-grad flex items-center gap-3 rounded-2xl px-4 py-3.5 hover:opacity-95 transition-opacity">
+        <Plane size={20} />
+        <div className="flex-1">
+          <div className="font-black">Travel deals ✈️</div>
+          <div className="text-xs opacity-90">Flights, hotels, packages, cruises &amp; experiences — earn BigPoints.</div>
+        </div>
+        <ArrowRight size={20} />
       </Link>
 
       <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar" data-testid="shop-categories">

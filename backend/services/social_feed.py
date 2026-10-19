@@ -167,6 +167,44 @@ async def _moments(db, uid: str, elig: dict, mode: str) -> list[dict]:
     return out
 
 
+async def _travel_deals(db, uid: str, elig: dict, mode: str) -> list[dict]:
+    """Recommended curated travel deals — only for members who follow the
+    'travel' topic. Rendered as a brand (system) actor so feed-preference
+    muting/digesting never collapses them."""
+    follows = await db.category_follows.find_one({"user_id": uid, "topic": "travel"})
+    if not follows:
+        return []
+    rows = []
+    async for d in db.travel_deals.find({"active": True}).limit(SOURCE_LIMIT):
+        rows.append(d)
+    rows.sort(key=lambda d: (bool(d.get("promoted")), d.get("rating") or 0), reverse=True)
+    base = _now()
+    out = []
+    for i, d in enumerate(rows[:6]):
+        price = int(d.get("price_cents") or 0)
+        dest = d.get("destination") or ""
+        dur = d.get("duration")
+        price_line = f"From ${price / 100:.0f}" + (f" · {dur}" if dur else "")
+        blurb = d.get("blurb") or ""
+        out.append({
+            "id": f"TRAVEL_DEAL:{d['deal_id']}", "type": "TRAVEL_DEAL",
+            "created_at": _iso(base - timedelta(minutes=i * 7)),
+            "_dt": base - timedelta(minutes=i * 7),
+            "actor": {"kind": "system", "id": None, "name": "FUUSIC Travel",
+                      "avatar_url": None, "verified": True},
+            "title": d.get("title"),
+            "text": (f"{dest} · {price_line}" + (f"\n{blurb}" if blurb else "")).strip(),
+            "media_url": d.get("image_url"), "media_type": "image",
+            "cta": {"label": "View deal", "action": "open_travel", "target": d["deal_id"]},
+            "meta": {"deal_type": d.get("deal_type"), "price_cents": price,
+                     "destination": dest, "rating": d.get("rating"),
+                     "tags": (d.get("tags") or [])[:4], "recommended": True},
+            "follow_relationship": "following",
+            "candidate_source": "travel_deals", "sponsored": False,
+        })
+    return out
+
+
 async def _live_shows(db, uid: str, elig: dict, mode: str) -> list[dict]:
     out = []
     for status in ("live", "scheduled"):
@@ -836,7 +874,7 @@ async def build_feed(db, user: dict, *, mode: str = "following",
 
     cands: list[dict] = []
     for builder in (_moments, _live_shows, _rooms, _dreams, _tarot, _station_posts,
-                    _radio_clips, _readings, _business_posts):
+                    _radio_clips, _readings, _business_posts, _travel_deals):
         try:
             cands.extend(await builder(db, uid, elig, mode))
         except Exception:
