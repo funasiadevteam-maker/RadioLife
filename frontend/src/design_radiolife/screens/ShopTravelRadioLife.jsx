@@ -118,7 +118,7 @@ export default function ShopTravelRadioLife() {
 
       <TravelLiveSearch />
 
-      <TravelTrending origin="DXB" />
+      <TravelTrending />
 
       <button onClick={toggleFollow} disabled={followBusy} data-testid="travel-follow-btn"
         className={`w-full flex items-center gap-3 rounded-2xl p-4 transition-opacity hover:opacity-95 ${following ? "fz-brand-soft" : "fz-grad"}`}>

@@ -1,7 +1,7 @@
-// FUUSIC Travel — mobile live metasearch.
-// The Travelpayouts White Label is a browser/DOM widget, so it runs inside a
-// WebView here (it cannot execute natively in React Native). Same wl_id + mounts
-// as the web integration (src/design_radiolife/screens/TravelWidget.jsx).
+// FUUSIC Travel — mobile live metasearch (Flights · Hotels · Cars).
+// Travelpayouts widgets are browser/DOM scripts, so they run inside a WebView
+// here (they cannot execute natively in React Native). Flights uses the White
+// Label module (same wl_id as web); Hotels (Klook) & Cars use content widgets.
 import React, { useRef, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ActivityIndicator, SafeAreaView, Platform,
@@ -11,7 +11,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { COLORS, SPACING, FONT } from '../../../src/constants/theme';
 
-const WL_HTML = `<!DOCTYPE html>
+type Tab = 'flights' | 'hotels' | 'cars';
+
+const WL_FLIGHTS = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -29,12 +31,43 @@ const WL_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
+const KLOOK_HOTELS = 'https://tpwidg.com/content?currency=USD&trs=587763&shmarker=174867&locale=en-US&city_id=2&category=4&amount=6&powered_by=true&campaign_id=137&promo_id=4497&sub_id=fuusic_app';
+const CARS = 'https://tpwidg.com/content?trs=587763&shmarker=174867&locale=en-US&country=153&city=68511&powered_by=true&campaign_id=87&promo_id=2466&sub_id=fuusic_app';
+
+const contentHtml = (src: string) => `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<style>
+  html, body { margin: 0; padding: 10px; background: #ffffff; font-family: -apple-system, system-ui, Roboto, sans-serif; }
+</style>
+</head>
+<body>
+  <script async charset="utf-8" src="${src}"></script>
+</body>
+</html>`;
+
+const htmlFor = (t: Tab) =>
+  t === 'flights' ? WL_FLIGHTS : t === 'hotels' ? contentHtml(KLOOK_HOTELS) : contentHtml(CARS);
+
+const TABS: { key: Tab; label: string; icon: any }[] = [
+  { key: 'flights', label: 'Flights', icon: 'airplane' },
+  { key: 'hotels', label: 'Hotels', icon: 'bed' },
+  { key: 'cars', label: 'Cars', icon: 'car-sport' },
+];
+
 export default function TravelSearchScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState<'flights' | 'hotels'>('flights');
+  const [tab, setTab] = useState<Tab>('flights');
   const webRef = useRef<WebView>(null);
+
+  const switchTab = (t: Tab) => {
+    if (t === tab) return;
+    setTab(t); setLoading(true); setFailed(false);
+  };
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -47,39 +80,25 @@ export default function TravelSearchScreen() {
       </View>
 
       <View style={styles.tabs}>
-        <Pressable onPress={() => setTab('flights')} testID="travel-tab-flights"
-          style={[styles.tab, tab === 'flights' && styles.tabOn]}>
-          <Ionicons name="airplane" size={14} color={tab === 'flights' ? '#fff' : COLORS.textMuted} />
-          <Text style={[styles.tabTxt, tab === 'flights' && styles.tabTxtOn]}>Flights</Text>
-        </Pressable>
-        <Pressable onPress={() => setTab('hotels')} testID="travel-tab-hotels"
-          style={[styles.tab, tab === 'hotels' && styles.tabOn]}>
-          <Ionicons name="bed" size={14} color={tab === 'hotels' ? '#fff' : COLORS.textMuted} />
-          <Text style={[styles.tabTxt, tab === 'hotels' && styles.tabTxtOn]}>Hotels</Text>
-          <View style={styles.soonPill}><Text style={styles.soonTxt}>SOON</Text></View>
-        </Pressable>
+        {TABS.map((t) => {
+          const on = tab === t.key;
+          return (
+            <Pressable key={t.key} onPress={() => switchTab(t.key)} testID={`travel-tab-${t.key}`}
+              style={[styles.tab, on && styles.tabOn]}>
+              <Ionicons name={t.icon} size={14} color={on ? '#fff' : COLORS.textMuted} />
+              <Text style={[styles.tabTxt, on && styles.tabTxtOn]}>{t.label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
-      {tab === 'hotels' ? (
-        <View style={styles.comingSoon} testID="travel-hotels-soon">
-          <Ionicons name="bed-outline" size={38} color={COLORS.primary} />
-          <Text style={styles.noticeTitle}>Hotels are coming soon</Text>
-          <Text style={styles.loadingTxt}>
-            We're adding Trip.com hotel search in the next few days. For now, search
-            flights — you can add a hotel with the "Show hotels" option.
-          </Text>
-          <Pressable onPress={() => setTab('flights')} style={styles.retry} testID="travel-hotels-to-flights">
-            <Text style={styles.retryTxt}>Search flights</Text>
-          </Pressable>
-        </View>
-      ) : (
       <View style={{ flex: 1 }} testID="travel-search-webview">
         {Platform.OS === 'web' ? (
           <View style={styles.overlay} testID="travel-search-web-notice">
             <Ionicons name="phone-portrait-outline" size={34} color={COLORS.primary} />
             <Text style={styles.noticeTitle}>Open in the app</Text>
             <Text style={styles.loadingTxt}>
-              Live flight &amp; hotel search runs inside the FUUSIC app. Open it on your
+              Live flight, hotel &amp; car search runs inside the FUUSIC app. Open it on your
               phone to search real-time deals.
             </Text>
             <Pressable onPress={() => router.back()} style={styles.retry} testID="travel-search-web-back">
@@ -88,9 +107,10 @@ export default function TravelSearchScreen() {
           </View>
         ) : (
           <WebView
+            key={tab}
             ref={webRef}
             originWhitelist={['*']}
-            source={{ html: WL_HTML, baseUrl: 'https://tpwidg.com/' }}
+            source={{ html: htmlFor(tab), baseUrl: 'https://tpwidg.com/' }}
             javaScriptEnabled
             domStorageEnabled
             setSupportMultipleWindows={false}
@@ -118,7 +138,6 @@ export default function TravelSearchScreen() {
           </View>
         )}
       </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -140,7 +159,4 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: COLORS.primary },
   tabTxt: { color: COLORS.textMuted, fontSize: FONT.sm, fontWeight: '900' },
   tabTxtOn: { color: '#fff' },
-  soonPill: { backgroundColor: COLORS.red, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1, marginLeft: 2 },
-  soonTxt: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.4 },
-  comingSoon: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
 });

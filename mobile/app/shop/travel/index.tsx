@@ -24,39 +24,105 @@ type Trend = {
   price: number; airline?: string; transfers: number; deep_link: string;
 };
 
+const HUBS: { iata: string; city: string; emoji: string }[] = [
+  { iata: 'DXB', city: 'Dubai', emoji: '🇦🇪' },
+  { iata: 'AUH', city: 'Abu Dhabi', emoji: '🇦🇪' },
+  { iata: 'DOH', city: 'Doha', emoji: '🇶🇦' },
+  { iata: 'RUH', city: 'Riyadh', emoji: '🇸🇦' },
+  { iata: 'JED', city: 'Jeddah', emoji: '🇸🇦' },
+  { iata: 'KWI', city: 'Kuwait City', emoji: '🇰🇼' },
+  { iata: 'CAI', city: 'Cairo', emoji: '🇪🇬' },
+  { iata: 'IST', city: 'Istanbul', emoji: '🇹🇷' },
+  { iata: 'LON', city: 'London', emoji: '🇬🇧' },
+  { iata: 'DEL', city: 'Delhi', emoji: '🇮🇳' },
+  { iata: 'BOM', city: 'Mumbai', emoji: '🇮🇳' },
+  { iata: 'KHI', city: 'Karachi', emoji: '🇵🇰' },
+];
+
 function TrendingRow() {
+  const [origin, setOrigin] = useState<string | null>(null);
+  const [originCity, setOriginCity] = useState('Dubai');
+  const [confident, setConfident] = useState(true);
   const [items, setItems] = useState<Trend[]>([]);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     let on = true;
-    api.get('/travel/trending?origin=DXB&limit=8')
-      .then((r) => { if (on) setItems(r.data?.items || []); })
-      .catch(() => {})
-      .finally(() => { if (on) setLoading(false); });
+    api.get('/travel/nearest-airport')
+      .then((r) => {
+        if (!on) return;
+        const d = r.data || {};
+        setOrigin((d.origin || 'DXB').toUpperCase());
+        setOriginCity(d.city || 'Dubai');
+        setConfident(!!d.confident);
+      })
+      .catch(() => { if (on) { setOrigin('DXB'); setOriginCity('Dubai'); setConfident(false); } });
     return () => { on = false; };
   }, []);
-  if (!loading && items.length === 0) return null;
+
+  useEffect(() => {
+    if (!origin) return;
+    let on = true;
+    setLoading(true);
+    api.get(`/travel/trending?origin=${origin}&limit=8`)
+      .then((r) => {
+        if (!on) return;
+        setItems(r.data?.items || []);
+        if (r.data?.origin_city && r.data.origin_city !== origin) setOriginCity(r.data.origin_city);
+      })
+      .catch(() => { if (on) setItems([]); })
+      .finally(() => { if (on) setLoading(false); });
+    return () => { on = false; };
+  }, [origin]);
+
+  const hubList = (!origin || HUBS.some((h) => h.iata === origin))
+    ? HUBS : [{ iata: origin, city: originCity, emoji: '📍' }, ...HUBS];
+
   return (
     <View style={{ marginTop: 6 }} testID="travel-trending">
       <View style={tr.head}>
         <Ionicons name="trending-up" size={15} color={COLORS.primary} />
-        <Text style={tr.headTxt}>Trending from Dubai</Text>
+        <Text style={tr.headTxt} numberOfLines={1}>Trending from {originCity}</Text>
         <View style={tr.liveDot}><Text style={tr.liveDotTxt}>LIVE</Text></View>
       </View>
+      {!confident && (
+        <View style={tr.prompt} testID="travel-origin-prompt">
+          <Ionicons name="location-outline" size={12} color={COLORS.primary} />
+          <Text style={tr.promptTxt}>Not your city? Pick your departure city below.</Text>
+        </View>
+      )}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 8, paddingBottom: 8 }}
+        testID="travel-origin-switcher">
+        {hubList.map((h) => {
+          const on = origin === h.iata;
+          return (
+            <TouchableOpacity key={h.iata} testID={`travel-origin-${h.iata}`}
+              onPress={() => { setOrigin(h.iata); setOriginCity(h.city); setConfident(true); }}
+              style={[tr.originChip, on && tr.originChipOn]}>
+              <Text style={[tr.originChipTxt, on && tr.originChipTxtOn]}>{h.emoji} {h.city}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 10 }}>
-        {loading
-          ? [0, 1, 2, 3].map((i) => <View key={i} style={[tr.card, { backgroundColor: COLORS.inputBg }]} />)
-          : items.map((it) => (
-              <TouchableOpacity key={it.destination} activeOpacity={0.85} testID={`trending-${it.destination}`}
-                onPress={() => Linking.openURL(it.deep_link).catch(() => {})} style={tr.card}>
-                <Text style={{ fontSize: 22 }}>{it.emoji}</Text>
-                <Text style={tr.city} numberOfLines={1}>{it.city}</Text>
-                <Text style={tr.country} numberOfLines={1}>{it.country}</Text>
-                <Text style={tr.price}>from {money(it.price * 100)}</Text>
-                <Text style={tr.sub}>{it.transfers === 0 ? 'Direct' : `${it.transfers} stop`} · {it.airline}</Text>
-              </TouchableOpacity>
-            ))}
+        {loading ? (
+          [0, 1, 2, 3].map((i) => <View key={i} style={[tr.card, { backgroundColor: COLORS.inputBg }]} />)
+        ) : items.length === 0 ? (
+          <Text style={tr.empty}>No live prices for this origin right now.</Text>
+        ) : (
+          items.map((it) => (
+            <TouchableOpacity key={it.destination} activeOpacity={0.85} testID={`trending-${it.destination}`}
+              onPress={() => Linking.openURL(it.deep_link).catch(() => {})} style={tr.card}>
+              <Text style={{ fontSize: 22 }}>{it.emoji}</Text>
+              <Text style={tr.city} numberOfLines={1}>{it.city}</Text>
+              <Text style={tr.country} numberOfLines={1}>{it.country}</Text>
+              <Text style={tr.price}>from {money(it.price * 100)}</Text>
+              <Text style={tr.sub}>{it.transfers === 0 ? 'Direct' : `${it.transfers} stop`} · {it.airline}</Text>
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -72,6 +138,13 @@ const tr = StyleSheet.create({
   country: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '600' },
   price: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900', marginTop: 3 },
   sub: { color: COLORS.textDim, fontSize: 10, fontWeight: '600' },
+  prompt: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: SPACING.md, marginBottom: 6 },
+  promptTxt: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700' },
+  originChip: { flexShrink: 0, height: 32, justifyContent: 'center', paddingHorizontal: 12, borderRadius: RADIUS.full, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder },
+  originChipOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  originChipTxt: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
+  originChipTxtOn: { color: '#fff' },
+  empty: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: SPACING.md, paddingVertical: 10 },
 });
 const TYPES: { key: string; label: string; icon: any }[] = [
   { key: 'all', label: 'All', icon: 'globe-outline' },

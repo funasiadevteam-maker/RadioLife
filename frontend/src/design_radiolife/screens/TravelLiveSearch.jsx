@@ -1,20 +1,20 @@
-// Travel live search — Flights (Travelpayouts WL widget) + Hotels (coming soon).
+// Travel live search — Flights (Travelpayouts WL widget), Hotels (Klook) & Cars.
 import { useState } from "react";
-import { Plane, BedDouble } from "lucide-react";
+import { Plane, BedDouble, Car } from "lucide-react";
 import TravelWidget from "./TravelWidget";
+import TravelContentWidget from "./TravelContentWidget";
+
+const KLOOK_HOTELS = "https://tpwidg.com/content?currency=USD&trs=587763&shmarker=174867&locale=en-US&city_id=2&category=4&amount=6&powered_by=true&campaign_id=137&promo_id=4497&sub_id=fuusic_app";
+const CARS = "https://tpwidg.com/content?trs=587763&shmarker=174867&locale=en-US&country=153&city=68511&powered_by=true&campaign_id=87&promo_id=2466&sub_id=fuusic_app";
+
+const TABS = [
+  { k: "flights", Icon: Plane, label: "Flights" },
+  { k: "hotels", Icon: BedDouble, label: "Hotels" },
+  { k: "cars", Icon: Car, label: "Cars" },
+];
 
 export default function TravelLiveSearch() {
   const [tab, setTab] = useState("flights");
-  const Tab = ({ k, Icon, label, soon }) => (
-    <button onClick={() => setTab(k)} data-testid={`travel-tab-${k}`}
-      className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-black transition ${tab === k ? "fz-grad" : "fz-card fz-text"}`}>
-      <Icon size={15} /> {label}
-      {soon && (
-        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
-          style={{ background: "var(--live)", color: "#fff" }}>SOON</span>
-      )}
-    </button>
-  );
   return (
     <section className="fz-card rounded-2xl p-4" data-testid="travel-live-search">
       <div className="flex items-center gap-2 mb-3">
@@ -24,25 +24,16 @@ export default function TravelLiveSearch() {
           style={{ background: "var(--live)" }}>LIVE</span>
       </div>
       <div className="flex gap-2 mb-4">
-        <Tab k="flights" Icon={Plane} label="Flights" />
-        <Tab k="hotels" Icon={BedDouble} label="Hotels" soon />
+        {TABS.map(({ k, Icon, label }) => (
+          <button key={k} onClick={() => setTab(k)} data-testid={`travel-tab-${k}`}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-black transition ${tab === k ? "fz-grad" : "fz-card fz-text"}`}>
+            <Icon size={15} /> {label}
+          </button>
+        ))}
       </div>
-      {tab === "flights" ? (
-        <TravelWidget />
-      ) : (
-        <div data-testid="travel-hotels-soon"
-          className="flex flex-col items-center text-center gap-2 py-10 px-4">
-          <div className="fz-brand-soft rounded-full p-4"><BedDouble size={28} className="fz-brand" /></div>
-          <div className="text-lg font-black fz-text">Hotels are coming soon</div>
-          <p className="text-sm fz-muted max-w-sm">
-            We're adding Trip.com hotel search to FUUSIC Travel in the next few days.
-            For now, use the Flights tab — you can add a hotel to any flight search with
-            the "Show hotels" option.
-          </p>
-          <button onClick={() => setTab("flights")} data-testid="travel-hotels-to-flights"
-            className="fz-grad rounded-full px-4 py-2 text-sm font-black mt-1">Search flights</button>
-        </div>
-      )}
+      {tab === "flights" && <TravelWidget />}
+      {tab === "hotels" && <TravelContentWidget key="hotels" src={KLOOK_HOTELS} />}
+      {tab === "cars" && <TravelContentWidget key="cars" src={CARS} />}
     </section>
   );
 }

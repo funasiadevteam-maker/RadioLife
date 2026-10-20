@@ -1587,3 +1587,20 @@ Fixed 4 user-reported /radio bugs (verified: iter198 pytest 10/10 + web e2e).
 - 4 personalization-portal enhancements (Live Preview, Reorder Features, Per-City Defaults, Feature Discovery).
 - Stripe checkout page business name/logo = user's Stripe Dashboard task (Settings → Business/Branding), no code change.
 - Catalog is tiny/skewed (110 tracks; devotional=1, ghazal=1, indie=2) — small genre pools are expected until more tracks are added.
+
+---
+
+## Travel vertical enhancements — 2026-06 (nearest-airport, origin switcher, Klook hotels, rental cars)
+Four user-requested Travel follow-ups. Tested iter222 (backend 10/10 pytest + web + mobile e2e, all green).
+- **Nearest-airport auto-detect** — new `GET /api/travel/nearest-airport` reads client IP from `X-Forwarded-For` and calls Travelpayouts `/whereami`; returns `{origin, city, confident}`. `confident=false` for VPN/datacenter IPs (accuracy not city/nearest_city) → clients show a "set your city" prompt. Falls back to DXB/Dubai on any failure.
+- **Trending origin_city** — `GET /api/travel/trending` now returns `origin_city` alongside `items`; title reads "Trending routes from <city>". Works for any origin hub; unknown origins return `items=[]` (no 500). 24h cache preserved.
+- **Origin Switcher** — curated 12-hub chip row (DXB, AUH, DOH, RUH, JED, KWI, CAI, IST, LON, DEL, BOM, KHI) on web (`TravelTrending.jsx`) + mobile (`index.tsx` TrendingRow). Auto-detected origin is prepended as a 📍 chip if not in the list. Clicking a hub re-fetches live fares.
+- **Klook Hotels** — replaced the old "Hotels coming soon" placeholder with the user's Klook content widget (`campaign_id=137&promo_id=4497`, shmarker 174867, `&sub_id=fuusic_app`). Web = new reusable `TravelContentWidget.jsx` (mounts the async tpwidg.com/content script); mobile = WebView HTML in `search.tsx`.
+- **Rental Cars** — new "Cars" tab using the user's white-label car widget (`campaign_id=87&promo_id=2466`). Same web/mobile pattern.
+- Files: `backend/routes/travel.py`, `frontend/src/design_radiolife/screens/{TravelTrending,TravelLiveSearch,TravelContentWidget,ShopTravelRadioLife}.jsx`, `mobile/app/shop/travel/{index,search}.tsx`.
+
+### Notes / known (non-blocking)
+- whereami `accuracy=='city'` can still pass for some datacenter IPs → "set your city" prompt may be bypassed in prod; future: add ASN/XFF heuristics. Real cellular/wifi users detect correctly.
+- Klook content widget logs a third-party `KlookAff` console warning (depends on the user's Travelpayouts dashboard params) — third-party, cosmetic.
+- HUB list duplicated across web + mobile — candidate for a shared module later.
+- Still pending from Milestone 3: "Follow Show + Live Clip Buffer" (not started; user pivoted to Travel).

@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 222 — Travel enhancements (nearest-airport, origin-switcher, Klook Hotels, Cars tab) tested on backend + web + mobile. 10/10 backend tests pass. Web /shop/travel renders dynamic 'Trending routes from <city>' heading, origin switcher chips (DXB/DOH/LON/etc.) re-fetch trending on click, Hotels/Cars tabs mount travel-content-widget container, Flights mounts tpwl-widget. Mobile /shop/travel renders the same TrendingRow with origin switcher + 'Trending from Doha' when DOH chip pressed; /shop/travel/search shows all three travel-tab-flights/hotels/cars tabs and the EXPECTED travel-search-web-notice on Expo web preview. Parity: web and mobile stay in sync (both show 14 origin chips, same hub list, both hide origin-prompt because whereami returns confident=true for the preview datacenter IP — expected per context note).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/travel/trending?origin=ZZZ", "issue": "Unknown IATA returns origin_city=\"ZZZ\" (raw code) instead of a friendlier label. Not a bug per spec (items=[] without 500), but worth a UX note."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [
+        {"flow": "Hotels tab (Klook widget)", "issue": "Klook script logs runtime console error: 'KlookAff: Invalid product type: auto_dynamic_widget--amount'. The travel-content-widget container mounts correctly, but Klook's own content fails to render in this preview env. Likely a Klook URL-param mismatch (currency/city_id/category/amount combo). Third-party widget — mocked per request.", "affected_selectors": ["[data-testid='travel-content-widget']"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Nearest-airport auto-detect", "platform": "web+mobile", "issue": "Both surfaces receive confident=true from /api/travel/nearest-airport (preview env datacenter IP → Omaha with accuracy='city'), so the travel-origin-prompt never renders. Per agent context this is expected in preview, but in production any datacenter/VPN IP that whereami still classifies as accuracy='city' will likewise bypass the 'set your city' prompt. Consider also treating known datacenter ASN/country mismatches as confident=false.", "expected": "travel-origin-prompt visible when the IP geolocation is low-confidence", "actual": "Prompt hidden on both surfaces because whereami returned accuracy='city' for the preview datacenter IP (OMA/Omaha)."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_travel_iter222.py",
+    "/app/test_reports/pytest/iter222_travel.xml"
+  ],
+  "action_items": [
+    "(Optional) Harden /api/travel/nearest-airport by also marking datacenter/VPN IPs as confident=false (e.g. inspect ASN, or when X-Forwarded-For missing). Current logic trusts whereami accuracy=='city'.",
+    "(Optional) Fix Klook hotels content-widget URL params — the embed script logs 'Invalid product type: auto_dynamic_widget--amount' in the browser console (web). Verify Klook campaign_id/promo_id/city_id combination.",
+    "(Optional) Return origin_city as the raw IATA (e.g. 'ZZZ') for unknown origins — consider a friendlier placeholder."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/travel.py: nearest_airport confidence relies solely on whereami's accuracy field — for datacenter IPs whereami often still reports accuracy='city'. If the product goal is to prompt users on VPN/datacenter IPs, add an extra check (e.g. compare XFF count or Cloudflare's cf-ipcountry) before trusting accuracy.",
+    "frontend/TravelTrending.jsx & mobile/app/shop/travel/index.tsx: HUB list is duplicated in two files — consider moving to a shared constants module to avoid drift (12 hubs each, currently in sync).",
+    "The /api/travel/trending endpoint caches by origin for 24h but doesn't invalidate on seed changes; acceptable for prices but note that bad params (ZZZ) are never cached because items=[] isn't persisted."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_travel_iter222.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (web cookie); mobile demo-login-btn.",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests at /app/backend/tests/test_travel_iter222.py cover nearest-airport + trending (origin_city, cache, unknown origin). In the preview env whereami returns OMA/Omaha with confident=true, so the travel-origin-prompt stays hidden — this is expected per task context; do NOT treat as a bug. Hotels & Cars widgets mount but Klook's own iframe may show console errors (third-party, mocked). Mobile /shop/travel/search intentionally renders travel-search-web-notice on the Expo web preview — WebView-only otherwise.",
+  "rca of the issue": ""
+}

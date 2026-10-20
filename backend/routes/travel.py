@@ -25,6 +25,7 @@ TRAVEL_TOPIC = "travel"
 
 # ---- Live "Trending routes" (Travelpayouts Data API) ----------------------
 _TP_CITY_DIRECTIONS = "https://api.travelpayouts.com/v1/city-directions"
+_WHEREAMI = "https://www.travelpayouts.com/whereami"
 _TRENDING_TTL_H = 24
 # Curated IATA → city map so the trending row stays recognisable (unknown
 # codes are filtered out to keep the row clean).
@@ -103,6 +104,18 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _city_name(iata: str) -> str:
+    m = IATA_NAMES.get(iata)
+    return m["city"] if m else iata
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff.strip():
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
 def _card(d: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "deal_id": d.get("deal_id"),
@@ -137,11 +150,13 @@ async def trending(request: Request, origin: str = "DXB", limit: int = 8):
     filtered out so the row stays recognisable."""
     db = request.app.state.db
     origin = (origin or "DXB").upper()[:3]
+    origin_city = _city_name(origin)
     now_ts = _now().timestamp()
     cache = await db.travel_trending_cache.find_one({"_id": origin})
     if cache and isinstance(cache.get("fetched_ts"), (int, float)) \
             and (now_ts - cache["fetched_ts"]) < _TRENDING_TTL_H * 3600:
-        return {"origin": origin, "items": (cache.get("items") or [])[:limit], "cached": True}
+        return {"origin": origin, "origin_city": origin_city,
+                "items": (cache.get("items") or [])[:limit], "cached": True}
 
     token = os.environ.get("TRAVELPAYOUTS_API_TOKEN")
     items: List[Dict[str, Any]] = []
@@ -173,7 +188,27 @@ async def trending(request: Request, origin: str = "DXB", limit: int = 8):
             {"_id": origin}, {"$set": {"items": items, "fetched_ts": now_ts}}, upsert=True)
     elif cache:
         items = cache.get("items") or []  # stale fallback on API failure
-    return {"origin": origin, "items": items[:limit], "cached": False}
+    return {"origin": origin, "origin_city": origin_city,
+            "items": items[:limit], "cached": False}
+
+
+@router.get("/nearest-airport")
+async def nearest_airport(request: Request):
+    """Resolve the caller's nearest city IATA via Travelpayouts /whereami (by IP).
+    confident=False for VPN/datacenter IPs so the client can prompt 'set your city'."""
+    ip = _client_ip(request)
+    origin, city, confident = "DXB", _city_name("DXB"), False
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(_WHEREAMI, params={"locale": "en", "ip": ip})
+        data = r.json() or {}
+        iata = (data.get("iata") or "").upper()[:3]
+        accuracy = (data.get("accuracy") or "").lower()
+        if iata and accuracy in ("city", "nearest_city"):
+            origin, city, confident = iata, (data.get("name") or _city_name(iata)), True
+    except Exception:
+        pass
+    return {"origin": origin, "city": city, "confident": confident}
 
 
 @router.get("/deals")
