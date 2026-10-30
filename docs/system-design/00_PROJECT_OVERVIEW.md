@@ -17,7 +17,7 @@ Around that core, the product has expanded into a **social-audio super-app**. Th
    (Morning Briefing / News in 2 Mins / Deep Dive / Follow This Story), a Radio Programming
    **Policy Engine**, RJ **Personalities**, **Companion Memory**, and **Sponsor Breaks**.
 3. **Social** — feeds, following, Dreams & Guidance community (advisors, AI readings, live Q&A),
-   live shopping shows.
+   live shopping shows.`
 4. **Commerce / Marketplace** — business storefronts, products/services/menus, memberships,
    gift cards, bookings, scan-to-pay, Premium Dining Club.
 5. **Games & Rewards** — spin/scratch/trivia/predict-&-win, BigPoints/BigCoin wallet, streaks,
