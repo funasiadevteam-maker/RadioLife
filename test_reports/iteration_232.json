@@ -1,0 +1,48 @@
+{
+  "summary": "Phase 4 — Companion Memory + Sponsor Breaks tested on backend + web + mobile. Backend: 9/9 pytest green covering memory GET/PUT/POST/remove/clear, auth gate, invalid-kind=400, briefing 'breaks' array (opening after_index=-1, mid=min(mid_after_segment, count-1), closing=count) for free user, and [] for premium (demo), plus /news/break-event impression (auth+ok). Web /radio/news/interactive (free user): inews-memory-panel renders only for signed-in users; expand/toggle/add/remove/clear all work; sponsored opening strip 'FUUSIC Interactive News is brought to you by Oasis Water.' shows; pressing interactive-news-play fires the opening break (POST /api/fun-ai/news/break-event captured with break_id=opening, kind=impression, placement=opening). Note: in headless Chromium the interactive-news-break card auto-dismisses within <100ms because speechSynthesis.speak() fires onerror immediately when no voices are installed — the impression is still tracked and the fallback timer path works; in a real browser the card stays visible for ~5s. Web /now-playing?ch=big-melodies renders rl-memory-panel with full CRUD. Mobile Expo /fun-ai-news (free user, bearer token in localStorage key 'bigfm_session_token'): fai-memory-panel renders embedded, add/remove/toggle all work, pressing fai-play fires break-event impression (payload captured). Mobile /fun-ai-memory dedicated screen: fai-memory-back + fai-memory-panel both render; menu-fun-ai-memory entry in profile.tsx confirmed. Sponsor restored to disabled at teardown.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "/now-playing (NowPlayingRadioLife)", "issues": ["Companion Memory panel labels (FAVOURITE GENRES / FAVOURITE STATIONS / DISLIKED GENRES / LANGUAGES / INTERESTS) and placeholder text look washed-out over the bright pink/magenta gradient background — low contrast vs the dark palette used on /radio/news/interactive. Consider darker label color or a semi-opaque card scrim."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Pre-existing deprecation warning 'shadow* style props are deprecated. Use boxShadow.' still logged across the bundle (carried over, not related to Phase 4)."},
+        {"component": "props.pointerEvents deprecation", "issue": "Pre-existing 'props.pointerEvents is deprecated' warning (cosmetic)."},
+        {"component": "Require cycle app/(tabs)/social.tsx <-> src/social/wall.tsx", "issue": "Pre-existing require cycle warning (carried over)."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter232_phase4_memory_breaks.py",
+    "/app/test_reports/pytest/iter232_phase4.xml"
+  ],
+  "action_items": [
+    "Design nit (non-blocking): improve contrast of the Companion Memory labels/placeholders on /now-playing (RadioLife) — they look washed out on the pink/magenta gradient. The same panel on /radio/news/interactive uses a darker, high-contrast palette which reads cleanly.",
+    "No blocking fixes required for Phase 4."
+  ],
+  "critical_code_review_comments": [
+    "InteractiveNews.jsx togglePlay correctly short-circuits with the opening break on idx===0 and posts the impression before starting speech. Fallback timer (words/2.5+1 clamped 5–30s) protects against speechSynthesis onerror/onend never firing in headless browsers.",
+    "fun_ai_service.build_breaks respects both the global sponsorship_enabled flag AND sponsor.enabled, and short-circuits [] for premium users when premium_ad_free is on — covered in test_briefing_breaks_premium_adfree.",
+    "Mobile FunAiMemory.tsx shares the same testID prefix contract (fai-memory-*) as the web (inews-memory-* / rl-memory-*) — good parity for cross-platform testing."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter232_phase4_memory_breaks.py"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (web inews-memory + rl-memory + opening-break impression; mobile fai-memory on fun-ai-news + dedicated /fun-ai-memory + opening-break impression)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! ; demo@bigfm.dubai / DemoPass123! (PREMIUM) ; freeuser@bigfm.dubai / FreePass123! (FREE). Mobile Expo preview auth: localStorage key 'bigfm_session_token' = session_token from /api/auth/login.",
+  "seed_data_creation": "Sponsor was transiently enabled during this iteration (Oasis Water, mid_after_segment=2) and PUT back to {enabled:false, sponsor_name:'', opening_line:'', closing_line:''} at teardown via /api/admin/fun-ai/news-sponsor — no sponsor is left showing to end-users.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 4 Companion Memory + Sponsor Breaks is passing on backend + web + mobile. Reusable pytest at /app/backend/tests/test_iter232_phase4_memory_breaks.py — it auto-enables the sponsor as admin, exercises all memory CRUD + briefing breaks for free/premium + break-event, and restores sponsor to disabled on teardown. For mobile web-preview testing, inject the bearer into localStorage under 'bigfm_session_token' (not 'session_token' / 'auth_token'). The opening break card auto-dismisses within milliseconds in headless Chromium because speechSynthesis has no voices and fires onerror immediately — this is NOT a bug; the break-event POST is still captured before dismissal (verified).",
+  "rca of the issue": ""
+}

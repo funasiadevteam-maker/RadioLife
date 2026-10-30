@@ -19,6 +19,8 @@ import re
 router = APIRouter(prefix="/api/shell")
 
 VALID_THEMES = {"dark", "light", "system"}
+VALID_ACCENTS = {"violet", "coral", "teal", "amber", "blue"}
+_DEFAULT_SCHEDULE = {"enabled": False, "dark_hour": 19, "light_hour": 7}
 _TEST_NAME = re.compile(r"(TEST_|Iter\d|Test Shop|QA Demo)", re.I)
 
 # Excludes QA/seed shops from consumer-facing counts + venue lists.
@@ -146,27 +148,60 @@ async def shell_summary(request: Request, city: str = ""):
     }
 
 
+def _clean_schedule(raw) -> dict:
+    s = dict(_DEFAULT_SCHEDULE)
+    if isinstance(raw, dict):
+        s["enabled"] = bool(raw.get("enabled", s["enabled"]))
+        for k in ("dark_hour", "light_hour"):
+            try:
+                v = int(raw.get(k, s[k]))
+                if 0 <= v <= 23:
+                    s[k] = v
+            except (TypeError, ValueError):
+                pass
+    return s
+
+
 @router.get("/prefs")
 async def get_prefs(request: Request):
     user = await current_user_optional(request)
     if not user:
-        return {"theme": "dark"}
+        return {"theme": "dark", "accent": "violet", "theme_schedule": dict(_DEFAULT_SCHEDULE)}
     db = request.app.state.db
     doc = await db.users.find_one({"user_id": user["user_id"]}, {"prefs": 1})
-    theme = ((doc or {}).get("prefs") or {}).get("theme", "dark")
-    return {"theme": theme if theme in VALID_THEMES else "dark"}
+    prefs = (doc or {}).get("prefs") or {}
+    theme = prefs.get("theme", "dark")
+    accent = prefs.get("accent", "violet")
+    return {
+        "theme": theme if theme in VALID_THEMES else "dark",
+        "accent": accent if accent in VALID_ACCENTS else "violet",
+        "theme_schedule": _clean_schedule(prefs.get("theme_schedule")),
+    }
 
 
 @router.put("/prefs")
 async def put_prefs(request: Request, body: dict = Body(default={})):
     user = await current_user(request)
-    theme = body.get("theme")
-    if theme not in VALID_THEMES:
-        theme = "dark"
     db = request.app.state.db
-    await db.users.update_one(
-        {"user_id": user["user_id"]}, {"$set": {"prefs.theme": theme}})
-    return {"ok": True, "theme": theme}
+    sets = {}
+    if "theme" in body:
+        theme = body.get("theme")
+        sets["prefs.theme"] = theme if theme in VALID_THEMES else "dark"
+    if "accent" in body:
+        accent = body.get("accent")
+        sets["prefs.accent"] = accent if accent in VALID_ACCENTS else "violet"
+    if "theme_schedule" in body:
+        sets["prefs.theme_schedule"] = _clean_schedule(body.get("theme_schedule"))
+    if sets:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": sets})
+    doc = await db.users.find_one({"user_id": user["user_id"]}, {"prefs": 1})
+    prefs = (doc or {}).get("prefs") or {}
+    return {
+        "ok": True,
+        "theme": prefs.get("theme", "dark"),
+        "accent": prefs.get("accent", "violet"),
+        "theme_schedule": _clean_schedule(prefs.get("theme_schedule")),
+    }
 
 
 def _venue_card(p: dict, promoted_ids: set) -> dict:

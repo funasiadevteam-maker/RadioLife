@@ -6,7 +6,7 @@ import axios from "axios";
 import {
   ArrowLeft, LogOut, RefreshCw, Save, Loader2, Check, Shield, Crown, ExternalLink,
   Gamepad2, BarChart3, BadgeCheck, Newspaper, Share2, ChevronRight, Sparkles,
-  SlidersHorizontal,
+  SlidersHorizontal, Palette,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { API, useAuth } from "./AuthContext";
@@ -177,6 +177,24 @@ export default function Profile() {
           <span style={{ display: "block", fontWeight: 800, color: "#fff" }}>Personalize Home</span>
           <span style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
             Choose which features show on your Home &amp; menu
+          </span>
+        </span>
+        <ChevronRight size={18} color="rgba(255,255,255,0.5)" />
+      </Link>
+
+      <Link to="/settings/appearance" className="appearance-link" data-testid="profile-appearance"
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
+                 margin: "0 0 4px", borderRadius: 16, textDecoration: "none",
+                 border: "1px solid rgba(236,72,153,0.25)",
+                 background: "linear-gradient(135deg, rgba(236,72,153,0.10), rgba(245,158,11,0.10))" }}>
+        <span style={{ width: 40, height: 40, borderRadius: 12, display: "grid", placeItems: "center",
+                       background: "linear-gradient(135deg,#ec4899,#f59e0b)" }}>
+          <Palette size={18} color="#fff" />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontWeight: 800, color: "#fff" }}>Appearance</span>
+          <span style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+            Theme, accent colour &amp; scheduled dark
           </span>
         </span>
         <ChevronRight size={18} color="rgba(255,255,255,0.5)" />

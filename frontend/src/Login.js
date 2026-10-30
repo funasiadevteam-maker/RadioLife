@@ -128,6 +128,25 @@ export default function Login() {
         <div className="auth-brand">
           <span className="brand-dot" />
           <span className="brand-name">FUUSIC</span>
+          <div style={{ marginLeft: "auto", display: "inline-flex", gap: 4, padding: 3,
+                        borderRadius: 999, background: "var(--bg-glass)",
+                        border: "1px solid var(--card-border)" }}
+               data-testid="auth-theme-switch">
+            {[{ k: "light", Icon: Sun, lbl: "Light" }, { k: "dark", Icon: Moon, lbl: "Dark" }].map(({ k, Icon, lbl }) => {
+              const on = theme === k;
+              return (
+                <button key={k} type="button" onClick={() => setTheme(k)}
+                        data-testid={`auth-theme-${k}`} aria-pressed={on} title={lbl}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "none",
+                                 cursor: "pointer", borderRadius: 999, padding: "5px 10px", fontSize: 12,
+                                 fontWeight: 700,
+                                 background: on ? "var(--brand-solid)" : "transparent",
+                                 color: on ? "var(--on-accent)" : "var(--text-secondary)" }}>
+                  <Icon size={13} /> {lbl}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <h1 className="auth-h1" data-testid="login-title">

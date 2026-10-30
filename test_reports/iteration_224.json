@@ -1,0 +1,37 @@
+{
+  "summary": "Retest of iteration 223 BLOCKER — web Milestone 3 'Follow Show + Live 30s Clip' at /now-playing. Logged in as demo@bigfm.dubai. Variant-agnostic route /now-playing now renders NowPlayingRadioLife as advertised: rl-now-playing, rl-follow-show-btn, rl-clip-btn all mount with ?ch=vip_lounge. Follow toggle flips Follow <-> Following, backend POST /api/radio/channels/vip_lounge/follow succeeds, GET follow-status returns {following:true}, and the state PERSISTS across reload. Backend share-segment accepts internal segment URL (200 {ok:true,clip_id:...}) and correctly 403s on external host. Clip-modal testIDs (rl-clip-comment, rl-clip-vis-public/friends, rl-clip-submit, rl-clip-close) all present in source. HOWEVER two gaps: (1) rl-clip-btn itself is disabled when currentSeg.audio_url is null (not just rl-clip-submit as the handoff note said), so the modal cannot be opened via UI without active playback — modal interactive flow could not be exercised through the actual click handler on a cold /now-playing page; and (2) the testID mini-player-expand does NOT exist for the default new_look_v2 shell used by all non-admin users — the entire PlayerBarV2 / nlv2-player-dock is absent on home/listen/radio pages for demo user, and a DOM scan found zero anchors to /now-playing. The 'mini-player-expand -> /now-playing' link exists only in legacy classic/classic_b shells which are admin-gated. So the Follow+Clip screen is reachable only by direct URL for regular users.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "rl-clip-btn", "issue": "Trigger button is disabled when currentSeg?.audio_url is null, so rl-clip-modal cannot be opened on a cold /now-playing page. Handoff note said only rl-clip-submit was disabled; actually the whole modal trigger is gated. Reference: /app/frontend/src/design_radiolife/screens/NowPlayingRadioLife.jsx:297", "selector": "[data-testid='rl-clip-btn']", "priority": "LOW"}
+      ],
+      "integration_issues": [
+        {"flow": "Global mini-player -> /now-playing", "issue": "testID mini-player-expand only exists in classic/classic_b shells (admin-only). The default new_look_v2 shell (used by all non-admin users incl. demo@) renders PlayerBarV2 whose testIDs are nlv2-player-artwork/title/subtitle/play — none of them link to /now-playing. DOM scan of /, /listen, /radio returned zero anchors to /now-playing. So Follow+Clip is only reachable by direct URL for real users.", "affected_selectors": ["[data-testid='mini-player-expand']", "[data-testid='nlv2-player-bar']"]}
+      ],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "Add a Link to /now-playing (and a data-testid=\"mini-player-expand\" or equivalent nlv2-player-expand) on the actively-used PlayerBarV2 / nlv2-player-bar so non-admin users on the new_look_v2 shell can reach the Now Playing screen from the global player.",
+    "Consider enabling rl-clip-btn even without currentSeg.audio_url (and leave rl-clip-submit disabled) so users can at least preview the modal / understand the feature while the station isn't actively streaming — OR update the handoff note to reflect that the whole modal is gated.",
+    "Optional: verify PlayerBarV2 renders at all when a station is active for demo user — in this retest no station auto-played and the entire nlv2-player-dock was absent on home/listen/radio."
+  ],
+  "critical_code_review_comments": [
+    "The fix 'variant-agnostic route GET /now-playing' works at the route level, but the matching 'linked from the global mini-player (testID mini-player-expand)' half of the fix only applies to the legacy classic shells (/app/frontend/src/shell/primitives.jsx:371-380), not to the active new_look_v2 PlayerBarV2 (/app/frontend/src/design_v2/PlayerBarV2.jsx) which has no /now-playing navigation at all."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "80%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (cookie login via POST /api/auth/login)",
+  "seed_data_creation": "Created a follow row for demo@ on channel vip_lounge (POST follow) and 2 clip rows via /api/radio/clips/share-segment (one via UI retest curl, one carries over from main-agent smoke). Idempotency keys prefixed retest_iter224_*.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "If the mini-player-expand link is added to PlayerBarV2, retest by: 1) login demo@bigfm.dubai, 2) visit / or /listen, 3) look for data-testid=\"mini-player-expand\" (or equivalent) and confirm href includes /now-playing, 4) start a station so currentSeg.audio_url is set, then 5) click rl-clip-btn on /now-playing and confirm rl-clip-modal + rl-clip-submit enabled. All other Milestone 3 aspects (follow persistence, follow-status, share-segment internal/external) already pass as of iter224.",
+  "rca of the issue": "The main agent's fix added the /now-playing route and wired classic shell's MiniPlayer (shell/primitives.jsx:371-380) to Link to /now-playing with testID mini-player-expand. However, the production/default shell for all non-admin users is new_look_v2 (AppShellV2 + PlayerBarV2), which was not updated. App.js:462-465 force-sets designVariant to new_look_v2 for any non-admin user, so demo@bigfm.dubai never sees mini-player-expand. Fix is only partial."
+}

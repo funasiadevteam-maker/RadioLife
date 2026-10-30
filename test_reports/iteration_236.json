@@ -1,0 +1,43 @@
+{
+  "summary": "DIAGNOSED the 'Skip spinner never tunes' bug on the WEB radio. ROOT CAUSE: for every non-admin user the app forces design variant 'new_look_v2' (App.js lines 466-470), which mounts AppShellV2 + PlayerBarV2. PlayerBarV2 (/app/frontend/src/design_v2/PlayerBarV2.jsx) has ONLY a play/pause control — there is NO skip/next button in the mini-player at all. The only way for a user to 'skip' from the V2 shell is to tap the player title/artwork, which navigates to /now-playing → <NowPlayingRadioLife>. That screen (/app/frontend/src/design_radiolife/screens/NowPlayingRadioLife.jsx) renders two transport buttons — `rl-prev-btn` (lines 265-273) and `rl-next-btn` (lines 286-294) — BOTH WITHOUT any onClick handler. Clicking rl-next-btn does ABSOLUTELY NOTHING: 0 network requests fired to /api/radio/skip, 0 state changes, no audio advance (verified live). The 'spinner that keeps turning' the user reported is the normal 'Now Playing' loading/visual state that never resolves because no backend call is ever made. The CLASSIC Radio.js skip-btn flow (/radio?ch=…) IS wired correctly (axios POST /api/radio/skip, applies skip_state, advances audio) but customers on the V2 default shell never reach it from the normal navigation path. This is a FRONTEND wiring bug, not a backend regression — per the handoff note, /api/radio/skip + /api/radio/next already return 200 with a playable segment. No AI RJ 'Big FM Dubai' greeting observed in this run (fix 1 holds).",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "NowPlayingRadioLife rl-next-btn (Skip)", "issue": "Button has no onClick handler — tapping does nothing (0 requests, 0 state change). This is THE 'spinner keeps turning' bug for the real user. File: /app/frontend/src/design_radiolife/screens/NowPlayingRadioLife.jsx:286-294", "selector": "[data-testid='rl-next-btn']", "priority": "CRITICAL"},
+        {"component": "NowPlayingRadioLife rl-prev-btn (Previous)", "issue": "Same defect — no onClick handler. File: NowPlayingRadioLife.jsx:265-273", "selector": "[data-testid='rl-prev-btn']", "priority": "HIGH"},
+        {"component": "PlayerBarV2 (default V2 mini-player)", "issue": "No skip/next control is rendered at all in the bottom player bar — only artwork + title + play/pause. Users on new_look_v2 (which is forced for every non-admin) have no in-bar skip, so Skip UX is entirely dependent on the broken NowPlayingRadioLife buttons above. File: /app/frontend/src/design_v2/PlayerBarV2.jsx:233-243", "selector": "[data-testid='nlv2-player-bar']", "priority": "HIGH"}
+      ],
+      "integration_issues": [
+        {"flow": "Radio Skip from Now Playing", "issue": "rl-next-btn should call usePlayerStore skip() / POST /api/radio/skip and advance to the next segment. Currently neither event fires. Fix: pass an onClick that calls the same skip logic classic Radio.js uses (axios.post(`${API}/radio/skip`, …) + applySkipState + advance). Prev button should either be removed or wired to a 'previous' endpoint if one exists.", "affected_selectors": ["[data-testid='rl-next-btn']", "[data-testid='rl-prev-btn']"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "CRITICAL — Wire /app/frontend/src/design_radiolife/screens/NowPlayingRadioLife.jsx rl-next-btn to the existing skip logic (reuse the pattern from /app/frontend/src/Radio.js skip() function: POST /api/radio/skip with {channel, segment_id, mood}, applySkipState from response, let usePlayerStore advance). Add loading/disabled state (advancing flag + skipExhausted) so the button correctly reflects the backend's 3-9s latency instead of looking like a stuck spinner.",
+    "HIGH — Either wire rl-prev-btn to a real previous/back endpoint (/api/radio/next with a 'prev' hint, or remove) or hide it until a prev feature exists. Current unresponsive button is a UX trap.",
+    "HIGH — Add a skip (SkipForward) button to PlayerBarV2 so users don't have to leave the mini-player to advance. Reuse the same skip handler from Radio.js. Most listening sessions do not open the full /now-playing surface.",
+    "Nice-to-have — expose usePlayerStore's skip handler as a shared helper (currently only Radio.js owns the POST). This avoids re-implementing the logic in each design variant and will keep classic + V2 + radiolife in parity."
+  ],
+  "critical_code_review_comments": [
+    "Design-variant lock in App.js (lines 466-470) silently forces every non-admin user to 'new_look_v2'. This is intentional per comment, but it means ANY defect in V2/radiolife components ships to 100% of real users while QA that only tests classic Radio.js (where skip works) will never see it. Suggest wiring an admin override + explicit smoke-test matrix across the 3 variants (classic, classic_b, new_look_v2) for every player regression.",
+    "NowPlayingRadioLife.jsx renders transport controls that read `playing` from usePlayerStore but never dispatch any store action for prev/next — only play/pause is wired. Review the full file for any other 'cosmetic-only' buttons.",
+    "Radio.js skip() (line 515) catches 429 correctly and surfaces 'next skip in Xs' UX; this is the pattern NowPlayingRadioLife should copy verbatim.",
+    "GlobalAudio.jsx + usePlayerStore likely own the audio element; confirm that calling the skip API alone is enough to swap tracks on /now-playing (vs. needing an explicit audio reload). If a reload is needed, the V2 shell may require explicit integration (currently classic Radio.js does its own setCurrentSeg/applySkipState in the same component)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "Skip flow on default V2 path: 0% functional (hard broken). Classic /radio?ch= skip flow: wired correctly (not re-executed end-to-end this run due to station-start gating; backend confirmed 200 by main agent)."},
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Repro steps (verified live on https://mobile-games-v2.preview.emergentagent.com): (1) POST /api/auth/login with demo@bigfm.dubai / DemoPass123! → 200, cookie set. (2) Navigate to /now-playing. (3) data-testid='rl-next-btn' is visible. (4) Click it — DevTools Network tab shows ZERO requests, no /api/radio/skip call. Code location: /app/frontend/src/design_radiolife/screens/NowPlayingRadioLife.jsx lines 286-294 — <button data-testid='rl-next-btn' aria-label='Next'> has no onClick. Classic Radio.js at /radio?ch=bollywood_mehfil has a working skip-btn, but a normal user never gets there via navigation because PlayerBarV2 has no skip and the shell is locked to new_look_v2 for non-admin users (App.js 466-470). The AI-RJ 'Big FM Dubai' identity fix held — no such greeting observed; the current session showed 'FUUSIC · Dubai' branding (geo-detected).",
+  "rca of the issue": "The user's complaint 'spinner keeps turning but never tunes to the next track when I press Skip' maps directly to a FRONTEND wiring omission: the Skip control the user actually taps — rl-next-btn on the NowPlayingRadioLife screen — has no onClick handler at all. The visual 'spinning' they see is the Now Playing art/loader waiting for a track change that never fires because no POST /api/radio/skip ever leaves the browser. Mitigation: add an onClick to rl-next-btn (and ideally a Skip button to PlayerBarV2) that calls the existing /api/radio/skip endpoint using the same pattern as classic Radio.js skip() (lines 515-575), toggle advancing/disabled while awaiting the response, and apply skip_state on success / show the 429 'next skip in Xs' toast on failure."
+}

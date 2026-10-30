@@ -18,6 +18,7 @@ import type { ThemeTokens } from '../../src/theme/tokens';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { useFeaturePrefs } from '../../src/stores/useFeaturePrefs';
 import { playImportedStation } from '../../src/services/playStation';
+import { useResponsive } from '../../src/hooks/useResponsive';
 
 const resolveImg = (u?: string | null) =>
   u ? (u.startsWith('http') ? u : `${BACKEND}${u}`) : null;
@@ -98,6 +99,7 @@ export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
   const { activeChannelName, activeChannelThumb, currentSeg, playing } = usePlayerStore();
   const { t, theme, cycle } = useAppTheme();
   const s = makeStyles(t);
@@ -315,7 +317,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}
+      <ScrollView contentContainerStyle={[{ paddingBottom: 40 }, r.feed]}
         showsVerticalScrollIndicator={false}
         onScroll={onHomeScroll} scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.electric}

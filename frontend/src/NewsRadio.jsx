@@ -173,6 +173,14 @@ export default function NewsRadio() {
         <Radio size={22} color="#00d9ff" /> FUUSIC News Radio
       </h1>
 
+      <Link to="/radio/news/interactive" data-testid="news-radio-try-interactive"
+            style={{ display: "inline-flex", alignItems: "center", gap: 8,
+                     background: "linear-gradient(90deg,#00b8d9,#7c5cff)", color: "#fff",
+                     textDecoration: "none", padding: "9px 14px", borderRadius: 999,
+                     fontSize: 13, fontWeight: 700, marginBottom: 18 }}>
+        <Radio size={14} /> Try Interactive News — talk to Fun AI ›
+      </Link>
+
       <NewsTicker items={items} activeIdx={idx} onPick={setIdx} />
 
       {user?.role === "admin" && voices.length > 0 && (

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
+  Modal, TextInput, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +9,7 @@ import { usePlayerStore } from '../src/stores/usePlayerStore';
 import { togglePlayback, releaseCurrent } from '../src/services/audioController';
 import { nativePlay, nativePause } from '../src/services/nativePlayerBridge';
 import SafeImage from '../src/components/SafeImage';
+import api from '../src/api/client';
 import { COLORS, SPACING, FONT, RADIUS, common } from '../src/constants/theme';
 
 export default function NowPlayingScreen() {
@@ -21,6 +23,57 @@ export default function NowPlayingScreen() {
   const title = currentSeg?.track_title || 'Live Radio';
   const artist = currentSeg?.track_artist || activeChannelName || 'FUUSIC';
   const rjName = currentSeg?.rj_voice_name || currentSeg?.rj_hosts?.[0]?.name;
+
+  const slug = activeChannel || currentSeg?.channel_slug || '';
+  const segUrl = currentSeg?.segment_url || '';
+  const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [clipOpen, setClipOpen] = useState(false);
+  const [comment, setComment] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'friends'>('public');
+  const [clipBusy, setClipBusy] = useState(false);
+  const [clipDone, setClipDone] = useState(false);
+  const [clipErr, setClipErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!slug) { setFollowing(false); return; }
+    let on = true;
+    api.get(`/radio/channels/${encodeURIComponent(slug)}/follow-status`)
+      .then((r) => { if (on) setFollowing(!!r.data?.following); })
+      .catch(() => { if (on) setFollowing(false); });
+    return () => { on = false; };
+  }, [slug]);
+
+  const toggleFollow = async () => {
+    if (!slug || followBusy) return;
+    setFollowBusy(true);
+    const next = !following;
+    setFollowing(next);
+    try {
+      await api.post(`/radio/channels/${encodeURIComponent(slug)}/${next ? 'follow' : 'unfollow'}`,
+        { channel_name: activeChannelName, channel_logo: activeChannelThumb });
+    } catch { setFollowing(!next); }
+    finally { setFollowBusy(false); }
+  };
+
+  const openClip = () => {
+    setClipDone(false); setClipErr(null); setComment(''); setVisibility('public'); setClipOpen(true);
+  };
+  const shareClip = async () => {
+    if (!segUrl) return;
+    setClipBusy(true); setClipErr(null);
+    try {
+      await api.post('/radio/clips/share-segment', {
+        channel_slug: slug, channel_name: activeChannelName, channel_logo: activeChannelThumb,
+        segment_audio_url: segUrl, comment: comment.trim(), visibility,
+        duration_seconds: 30, idempotency_key: `segclip_${Date.now()}`,
+      });
+      setClipDone(true);
+      setTimeout(() => setClipOpen(false), 1100);
+    } catch (e: any) {
+      setClipErr(e?.response?.data?.detail?.message || "Couldn't share your clip — try again.");
+    } finally { setClipBusy(false); }
+  };
 
   const togglePlay = () => {
     const nowPlaying = togglePlayback();
@@ -41,10 +94,20 @@ export default function NowPlayingScreen() {
   return (
     <SafeAreaView style={common.screen}>
       <ScrollView contentContainerStyle={s.scroll}>
-        {/* Close bar */}
-        <TouchableOpacity testID="now-playing-close" onPress={() => router.back()} style={s.closeBtn}>
-          <Ionicons name="chevron-down" size={24} color={COLORS.textDim} />
-        </TouchableOpacity>
+        {/* Top bar — close + Follow show */}
+        <View style={s.topBar}>
+          <TouchableOpacity testID="now-playing-close" onPress={() => router.back()} style={s.topBtn}>
+            <Ionicons name="chevron-down" size={24} color={COLORS.textDim} />
+          </TouchableOpacity>
+          <TouchableOpacity testID="now-playing-follow-btn" onPress={toggleFollow}
+            disabled={followBusy || !slug} style={[s.followBtn, following && s.followBtnOn]}>
+            <Ionicons name={following ? 'heart' : 'heart-outline'} size={15}
+              color={following ? '#fff' : COLORS.primary} />
+            <Text style={[s.followTxt, following && s.followTxtOn]}>
+              {following ? 'Following' : 'Follow'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Artwork */}
         <View style={s.artworkWrap}>
@@ -90,6 +153,13 @@ export default function NowPlayingScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Clip last 30s — FUUSIC-owned audio */}
+        <TouchableOpacity testID="now-playing-clip-btn" onPress={openClip} disabled={!segUrl}
+          style={[s.clipBtn, !segUrl && { opacity: 0.5 }]}>
+          <Ionicons name="cut-outline" size={16} color={COLORS.primary} />
+          <Text style={s.clipBtnTxt}>Clip last 30s</Text>
+        </TouchableOpacity>
+
         {/* Stop */}
         <TouchableOpacity testID="now-playing-stop" style={s.stopBtn} onPress={stop}>
           <Ionicons name="stop" size={16} color={COLORS.red} />
@@ -117,6 +187,56 @@ export default function NowPlayingScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={clipOpen} transparent animationType="slide" onRequestClose={() => setClipOpen(false)}>
+        <View style={s.modalBackdrop}>
+          <View style={s.modalCard}>
+            <View style={s.modalHead}>
+              <Text style={s.modalTitle}>Clip a Moment</Text>
+              <TouchableOpacity testID="np-clip-close" onPress={() => setClipOpen(false)} style={s.modalClose}>
+                <Ionicons name="close" size={20} color={COLORS.textDim} />
+              </TouchableOpacity>
+            </View>
+            {clipDone ? (
+              <View style={s.clipDone} testID="np-clip-done">
+                <Ionicons name="checkmark-circle" size={44} color={COLORS.primary} />
+                <Text style={s.clipDoneTxt}>Clip shared to your wall!</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={s.clipSub}>
+                  The last 30 seconds you just heard on {activeChannelName || 'FUUSIC'}.
+                </Text>
+                <TextInput testID="np-clip-comment" value={comment} onChangeText={setComment}
+                  placeholder="Say something about this moment…" placeholderTextColor={COLORS.textMuted}
+                  multiline style={s.clipInput} />
+                <View style={s.visRow}>
+                  {(['public', 'friends'] as const).map((k) => (
+                    <TouchableOpacity key={k} testID={`np-clip-vis-${k}`} onPress={() => setVisibility(k)}
+                      style={[s.visChip, visibility === k && s.visChipOn]}>
+                      <Ionicons name={k === 'public' ? 'globe-outline' : 'people-outline'} size={14}
+                        color={visibility === k ? '#fff' : COLORS.textDim} />
+                      <Text style={[s.visTxt, visibility === k && s.visTxtOn]}>
+                        {k === 'public' ? 'Public' : 'Friends'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {clipErr && <Text style={s.clipErr} testID="np-clip-error">{clipErr}</Text>}
+                <TouchableOpacity testID="np-clip-submit" onPress={shareClip} disabled={clipBusy || !segUrl}
+                  style={[s.clipSubmit, (clipBusy || !segUrl) && { opacity: 0.6 }]}>
+                  {clipBusy ? <ActivityIndicator color="#fff" /> : (
+                    <>
+                      <Ionicons name="cut-outline" size={16} color="#fff" />
+                      <Text style={s.clipSubmitTxt}>Share to My Wall</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -124,6 +244,31 @@ export default function NowPlayingScreen() {
 const s = StyleSheet.create({
   scroll: { alignItems: 'center', padding: SPACING.xl, paddingBottom: 60 },
   closeBtn: { alignSelf: 'center', padding: 8, marginBottom: SPACING.lg },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: SPACING.lg },
+  topBtn: { padding: 8 },
+  followBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, height: 36, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.primary, backgroundColor: 'transparent' },
+  followBtnOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  followTxt: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
+  followTxtOn: { color: '#fff' },
+  clipBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: SPACING.lg, paddingHorizontal: 18, paddingVertical: 10, borderRadius: RADIUS.full, backgroundColor: 'rgba(242,107,42,0.10)' },
+  clipBtnTxt: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(10,8,20,0.6)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.xl, paddingBottom: 36 },
+  modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.md },
+  modalTitle: { fontSize: FONT.xl, fontWeight: '900', color: COLORS.text },
+  modalClose: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.inputBg, alignItems: 'center', justifyContent: 'center' },
+  clipSub: { color: COLORS.textDim, fontSize: FONT.sm, marginBottom: SPACING.md },
+  clipInput: { minHeight: 70, borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: RADIUS.lg, padding: 12, color: COLORS.text, fontSize: FONT.md, textAlignVertical: 'top', marginBottom: SPACING.md, backgroundColor: COLORS.inputBg },
+  visRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
+  visChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.inputBorder, backgroundColor: COLORS.inputBg },
+  visChipOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  visTxt: { color: COLORS.textDim, fontSize: FONT.sm, fontWeight: '800' },
+  visTxtOn: { color: '#fff' },
+  clipErr: { color: COLORS.red, fontSize: FONT.sm, marginBottom: 8 },
+  clipSubmit: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 14 },
+  clipSubmitTxt: { color: '#fff', fontSize: FONT.md, fontWeight: '900' },
+  clipDone: { alignItems: 'center', paddingVertical: 30, gap: 10 },
+  clipDoneTxt: { color: COLORS.text, fontSize: FONT.md, fontWeight: '900' },
   artworkWrap: {
     marginBottom: SPACING.xl,
     shadowColor: '#000',

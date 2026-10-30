@@ -14,6 +14,8 @@ import { configureAudioMode } from '../src/services/audioInit';
 import { setupNativePlayer } from '../src/services/nativePlayerBridge';
 import { COLORS } from '../src/constants/theme';
 import { ThemeProvider, useAppTheme } from '../src/theme/ThemeProvider';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import * as Device from 'expo-device';
 
 // Foreground display behaviour — MODULE SCOPE, before any component.
 if (Platform.OS !== 'web') {
@@ -65,6 +67,18 @@ function AuthGatedStack() {
     initDone.current = true;
     configureAudioMode().then(() => setupNativePlayer()).catch(() => {});
   }
+
+  // iPad / tablets rotate freely (universal iOS build); phones stay portrait.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    (async () => {
+      try {
+        const dt = await Device.getDeviceTypeAsync();
+        if (dt === Device.DeviceType.TABLET) await ScreenOrientation.unlockAsync();
+        else await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      } catch { /* ignore */ }
+    })();
+  }, []);
 
   // Register this device for push whenever a user is signed in (tokens rotate).
   useEffect(() => {

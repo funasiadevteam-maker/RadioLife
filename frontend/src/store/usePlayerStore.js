@@ -37,6 +37,9 @@ const initialState = {
   skipUsed: 0,
   skipLimit: 6,
   skipResetIn: 0,
+  // True while a skip/next request is in-flight (drives the spinner on the
+  // Now Playing + PlayerBar next buttons). Owned by GlobalAudio's skip handler.
+  advancing: false,
 
   // Phase 42-A2 — Imported live-radio stream (raw <audio src>, no queue).
   // Coexists with the AI session; the ImportedStreamBridge component
@@ -117,6 +120,7 @@ export const usePlayerStore = create((set, get) => ({
       skipLimit: limit ?? get().skipLimit,
       skipResetIn: resetIn ?? get().skipResetIn,
     }),
+  setAdvancing: (v) => set({ advancing: !!v }),
 
   // Phase 42-A2 — imported-stream setters.
   setImportedStation: (station) => set({

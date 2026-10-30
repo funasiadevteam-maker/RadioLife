@@ -2,6 +2,17 @@
 
 History before 2026-09 lives in PRD.md (dated sections). Going forward, log shipped work here.
 
+## 2026-06 (fork) — 🆕 Admin link in the left sidebar for admin-role users (web; Playwright verified)
+The in-app left sidebar (`design_v2/socialfeed/socialFeedParts.jsx` → `LeftSidebar`) had no entry point back into the admin portal — `AppShellV2`'s admin layout is route-based (`pathname.startsWith("/admin")`), so an admin browsing normal pages had to type `/admin` manually. Added an admin-only **ADMIN → Admin** item (Shield icon, testid `sf-side-admin`, → `/admin`) rendered only when `useAuth().user?.role === "admin"`. Verified: visible for admin@, absent (count 0) for demo@.
+
+## 2026-06 (fork) — 🐛 Two radio-player bug fixes: AI-RJ "Dubai" greeting for non-Dubai listeners + dead SKIP button (web; curl + Playwright verified)
+A user in Dallas/DFW reported the AI RJ greeting them as "Big FM Dubai", and the Skip button spinning without ever tuning the next track.
+- **"Dubai" greeting (backend, `server.py`)** — the AI-RJ market resolution in `_pick_next_track_personalized` hard-defaulted to `"dubai"` when a listener had no stored market, and the radio path never ran IP geo-detection. Fix: (1) default changed from `"dubai"` → `"global"` (neutral) in the 3 fallbacks; (2) `_ctx_for_now` now emits a neutral city (None → plain "FUUSIC", not "your city") and UTC tz for any non-lexicon/global market; (3) `/api/radio/start` now runs `geo.resolve_for_user` (IP + profile) and persists `last_resolved_market`/`last_resolved_city` for users who haven't pinned a market — so a DFW listener is auto-detected as Dallas. Dubai is preserved ONLY for users whose profile/IP actually resolves to Dubai (verified: demo@ stays Dubai; anon US context resolved to a US city). `services/geo.py` already mapped Dallas/Fort Worth→`dfw` and unknown→neutral.
+- **Dead SKIP button (web)** — RCA (iter236): normal users are locked to the `new_look_v2` shell; its Now Playing screen (`NowPlayingRadioLife.jsx`) had an `rl-next-btn` with NO onClick, `PlayerBarV2` had no skip at all, and `GlobalAudio.jsx` emitted a `bigfm:player:skip` event that NOTHING listened for. Fix: added the missing `bigfm:player:skip` handler in `GlobalAudio.jsx` (POST `/api/radio/skip` on the active crossfade element → applies skip_state → swaps to the new/prefetched segment → prefetches the next → 429 toast → resumes on error); added an `advancing` flag to `usePlayerStore`; wired `rl-next-btn` (spinner while advancing, disabled at skip limit) and disabled the forward-only `rl-prev-btn`; added a `nlv2-player-skip` control to `PlayerBarV2`. Verified live: dispatching the event fires `POST /api/radio/skip` (200) and the track advances (segment requests 1→3, "1/6 skips used").
+
+## 2026-06 (fork) — 📄 System-design docs added
+Added `/app/docs/system-design/` (README + 00–08): project overview, architecture, backend, web, mobile, the FUUSIC Fun AI radio core, data model, integrations, and the theming system. Documentation only — no code changes.
+
 ## 2026-06 (fork) — 🆕 Travel: My Trips + Live Trending routes + Hotels (coming soon) + SubID (web + mobile; curl + screenshot verified)
 Four follow-ups on the Travel vertical.
 - **My Trips (#3)**: web `/shop/travel/trips` (ShopTravelTripsRadioLife.jsx, screenFor registered BEFORE the `/shop/travel/` detail match) + mobile `app/shop/travel/trips.tsx`; both read `GET /api/travel/orders` and list booked trips with confirmation code, status badge, travelers, total, date. Entry points: web header "My Trips" link, mobile topbar "My Trips".

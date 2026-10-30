@@ -107,6 +107,8 @@ class UserOut(BaseModel):
     # Phase Π.5 — Employee testing surface (drives FeedbackWidget visibility).
     is_employee: bool = False
     is_admin: bool = False
+    # Admin-forced password reset — client must force a change on next sign-in.
+    must_change_password: bool = False
     # Phase 11 (mobile) — opaque session token returned for non-browser
     # clients.  Mobile stores in expo-secure-store and sends as
     # `Authorization: Bearer <token>` on subsequent `/api/*` calls.  Web
@@ -252,6 +254,7 @@ def _serialize_user(doc: dict) -> UserOut:
         subscription_period_end=sub_end,
         cancel_at_period_end=bool(sub.get("cancel_at_period_end", False)),
         market=str(doc.get("market") or "dubai"),
+        must_change_password=bool(doc.get("must_change_password", False)),
     )
 
 
@@ -752,6 +755,40 @@ async def reset_password(req: ResetPasswordReq, request: Request):
 @auth_router.get("/me", response_model=UserOut)
 async def me(user: dict = Depends(current_user)):
     return _serialize_user(user)
+
+
+class ChangePasswordReq(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+@auth_router.post("/change-password", response_model=UserOut)
+async def change_password(req: ChangePasswordReq, request: Request,
+                                            response: Response,
+                                            user: dict = Depends(current_user)):
+    """Authenticated password change. Clears any admin-forced reset flag."""
+    db = request.app.state.db
+    full = await db.users.find_one({"user_id": user["user_id"]})
+    if not full or not full.get("password_hash"):
+        raise HTTPException(400, {"status": "no_password_set",
+            "message": "This account signs in without a password."})
+    if not verify_password(req.current_password, full["password_hash"]):
+        raise HTTPException(400, {"status": "wrong_current_password",
+            "message": "Your current password is incorrect."})
+    if not _password_ok(req.new_password):
+        raise HTTPException(400, {"status": "weak_password",
+            "message": "Password must be at least 8 characters with a "
+                              "letter and a digit."})
+    if verify_password(req.new_password, full["password_hash"]):
+        raise HTTPException(400, {"status": "same_password",
+            "message": "Choose a password different from your current one."})
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"password_hash": hash_password(req.new_password),
+                          "must_change_password": False,
+                          "password_updated_at": _now()}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    return _serialize_user(fresh)
 
 
 def _base_from_request(request: Request) -> str:

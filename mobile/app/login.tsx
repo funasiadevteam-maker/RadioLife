@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
+import { useAppTheme } from '../src/theme/ThemeProvider';
 import { COLORS, SPACING, RADIUS, FONT } from '../src/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -15,6 +16,7 @@ import FunAsiaFooter from '../src/components/FunAsiaFooter';
 
 export default function Login() {
   const { user, loading, login, register, googleSignIn, setUser } = useAuth();
+  const { mode: apprMode, setMode: setAppr } = useAppTheme();
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -88,6 +90,21 @@ export default function Login() {
           <Text style={s.brandName}>
             FUUSIC<Text style={s.brandDxb}>.app</Text>
           </Text>
+          <View style={s.themeSwitch} testID="login-theme-switch">
+            {([
+              { k: 'light' as const, ic: 'sunny-outline', lbl: 'Light' },
+              { k: 'dark' as const, ic: 'moon-outline', lbl: 'Dark' },
+            ]).map((o) => {
+              const on = apprMode === o.k;
+              return (
+                <TouchableOpacity key={o.k} testID={`login-theme-${o.k}`} activeOpacity={0.85}
+                  onPress={() => setAppr(o.k)} style={[s.themeChip, on && s.themeChipOn]}>
+                  <Ionicons name={o.ic as any} size={13} color={on ? '#fff' : COLORS.textDim} />
+                  <Text style={[s.themeChipText, on && { color: '#fff' }]}>{o.lbl}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         <Text style={s.title} testID="login-title">
@@ -289,6 +306,10 @@ const s = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.primary },
   brandName: { color: COLORS.text, fontSize: FONT.xl, fontWeight: '900', letterSpacing: -0.5 },
   brandDxb: { color: COLORS.secondary },
+  themeSwitch: { marginLeft: 'auto', flexDirection: 'row', gap: 4, padding: 3, borderRadius: 999, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.surfaceBorder },
+  themeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  themeChipOn: { backgroundColor: COLORS.primary },
+  themeChipText: { color: COLORS.textDim, fontSize: 12, fontWeight: '700' },
   title: { color: COLORS.text, fontSize: FONT.xxl, fontWeight: '900', marginBottom: SPACING.sm },
   sub: { color: COLORS.textDim, fontSize: FONT.md, lineHeight: 22, marginBottom: SPACING.xl },
   googleBtn: {

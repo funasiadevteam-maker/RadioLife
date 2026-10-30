@@ -15,6 +15,8 @@ import DiningMerchant from "@/pages/dining/DiningMerchant";
 import Admin from "@/Admin";
 import AdminHome from "@/pages/admin/AdminHome";  // Phase T — Admin Home dashboard
 import AdminAppearance from "@/Admin/AdminAppearance";  // admin-only design switch
+import AdminGamesAppearance from "@/AdminGamesAppearance";  // no-code game tile art
+import AdminFunAiNews from "@/AdminFunAiNews";  // Fun AI news sponsor
 import AdminSoftLaunch from "@/Admin/AdminSoftLaunch";  // V2 soft-launch admin
 import SocialV2 from "@/pages/social/SocialV2";  // Social V2 — Phase 1
 import SocialTarot from "@/pages/social/SocialTarot";  // Social V2 — Tarot category
@@ -36,6 +38,7 @@ import GeoInsights from "@/advertiser/GeoInsights";
 import News from "@/News";
 import NewsDetail from "@/NewsDetail";
 import NewsRadio from "@/NewsRadio";
+import InteractiveNews from "@/InteractiveNews";
 import NewsPreferences from "@/NewsPreferences";
 // Phase R — News Radio Expansion (admin-curated news layer).
 import NewsPhaseR from "@/pages/News";
@@ -207,6 +210,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Onboarding from "@/Onboarding";
 import Profile from "@/Profile";
 import PersonalizeHome from "@/pages/PersonalizeHome";
+import AppearanceSettings from "@/pages/AppearanceSettings";
 import FeedPreferences from "@/pages/FeedPreferences";
 import AuthCallback from "@/AuthCallback";
 import AppleAuthReturn from "@/AppleAuthReturn";
@@ -235,6 +239,7 @@ import Commute from "@/Commute";
 import CommuteMode from "@/pages/CommuteMode";
 // Phase R.1 — FUUSIC design variant overlay + stub for unmapped routes.
 import FUUSICOverlay from "@/design_radiolife/RadioLifeOverlay";
+import NowPlayingRadioLife from "@/design_radiolife/screens/NowPlayingRadioLife";
 import ShopInShell from "@/design_radiolife/ShopInShell";
 import { useDesignVariantStore } from "@/hooks/useDesignVariant";
 import PublicBusiness from "@/PublicBusiness";
@@ -311,6 +316,7 @@ import Passport from "@/Passport";
 import PublicPassport from "@/PublicPassport";
 import Leaderboards from "@/Leaderboards";
 import { AuthProvider } from "@/AuthContext";
+import ForcePasswordGate from "@/ForcePasswordGate";
 import { RewardProvider } from "@/rewards/RewardOverlay";
 import BillingBanner from "@/BillingBanner";
 import PageFrame from "@/components/PageFrame";
@@ -544,6 +550,7 @@ function AppRouter() {
         <ProtectedRoute><NewsDetail /></ProtectedRoute>
       } />
       <Route path="/radio/news" element={<NewsRadio />} />
+      <Route path="/radio/news/interactive" element={<InteractiveNews />} />
       <Route path="/news/preferences" element={
         <ProtectedRoute><NewsPreferences /></ProtectedRoute>
       } />
@@ -553,6 +560,7 @@ function AppRouter() {
       {/* Phase 42-A2 — Unified Radio surface (replaces /live-radio). */}
       <Route path="/radio/browse" element={<RadioBrowse />} />
       <Route path="/radio/station/:id" element={<LiveRadioStation />} />
+      <Route path="/now-playing" element={<NowPlayingRadioLife />} />
       {/* Phase 42-C — Station claiming portal. */}
       <Route path="/claim/station/:station_id" element={<ClaimStationWizard />} />
       {/* Phase CLAIM.1b — Claim Radio Hub. */}
@@ -774,12 +782,21 @@ function AppRouter() {
       <Route path="/settings/features" element={
         <ProtectedRoute><PersonalizeHome /></ProtectedRoute>
       } />
+      <Route path="/settings/appearance" element={
+        <ProtectedRoute><AppearanceSettings /></ProtectedRoute>
+      } />
       {/* Phase T — Admin Home dashboard replaces legacy stub. */}
       <Route path="/admin" element={
         <ProtectedRoute requireAdmin><AdminHome /></ProtectedRoute>
       } />
       <Route path="/admin/appearance" element={
         <ProtectedRoute requireAdmin><AdminAppearance /></ProtectedRoute>
+      } />
+      <Route path="/admin/games-appearance" element={
+        <ProtectedRoute requireAdmin><AdminGamesAppearance /></ProtectedRoute>
+      } />
+      <Route path="/admin/fun-ai-news" element={
+        <ProtectedRoute requireAdmin><AdminFunAiNews /></ProtectedRoute>
       } />
       <Route path="/admin/soft-launch" element={
         <ProtectedRoute requireAdmin><AdminSoftLaunch /></ProtectedRoute>
@@ -1237,6 +1254,8 @@ export default function App() {
             <CookieBanner />
             {/* Phase Π.5 — Feedback fab for employees + admins. */}
             <FeedbackWidget />
+            {/* Admin-forced password reset — blocks until the user resets. */}
+            <ForcePasswordGate />
           </AuthProvider>
         </BrowserRouter>
       </HelmetProvider>

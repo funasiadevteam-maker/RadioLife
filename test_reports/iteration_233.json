@@ -1,0 +1,48 @@
+{
+  "summary": "Tested Light/Dark/System appearance onboarding on web (FeatureOnboarding modal) and mobile (InterestOnboarding sheet). Backend GET/PUT /api/shell/prefs round-trips light|dark|system correctly and syncs across sessions (same user). On both surfaces: 'Match device' is pre-highlighted; tapping Dark/Light/System applies the theme live AND persists via PUT /api/shell/prefs; reload keeps the chosen theme; Skip (mobile) and Build-my-Home (web) close the modal. Cross-surface sync verified via API. All 7 backend tests pass. No critical issues found.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [
+        {"screen": "Home top bar", "issues": ["ThemeToggle with data-testid='theme-toggle' was NOT found on the Home top bar for a freshly-registered user in the new_look_v2 design. The header shows a 'Dark' label chip (visible top-right) that may or may not be the same toggle — if it is, it's missing the data-testid='theme-toggle' attribute referenced in the spec. Not blocking (the appearance onboarding + /api/shell/prefs path works), but main agent should confirm the theme-toggle is mounted and carries data-testid='theme-toggle' in the AppShellV2 top bar / Me→Settings surface."]}
+      ]
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Appearance onboarding", "platform": "both", "issue": "Behavior is consistent across surfaces (system pre-highlighted, live preview on tap, persisted to /api/shell/prefs). Minor copy difference: web eyebrow is 'CHOOSE YOUR LOOK' inside the FeatureOnboarding modal (after interests), while mobile 'CHOOSE YOUR LOOK' is a section inside the single InterestOnboarding sheet. This is expected per spec (web splits into two modals, mobile combines into one sheet), not a bug — just noting for parity awareness.", "expected": "N/A", "actual": "N/A"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter233_appearance_onboarding.py",
+    "/app/test_reports/pytest/iter233_appearance.xml"
+  ],
+  "action_items": [
+    "(OPTIONAL) Confirm the ThemeToggle component with data-testid='theme-toggle' is still being rendered somewhere in AppShellV2 / Me→Settings surface for a logged-in user — testing agent could not locate it on the Home page top bar during this run, though the appearance onboarding + /api/shell/prefs flow works end-to-end without it."
+  ],
+  "critical_code_review_comments": [
+    "FeatureOnboarding.jsx: appr state (local useState('system')) does not hydrate from the server theme — a user who already saved e.g. 'dark' via mobile would still see 'Match device' pre-highlighted in the web FeatureOnboarding modal rather than their saved choice. Low impact because this modal only shows ONCE for brand-new users (needs_onboarding=true), so there is unlikely to be a prior saved theme. Still, a one-liner `useEffect(() => setAppr(useThemeStore.getState().mode), [])` would make it consistent.",
+    "InterestOnboarding.tsx line 33: same issue — appr defaults to 'system' and does not reflect mode from ThemeProvider. Same low-impact rationale.",
+    "FeatureOnboarding.jsx line 86: Build button text uses `count` which excludes the appearance choice. Fine — appearance is not a feature. Just confirming intent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter233_appearance_onboarding.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7 passed)", "frontend": "100% — all documented flows verified on web + mobile"},
+  "test_credentials": "Registered brand-new users via POST /api/auth/register for both web and mobile runs (needs_onboarding=true). Backend tests used demo@bigfm.dubai / DemoPass123! (session cookie).",
+  "seed_data_creation": "None — test users were ad-hoc and only touched /api/shell/prefs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Appearance onboarding (Phase: Light/Dark/System first-run) is passing on both surfaces. Backend endpoint /api/shell/prefs round-trips light|dark|system reliably with cross-session sync. The web FeatureOnboarding modal is sequenced AFTER the interests modal via the 'bigfm:interests:done' event — if you only wait for feature-onboarding on a fresh user you must first click or skip the interests sheet. Mobile combines both in a single InterestOnboarding sheet so no sequencing needed. For UI tests on the Expo web preview, log in via POST /api/auth/login and store the returned session_token in localStorage key 'bigfm_session_token' before navigating.",
+  "rca of the issue": "N/A — no issues to RCA."
+}

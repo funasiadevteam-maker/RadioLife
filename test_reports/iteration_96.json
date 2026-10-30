@@ -27,7 +27,7 @@
   ],
   "updated_files": ["/app/backend/tests/test_iter96_partner_api_payments.py"],
   "success_rate": {"backend": "100% (28/28)", "frontend": "n/a (backend-only)"},
-  "test_credentials": "LIVE key: rlk_live_RI7fonLpLAzW.pL6e_b7Ok-f5FsNmSkyxwtLeWYWStHTCZsP0Kmqf6SM  |  SANDBOX key: rlk_test_m55nJ-GmIviJ.0cKrGo5T3AKq_FLmZcqPvePDkLzhMdGIlQIB8T5an2Q  |  Businesses: biz_demo_grill, biz_demo_spice  |  Persona: persona_demo_rj_ava  |  Stripe test card: 4242 4242 4242 4242 12/34 CVC 123",
+  "test_credentials": "LIVE key: <redacted — see Secrets UI / PARTNER_LIVE_KEY>  |  SANDBOX key: <redacted — see Secrets UI / PARTNER_SANDBOX_KEY>  |  Businesses: biz_demo_grill, biz_demo_spice  |  Persona: persona_demo_rj_ava  |  Stripe test card: 4242 4242 4242 4242 12/34 CVC 123",
   "seed_data_creation": "Each pytest run creates a fresh TEST_iter96_live_* and TEST_iter96_sbx_* advertiser under the LIVE and SANDBOX keys, one trivia draft, one rj_read draft moved to pending_moderation, one LIVE promotion in pending_payment, one LIVE category_bid in pending_budget. All are prefixed for easy cleanup.",
   "retest_needed": false,
   "should_main_agent_self_test": true,

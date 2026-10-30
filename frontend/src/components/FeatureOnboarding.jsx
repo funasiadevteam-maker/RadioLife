@@ -6,11 +6,19 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import {
   Sparkles, Check, Loader2, Lock, Users, Headphones, Radio,
-  ShoppingBag, Gamepad2, Utensils, Coins,
+  ShoppingBag, Gamepad2, Utensils, Coins, Sun, Moon, Monitor,
 } from "lucide-react";
 import { useFeaturePrefs } from "@/store/useFeaturePrefs";
+import { useTheme } from "@/theme/useTheme";
+import AccentSwatches from "@/theme/AccentSwatches";
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
+
+const APPEARANCE = [
+  { k: "light", label: "Light", desc: "Bright & clean", Icon: Sun },
+  { k: "dark", label: "Dark", desc: "Easy on the eyes", Icon: Moon },
+  { k: "system", label: "Match device", desc: "Follow your device", Icon: Monitor },
+];
 
 const ICONS = {
   users: Users, headphones: Headphones, radio: Radio, "shopping-bag": ShoppingBag,
@@ -30,6 +38,10 @@ export default function FeatureOnboarding() {
   const [sel, setSel] = useState([]);
   const [busy, setBusy] = useState(false);
   const [gated, setGated] = useState(false);
+  const { setMode } = useTheme();
+  const [appr, setAppr] = useState("system");
+
+  const pickAppr = (k) => { setAppr(k); setMode(k); };
 
   useEffect(() => { bootstrap(); }, [bootstrap]);
 
@@ -87,6 +99,39 @@ export default function FeatureOnboarding() {
         <p className="text-sm text-slate-400 mt-1 mb-4">
           Your Home will show only the features you choose — keep it simple, add more anytime from Settings.
         </p>
+
+        {/* Appearance — Light / Dark / Match device (live preview on tap) */}
+        <div className="mb-5" data-testid="onboarding-appearance">
+          <div className="text-[10px] font-black uppercase tracking-widest text-cyan-300 mb-2">
+            Choose your look
+          </div>
+          <div className="grid grid-cols-3 gap-2.5">
+            {APPEARANCE.map(({ k, label, desc, Icon }) => {
+              const on = appr === k;
+              return (
+                <button key={k} type="button" onClick={() => pickAppr(k)}
+                  data-testid={`onboarding-appearance-${k}`} aria-pressed={on}
+                  className={`flex flex-col items-center gap-1.5 rounded-2xl p-3 border transition ${
+                    on ? "border-cyan-400/60 bg-cyan-400/[0.08]" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}>
+                  <span className="w-9 h-9 rounded-xl grid place-items-center"
+                    style={{ background: on ? "linear-gradient(135deg,#22d3ee,#a855f7)" : "rgba(255,255,255,0.06)" }}>
+                    <Icon size={16} color={on ? "#fff" : "#9aa6c8"} />
+                  </span>
+                  <span className="text-xs font-black text-white">{label}</span>
+                  <span className="text-[10px] text-slate-400 text-center leading-tight">{desc}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2">You can change this anytime in Settings.</p>
+
+          <div className="mt-4">
+            <div className="text-[10px] font-black uppercase tracking-widest text-cyan-300 mb-2">
+              Accent colour
+            </div>
+            <AccentSwatches testIdPrefix="onboarding-accent" size={36} />
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {catalog.map((f) => {

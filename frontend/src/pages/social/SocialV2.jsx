@@ -8,11 +8,12 @@ import { toast } from "sonner";
 import {
   Radio, Users, Gamepad2, MapPin, ShoppingBag, Sparkles, Loader2,
   UserPlus, Check, X, Search, Headphones, Video, Camera,
-  Play, Moon, UserCheck,
+  Play, Moon, UserCheck, Swords,
 } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { PulseTab, GoTogetherModal, PlayTogetherModal, ShopTogetherModal, DiscoverSection } from "./SocialTogether";
 import { MomentsTab } from "./SocialTogether";
+import { ChallengesTab } from "./SocialChallenges";
 import { LiveTab } from "./SocialLive";
 import SocialWall from "./SocialWall";
 import { FollowingPanel } from "./FollowingPanel";
@@ -25,6 +26,7 @@ const RADIO_API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
 const TABS = [
   { key: "together", label: "Home", icon: Sparkles },
+  { key: "challenges", label: "Arena", icon: Swords },
   { key: "live", label: "Live", icon: Video },
   { key: "moments", label: "Moments", icon: Camera },
   { key: "pulse", label: "Nearby", icon: MapPin },
@@ -79,6 +81,7 @@ export default function SocialV2() {
                      onOpenFollowing={() => setFollowingOpen(true)} />
           )}
           {!loading && tab === "friends" && <FriendsTab />}
+          {!loading && tab === "challenges" && <ChallengesTab />}
           {!loading && tab === "live" && <LiveTab />}
           {!loading && tab === "moments" && <MomentsTab />}
           {!loading && tab === "pulse" && <PulseTab />}

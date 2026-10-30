@@ -3,7 +3,7 @@
     "name": "FUUSIC",
     "slug": "mobile",
     "version": "1.0.1",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
@@ -19,7 +19,8 @@
         ],
         "NSCameraUsageDescription": "Scan customer QR codes to take payment.",
         "NSLocationWhenInUseUsageDescription": "Show shops and services near you.",
-        "NSContactsUsageDescription": "Invite your friends to play together."
+        "NSContactsUsageDescription": "Invite your friends to play together.",
+        "NSMicrophoneUsageDescription": "Talk live with Fun AI, your radio companion."
       }
     },
     "android": {
@@ -35,7 +36,9 @@
         "CAMERA",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "READ_CONTACTS"
+        "READ_CONTACTS",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS"
       ],
       "package": "com.bigfm.app",
       "versionCode": 104,
@@ -76,7 +79,8 @@
         {
           "locationWhenInUsePermission": "Show shops and services near you."
         }
-      ]
+      ],
+      "expo-stream-audio"
     ],
     "experiments": {
       "typedRoutes": true

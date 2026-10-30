@@ -9,16 +9,21 @@ Auth: every route requires `require_admin` from auth.py.  Mounted under
 """
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import re
+import secrets
+import string
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import (APIRouter, Depends, File, Form, HTTPException, Query,
+                                  Request, UploadFile)
 from pydantic import BaseModel, Field
 
-from auth import current_user, require_admin
+from auth import current_user, require_admin, hash_password, PreferenceVector
 
 
 logger = logging.getLogger("bigfm.admin_users")
@@ -32,7 +37,7 @@ ALLOWED_ROLES = {"user", "listener", "creator", "advertiser",
                           "admin"}
 ALLOWED_STATUSES = {"active", "inactive", "suspended"}
 ALLOWED_ACTIONS = {"role_change", "activate", "deactivate",
-                            "suspend", "unsuspend"}
+                            "suspend", "unsuspend", "create", "update"}
 
 
 def _now() -> datetime:
@@ -70,6 +75,7 @@ def _user_view(u: dict) -> dict:
         "is_advertiser": bool(u.get("is_advertiser")),
         "is_premium": bool(u.get("is_premium")),
         "market": u.get("market"),
+        "must_change_password": bool(u.get("must_change_password")),
         "created_at": u.get("created_at"),
         "last_login_at": u.get("last_login_at"),
         "deactivated_at": u.get("deactivated_at"),
@@ -216,6 +222,304 @@ async def per_user_audit_log(user_id: str, request: Request,
     for r in rows:
         r.pop("_id", None)
     return {"items": rows, "next_cursor": next_cursor, "limit": limit}
+
+
+# =====================================================================
+# CREATE USER (admin-provisioned) + BULK IMPORT + EDIT
+# =====================================================================
+class CreateUserBody(BaseModel):
+    email: str
+    name: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=8, max_length=128)
+    role: str = "user"
+    status: str = "active"
+    is_premium: bool = False
+    market: Optional[str] = None
+    send_welcome: bool = False
+
+
+class EditUserBody(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=80)
+    email: Optional[str] = None
+    is_premium: Optional[bool] = None
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _password_valid(pw: str) -> bool:
+    return bool(pw) and len(pw) >= 8 and bool(re.search(r"\d", pw)) \
+              and bool(re.search(r"[A-Za-z]", pw))
+
+
+def _gen_password() -> str:
+    """Random password guaranteed to satisfy letter+digit, len >= 11."""
+    pool = string.ascii_letters + string.digits
+    return (secrets.choice(string.ascii_uppercase)
+                  + secrets.choice(string.ascii_lowercase)
+                  + "".join(secrets.choice(pool) for _ in range(8))
+                  + secrets.choice(string.digits))
+
+
+async def _create_one(db, admin_id: str, *, email, name, password, role,
+                                    status, is_premium, market):
+    """Core provisioning used by both single-create and bulk import.
+    Returns (ok, result). result is the user view on success, else
+    {"error": <code>}."""
+    role = (role or "user").strip()
+    status = (status or "active").strip()
+    if role not in ALLOWED_ROLES:
+        return False, {"error": "invalid_role"}
+    if status not in ALLOWED_STATUSES:
+        return False, {"error": "invalid_status"}
+    email = (email or "").lower().strip()
+    if not _EMAIL_RE.match(email):
+        return False, {"error": "invalid_email"}
+    if not name or not name.strip():
+        return False, {"error": "missing_name"}
+    if not _password_valid(password):
+        return False, {"error": "weak_password"}
+    if await db.users.find_one({"email": email}, {"_id": 0}):
+        return False, {"error": "email_exists"}
+    now = _now()
+    user_id = _new_id("user", 16)
+    doc = {
+        "user_id": user_id, "email": email, "name": name.strip(),
+        "picture": None, "auth_provider": "email",
+        "password_hash": hash_password(password),
+        "role": role, "status": status, "is_premium": bool(is_premium),
+        "market": market, "onboarding_complete": True,
+        "created_by_admin_id": admin_id,
+        "preference_vector": PreferenceVector().model_dump(),
+        "created_at": now, "last_login_at": None,
+    }
+    await db.users.insert_one(doc)
+    await _audit(db, user_id=user_id, changed_by=admin_id, action="create",
+                      old_value=None, new_value=role,
+                      reason=f"admin-created ({role})")
+    fresh = await db.users.find_one({"user_id": user_id})
+    return True, _user_view(fresh)
+
+
+async def _send_welcome_email(db, request, *, user_id, email, name):
+    """Email a single-use 'set your password' link (valid 7 days) plus a
+    login link.  Falls back to a visible log line when Mailgun isn't live."""
+    try:
+        from auth import _ensure_reset_indexes, _frontend_base_url
+        await _ensure_reset_indexes(db)
+        token = secrets.token_urlsafe(32)
+        now = _now()
+        await db.password_reset_tokens.insert_one({
+            "token": token, "user_id": user_id, "email": email,
+            "created_at": now, "expires_at": now + timedelta(days=7),
+            "used": False, "kind": "welcome",
+        })
+        base = _frontend_base_url(request)
+        set_url = f"{base}/reset-password?token={token}"
+        login_url = f"{base}/login"
+        sent, err = False, None
+        try:
+            from services.mailgun_client import send_email, is_live
+            if is_live():
+                subject = "Welcome to FUUSIC — set your password"
+                safe_name = (name or "there").strip() or "there"
+                html = (
+                    f'<div style="font-family:system-ui,sans-serif;'
+                    f'line-height:1.5;color:#0f172a">'
+                    f'<h2 style="margin:0 0 8px">Welcome to FUUSIC, '
+                    f'{safe_name}!</h2>'
+                    f'<p>An account has been created for you. To get '
+                    f'started, set your own password — then sign in with '
+                    f'<b>{email}</b>.</p>'
+                    f'<p><a href="{set_url}" style="display:inline-block;'
+                    f'background:#d946ef;color:#fff;padding:12px 22px;'
+                    f'border-radius:9999px;text-decoration:none;'
+                    f'font-weight:700">Set your password</a></p>'
+                    f'<p style="color:#64748b;font-size:12px;margin-top:16px">'
+                    f'This link expires in 7 days and can be used once. '
+                    f'Already set it? <a href="{login_url}">Sign in</a>.</p>'
+                    f'<p style="color:#94a3b8;font-size:11px">Or paste: '
+                    f'<span style="word-break:break-all">{set_url}</span>'
+                    f'</p></div>'
+                )
+                text = (f"Welcome to FUUSIC!\nSet your password: {set_url}\n"
+                              f"Then sign in at {login_url} with {email}.\n"
+                              f"Link expires in 7 days, single use.")
+                resp = send_email(email, subject, html, text=text,
+                                                      tags=["welcome"])
+                sent = bool(resp.get("ok"))
+                err = resp.get("error")
+        except Exception as e:
+            err = f"exception:{type(e).__name__}"
+        if not sent:
+            logger.warning("[admin_users] MOCKED welcome email to=%s — "
+                                      "deliver set-password URL manually: %s",
+                                      email, set_url)
+        await db.password_reset_tokens.update_one(
+            {"token": token},
+            {"$set": {"email_sent": sent, "email_error": err,
+                              "reset_url_debug": set_url}})
+        return {"sent": sent, "error": err, "set_password_url": set_url}
+    except Exception as e:
+        logger.warning("[admin_users] welcome email failed: %s", e)
+        return {"sent": False, "error": str(e), "set_password_url": None}
+
+
+@admin_users_router.post("")
+@admin_users_router.post("/")
+async def create_user(body: CreateUserBody, request: Request,
+                                  admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    ok, res = await _create_one(
+        db, admin["user_id"], email=body.email, name=body.name,
+        password=body.password, role=body.role, status=body.status,
+        is_premium=body.is_premium, market=body.market)
+    if not ok:
+        code = res["error"]
+        raise HTTPException(409 if code == "email_exists" else 400,
+                                            {"status": code})
+    out = {"ok": True, "user": res}
+    if body.send_welcome:
+        out["welcome_email"] = await _send_welcome_email(
+            db, request, user_id=res["user_id"], email=res["email"],
+            name=res["name"])
+    return out
+
+
+@admin_users_router.post("/bulk")
+async def bulk_create_users(request: Request,
+                                                file: UploadFile = File(...),
+                                                send_welcome: bool = Form(False),
+                                                admin: dict = Depends(require_admin)):
+    """Create many users from a CSV. Columns (case-insensitive):
+    email (required), name (required), role, password (optional — a random
+    one is generated if blank), premium/is_premium, market, status."""
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except Exception:
+        text = raw.decode("latin-1", errors="ignore")
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        raise HTTPException(400, {"status": "empty_or_invalid_csv"})
+    norm = {(f or "").strip().lower(): f for f in reader.fieldnames}
+    if "email" not in norm or "name" not in norm:
+        raise HTTPException(400, {"status": "missing_columns",
+                                                    "required": ["email", "name"],
+                                                    "found": reader.fieldnames})
+
+    def pick(row, key):
+        src = norm.get(key)
+        return (row.get(src) or "").strip() if src else ""
+
+    db = request.app.state.db
+    results, created = [], 0
+    for idx, row in enumerate(reader, start=2):   # row 1 = header
+        email = pick(row, "email")
+        if not email and not any((v or "").strip() for v in row.values()):
+            continue    # skip fully blank line
+        name = pick(row, "name")
+        role = pick(row, "role") or "user"
+        status = pick(row, "status") or "active"
+        market = pick(row, "market") or None
+        prem_raw = (pick(row, "premium") or pick(row, "is_premium")).lower()
+        is_premium = prem_raw in ("1", "true", "yes", "y", "premium")
+        password = pick(row, "password") or _gen_password()
+        ok, res = await _create_one(
+            db, admin["user_id"], email=email, name=name, password=password,
+            role=role, status=status, is_premium=is_premium, market=market)
+        if ok:
+            created += 1
+            if send_welcome:
+                await _send_welcome_email(db, request, user_id=res["user_id"],
+                                                              email=res["email"], name=res["name"])
+            results.append({"row": idx, "email": email, "status": "created",
+                                      "role": res["role"]})
+        else:
+            results.append({"row": idx, "email": email, "status": "error",
+                                      "error": res["error"]})
+    return {"ok": True, "created": created,
+                  "failed": len(results) - created, "total": len(results),
+                  "results": results}
+
+
+@admin_users_router.patch("/{user_id}")
+async def update_user(user_id: str, body: EditUserBody, request: Request,
+                                  admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    user = await db.users.find_one({"user_id": user_id})
+    if not user:
+        raise HTTPException(404, {"status": "user_not_found"})
+    updates: dict = {}
+    changed = []
+    if body.name is not None and body.name.strip() != (user.get("name") or ""):
+        updates["name"] = body.name.strip()
+        changed.append("name")
+    if body.email is not None:
+        new_email = body.email.lower().strip()
+        if not _EMAIL_RE.match(new_email):
+            raise HTTPException(400, {"status": "invalid_email"})
+        if new_email != (user.get("email") or ""):
+            dupe = await db.users.find_one(
+                {"email": new_email, "user_id": {"$ne": user_id}}, {"_id": 0})
+            if dupe:
+                raise HTTPException(409, {"status": "email_exists"})
+            updates["email"] = new_email
+            changed.append("email")
+    if body.is_premium is not None \
+            and bool(body.is_premium) != bool(user.get("is_premium")):
+        updates["is_premium"] = bool(body.is_premium)
+        changed.append("premium")
+    if not updates:
+        return {"ok": True, "user": _user_view(user), "changed": []}
+    updates["updated_at"] = _now()
+    await db.users.update_one({"user_id": user_id}, {"$set": updates})
+    await _audit(db, user_id=user_id, changed_by=admin["user_id"],
+                      action="update", old_value=None,
+                      new_value=", ".join(changed),
+                      reason=f"admin-edited: {', '.join(changed)}")
+    fresh = await db.users.find_one({"user_id": user_id})
+    return {"ok": True, "user": _user_view(fresh), "changed": changed}
+
+
+@admin_users_router.post("/{user_id}/resend-welcome")
+async def resend_welcome(user_id: str, request: Request,
+                                          admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    user = await db.users.find_one({"user_id": user_id})
+    if not user:
+        raise HTTPException(404, {"status": "user_not_found"})
+    res = await _send_welcome_email(db, request, user_id=user_id,
+                                                          email=user["email"],
+                                                          name=user.get("name"))
+    await _audit(db, user_id=user_id, changed_by=admin["user_id"],
+                      action="update", old_value=None, new_value="resend_welcome",
+                      reason="resent welcome / set-password email")
+    return {"ok": True, "welcome_email": res}
+
+
+class ForceResetBody(BaseModel):
+    require: bool = True
+
+
+@admin_users_router.post("/{user_id}/force-password-reset")
+async def force_password_reset(user_id: str, request: Request,
+                                                    body: ForceResetBody = ForceResetBody(),
+                                                    admin: dict = Depends(require_admin)):
+    db = request.app.state.db
+    user = await db.users.find_one({"user_id": user_id})
+    if not user:
+        raise HTTPException(404, {"status": "user_not_found"})
+    require = bool(body.require)
+    await db.users.update_one({"user_id": user_id},
+        {"$set": {"must_change_password": require}})
+    await _audit(db, user_id=user_id, changed_by=admin["user_id"],
+                      action="update", old_value=None,
+                      new_value="force_reset_on" if require else "force_reset_off",
+                      reason="require password change on next sign-in"
+                                  if require else "cleared forced password change")
+    fresh = await db.users.find_one({"user_id": user_id})
+    return {"ok": True, "user": _user_view(fresh)}
 
 
 # =====================================================================

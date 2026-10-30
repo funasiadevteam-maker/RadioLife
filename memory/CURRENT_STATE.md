@@ -6665,8 +6665,8 @@ pre-existing Phase 9a `/api/commute/*` router without conflict.
 
 | File | Key | Purpose |
 |---|---|---|
-| `/app/backend/.env` | `GOOGLE_MAPS_API_KEY=AIzaSyBZhwAujXJYNr8yVTCyg4mjL3WpdmeE3Gk` | Server-side Routes / Places / Geocoding / Weather |
-| `/app/frontend/.env` | `REACT_APP_GOOGLE_MAPS_API_KEY=AIzaSyBsGVmToWAgejMaIm43-BCwu-a4urqgTUo` | Maps JS + Places Autocomplete (browser, referrer-restricted) |
+| `/app/backend/.env` | `GOOGLE_MAPS_API_KEY=<redacted — set in Secrets UI>` | Server-side Routes / Places / Geocoding / Weather |
+| `/app/frontend/.env` | `REACT_APP_GOOGLE_MAPS_API_KEY=<redacted — set in Secrets UI>` | Maps JS + Places Autocomplete (browser, referrer-restricted) |
 
 The two keys are DIFFERENT.  The frontend key is bundle-safe (referrer-restricted).
 The backend key is never exposed in the JS bundle.

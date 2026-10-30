@@ -9,10 +9,11 @@ import {
   Plus, Image as ImageIcon, Music2, Mic, MoreHorizontal, MapPin, Play, Pause,
   X, Utensils, Gift, Bookmark, Radio, ListMusic, Sparkles, Moon, Crown, Store,
   Headphones as Head2, Heart, ChevronRight, Camera, Video, Globe, Type,
-  Loader2, Check, AlertCircle, ChevronDown, RotateCcw, Square, Upload, SlidersHorizontal,
+  Loader2, Check, AlertCircle, ChevronDown, RotateCcw, Square, Upload, SlidersHorizontal, Shield,
 } from "lucide-react";
 import { useGeoStore } from "@/store/useGeoStore";
 import { usePlayerStore } from "@/store/usePlayerStore";
+import { useAuth } from "@/AuthContext";
 import { initials, pillStyle } from "./sfTheme";
 import HomeViewSwitcher from "./HomeViewSwitcher";
 
@@ -565,6 +566,8 @@ const SIDE_MORE = [
 ];
 export function LeftSidebar({ t }) {
   const { pathname } = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const Item = ({ label, icon: Icon, to }) => {
     const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
     return (
@@ -585,6 +588,12 @@ export function LeftSidebar({ t }) {
         {SIDE_MAIN.map((i) => <Item key={i.label} {...i} />)}
         <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: t.muted, padding: "12px 12px 4px" }}>Explore more</div>
         {SIDE_MORE.map((i) => <Item key={i.label} {...i} />)}
+        {isAdmin && (
+          <>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: t.muted, padding: "12px 12px 4px" }}>Admin</div>
+            <Item label="Admin" icon={Shield} to="/admin" />
+          </>
+        )}
       </div>
     </aside>
   );
@@ -707,6 +716,7 @@ export function InlineDiscovery({ t, rail, onFollow }) {
 /* ─────────────────────────── Audio dock ─────────────────────────── */
 export function AudioDock({ t }) {
   const name = usePlayerStore((s) => s.activeChannelName);
+  const slug = usePlayerStore((s) => s.activeChannel);
   const seg = usePlayerStore((s) => s.currentSeg);
   const playing = usePlayerStore((s) => s.playing);
   const thumb = usePlayerStore((s) => s.activeChannelThumb);
@@ -714,15 +724,18 @@ export function AudioDock({ t }) {
   if (!name || hidden) return null;
   const toggle = () => window.dispatchEvent(new CustomEvent("bigfm:player:toggle"));
   const sub = seg?.track_title ? `${seg.track_title}${seg.track_artist ? " · " + seg.track_artist : ""}` : "Live";
+  const nowPlayingHref = slug ? `/now-playing?ch=${encodeURIComponent(slug)}` : "/now-playing";
   return (
     <div data-testid="sf-audio-dock" style={{ position: "fixed", left: 0, right: 0, bottom: 62, zIndex: 45, padding: "0 10px" }}>
       <div className="lg:max-w-[640px] lg:mx-auto" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 14, background: t.card, border: `1px solid ${t.border}`, boxShadow: "0 -4px 20px rgba(0,0,0,.25)" }}>
-        {thumb ? <img src={thumb} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
-          : <span style={{ width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center", background: t.accentGrad }}><Radio size={18} color="#fff" /></span>}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-          <div style={{ fontSize: 11.5, color: t.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
-        </div>
+        <Link to={nowPlayingHref} data-testid="sf-dock-expand" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
+          {thumb ? <img src={thumb} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
+            : <span style={{ width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center", background: t.accentGrad }}><Radio size={18} color="#fff" /></span>}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+            <div style={{ fontSize: 11.5, color: t.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
+          </div>
+        </Link>
         <button onClick={toggle} data-testid="sf-dock-toggle" className="sf-press" style={{ width: 40, height: 40, borderRadius: 999, border: "none", cursor: "pointer", background: t.accentGrad, display: "grid", placeItems: "center" }}>
           {playing ? <Pause size={18} color="#fff" fill="#fff" /> : <Play size={18} color="#fff" fill="#fff" />}
         </button>

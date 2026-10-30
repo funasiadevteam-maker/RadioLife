@@ -1,0 +1,47 @@
+{
+  "summary": "Full-stack verification of (1) WEB P0 global audio dock -> /now-playing and (2) Arena play-with-friends CHALLENGES + weekly LEADERBOARD across backend, web, and mobile. 14/14 backend pytest cases pass (games catalogue, h2h/group validation errors, create+invite, no-correct-answer leak in quiz, premature-finalize blocked when host submits before invitee accepts, accept pulls invitee + awards winner on dual submission, listing buckets, /score, leaderboard global/friends/per-game). WEB P0: sf-audio-dock renders on /radio with autoplay; data-testid 'sf-dock-expand' navigates to /now-playing?ch=<slug> and rl-now-playing + rl-follow-show-btn + rl-clip-btn all mount (clip btn is enabled because audio was active, matching option b). WEB Arena at /social?tab=challenges: arena-tab, arena-subtab-challenges, arena-subtab-leaderboard, arena-new-challenge-btn, arena-create-modal with arena-create-game-trivia, arena-create-mode-h2h, arena-create-friend-user_b1106f71a18042bb (Free Tester), arena-create-submit all present; leaderboard shows arena-lb-scope-global/friends, arena-lb-game-all/trivia/quiz and 2 live rows (Demo Listener 1706, Free Tester 572). MOBILE Arena (Expo web preview @ 390x844): social-tab-challenges, arena-tab, arena-subtab-challenges/leaderboard, arena-new-challenge-btn, arena-create-modal + all create testIDs, arena-create-mode-group also present, arena-leaderboard mounts on leaderboard subtab with 2 rows. Parity: both surfaces render identical Arena contract against the shared backend. No functional blockers.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Console warning: 'shadow*' style props are deprecated on react-native-web. Use 'boxShadow' instead. Non-blocking but worth sweeping across mobile styles."},
+        {"component": "pointerEvents prop", "issue": "Console warning: props.pointerEvents is deprecated. Use style.pointerEvents (RN Web update). Non-blocking."},
+        {"component": "require cycle", "issue": "Require cycle: app/(tabs)/social.tsx -> src/social/wall.tsx -> app/(tabs)/social.tsx — can cause uninitialized values. Refactor to break cycle. Reference: /app/mobile/app/(tabs)/social.tsx <-> /app/mobile/src/social/wall.tsx"}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter225_arena.py",
+    "/app/test_reports/pytest/iter225_arena.xml"
+  ],
+  "action_items": [
+    "(nice-to-have) Sweep mobile styles to replace shadow* with boxShadow and props.pointerEvents with style.pointerEvents to clear RN Web deprecation warnings.",
+    "(nice-to-have) Break the require cycle app/(tabs)/social.tsx <-> src/social/wall.tsx.",
+    "Group-mode E2E could not be fully round-tripped because demo only has 1 friend (Free Tester). Validation path (400 group_needs_two) is covered. If end-to-end group needed, seed one extra accepted friendship for demo."
+  ],
+  "critical_code_review_comments": [
+    "Arena contract (prefix /api/arena) is cleanly reused by both frontends — single source of truth and parity is preserved.",
+    "finalize guard (no pending invitees + >=2 participants + all submitted) is correctly enforced; premature-finalize test confirms host-only submission does NOT complete a challenge.",
+    "quiz endpoint correctly strips the 'correct' index from the response — no answer-leak."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter225_arena.py"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% (web + mobile Arena + web P0 dock)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! and freeuser@bigfm.dubai / FreePass123! — both via POST /api/auth/login (cookie on web, bearer+localStorage.bigfm_session_token on mobile Expo preview).",
+  "seed_data_creation": "Created 1 h2h challenge 'TEST_iter225 Arena' (trivia) between demo@ and freeuser@, run to completion with Free Tester as winner (100 BigPoints awarded). Added one /score row (trivia +123) for demo@.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both P0 (global dock -> /now-playing) and Arena (challenges + weekly leaderboard) are green across backend/web/mobile with full testID coverage. Backend regression at /app/backend/tests/test_iter225_arena.py (14 cases). Only outstanding items are RN Web deprecation warnings and a require-cycle in mobile Social — all non-blocking.",
+  "rca of the issue": ""
+}

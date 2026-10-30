@@ -136,16 +136,29 @@ async def list_following_entities(db, uid: str) -> dict:
                                   u.get("picture") or u.get("avatar_url")))
 
     stations: list = []
-    st_ids: list = []
-    async for sf in db.station_followers.find({"user_id": uid}, {"station_id": 1}):
+    foll_rows: list = []
+    async for sf in db.station_followers.find({"user_id": uid}):
         if sf.get("station_id"):
-            st_ids.append(sf["station_id"])
+            foll_rows.append(sf)
+    st_ids = [r["station_id"] for r in foll_rows]
+    resolved: set = set()
     if st_ids:
         async for s in db.community_radio_stations.find(
                 {"station_id": {"$in": st_ids}}):
             stations.append(_enrich("station", s["station_id"],
                                     s.get("name") or s.get("slug"),
                                     s.get("cover_image_url")))
+            resolved.add(s["station_id"])
+    # Imported + FUUSIC-channel follows: resolve display from the snapshot
+    # captured at follow time (they aren't in community_radio_stations).
+    for r in foll_rows:
+        sid = r["station_id"]
+        if sid in resolved:
+            continue
+        snap = r.get("station_snapshot") or {}
+        stations.append(_enrich("station", sid,
+                                snap.get("name") or sid, snap.get("logo")))
+        resolved.add(sid)
 
     businesses: list = []
     bids: list = []

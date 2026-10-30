@@ -15,8 +15,8 @@ ADV_PW = "TestUser123!"
 ADMIN_EMAIL = "admin@bigfm.dubai"
 ADMIN_PW = "AdminPass123!"
 
-LIVE_KEY = "rlk_live_RI7fonLpLAzW.pL6e_b7Ok-f5FsNmSkyxwtLeWYWStHTCZsP0Kmqf6SM"
-SANDBOX_KEY = "rlk_test_m55nJ-GmIviJ.0cKrGo5T3AKq_FLmZcqPvePDkLzhMdGIlQIB8T5an2Q"
+LIVE_KEY = os.environ.get("PARTNER_LIVE_KEY", "")
+SANDBOX_KEY = os.environ.get("PARTNER_SANDBOX_KEY", "")
 
 
 def _login(email, pw):

@@ -210,6 +210,7 @@ export function WalletItemCard({ title, expires, badge, className = "" }) {
 // dispatches `bigfm:player:toggle` (handled by GlobalAudio) on click.  This
 // works from EVERY route because GlobalAudio is mounted at AppShell root.
 import { usePlayerStore } from "@/store/usePlayerStore";
+import { Link } from "react-router-dom";
 // Phase B Bug B2 follow-up — surface the resolved city in the persistent
 // player so the authed-home tester can verify header (CityChip) ↔ footer
 // (this label) parity without leaving the dashboard.  Both read from the
@@ -367,13 +368,16 @@ export function MiniPlayer({ className = "" }) {
         data-testid="mini-player-artwork"
         style={{ background: artworkBg }} />
 
-      <div className="min-w-0 flex-1 sm:flex-none sm:max-w-[240px]">
+      <Link
+        to="/now-playing"
+        data-testid="mini-player-expand"
+        className={["min-w-0 flex-1 sm:flex-none sm:max-w-[240px]", hasContent ? "cursor-pointer" : "pointer-events-none"].join(" ")}>
         <div className="font-display text-sm font-semibold truncate text-text-primary"
           data-testid="bottom-player-station-name"
           data-legacy-testid="mini-player-track">{displayTrack}</div>
         <div className="font-mono text-[10px] text-text-secondary truncate"
           data-testid="mini-player-artist">{subtitle}</div>
-      </div>
+      </Link>
 
       <button
         type="button"

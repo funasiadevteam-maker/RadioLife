@@ -15,9 +15,11 @@ import { gameArtFor } from '../../src/constants/gameArt';
 import { fetchPlayAndWin, HOUSE_CAMPAIGNS } from '../../src/api/gamesApi';
 import useBigCoinStore from '../../src/stores/useBigCoinStore';
 import api from '../../src/api/client';
+import { BACKEND } from '../../src/api/client';
 import { useReward } from '../../src/components/RewardOverlay';
 import WinnersTicker from '../../src/components/WinnersTicker';
 import StreakBadge from '../../src/components/StreakBadge';
+import { useResponsive } from '../../src/hooks/useResponsive';
 
 function DailyStreakBanner() {
   const { celebrate } = useReward();
@@ -122,16 +124,26 @@ function routeForCampaign(campaignId: string) {
   return DEDICATED_ROUTES[campaignId] || `/game/${campaignId}`;
 }
 
+/* Admin art override (GET /api/games/appearance) → absolute image URL. */
+function artUrl(o: any, fallback: string): string {
+  const u = o?.image_url;
+  if (!u) return fallback;
+  return String(u).startsWith('http') ? u : `${BACKEND}${u}`;
+}
+
 export default function GamesHub() {
   const t = useThemeTokens();
   const s = makeStyles(t);
   const router = useRouter();
+  const r = useResponsive();
   const [campaigns, setCampaigns] = useState<CampaignItem[]>([]);
   const [played, setPlayed] = useState<PlayedRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
   const [sponsorGames, setSponsorGames] = useState<any[]>([]);
+  // Admin-managed game-art overrides keyed by mobile_key (null = not loaded).
+  const [ov, setOv] = useState<Record<string, any> | null>(null);
 
   const balance = useBigCoinStore((s) => s.balance);
   const balanceLoaded = useBigCoinStore((s) => s.loaded);
@@ -150,6 +162,11 @@ export default function GamesHub() {
       setRefreshing(false);
     }
     api.get('/games/sponsor/discover').then(({ data }) => setSponsorGames(data?.items || [])).catch(() => {});
+    api.get('/games/appearance').then(({ data }) => {
+      const map: Record<string, any> = {};
+      (data?.games || []).forEach((g: any) => { if (g.mobile_key) map[g.mobile_key] = g; });
+      setOv(map);
+    }).catch(() => { /* keep ov=null → house tiles fall back to default art */ });
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -172,12 +189,30 @@ export default function GamesHub() {
   const QUICK_IDS: string[] = [HOUSE_CAMPAIGNS.spin, HOUSE_CAMPAIGNS.trivia, HOUSE_CAMPAIGNS.lyric];
   const others = campaigns.filter((c) => !QUICK_IDS.includes(c.campaign_id));
 
-  const QUICK_GAMES = [
+  const QUICK_BASE = [
     { id: 'spin', icon: 'aperture-outline', label: 'Spin & Win', desc: 'Spin the wheel for BigCoin & coupons', color: '#a855f7', route: '/games/spin' },
     { id: 'scratch', icon: 'gift-outline', label: 'Scratch & Win', desc: 'Rub to reveal — match 3 to win', color: '#6366F1', route: '/games/scratch' },
     { id: 'trivia', icon: 'musical-notes-outline', label: 'Music Trivia', desc: 'Guess the song and earn BigCoin', color: '#f59e0b', route: '/games/trivia-game' },
     { id: 'lyric', icon: 'mic-outline', label: 'Guess the Lyric', desc: 'Finish the lyric to win rewards', color: '#6366F1', route: '/games/lyric-game' },
   ];
+  // Merge admin art overrides onto the house tiles. Hidden games are absent
+  // from /api/games/appearance, so once loaded we drop any tile not present.
+  const QUICK_GAMES = QUICK_BASE
+    .filter((g) => !ov || ov[g.id] !== undefined)
+    .map((g) => {
+      const o = ov?.[g.id];
+      return {
+        ...g,
+        label: o?.label || g.label,
+        color: o?.color || g.color,
+        img: artUrl(o, gameArtFor(g.id)),
+        order: typeof o?.order === 'number' ? o.order : 999,
+      };
+    })
+    .sort((a, b) => a.order - b.order);
+
+  const ovSpin = ov?.spin;
+  const spinHidden = !!ov && ovSpin === undefined;
 
   if (loading) {
     return (
@@ -192,7 +227,7 @@ export default function GamesHub() {
   return (
     <SafeAreaView style={s.screen} testID="games-hub-page">
       <ScrollView
-        contentContainerStyle={s.scrollContent}
+        contentContainerStyle={[s.scrollContent, r.grid]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
             tintColor={t.primary} colors={[t.primary]} />
@@ -238,6 +273,7 @@ export default function GamesHub() {
         <NewCityBanner />
 
         {/* Featured: Spin & Win Card */}
+        {!spinHidden && (
         <TouchableOpacity
           style={s.featuredCard}
           onPress={() => router.push('/games/spin')}
@@ -248,11 +284,11 @@ export default function GamesHub() {
             <Text style={s.featuredBadgeText}>FEATURED</Text>
           </View>
           <View style={s.featuredContent}>
-            <View style={s.featuredIconWrap}>
-              <SafeImage uri={gameArtFor('spin')} fallbackText={featured?.title || 'Spin'} size={64} borderRadius={20} />
+            <View style={[s.featuredIconWrap, ovSpin?.color ? { backgroundColor: ovSpin.color } : null]}>
+              <SafeImage uri={artUrl(ovSpin, gameArtFor('spin'))} fallbackText={ovSpin?.label || featured?.title || 'Spin'} size={64} borderRadius={20} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.featuredTitle}>{featured?.title || 'Spin the Wheel'}</Text>
+              <Text style={s.featuredTitle}>{ovSpin?.label || featured?.title || 'Spin the Wheel'}</Text>
               <Text style={s.featuredDesc}>
                 {featured?.top_prize_title
                   ? `Top prize: ${featured.top_prize_title}`
@@ -273,6 +309,7 @@ export default function GamesHub() {
             </View>
           </View>
         </TouchableOpacity>
+        )}
 
         {/* Sponsored banner */}
         <AdBanner zone="games" />
@@ -290,8 +327,8 @@ export default function GamesHub() {
               activeOpacity={0.85}
               testID={`quick-game-${g.id}`}
             >
-              <View style={s.quickIconWrap}>
-                <SafeImage uri={gameArtFor(g.id)} fallbackText={g.label} size={52} borderRadius={16} />
+              <View style={[s.quickIconWrap, { backgroundColor: g.color }]}>
+                <SafeImage uri={(g as any).img} fallbackText={g.label} size={52} borderRadius={16} />
               </View>
               <Text style={s.quickLabel} numberOfLines={1}>{g.label}</Text>
               <Text style={s.quickDesc} numberOfLines={2}>{g.desc}</Text>
@@ -341,7 +378,7 @@ export default function GamesHub() {
           testID="trivia-hub-card"
         >
           <View style={s.triviaIconWrap}>
-            <SafeImage uri={gameArtFor('trivia')} fallbackText="Trivia" size={52} borderRadius={16} />
+            <SafeImage uri={artUrl(ov?.trivia, gameArtFor('trivia'))} fallbackText="Trivia" size={52} borderRadius={16} />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={s.predictTitle}>Trivia Challenge</Text>
@@ -401,6 +438,7 @@ export default function GamesHub() {
                 const meta = TEMPLATE_META[g.template_id || ''] || {
                   label: 'GAME', icon: 'game-controller', color: t.primary,
                 };
+                const o = ov?.[g.template_id || ''];
                 const plays = playCount(g.campaign_id);
                 return (
                   <TouchableOpacity
@@ -411,10 +449,10 @@ export default function GamesHub() {
                     testID={`game-card-${g.campaign_id}`}
                   >
                     <View style={s.campaignIconWrap}>
-                      <SafeImage uri={gameArtFor(g.template_id, meta.label)} fallbackText={g.title} size={44} borderRadius={12} />
+                      <SafeImage uri={artUrl(o, gameArtFor(g.template_id, meta.label))} fallbackText={g.title} size={44} borderRadius={12} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[s.campaignType, { color: meta.color }]}>{meta.label}</Text>
+                      <Text style={[s.campaignType, { color: o?.color || meta.color }]}>{meta.label}</Text>
                       <Text style={s.campaignName} numberOfLines={1}>{g.title}</Text>
                       <Text style={s.campaignMerchant} numberOfLines={1}>
                         {g.top_prize_title

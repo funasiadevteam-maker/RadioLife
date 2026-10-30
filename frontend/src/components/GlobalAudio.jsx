@@ -26,6 +26,7 @@
 // playing forever.
 import { useEffect, useRef } from "react";
 import axios from "axios";
+import { toast } from "sonner";
 import { API } from "@/AuthContext";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { audioElements } from "@/store/audioElements";
@@ -397,6 +398,98 @@ export default function GlobalAudio() {
     window.addEventListener("bigfm:player:toggle", onToggle);
     return () => window.removeEventListener("bigfm:player:toggle", onToggle);
   }, [setPlaying]);
+
+  // ─── Cross-route SKIP / NEXT ────────────────────────────────────────
+  // Fired by the Now Playing next button, PlayerBarV2 skip, keyboard
+  // shortcut, and the MediaSession `nexttrack` glyph (all dispatch
+  // `bigfm:player:skip`). Previously NOTHING listened for this event, so
+  // the Now Playing "next" button was a dead control and the station just
+  // kept spinning without ever advancing. This handler performs the real
+  // POST /api/radio/skip against the active crossfade element — the SAME
+  // logic the classic Radio.js skip() uses, but owned by the global audio
+  // engine so it works from every route and every design variant.
+  useEffect(() => {
+    let skipping = false;
+    const onSkip = async () => {
+      const store = usePlayerStore.getState();
+      // Skip only applies to the AI-composed radio session — not raw
+      // imported live streams or podcast episodes.
+      if (store.importedStation || store.podcastEpisode) return;
+      const sid = stateRef.current.sessionId;
+      if (!sid || skipping) return;
+      skipping = true;
+      store.setAdvancing(true);
+      const aIdx = stateRef.current.activeIdx;
+      const activeEl = aIdx === 0 ? audioElements.a.current
+                                  : audioElements.b.current;
+      if (activeEl) { try { activeEl.pause(); } catch (_e) { /* */ } }
+      try {
+        const r = await axios.post(`${API}/radio/skip`, null,
+          { params: { session_id: sid }, timeout: 120000 });
+        if (r.data?.skip_state) {
+          const ss = r.data.skip_state;
+          setSkipState(ss.used, ss.limit, ss.reset_in_sec || 0);
+        }
+        const seg = r.data.segment;
+        if (seg) {
+          // Play on the prefetched "B" element when one is ready; else
+          // reuse the active element.
+          const preIdx = 1 - aIdx;
+          const preEl = preIdx === 0 ? audioElements.a.current
+                                     : audioElements.b.current;
+          const hasPrefetch = !!stateRef.current.nextSeg && !!preEl;
+          const targetEl = hasPrefetch ? preEl : activeEl;
+          const targetIdx = hasPrefetch ? preIdx : aIdx;
+          if (targetEl) {
+            const url = `${BACKEND_URL}${seg.segment_url}`;
+            if (targetEl.src !== url) { targetEl.src = url; targetEl.load(); }
+            try { await targetEl.play(); setPlaying(true); setActiveIdx(targetIdx); }
+            catch (_e) { /* autoplay policy — UI still advances */ }
+          }
+          setCurrentSeg(seg);
+          pushHistory(seg);
+          setNextSeg(null);
+          prefetchTriggered.current = false;
+          // Prefetch the subsequent segment in the background.
+          setTimeout(async () => {
+            const nseg = await fetchNext();
+            if (nseg) {
+              setNextSeg(nseg);
+              const inactiveIdx = 1 - usePlayerStore.getState().activeIdx;
+              const inactive = inactiveIdx === 0 ? audioElements.a.current
+                                                 : audioElements.b.current;
+              if (inactive) { inactive.src = `${BACKEND_URL}${nseg.segment_url}`; inactive.load(); }
+            }
+          }, 100);
+        }
+      } catch (e) {
+        if (e?.response?.status === 429) {
+          const d = e.response.data || {};
+          if (d.skip_state) {
+            const ss = d.skip_state;
+            setSkipState(ss.used, ss.limit, ss.reset_in_sec || 0);
+          }
+          const secs = d.reset_in_sec || d.retry_after_sec || 0;
+          const mins = secs > 0 ? Math.ceil(secs / 60) : 0;
+          toast.error(mins > 0
+            ? `Skip limit reached — more skips in ~${mins} min.`
+            : "Skip limit reached — try again shortly.");
+          // Resume the paused current track so the listener isn't left silent.
+          if (activeEl) { try { await activeEl.play(); setPlaying(true); } catch (_e) { /* */ } }
+        } else {
+          toast.error(e?.response?.data?.detail?.message
+            || e?.response?.data?.detail || "Couldn't skip — try again.");
+          if (activeEl) { try { await activeEl.play(); setPlaying(true); } catch (_e) { /* */ } }
+        }
+      } finally {
+        skipping = false;
+        usePlayerStore.getState().setAdvancing(false);
+      }
+    };
+    window.addEventListener("bigfm:player:skip", onSkip);
+    return () => window.removeEventListener("bigfm:player:skip", onSkip);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Attach per-element listeners.  Re-attaches when activeIdx flips
   //      so timeupdate/ended always come from the *active* element. ──

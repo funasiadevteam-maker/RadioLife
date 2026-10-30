@@ -1,0 +1,37 @@
+{
+  "summary": "FUUSIC Fun AI Phase 1 (Interactive News voice pilot, xAI Grok Realtime) — backend + web e2e PASS. 11/11 pytest green and all critical UI testids present. Independently re-verified: (1) permanent xAI key (xai-3rsOvI4F4b6DKQZ4...) NEVER appears in /api/fun-ai/config, /session, /briefing, /search responses nor in rendered page HTML — only short-lived ephemeral client_secret is returned. (2) Admin sponsor PUT persists and reflects in GET /api/fun-ai/news/briefing AND in the web page as data-testid=interactive-news-sponsor ('SPONSORED — Brought to you by QA.'). (3) Clicking Talk-to-Fun-AI mounts data-testid=talk-funai-panel; status reaches 'Fun AI is ready' with MIC ON and Stop button visible — xAI realtime WS connected. (4) /radio/news entry link navigates to /radio/news/interactive and renders segment/audio/play/next/source/talk-btn. (5) Quota math verified (free=10, premium demo=60, max_sessions=20); 429 brute force avoided per request.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter227_fun_ai.py",
+    "/app/test_reports/pytest/iter227_fun_ai.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "mint_client_secret() correctly keeps XAI_API_KEY server-side; only {value, expires_at} are forwarded to the client — verified via substring assertions on both the raw JSON and the fully rendered page HTML.",
+    "fun_ai_service.anchor_instructions enforces source-grounded radio-first behaviour; sponsor copy is only injected when BOTH FUN_AI_SPONSORSHIP_ENABLED env flag AND the admin sponsor doc are enabled — matches the 'never invent sponsor names' requirement.",
+    "search_news tool endpoint is auth-gated and writes fun_ai_tool_audit on every call — good observability.",
+    "Minor: /api/fun-ai/session returns a Mongo-based session_id (str(ObjectId)) — fine, no _id serialization leak observed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter227_fun_ai.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123!, demo@bigfm.dubai / DemoPass123!",
+  "seed_data_creation": "Temporarily enabled an admin sponsor ('QA Sponsor UI') via PUT /api/admin/fun-ai/news-sponsor during the parity test; disabled it again in teardown. No persistent seed changes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 1 Interactive News voice pilot is production-ready for QA preview. The authoritative test file is /app/backend/tests/test_iter227_fun_ai.py (11 tests). All feature testids used: interactive-news-page, interactive-news-segment, interactive-news-audio, interactive-news-play, interactive-news-next, interactive-news-source, interactive-news-talk-btn, interactive-news-sponsor (only when enabled), talk-funai-panel, talk-funai-status, talk-funai-mic, talk-funai-stop, news-radio-try-interactive. xAI permanent-key leak check must stay in regression — assert substring '3rsOvI4F4b6DKQZ4' and 'xai-3rsOv' are NOT in /api/fun-ai/* responses. Real spoken audio I/O is intentionally not automated; status reaching 'ready' is the agreed success proxy.",
+  "rca of the issue": ""
+}

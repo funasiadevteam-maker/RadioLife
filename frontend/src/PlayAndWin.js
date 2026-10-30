@@ -138,6 +138,29 @@ const FEATURED = [
 
 function FeaturedGamesHero() {
   const navigate = useNavigate();
+  const [ov, setOv] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    axios.get(`${API}/games/appearance`, { withCredentials: true })
+      .then((r) => { if (alive) setOv(r.data?.games || []); })
+      .catch(() => { if (alive) setOv([]); });
+    return () => { alive = false; };
+  }, []);
+  const featured = useMemo(() => {
+    if (!ov) return FEATURED.map((g) => ({ ...g, _img: GAME_ART[g.key] }));
+    const byKey = {};
+    ov.forEach((g) => { if (g.web_key) byKey[g.web_key] = g; });
+    return FEATURED
+      .filter((g) => byKey[g.key])            // hidden games drop out
+      .map((g) => {
+        const o = byKey[g.key];
+        return { ...g, name: o.label || g.name,
+                      _img: o.image_url || GAME_ART[g.key],
+                      _accent: o.color,
+                      _order: typeof o.order === "number" ? o.order : 999 };
+      })
+      .sort((a, b) => a._order - b._order);
+  }, [ov]);
   return (
     <div data-testid="paw-featured">
       {/* Cinematic hero */}
@@ -167,16 +190,16 @@ function FeaturedGamesHero() {
       <section className="paw-section" data-testid="paw-featured-grid">
         <h2 className="mono"><Sparkles size={14} /> Featured Games</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 14 }}>
-          {FEATURED.map((g) => (
+          {featured.map((g) => (
             <button key={g.key} onClick={() => navigate(g.to)}
               data-testid={`paw-featured-${g.key}`}
               style={{ position: "relative", textAlign: "left", cursor: "pointer", border: "none", padding: 0,
                 borderRadius: 20, overflow: "hidden", minHeight: 150,
-                backgroundImage: `linear-gradient(180deg, rgba(14,8,34,.15) 0%, rgba(14,8,34,.55) 55%, rgba(14,8,34,.95) 100%), url(${GAME_ART[g.key]})`,
+                backgroundImage: `linear-gradient(180deg, rgba(14,8,34,.15) 0%, rgba(14,8,34,.55) 55%, rgba(14,8,34,.95) 100%), url(${g._img || GAME_ART[g.key]})`,
                 backgroundSize: "cover", backgroundPosition: "center",
                 boxShadow: "0 12px 30px rgba(0,0,0,.4)", color: "#fff" }}>
               <span style={{ position: "absolute", top: 12, left: 12, fontSize: 10, fontWeight: 900, letterSpacing: ".08em",
-                background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", padding: "4px 10px", borderRadius: 999 }}>
+                background: g._accent || "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", padding: "4px 10px", borderRadius: 999 }}>
                 {g.tag.toUpperCase()}
               </span>
               <div style={{ position: "absolute", left: 14, right: 14, bottom: 14 }}>

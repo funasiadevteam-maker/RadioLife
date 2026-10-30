@@ -1371,6 +1371,10 @@ async def _deferred_bootstrap(app_: FastAPI):
         await ensure_social_together(db)
     except Exception as e: logger.warning(f"social_together bootstrap: {e}")
     try:
+        from routes.game_challenges import ensure_challenge_bank
+        await ensure_challenge_bank(db)
+    except Exception as e: logger.warning(f"arena bootstrap: {e}")
+    try:
         from routes.live_commerce import ensure_live_commerce_indexes, seed_demo_live_show
         await ensure_live_commerce_indexes(db)
         await seed_demo_live_show(db)
@@ -3431,7 +3435,7 @@ async def _pick_next_track_personalized(session, channel, prev_track=None):
     # Phase 15d.1 — listener market wins over session.market (which is the
     # legacy `users.market` cohort tag). preferred_market > last_resolved >
     # session.market > "dubai".
-    _listener_market = "dubai"
+    _listener_market = "global"
     # Phase Stabilization (Bug A/B fix) — also pull the listener's
     # actual city so the RJ prompt can use "Hey London listeners"
     # instead of defaulting to the market's display_name.
@@ -3450,7 +3454,7 @@ async def _pick_next_track_personalized(session, channel, prev_track=None):
                     or _u.get("last_resolved_market")
                     or _u.get("market")
                     or session.get("market")
-                    or "dubai"
+                    or "global"
                 )
                 _listener_city = (
                     _u.get("preferred_city")
@@ -3459,7 +3463,7 @@ async def _pick_next_track_personalized(session, channel, prev_track=None):
                     or None
                 )
     except Exception:
-        _listener_market = (session.get("market") or "dubai")
+        _listener_market = (session.get("market") or "global")
     _listener_market = _listener_market.strip().lower()
     # Phase Bug-2 RJ tz fix — cache the resolved market on the in-memory
     # session dict so downstream `_ctx_for_now(session=session)` calls
@@ -3623,7 +3627,7 @@ def _ctx_for_now(market: str = "dubai", city: str | None = None,
         lex = get_lexicon(market)
     except Exception:
         lex = {}
-    tz = lex.get("timezone") or "Asia/Dubai"
+    tz = lex.get("timezone") or "UTC"
     # Pick local hour without dragging in pytz: compute UTC offset by
     # subtracting from now. For our 6 shipping markets a static offset
     # suffices because daypart is bucketed in 4-hour ranges.
@@ -3644,8 +3648,12 @@ def _ctx_for_now(market: str = "dubai", city: str | None = None,
     # Phase Stabilization (Bug B) — when neither the listener's city
     # nor the market lexicon resolves to a known city, return None so
     # the RJ prompt can say "Hey listeners" instead of leaking a
-    # hardcoded "Dubai".
-    resolved_city = city or lex.get("display_name") or None
+    # hardcoded "Dubai". Only a SUPPORTED market contributes its
+    # display_name — the generic fallback ("your city") must never be
+    # spoken, and a neutral/global listener gets a plain "FUUSIC" ID.
+    from services.market_lexicon import MARKET_LEXICON as _MKT
+    _known_market = (market or "").strip().lower() in _MKT
+    resolved_city = city or (lex.get("display_name") if _known_market else None)
     return RJContext(
         time_of_day=tod,
         city=resolved_city,
@@ -4796,7 +4804,7 @@ app.state.schedule_prebuild_warm_start = schedule_prebuild_warm_start
 
 
 @api.post("/radio/start", response_model=RadioStartResponse)
-async def radio_start(req: RadioStartRequest, user: dict = Depends(current_user)):
+async def radio_start(req: RadioStartRequest, request: Request, user: dict = Depends(current_user)):
     if not user.get("onboarding_complete"):
         raise HTTPException(403, "Finish onboarding first")
     # Audio-engine pre-check — the AI-radio segment builder shells out to
@@ -4867,6 +4875,22 @@ async def radio_start(req: RadioStartRequest, user: dict = Depends(current_user)
         "pending_segment_id": None, "segments_played": 0,
     }
     await db.radio_sessions.insert_one(session)
+    # Auto-detect the listener's market from IP / profile so the AI RJ greets
+    # them with their OWN city (e.g. Dallas) instead of defaulting to Dubai.
+    # Best-effort + idempotent: only fills `last_resolved_*` when the user
+    # hasn't pinned an explicit market/city. Never blocks playback.
+    try:
+        if not (user.get("preferred_market") or user.get("preferred_city")):
+            from services import geo as _geo
+            _g = await _geo.resolve_for_user(request, user, db)
+            _mk = (_g.get("market") or "").strip().lower()
+            if _mk and _mk != "global":
+                await db.users.update_one(
+                    {"user_id": user["user_id"]},
+                    {"$set": {"last_resolved_market": _mk,
+                              "last_resolved_city": _g.get("city")}})
+    except Exception as _e:
+        logger.warning(f"[radio_start] geo auto-detect skipped: {_e}")
     # Warm-start fast path — pre-built on login, claim atomically
     warm = await _claim_warm_start_segment(user["user_id"], channel["_id"])
     if not warm:
@@ -5870,6 +5894,18 @@ try:
 except Exception as _e_bnr_mount:
     logger.warning(f"Phase AD.11: banners mount failed ({_e_bnr_mount})")
 
+# Games → Appearance — game-tile art static serving (uploads + AI generated).
+try:
+    _os.makedirs("/app/backend/static/game_art", exist_ok=True)
+    app.mount(
+        "/api/static/game_art",
+        StaticFiles(directory="/app/backend/static/game_art"),
+        name="game_art",
+    )
+    logger.info("Games Appearance: game_art StaticFiles mounted")
+except Exception as _e_ga_mount:
+    logger.warning(f"Games Appearance: game_art mount failed ({_e_ga_mount})")
+
 # Marketplace Phase B — menu photos static serving (uploads + AI generated).
 try:
     import os as _os
@@ -6872,6 +6908,14 @@ app.include_router(_dream_clusters_router)
 # Social V2 — Phase 2: Moments, Go Together, Play Together, Local Pulse.
 from routes.social_together import router as _social_together_router
 app.include_router(_social_together_router)
+
+# Arena — Play-With-Friends challenges + weekly score leaderboard.
+from routes.game_challenges import router as _arena_router
+app.include_router(_arena_router)
+
+# Games → Appearance — admin-managed game-tile art/label/colour/order.
+from routes.game_appearance import router as _game_appearance_router
+app.include_router(_game_appearance_router)
 
 # Instant games — Wheel of Fortune (spin-to-win) + sponsor branding.
 try:
@@ -8057,6 +8101,11 @@ app.include_router(news_router)
 app.include_router(news_radio_router)
 # Phase 42-F.2 — admin health probe for News Radio + TTS provider state.
 app.include_router(news_radio_admin_router)
+# FUUSIC Fun AI — Phase 1 Interactive News voice pilot (xAI Grok Realtime).
+from routes.fun_ai import (router as fun_ai_router,
+                           admin_router as fun_ai_admin_router)
+app.include_router(fun_ai_router)
+app.include_router(fun_ai_admin_router)
 
 
 @app.on_event("startup")

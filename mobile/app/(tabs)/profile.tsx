@@ -10,6 +10,7 @@ import { BRAND } from '../../src/config/brand';
 import { SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import type { ThemeTokens } from '../../src/theme/tokens';
 import { useAppTheme, useThemeTokens } from '../../src/theme/ThemeProvider';
+import AccentSwatches from '../../src/theme/AccentSwatches';
 import ChipGrid from '../../src/components/ChipGrid';
 import FunAsiaFooter from '../../src/components/FunAsiaFooter';
 import api from '../../src/api/client';
@@ -30,6 +31,12 @@ const MARKETS = [
   { key: 'dfw', label: 'Dallas', country: 'United States' },
 ];
 const MARKET_LABEL: Record<string, string> = MARKETS.reduce((a, m) => ({ ...a, [m.key]: m.label }), {});
+
+const hourLabel = (h: number) => {
+  const ap = h < 12 ? 'AM' : 'PM';
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return `${hr}:00 ${ap}`;
+};
 const HOSTS = [
   { id: 'auto', label: 'Auto (smart routing)' },
   { id: 'veer_dubai', label: 'Veer — late-night charm' },
@@ -40,7 +47,7 @@ const HOSTS = [
 export default function ProfileScreen() {
   const { user, refresh, logout } = useAuth();
   const router = useRouter();
-  const { mode: apprMode, setMode: setAppr, t } = useAppTheme();
+  const { mode: apprMode, setMode: setAppr, schedule, setSchedule, t } = useAppTheme();
   const st = makeStyles(t);
   const cst = makeCst(t);
   const [pv, setPv] = useState<any>(null);
@@ -155,6 +162,8 @@ export default function ProfileScreen() {
           <Text style={st.menuLabel}>ACCOUNT</Text>
           <MenuItem icon="person-outline" label="Edit Preferences" sub="Languages, genres, moods, RJ personality"
             onPress={() => setSection('prefs')} testID="menu-edit-prefs" />
+          <MenuItem icon="sparkles-outline" label="Companion Memory" sub="What Fun AI remembers about your taste"
+            onPress={() => router.push('/fun-ai-memory')} testID="menu-fun-ai-memory" />
           <MenuItem icon="grid-outline" label="Personalize Home" sub="Choose & reorder the features on your Home"
             onPress={() => router.push('/personalize')} testID="menu-personalize" />
           <MenuItem icon="location-outline" label="Switch City" sub={cityLabel ? `Currently: ${cityLabel}` : 'Change your local market'}
@@ -174,11 +183,50 @@ export default function ProfileScreen() {
               return (
                 <TouchableOpacity key={m} testID={`appearance-${m}`} activeOpacity={0.85}
                   onPress={() => setAppr(m)} style={[st.apprChip, active && st.apprChipActive]}>
-                  <Ionicons name={ic as any} size={18} color={active ? '#fff' : t.textDim} />
-                  <Text style={[st.apprChipText, active && { color: '#fff' }]}>{lbl}</Text>
+                  <Ionicons name={ic as any} size={18} color={active ? t.onAccent : t.textDim} />
+                  <Text style={[st.apprChipText, active && { color: t.onAccent }]}>{lbl}</Text>
                 </TouchableOpacity>
               );
             })}
+          </View>
+
+          <Text style={st.apprSubLabel}>Accent colour</Text>
+          <AccentSwatches size={36} />
+
+          <View style={st.schedCard}>
+            <View style={st.schedHeader}>
+              <Ionicons name="time-outline" size={18} color={t.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={st.schedTitle}>Scheduled Dark</Text>
+                <Text style={st.schedSub}>Auto dark at night, light in the morning</Text>
+              </View>
+              <Switch testID="schedule-toggle" value={schedule.enabled}
+                onValueChange={(v) => setSchedule({ enabled: v })}
+                trackColor={{ false: t.lineStrong, true: t.brand }} thumbColor="#fff" />
+            </View>
+            {schedule.enabled && (
+              <View style={st.schedRows} testID="schedule-times">
+                {([
+                  { label: 'Dark from', key: 'dark_hour' as const, idp: 'dark' },
+                  { label: 'Light from', key: 'light_hour' as const, idp: 'light' },
+                ]).map((row) => (
+                  <View key={row.key} style={st.schedRow}>
+                    <Text style={st.schedRowLabel}>{row.label}</Text>
+                    <View style={st.stepper}>
+                      <TouchableOpacity testID={`schedule-${row.idp}-dec`} hitSlop={8}
+                        onPress={() => setSchedule({ [row.key]: (schedule[row.key] + 23) % 24 } as any)}>
+                        <Ionicons name="chevron-back" size={18} color={t.text} />
+                      </TouchableOpacity>
+                      <Text testID={`schedule-${row.idp}-hour`} style={st.stepperVal}>{hourLabel(schedule[row.key])}</Text>
+                      <TouchableOpacity testID={`schedule-${row.idp}-inc`} hitSlop={8}
+                        onPress={() => setSchedule({ [row.key]: (schedule[row.key] + 1) % 24 } as any)}>
+                        <Ionicons name="chevron-forward" size={18} color={t.text} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           <Text style={[st.menuLabel, { marginTop: SPACING.lg }]}>GENERAL</Text>
@@ -372,8 +420,18 @@ const makeStyles = (t: ThemeTokens) => StyleSheet.create({
   menuLabel: { color: t.textDim, fontSize: 10, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', marginBottom: SPACING.sm },
   apprRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
   apprChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: RADIUS.md, backgroundColor: t.card, borderWidth: 1, borderColor: t.cardBorder },
-  apprChipActive: { backgroundColor: '#9333EA', borderColor: '#9333EA' },
+  apprChipActive: { backgroundColor: t.brand, borderColor: t.brand },
   apprChipText: { color: t.textDim, fontSize: FONT.sm, fontWeight: '800' },
+  apprSubLabel: { color: t.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginTop: SPACING.md, marginBottom: SPACING.sm },
+  schedCard: { marginTop: SPACING.md, backgroundColor: t.card, borderWidth: 1, borderColor: t.cardBorder, borderRadius: RADIUS.lg, padding: SPACING.md },
+  schedHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  schedTitle: { color: t.text, fontSize: FONT.md, fontWeight: '800' },
+  schedSub: { color: t.textDim, fontSize: FONT.xs, marginTop: 2 },
+  schedRows: { marginTop: SPACING.md, gap: SPACING.sm },
+  schedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  schedRowLabel: { color: t.textDim, fontSize: FONT.sm, fontWeight: '600' },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: t.inputBg, borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 6 },
+  stepperVal: { color: t.text, fontSize: FONT.sm, fontWeight: '800', minWidth: 72, textAlign: 'center' },
   menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.card, borderRadius: RADIUS.md, padding: SPACING.sm + 2, borderWidth: 1, borderColor: t.cardBorder, marginBottom: 8 },
   menuIconChip: { width: 38, height: 38, borderRadius: 12, backgroundColor: t.inputBg, alignItems: 'center', justifyContent: 'center' },
   menuItemLabel: { color: t.text, fontSize: 14, fontWeight: '700' },

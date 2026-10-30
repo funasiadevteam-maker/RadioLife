@@ -13,6 +13,8 @@ import type { ThemeTokens } from '../../src/theme/tokens';
 import api from '../../src/api/client';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { MomentsTab, PulseTab, GoTogetherSheet, PlayTogetherSheet, ShopTogetherSheet, DiscoverSection } from '../../src/social/together';
+import { ChallengesTab } from '../../src/social/challenges';
+import { useResponsive } from '../../src/hooks/useResponsive';
 import { LiveTab } from '../../src/social/live';
 import SocialWall from '../../src/social/wall';
 import InterestOnboarding from '../../src/social/InterestOnboarding';
@@ -20,6 +22,7 @@ import { playImportedStation } from '../../src/services/playStation';
 
 const TABS = [
   { key: 'together', label: 'Home', icon: 'sparkles' },
+  { key: 'challenges', label: 'Arena', icon: 'flash' },
   { key: 'live', label: 'Live', icon: 'videocam' },
   { key: 'moments', label: 'Moments', icon: 'camera' },
   { key: 'pulse', label: 'Nearby', icon: 'location' },
@@ -52,6 +55,7 @@ export default function SocialScreen() {
 
   const counts = home?.counts || {};
   const h = home?.happening_now || {};
+  const r = useResponsive();
 
   return (
     <View style={s.screen} testID="social-screen">
@@ -90,18 +94,24 @@ export default function SocialScreen() {
 
       {loading ? (
         <View style={s.center}><ActivityIndicator color={t.magenta} /></View>
-      ) : tab === 'together' ? (
-        <TogetherTab home={home} onNavigateTab={setTab} />
-      ) : tab === 'friends' ? (
-        <FriendsTab />
-      ) : tab === 'moments' ? (
-        <MomentsTab />
-      ) : tab === 'pulse' ? (
-        <PulseTab />
-      ) : tab === 'live' ? (
-        <LiveTab />
       ) : (
-        <ComingSoon tab={tab} />
+        <View style={[{ flex: 1, width: '100%' }, r.feed]}>
+          {tab === 'together' ? (
+            <TogetherTab home={home} onNavigateTab={setTab} />
+          ) : tab === 'challenges' ? (
+            <ChallengesTab />
+          ) : tab === 'friends' ? (
+            <FriendsTab />
+          ) : tab === 'moments' ? (
+            <MomentsTab />
+          ) : tab === 'pulse' ? (
+            <PulseTab />
+          ) : tab === 'live' ? (
+            <LiveTab />
+          ) : (
+            <ComingSoon tab={tab} />
+          )}
+        </View>
       )}
     </View>
   );

@@ -249,3 +249,117 @@ async def daily_highlights(request: Request, user: dict = Depends(current_user))
                 g["clips"].append(_clip_public(c))
     out = sorted(groups.values(), key=lambda g: g["count"], reverse=True)
     return {"station_count": len(out), "groups": out}
+
+
+# ──────────── Follow a FUUSIC AI channel (a "show") + clip it ──────────────
+# AI channels aren't in community_radio_stations/imported_radio_stations, so we
+# track the follow with a display snapshot (surfaced in My Feed Preferences via
+# feed_preferences_service.list_following_entities).
+def _channel_station_id(slug: str) -> str:
+    return f"ch_{slug}"
+
+
+def _is_owned_audio(url: str, req_hosts: "set[str] | None" = None) -> bool:
+    """Rights guard — only FUUSIC's own AI-radio segment audio is clippable.
+    Relative /api/radio/... is always allowed; an absolute URL must point at
+    our own backend host (blocks e.g. https://evil.com/api/radio/x.mp3)."""
+    from urllib.parse import urlparse
+    u = (url or "").split("?")[0].strip()
+    p = urlparse(u)
+    if not p.path.startswith("/api/radio/"):
+        return False
+    if p.netloc:
+        return bool(req_hosts) and p.netloc in req_hosts
+    return True
+
+
+class ChannelFollowBody(BaseModel):
+    channel_name: str | None = Field(None, max_length=160)
+    channel_logo: str | None = Field(None, max_length=600)
+
+
+@router.post("/radio/channels/{slug}/follow")
+async def follow_channel(slug: str, body: ChannelFollowBody, request: Request,
+                         user: dict = Depends(current_user)):
+    db = request.app.state.db
+    sid = _channel_station_id(slug)
+    snap = {"name": body.channel_name or slug, "logo": body.channel_logo,
+            "slug": slug, "kind": "fuusic_channel", "category": "station"}
+    await db.station_followers.update_one(
+        {"user_id": user["user_id"], "station_id": sid},
+        {"$setOnInsert": {"followed_at": _now().isoformat()},
+         "$set": {"station_snapshot": snap, "station_kind": "fuusic_channel",
+                  "channel_slug": slug}},
+        upsert=True)
+    return {"ok": True, "now_following": True}
+
+
+@router.post("/radio/channels/{slug}/unfollow")
+async def unfollow_channel(slug: str, request: Request,
+                           user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await db.station_followers.delete_one(
+        {"user_id": user["user_id"], "station_id": _channel_station_id(slug)})
+    return {"ok": True, "now_following": False}
+
+
+@router.get("/radio/channels/{slug}/follow-status")
+async def channel_follow_status(slug: str, request: Request,
+                                user: dict = Depends(current_user)):
+    db = request.app.state.db
+    r = await db.station_followers.find_one(
+        {"user_id": user["user_id"], "station_id": _channel_station_id(slug)})
+    return {"following": bool(r)}
+
+
+class SegmentClipBody(BaseModel):
+    channel_slug: str = Field(..., max_length=120)
+    channel_name: str | None = Field(None, max_length=160)
+    channel_logo: str | None = Field(None, max_length=600)
+    segment_audio_url: str = Field(..., max_length=600)
+    comment: str | None = Field(None, max_length=600)
+    visibility: str = Field("public", max_length=12)
+    duration_seconds: float = Field(30, ge=5, le=MAX_CLIP_SEC)
+    idempotency_key: str | None = Field(None, max_length=80)
+
+
+@router.post("/radio/clips/share-segment")
+async def share_segment_clip(body: SegmentClipBody, request: Request,
+                             user: dict = Depends(current_user)):
+    """Clip the last 30s of FUUSIC's own AI-radio audio the listener is hearing
+    and share it to their wall. Rights-safe: only FUUSIC-owned segment audio."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    req_hosts = {h for h in (request.headers.get("host"),
+                             request.headers.get("x-forwarded-host"),
+                             request.url.netloc) if h}
+    if not _is_owned_audio(body.segment_audio_url, req_hosts):
+        raise HTTPException(403, {"code": "not_clippable",
+                                  "message": "Only FUUSIC's own audio can be clipped."})
+    if body.idempotency_key:
+        ex = await db.radio_clips.find_one(
+            {"idempotency_key": body.idempotency_key, "created_by": uid})
+        if ex:
+            return {"ok": True, "clip_id": ex["_id"], "duplicate": True,
+                    "status": ex.get("status")}
+    dur = max(5, min(float(body.duration_seconds or 30), MAX_CLIP_SEC))
+    vis = body.visibility if body.visibility in ("public", "friends") else "public"
+    _id = f"uc_{uuid.uuid4().hex[:16]}"
+    doc = {
+        "_id": _id, "kind": "user_clip",
+        "station_id": _channel_station_id(body.channel_slug),
+        "station_slug": body.channel_slug,
+        "station_name": body.channel_name or body.channel_slug,
+        "station_logo": body.channel_logo, "show_name": None,
+        "title": f"Clip from {body.channel_name or 'FUUSIC Radio'}",
+        "caption": body.comment, "commentary": body.comment,
+        "audio_url": body.segment_audio_url, "start_offset": 0,
+        "duration_sec": int(dur), "tags": [], "visibility": vis,
+        "rights": "fuusic_owned", "status": "published",
+        "moderation_status": "approved", "processing_status": "ready",
+        "created_by": uid, "created_at": _now(), "broadcast_at": _now(),
+        "idempotency_key": body.idempotency_key,
+        "like_count": 0, "comment_count": 0, "share_count": 0, "play_count": 0,
+    }
+    await db.radio_clips.insert_one(doc)
+    return {"ok": True, "clip_id": _id, "status": "published"}

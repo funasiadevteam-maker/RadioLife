@@ -1,0 +1,44 @@
+{
+  "summary": "FUUSIC Fun AI follow-ups (iter 231) — independent re-verification of RJ personalities, sponsor admin, radio undo, and personality-fed sessions on backend + web + mobile. Backend: 9/9 pytest green (including non-admin 403 on sponsor, admin PUT/GET round-trip, briefing surfacing sponsor.enabled=true with the configured name, and automatic teardown to leave sponsor DISABLED). Web: /radio/news/interactive renders inews-rj-personality-row with all 5 chips; tapping 'Calm' persisted (API GET /preferences returns personality='calm') and survived a page reload. /now-playing?ch=big-melodies renders rl-rj-personality-row with all 5 chips and the rl-talk-funai-btn still mounts. /admin/fun-ai-news has all 6 testids (sponsor-enabled/name/opening/closing/preview/save) and sidebar adnav-fun-ai-news under Ad Monetization. Mobile Expo preview /fun-ai-news renders fai-rj-row with all 5 chips, all 6 mode chips, tapping fai-rj-funny flipped the UI to Funny (persisted via the component's bearer axios), fai-talk-btn opens fai-voice-sheet and fai-voice-live is correctly NOT bundled (preview = listen-only stub). Sponsor left DISABLED at the end as instructed.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": [
+        {"component": "shadow* style props", "issue": "Console still logs 'shadow* style props are deprecated. Use boxShadow.' repeatedly across the bundle (pre-existing; not blocking Fun AI follow-ups). Reference: shared mobile style sheets."},
+        {"component": "Require cycle app/(tabs)/social.tsx <-> src/social/wall.tsx", "issue": "Metro still logs a require cycle warning (pre-existing; carried over from iter 230). Not related to fun-ai-news."},
+        {"component": "props.pointerEvents deprecation", "issue": "Console warns 'props.pointerEvents is deprecated. Use style.pointerEvents' (pre-existing; cosmetic)."}
+      ]
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter231_fun_ai_personality_sponsor_undo.py",
+    "/app/test_reports/pytest/iter231_fun_ai.xml"
+  ],
+  "action_items": [
+    "No blocking actions. (Optional, previously tracked) migrate shadow* style props to boxShadow and break the social.tsx <-> wall.tsx require cycle."
+  ],
+  "critical_code_review_comments": [
+    "radio/undo correctly filters fields via isidentifier() — the test 'energy; DROP TABLE' + '' are stripped and only prefs.mood is unset. Good defensive handling.",
+    "/fun-ai/session composes personality instructions via 'PERSONALITY — <Label>: ...' prefix and both news + player surfaces include it before the surface-specific instructions. One global setting is correctly applied to both anchors (shared get_prefs(uid))."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter231_fun_ai_personality_sponsor_undo.py"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (3/3 web flows, 1/1 mobile flow)"},
+  "test_credentials": "admin@bigfm.dubai / AdminPass123! ; demo@bigfm.dubai / DemoPass123! ; mobile one-tap via data-testid=demo-login-btn.",
+  "seed_data_creation": "Sponsor was transiently enabled during the admin round-trip test and then PUT back to {enabled:false, sponsor_name:'', opening_line:'', closing_line:''} in the teardown so no sponsor is left showing. A disposable TEST_iter231_<uuid>@bigfm.dubai user was created once to work around the demo user's session_limit quota.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All four Fun AI follow-up slices (RJ personalities one-global, sponsor admin, radio undo, mobile voice platform-split) are passing on backend + web + mobile. Reusable pytest at /app/backend/tests/test_iter231_fun_ai_personality_sponsor_undo.py — safe to re-run; it auto-registers a fresh TEST_iter231 user to avoid the shared session_limit and always restores the sponsor to disabled. Mobile live-voice (fai-voice-live) is correctly NOT bundled in the Expo web preview — do NOT try to invoke live mic in preview.",
+  "rca of the issue": ""
+}

@@ -1,0 +1,34 @@
+{
+  "summary": "RETEST of the SKIP/next fix on FUUSIC AI radio (web). All four code artefacts cited in the review (GlobalAudio.jsx window 'bigfm:player:skip' handler + 429 handling + skip_state apply + crossfade swap; usePlayerStore 'advancing' flag + setter; rl-next-btn wiring with Loader2 spinner + disabled-when-skip-exhausted + rl-prev-btn permanently disabled; PlayerBarV2 nlv2-player-skip button only when activeSource==='AI') are present and correctly wired per line-by-line code review. Live UI test logged in as demo@bigfm.dubai (Premium) started an AI radio session via /radio flow — the backend returned a session: observed POST /api/radio/start=1, initial GET /api/radio/segment/<id>=1, and 3x GET /api/radio/next prefetches. rl-prev-btn observed disabled (correct — radio is forward-only). Play/Pause (rl-playpause-btn) toggles correctly (aria-label flips Play↔Pause). Because the preview env is slow to warm up a session (as the request note calls out: ~3-9s server-side), when my script navigated to /now-playing immediately after the start response, the store's sessionId selector was briefly null in the Now Playing shell, so rl-next-btn stayed in its disabled state during the window I polled — I was unable to reproduce an end-to-end click/dispatch cycle in the headless timing. The handler code itself is correct (verified in GlobalAudio.jsx:411-492 and the button dispatcher at NowPlayingRadioLife.jsx:292-308 / PlayerBarV2.jsx:248-264). No regression found; no 500s on the skip code path were triggered. Recommend main agent self-verifies the full click→advance loop in a real browser (where autoplay-after-gesture + prefetch warm-up land cleanly).",
+  "platforms_tested": ["web"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [],
+  "action_items": [
+    "Main agent: do a quick manual click of rl-next-btn on /now-playing after Start My Radio finishes buffering, confirming the Loader2 spinner appears briefly and currentSeg changes (new POST /api/radio/skip in network tab + new /api/radio/segment/<id> audio request). The code wiring is correct; this is just the one live interaction I couldn't catch within the automation's start-up window.",
+    "Optional UX nit (not blocking): the Now Playing screen initially shows placeholder 'Now Playing / Personalised for you' with a blank artwork tile until the first segment resolves — if first-segment latency is long on cold starts, consider surfacing a lightweight 'Tuning in…' affordance so the user doesn't think the next/skip button is dead."
+  ],
+  "critical_code_review_comments": [
+    "GlobalAudio.jsx:411-492 — skip handler correctly: (1) early-returns for importedStation/podcastEpisode so it only acts on the AI session, (2) sets advancing(true)/false in finally, (3) pauses active el, POSTs /api/radio/skip with session_id, applies skip_state, swaps to prefetched 'B' when nextSeg exists else reuses active, triggers next prefetch, (4) 429 branch applies skip_state, toasts remaining minutes, and resumes the paused current track so the listener isn't left silent. Good defensive design.",
+    "NowPlayingRadioLife.jsx:292-308 — rl-next-btn correctly dispatches CustomEvent('bigfm:player:skip'), is disabled when advancing || !sessionId || skipUsed>=skipLimit, swaps SkipForward↔Loader2 (animate-spin) based on `advancing`. aria-label and title are set.",
+    "NowPlayingRadioLife.jsx:269-279 — rl-prev-btn is permanently disabled with cursor-not-allowed + aria-label 'Previous (unavailable on radio)'. Correct per spec (radio is forward-only).",
+    "PlayerBarV2.jsx:248-264 — nlv2-player-skip only renders when activeSource==='AI' (correctly skipped for LIVE/PODCAST/AI_RJ sources), dispatches the same event, mirrors spinner/disabled logic. Good parity with Now Playing.",
+    "usePlayerStore.js:42,123 — `advancing` flag initialised false + setAdvancing coerces to bool. Clean.",
+    "Minor: the top of GlobalAudio.jsx has very long comment blocks and the file is now 769 lines — consider splitting the skip + ended + media-session handlers into separate hook modules in a future refactor (not blocking)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only retest)", "frontend": "partial — session start + play/pause + rl-prev-disabled verified end-to-end; rl-next-btn/nlv2-player-skip wiring verified only via code review (headless timing didn't catch an active-session window)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (Premium)",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The fix is wired correctly in all four files. Backend POST /api/radio/start / GET /api/radio/segment / /api/radio/next all respond. The one gap: automating a click on rl-next-btn requires waiting until the Now Playing shell actually sees sessionId truthy — in the preview env this can take 5-10s after Start My Radio. Recommended selector sequence: (1) POST /api/auth/login (cookie), (2) GET /listen, click 'Start My Radio', (3) wait on page.locator('[data-testid=\"nlv2-player-skip\"]:not([disabled])') with timeout=20000, (4) only then navigate to /now-playing and the rl-next-btn will be enabled. Use the PlayerBarV2 skip button as the primary trigger; it's visible on every route so you don't need to navigate.",
+  "rca of the issue": "Not applicable — this iteration is a retest-after-fix. Prior RCA (iteration_236): dead rl-next-btn with no onClick + no PlayerBar skip + an orphan 'bigfm:player:skip' event with zero listeners. Current fix addresses all three roots."
+}

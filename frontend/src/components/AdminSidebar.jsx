@@ -79,6 +79,8 @@ const SECTIONS = [
       { to: "/admin/games-approval",         label: "Games Approval",         testid: "adnav-games-approval" },
       { to: "/admin/games-analytics",         label: "Games Analytics",         testid: "adnav-games-analytics" },
       { to: "/admin/games-inventory",         label: "Games Inventory",         testid: "adnav-games-inventory" },
+      { to: "/admin/games-appearance",         label: "Game Art",                   testid: "adnav-games-appearance" },
+      { to: "/admin/fun-ai-news",              label: "Fun AI Sponsor",             testid: "adnav-fun-ai-news" },
       { to: "/admin/subscriptions",             label: "Subscriptions",             testid: "adnav-billing-subs" },
     ],
   },

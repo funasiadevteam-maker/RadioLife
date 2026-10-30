@@ -280,8 +280,16 @@ function RowActions({ user, isSelf, onAction }) {
                               overflow: "hidden"}}>
             <MenuItem onClick={() => { setOpen(false); onAction("view", user); }}
                               testid={`menu-view-${user.user_id}`}>View Details</MenuItem>
+            <MenuItem onClick={() => { setOpen(false); onAction("edit", user); }}
+                              testid={`menu-edit-${user.user_id}`}>Edit Details</MenuItem>
             <MenuItem onClick={() => { setOpen(false); onAction("role", user); }}
                               testid={`menu-role-${user.user_id}`}>Change Role</MenuItem>
+            <MenuItem onClick={() => { setOpen(false); onAction("resend", user); }}
+                              testid={`menu-resend-${user.user_id}`}>Resend Welcome</MenuItem>
+            <MenuItem onClick={() => { setOpen(false); onAction("force_reset", user); }}
+                              testid={`menu-force-reset-${user.user_id}`}>
+              {user.must_change_password ? "Clear Forced Reset" : "Force Password Reset"}
+            </MenuItem>
             {isActive ? (
               <MenuItem onClick={() => { setOpen(false); onAction("deactivate", user); }}
                                 testid={`menu-deactivate-${user.user_id}`}
@@ -531,6 +539,315 @@ export function ActivateModal({ user, onClose, onSuccess }) {
   );
 }
 
+export function CreateUserModal({ onClose, onSuccess }) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("user");
+  const [isPremium, setIsPremium] = useState(false);
+  const [sendWelcome, setSendWelcome] = useState(false);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const pwOk = password.length >= 8 && /\d/.test(password) && /[A-Za-z]/.test(password);
+  const nameOk = name.trim().length >= 1;
+  const disabled = submitting || !emailOk || !pwOk || !nameOk;
+
+  const submit = async () => {
+    setSubmitting(true); setError("");
+    try {
+      await axios.post(`${API}/admin/users`,
+        {email: email.trim(), name: name.trim(), password,
+          role, is_premium: isPremium, send_welcome: sendWelcome},
+        {withCredentials: true});
+      onSuccess?.(sendWelcome
+        ? `User ${email.trim()} created — welcome email sent`
+        : `User ${email.trim()} created`);
+    } catch (e) {
+      const d = e?.response?.data?.detail || e?.response?.data;
+      setError(typeof d === "string" ? d
+                    : (d?.message || d?.status || "Create failed."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Create user" onClose={onClose} testid="create-user-modal">
+      <label style={labelStyle}>Email</label>
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  data-testid="create-email"
+                  placeholder="name@example.com"
+                  style={{...selectStyle, width: "100%", marginBottom: 12}} />
+      <label style={labelStyle}>Full name</label>
+      <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+                  data-testid="create-name"
+                  placeholder="Jane Doe"
+                  style={{...selectStyle, width: "100%", marginBottom: 12}} />
+      <label style={labelStyle}>
+        Initial password <span style={{color: COLORS.muted}}>
+          (min 8, letter + digit)
+        </span>
+      </label>
+      <input type="text" value={password} onChange={(e) => setPassword(e.target.value)}
+                  data-testid="create-password"
+                  placeholder="Set a starter password"
+                  style={{...selectStyle, width: "100%", marginBottom: 12}} />
+      <label style={labelStyle}>Role</label>
+      <select value={role} onChange={(e) => setRole(e.target.value)}
+                      data-testid="create-role-select"
+                      style={{...selectStyle, width: "100%", marginBottom: 12}}>
+        {ROLE_OPTIONS.map((r) => (
+          <option key={r} value={r}>{r}</option>
+        ))}
+      </select>
+      <label style={{...labelStyle, display: "flex", alignItems: "center",
+                              gap: 8, cursor: "pointer", marginBottom: 12}}>
+        <input type="checkbox" checked={isPremium}
+                    onChange={(e) => setIsPremium(e.target.checked)}
+                    data-testid="create-premium" />
+        Grant premium access
+      </label>
+      <label style={{...labelStyle, display: "flex", alignItems: "center",
+                              gap: 8, cursor: "pointer", marginBottom: 12}}>
+        <input type="checkbox" checked={sendWelcome}
+                    onChange={(e) => setSendWelcome(e.target.checked)}
+                    data-testid="create-send-welcome" />
+        Email a welcome + set-password link
+      </label>
+      {error && <Warn testid="modal-error">{String(error)}</Warn>}
+      <ModalButtons onClose={onClose} onConfirm={submit}
+                              disabled={disabled} confirmLabel="Create user"
+                              confirmTestId="confirm-create" />
+    </ModalShell>
+  );
+}
+
+export function EditUserModal({ user, onClose, onSuccess }) {
+  const [name, setName] = useState(user.name || "");
+  const [email, setEmail] = useState(user.email || "");
+  const [isPremium, setIsPremium] = useState(!!user.is_premium);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const nameOk = name.trim().length >= 1;
+  const dirty = name.trim() !== (user.name || "")
+    || email.trim().toLowerCase() !== (user.email || "").toLowerCase()
+    || isPremium !== !!user.is_premium;
+  const disabled = submitting || !emailOk || !nameOk || !dirty;
+
+  const submit = async () => {
+    setSubmitting(true); setError("");
+    try {
+      await axios.patch(`${API}/admin/users/${user.user_id}`,
+        {name: name.trim(), email: email.trim(), is_premium: isPremium},
+        {withCredentials: true});
+      onSuccess?.(`Updated ${email.trim()}`);
+    } catch (e) {
+      const d = e?.response?.data?.detail || e?.response?.data;
+      setError(typeof d === "string" ? d
+                    : (d?.message || d?.status || "Update failed."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalShell title={`Edit — ${user.email}`} onClose={onClose}
+                          testid="edit-user-modal">
+      <label style={labelStyle}>Full name</label>
+      <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+                  data-testid="edit-name"
+                  style={{...selectStyle, width: "100%", marginBottom: 12}} />
+      <label style={labelStyle}>Email</label>
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  data-testid="edit-email"
+                  style={{...selectStyle, width: "100%", marginBottom: 12}} />
+      <label style={{...labelStyle, display: "flex", alignItems: "center",
+                              gap: 8, cursor: "pointer", marginBottom: 12}}>
+        <input type="checkbox" checked={isPremium}
+                    onChange={(e) => setIsPremium(e.target.checked)}
+                    data-testid="edit-premium" />
+        Premium access
+      </label>
+      {error && <Warn testid="modal-error">{String(error)}</Warn>}
+      <ModalButtons onClose={onClose} onConfirm={submit}
+                              disabled={disabled} confirmLabel="Save changes"
+                              confirmTestId="confirm-edit" />
+    </ModalShell>
+  );
+}
+
+export function ResendWelcomeModal({ user, onClose, onSuccess }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async () => {
+    setSubmitting(true); setError("");
+    try {
+      const r = await axios.post(
+        `${API}/admin/users/${user.user_id}/resend-welcome`, {},
+        {withCredentials: true});
+      const sent = r.data?.welcome_email?.sent;
+      onSuccess?.(sent ? `Welcome email sent to ${user.email}`
+                                : `Welcome link generated for ${user.email}`);
+    } catch (e) {
+      const d = e?.response?.data?.detail || e?.response?.data;
+      setError(typeof d === "string" ? d : (d?.status || "Failed to send."));
+    } finally { setSubmitting(false); }
+  };
+  return (
+    <ModalShell title="Resend welcome email" onClose={onClose}
+                          testid="resend-welcome-modal">
+      <p style={{fontSize: 13, color: COLORS.muted, marginTop: 0}}>
+        Email <b style={{color: COLORS.text}}>{user.email}</b> a fresh welcome
+        with a single-use set-password link (valid 7 days).
+      </p>
+      {error && <Warn testid="modal-error">{String(error)}</Warn>}
+      <ModalButtons onClose={onClose} onConfirm={submit}
+                              disabled={submitting} confirmLabel="Send email"
+                              confirmTestId="confirm-resend" />
+    </ModalShell>
+  );
+}
+
+export function ForceResetModal({ user, onClose, onSuccess }) {
+  const alreadyForced = !!user.must_change_password;
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async () => {
+    const require = !alreadyForced;
+    setSubmitting(true); setError("");
+    try {
+      await axios.post(
+        `${API}/admin/users/${user.user_id}/force-password-reset`,
+        {require}, {withCredentials: true});
+      onSuccess?.(require
+        ? `${user.email} must set a new password on next sign-in`
+        : `Cleared forced reset for ${user.email}`);
+    } catch (e) {
+      const d = e?.response?.data?.detail || e?.response?.data;
+      setError(typeof d === "string" ? d : (d?.status || "Action failed."));
+    } finally { setSubmitting(false); }
+  };
+  return (
+    <ModalShell title="Force password reset" onClose={onClose}
+                          testid="force-reset-modal">
+      <p style={{fontSize: 13, color: COLORS.muted, marginTop: 0}}>
+        {alreadyForced
+          ? <>This user is already required to reset their password. You can
+                  clear that requirement below.</>
+          : <>Require <b style={{color: COLORS.text}}>{user.email}</b> to set a
+                  brand-new password the next time they sign in. They can still log
+                  in, but must change it before continuing.</>}
+      </p>
+      {error && <Warn testid="modal-error">{String(error)}</Warn>}
+      <ModalButtons onClose={onClose} onConfirm={submit} disabled={submitting}
+                              confirmLabel={alreadyForced ? "Clear requirement"
+                                                                        : "Require reset"}
+                              confirmTestId="confirm-force-reset" />
+    </ModalShell>
+  );
+}
+
+export function BulkImportModal({ onClose, onSuccess }) {
+  const [file, setFile] = useState(null);
+  const [sendWelcome, setSendWelcome] = useState(false);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const submit = async () => {
+    if (!file) return;
+    setSubmitting(true); setError(""); setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("send_welcome", String(sendWelcome));
+      const r = await axios.post(`${API}/admin/users/bulk`, fd,
+        {withCredentials: true});
+      setResult(r.data);
+    } catch (e) {
+      const d = e?.response?.data?.detail || e?.response?.data;
+      setError(typeof d === "string" ? d
+                    : (d?.status || "Import failed. Check the CSV format."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Bulk import users" onClose={onClose}
+                          testid="bulk-import-modal">
+      {!result && (
+        <>
+          <p style={{fontSize: 12, color: COLORS.muted, marginTop: 0}}>
+            CSV columns: <b>email</b>, <b>name</b> (required), plus optional
+            {" "}role, password, premium, market. Blank passwords are
+            auto-generated — turn on the welcome email so those users can
+            set their own.
+          </p>
+          <input type="file" accept=".csv,text/csv"
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      data-testid="bulk-file"
+                      style={{...selectStyle, width: "100%", marginBottom: 12,
+                                  padding: 8}} />
+          <label style={{...labelStyle, display: "flex", alignItems: "center",
+                                  gap: 8, cursor: "pointer", marginBottom: 12}}>
+            <input type="checkbox" checked={sendWelcome}
+                        onChange={(e) => setSendWelcome(e.target.checked)}
+                        data-testid="bulk-send-welcome" />
+            Email each new user a welcome + set-password link
+          </label>
+          {error && <Warn testid="modal-error">{String(error)}</Warn>}
+          <ModalButtons onClose={onClose} onConfirm={submit}
+                                  disabled={submitting || !file}
+                                  confirmLabel={submitting ? "Importing…" : "Import"}
+                                  confirmTestId="confirm-bulk" />
+        </>
+      )}
+      {result && (
+        <div data-testid="bulk-result">
+          <div style={{display: "flex", gap: 16, marginBottom: 12}}>
+            <span style={{color: "#4ade80", fontWeight: 700}}>
+              {result.created} created
+            </span>
+            <span style={{color: result.failed ? "#fda4af" : COLORS.muted,
+                                  fontWeight: 700}}>
+              {result.failed} failed
+            </span>
+          </div>
+          <div style={{maxHeight: 220, overflowY: "auto",
+                              border: `1px solid ${COLORS.border}`, borderRadius: 8}}>
+            {(result.results || []).map((r) => (
+              <div key={r.row}
+                      style={{display: "flex", justifyContent: "space-between",
+                                  padding: "6px 10px", fontSize: 12,
+                                  borderBottom: `1px solid ${COLORS.border}`}}>
+                <span style={{color: COLORS.muted}}>{r.email || `row ${r.row}`}</span>
+                <span style={{color: r.status === "created"
+                                      ? "#4ade80" : "#fda4af", fontWeight: 600}}>
+                  {r.status === "created" ? `created (${r.role})` : r.error}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop: 14, textAlign: "right"}}>
+            <button data-testid="bulk-done"
+                        onClick={() => onSuccess?.(`Imported ${result.created} users`)}
+                        style={{padding: "9px 18px", borderRadius: 8,
+                                    background: COLORS.amber, color: "#0a0a0c",
+                                    border: 0, fontWeight: 700, cursor: "pointer"}}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
 const labelStyle = {display: "block", fontSize: 12, color: COLORS.muted,
                                 marginBottom: 4};
 
@@ -692,9 +1009,31 @@ export default function AdminUsers() {
         {label: "Admin", href: "/admin"},
         {label: "User Management"},
       ]} />
-      <h1 style={{fontSize: 24, fontWeight: 700, marginBottom: 14}}>
-        User Management
-      </h1>
+      <div style={{display: "flex", alignItems: "center",
+                          justifyContent: "space-between", marginBottom: 14,
+                          gap: 12, flexWrap: "wrap"}}>
+        <h1 style={{fontSize: 24, fontWeight: 700, margin: 0}}>
+          User Management
+        </h1>
+        <div style={{display: "flex", gap: 10, flexWrap: "wrap"}}>
+          <button onClick={() => setModal({ kind: "bulk" })}
+                          data-testid="bulk-import-btn"
+                          style={{padding: "9px 16px", borderRadius: 8,
+                                      background: "transparent", color: COLORS.amber,
+                                      border: `1px solid ${COLORS.border}`,
+                                      fontWeight: 700, cursor: "pointer", fontSize: 14}}>
+            Bulk Import
+          </button>
+          <button onClick={() => setModal({ kind: "create" })}
+                          data-testid="create-user-btn"
+                          style={{padding: "9px 16px", borderRadius: 8,
+                                      background: COLORS.amber, color: "#0a0a0c",
+                                      border: 0, fontWeight: 700, cursor: "pointer",
+                                      fontSize: 14}}>
+            + Create User
+          </button>
+        </div>
+      </div>
 
       <StatsStrip stats={stats} loading={!stats} />
 
@@ -747,6 +1086,29 @@ export default function AdminUsers() {
         <ActivateModal user={modal.user}
                                     onClose={() => setModal(null)}
                                     onSuccess={onModalSuccess} />
+      )}
+      {modal?.kind === "create" && (
+        <CreateUserModal onClose={() => setModal(null)}
+                                      onSuccess={onModalSuccess} />
+      )}
+      {modal?.kind === "edit" && (
+        <EditUserModal user={modal.user}
+                                  onClose={() => setModal(null)}
+                                  onSuccess={onModalSuccess} />
+      )}
+      {modal?.kind === "bulk" && (
+        <BulkImportModal onClose={() => setModal(null)}
+                                      onSuccess={onModalSuccess} />
+      )}
+      {modal?.kind === "resend" && (
+        <ResendWelcomeModal user={modal.user}
+                                            onClose={() => setModal(null)}
+                                            onSuccess={onModalSuccess} />
+      )}
+      {modal?.kind === "force_reset" && (
+        <ForceResetModal user={modal.user}
+                                      onClose={() => setModal(null)}
+                                      onSuccess={onModalSuccess} />
       )}
 
       <ToastView msg={toast} />

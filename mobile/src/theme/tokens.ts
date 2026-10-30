@@ -26,6 +26,7 @@ export const THEME = {
     green: '#22C55E',
     live: '#EF4444',
     onAccent: '#0A0A0C',
+    accentInk: '#C084FC',
     inputBg: '#161C2E',
     inputBorder: 'rgba(255,255,255,0.12)',
     tabBarBg: '#0B0F19',
@@ -62,6 +63,7 @@ export const THEME = {
     green: '#16A34A',
     live: '#E02020',
     onAccent: '#FFFFFF',
+    accentInk: '#7E22CE',
     inputBg: '#F4F4F5',
     inputBorder: '#E4E4E7',
     tabBarBg: '#FFFFFF',
@@ -82,3 +84,42 @@ export const THEME = {
 
 export type ThemeTokens = typeof THEME.dark;
 export type Appearance = 'light' | 'dark' | 'system';
+export type AccentKey = 'violet' | 'coral' | 'teal' | 'amber' | 'blue';
+
+// User-selectable accent. `violet` is the default (no override → keep the
+// per-theme brand hues). Others re-tint the brand tokens on both themes.
+export const ACCENTS: Record<AccentKey, { solid: string; end: string; swatch: string; onSwatch: string }> = {
+  violet: { solid: '', end: '', swatch: '#A855F7', onSwatch: '#FFFFFF' },
+  coral: { solid: '#F26B2A', end: '#FB7185', swatch: '#F26B2A', onSwatch: '#2A1200' },
+  teal: { solid: '#0D9488', end: '#06B6D4', swatch: '#0D9488', onSwatch: '#FFFFFF' },
+  amber: { solid: '#D97706', end: '#F59E0B', swatch: '#D97706', onSwatch: '#231600' },
+  blue: { solid: '#2563EB', end: '#6366F1', swatch: '#2563EB', onSwatch: '#FFFFFF' },
+};
+
+// Text/icon colour to place ON an accent FILL (button, selected chip). Only the
+// bright accents need dark ink; violet keeps the theme's own onAccent.
+const ACCENT_ON: Partial<Record<AccentKey, string>> = {
+  coral: '#2A1200', amber: '#231600', teal: '#FFFFFF', blue: '#FFFFFF',
+};
+// Accent tone for accent-coloured TEXT/BORDERS on the page bg — darker in Light,
+// lighter in Dark, so it stays crisp against the background either way.
+const ACCENT_INK_DARK: Record<AccentKey, string> = {
+  violet: '#C084FC', coral: '#FB923C', teal: '#2DD4BF', amber: '#FBBF24', blue: '#93C5FD',
+};
+const ACCENT_INK_LIGHT: Record<AccentKey, string> = {
+  violet: '#7E22CE', coral: '#C2410C', teal: '#0F766E', amber: '#B45309', blue: '#1D4ED8',
+};
+
+export function withAccent(t: ThemeTokens, accent: AccentKey, scheme: 'light' | 'dark' = 'dark'): ThemeTokens {
+  const a = ACCENTS[accent];
+  const accentInk = (scheme === 'light' ? ACCENT_INK_LIGHT : ACCENT_INK_DARK)[accent] || t.brand;
+  if (!a || !a.solid) return { ...t, accentInk };   // violet: keep brand + theme onAccent
+  return {
+    ...t,
+    brand: a.solid, brandEnd: a.end, electric: a.solid, magenta: a.solid,
+    primary: a.solid, purple: a.solid, pink: a.end,
+    onAccent: ACCENT_ON[accent] ?? t.onAccent,
+    accentInk,
+  };
+}
+

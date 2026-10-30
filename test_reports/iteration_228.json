@@ -1,0 +1,39 @@
+{
+  "summary": "FUUSIC Fun AI iter228 — Program Modes (6) + Follow This Story: backend + web e2e PASS. 17/17 pytest green and all UI testids verified. Independently re-verified (A) GET /api/fun-ai/config returns the 6 modes (morning_briefing, news_in_2, continuous, deep_dive, local, global) with default_mode=morning_briefing and deep_dive flagged topic_required; (B) /briefing per mode — news_in_2 trims to ~30 words with ellipsis, morning_briefing ≤8 items, deep_dive echoes the topic, global uses world/fallback; (C) POST /session returns mode+mode_label, injects mode hint (and topic for deep_dive) into instructions and tools=[search_news,follow_story]; (D) Follows CRUD with case-insensitive dedupe + 50-topic list + /updates per-topic verified articles + empty-topic 400 + unauth 403 on all follows endpoints + FOLLOWING injection into /session instructions when user has follows. Web: 6 mode chips (interactive-news-mode-<id>) all present; clicking news_in_2 updates program header to NEWS IN 2 MINUTES; Deep Dive reveals topic input + Go button and the run reflects the topic in header; Follow toggle flips between 'Follow this story' and 'Following this story'; interactive-news-following section + follow-chip-<id> + follow-remove-<id> render; clicking chip title opens Deep Dive on that topic; removing hides section and resets button. Regression: Talk-to-FunAI mounts talk-funai-panel, status reaches 'Fun AI is ready' within 1s (Grok WS connected) and the panel header shows the mode label 'Morning Briefing'.",
+  "platforms_tested": ["web"],
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": []
+    }
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/backend/tests/test_iter228_fun_ai_modes_follows.py",
+    "/app/test_reports/pytest/iter228_fun_ai_modes_follows.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "fun_ai_service.MODES is the single source of truth and shared between /config (list), /briefing (limit/trim/category/local flags), /session (hint + deep_dive topic injection) — good.",
+    "fun_ai_service.add_follow() uses update_one+upsert keyed by (user_id,key) where key=_norm_topic(lowercased+whitespace-collapsed, 160 chars) — dedupe is deterministic and race-safe.",
+    "fun_ai_service.follow_updates() swallows exceptions by returning [] via per-topic search_news; routes/fun_ai.create_session wraps the follow_updates+follows_opening call in try/except so a follows-side failure cannot break /session.",
+    "routes/fun_ai.delete_follow silently returns {ok:false} on ObjectId parse errors (no 400/404). Consider returning 404 for invalid/foreign ids so clients can distinguish 'already gone' from 'bad id' — minor UX nit, not a bug.",
+    "InteractiveNews.jsx compares currentFollow via norm(f.topic) === norm(current.title) — same lowercasing used server-side, so the Follow toggle correctly reflects persisted state across reloads (verified).",
+    "/session only requires auth, not premium — matches /usage allowance_minutes behaviour where free users get 10 min/day. OK as long as rate limits (max_sessions_per_day=20, session_limit=429) stay in place."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter228_fun_ai_modes_follows.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (premium) via POST /api/auth/login (cookie)",
+  "seed_data_creation": "During testing: created TEST_iter228-prefixed follows for CRUD/dedupe/updates/session-injection tests and a single UI follow for the chip toggle test. ALL cleaned up (DELETE) in test teardown and in the UI run (remove-chip clicks). Final list confirmed empty for demo@. No persistent data left behind.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 2 Interactive News (6 modes + Follow This Story) is production-ready. Authoritative regression suites: /app/backend/tests/test_iter227_fun_ai.py (Phase 1 — 11 tests, voice pilot + xAI key-leak guard) and /app/backend/tests/test_iter228_fun_ai_modes_follows.py (Phase 2 — 17 tests, modes + follows). Run both for Fun AI regressions. Testids used on /radio/news/interactive: interactive-news-page, interactive-news-modes, interactive-news-mode-{id} (6 modes), interactive-news-deepdive-topic, interactive-news-deepdive-go, interactive-news-following, follow-chip-{id}, follow-remove-{id}, interactive-news-follow, interactive-news-segment/audio/play/next/source, interactive-news-sponsor (only when enabled), interactive-news-talk-btn, talk-funai-panel/status/mic/stop. Grok voice reaches 'ready' in <2s on the preview env; the voice-triggered follow_story tool cannot be automated (requires real mic/model turn) — the UI 'Follow this story' button is a verified non-voice path to the same endpoint.",
+  "rca of the issue": ""
+}

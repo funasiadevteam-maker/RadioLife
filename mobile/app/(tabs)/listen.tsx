@@ -14,6 +14,7 @@ import BannerAdSlotV2 from '../../src/components/BannerAdSlotV2';
 import { usePlayerStore } from '../../src/stores/usePlayerStore';
 import { useStationsStore } from '../../src/stores/useStationsStore';
 import { playImportedStation } from '../../src/services/playStation';
+import { useResponsive } from '../../src/hooks/useResponsive';
 
 const resolveImg = (u?: string | null) =>
   u ? (u.startsWith('http') ? u : `${BACKEND}${u}`) : null;
@@ -73,6 +74,7 @@ export default function ListenScreen() {
   const t = makeT(tk);
   const s = makeS(tk);
   const router = useRouter();
+  const r = useResponsive();
   const { activeChannelName, activeChannelThumb, currentSeg, playing } = usePlayerStore();
   const { recents, load: loadSaved } = useStationsStore();
 
@@ -170,7 +172,7 @@ export default function ListenScreen() {
 
   return (
     <SafeAreaView style={s.screen} testID="listen-screen">
-      <ScrollView contentContainerStyle={{ paddingBottom: 110 }}
+      <ScrollView contentContainerStyle={[{ paddingBottom: 110 }, r.feed]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAll(); }} tintColor={tk.primary} />}>
         <View style={s.header}>
           <Text style={s.pageTitle}>Listen</Text>

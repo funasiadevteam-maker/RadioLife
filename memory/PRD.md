@@ -3,6 +3,46 @@
 > NOTE (2026-09 fork): This file grew changelog-style. Newest work is now also logged in **CHANGELOG.md** and the backlog lives in **ROADMAP.md**. The dated sections below remain the historical record.
 
 
+## 🔆 AUTO-CONTRAST FOR ACCENTS (2026-10 fork, web + mobile, testing agent PASS iter235)
+Text/icons and accent-coloured text now auto-adjust per accent so every colour stays crisp in Light and Dark. Two contrast-safe tokens layered onto the accent system (iter234), no backend change.
+- **`--on-accent` / `t.onAccent`** — foreground placed ON an accent FILL (buttons, selected chips, swatch checkmark). Bright accents use DARK ink (coral `#2A1200`, amber `#231600`); teal/blue/violet use white. Violet keeps each surface's established default (web white-on-gradient; mobile per-theme onAccent) → zero regression to the default look.
+- **`--accent-ink` / `t.accentInk`** — accent tone for accent-coloured TEXT/BORDERS on the page bg; theme-aware (darker in Light, lighter in Dark) e.g. amber `#B45309` (light) / `#FBBF24` (dark).
+- **WEB** `index.css`: per-accent `--on-accent` + theme×accent `--accent-ink` combos; shared classes rewired — `.fz-grad` & `.fz-chip-active` → `var(--on-accent)`, `.fz-brand` & `.fz-chip` → `var(--accent-ink)` (upgrades legibility app-wide for every brand-driven element). `AccentSwatches.jsx` checkmark per-accent; `AppearanceSettings.jsx` selected icon → ink; `Login.js` switch text → on-accent.
+- **MOBILE** `tokens.ts`: `withAccent(t, accent, scheme)` sets `onAccent` (bright→dark) + theme-aware `accentInk`; `ACCENTS[k].onSwatch` for the checkmark. Wired into `AccentSwatches.tsx`, `InterestOnboarding.tsx` (chip/appearance/Save), `profile.tsx` (active appearance chip). Home CTAs using `t.onAccent` recolour correctly.
+- Verified: web CSS matrix exact for all 5 accents × 2 themes; amber+light button = dark text on gold; violet default unchanged; mobile `withAccent` mirrors the web matrix. Note (by design): hardcoded-hex elements (e.g. the FUUSIC wordmark) don't recolour — only token-driven ones do.
+
+
+## 🎨 THEME ON SIGNUP + ACCENT COLOURS + SCHEDULED DARK (2026-10 fork, web + mobile + backend, testing agent PASS iter234 — backend 23/23 + web + mobile)
+Three appearance features extending the EXISTING theme systems (web `theme/useTheme.js` zustand store; mobile `theme/ThemeProvider.tsx`), all synced across devices via the shared prefs endpoint.
+- **Backend** `routes/shell.py`: `GET/PUT /api/shell/prefs` extended from theme-only to `{theme, accent, theme_schedule}`. `VALID_ACCENTS = {violet,coral,teal,amber,blue}`; `theme_schedule = {enabled, dark_hour, light_hour}` (default 19/7). PUT does partial updates; invalid accent→violet, invalid theme→dark, bad hours→defaults. 23/23 pytest (`tests/test_iter234_appearance_phaseB.py`), cross-user isolation + cross-session sync verified.
+- **(A) Theme on Signup**: a Light/Dark quick pick on the first signup/login screen — WEB `Login.js` (`auth-theme-switch` / `auth-theme-light|dark`), MOBILE `app/login.tsx` (`login-theme-switch` / `login-theme-light|dark`). Sets the pref so the whole app is themed before onboarding. (Login cards are static-styled by design; the pick persists + themes the rest of the app.)
+- **(B) Accent colours** (Violet default, Coral, Teal, Amber, Blue) recolour brand-driven elements. WEB via `data-accent` on `<html>` + CSS overrides of `--brand-solid`/`--brand-grad-*`/`--accent-*` in `index.css` (violet = no attribute, default look unchanged); reusable `theme/AccentSwatches.jsx`. MOBILE via `tokens.ts` `ACCENTS` + `withAccent()` re-tinting `brand/brandEnd/electric/magenta/primary/purple/pink`; reusable `theme/AccentSwatches.tsx`. Surfaced in onboarding (web FeatureOnboarding `onboarding-accent-*`; mobile InterestOnboarding `accent-*`) and Settings.
+- **(C) Scheduled Dark** (fixed, adjustable times; default Dark 7PM / Light 7AM; no location): when enabled the local clock drives the effective theme, overriding mode; picking a manual mode turns it off. A 60s ticker re-evaluates. WEB on the new Appearance page; MOBILE on Profile with hour steppers.
+- **New web Appearance settings page** `pages/AppearanceSettings.jsx` at `/settings/appearance` (route in `App.js`, linked from `Profile.js` `profile-appearance`): mode + accent + Scheduled Dark (`appearance-mode-*`, `appearance-accent-*`, `appearance-schedule-toggle`, `-dark-hour`, `-light-hour`). **Mobile** Profile appearance section extended with `accent-swatches` + Scheduled Dark card (`schedule-toggle`, `schedule-{dark,light}-{dec,inc,hour}`).
+- Verified: accent computes correct `--brand-solid` (teal #0D9488), scheduled-dark deterministic flip (dark_hour=0/light_hour=23 → dark), manual pick disables schedule, cross-surface sync. Guarded a hydrate race so a fast user tap at startup isn't overwritten by the server reconcile. Non-blocking: components with hardcoded colours don't re-tint (only brand-token-driven ones do — by design).
+
+
+## 🌗 APPEARANCE ONBOARDING — Light/Dark/Match-device in first-run (2026-10 fork, web + mobile, testing agent PASS iter233 — backend 7/7 + web + mobile)
+New customers now choose their look during onboarding. Reuses the EXISTING theme systems (web `theme/useTheme.js` zustand store; mobile `theme/ThemeProvider.tsx`) which both persist to shared `GET/PUT /api/shell/prefs {theme: light|dark|system}` — so the choice syncs across a signed-in user's devices. No backend change.
+- **WEB** `components/FeatureOnboarding.jsx` ("Build your FUUSIC" first-run modal, mounted in `design_v2/AppShellV2.jsx`): added a "Choose your look" section (testid `onboarding-appearance` + `onboarding-appearance-light|dark|system`) above the feature grid. "Match device" (system) pre-highlighted; tapping applies the theme LIVE (`html[data-theme]`) and persists; the existing "Build my Home" button still saves features. Skippable (not tapping keeps the default).
+- **MOBILE** `src/social/InterestOnboarding.tsx` (first-run sheet on the Social tab): added a "CHOOSE YOUR LOOK" row (same testids) wired to `useAppTheme().setMode`, re-themes the sheet live; existing Skip/Save unchanged. Switched the component from the static `activeTokens` to the `useAppTheme()` hook so it re-themes on tap.
+- Verified: pre-highlight = system, live apply + persist on all three options, survives reload (web), cross-surface sync via `/api/shell/prefs`. Changeable later in Settings (web ThemeToggle; mobile Profile appearance). Non-blocking: pre-highlight is always 'system' (not hydrated from a saved value) — fine since the modal only shows for brand-new users.
+
+
+## 📊 FUUSIC — BREAK AD REPORT (admin) (2026-10 fork, web + backend, self-verified: curl + admin-auth screenshot)
+Admin visibility into the Interactive News sponsor breaks for the sales team. NEW `GET /api/admin/fun-ai/break-report?days=7|30|90` (admin-gated → 403 for non-admin) via `fun_ai_service.break_report()`: raw impressions from `db.fun_ai_sponsor_events` (kind=impression) broken down by placement (opening/mid/closing), unique listeners, and paid-spot SPEND derived from charged plays on the news station (`rj_sponsored_read_plays` where `station_id==fuusic_news`, priced by each read's `cost_per_play_cents`). Report UI added to the existing `frontend/src/AdminFunAiNews.jsx` (route `/admin/fun-ai-news`, sidebar "Fun AI Sponsor"): stat cards (impressions/unique/paid-spend), a by-placement bar list, and a paid-spots list with per-spot spend + remaining budget — with a clear empty state noting program sponsorship (opening/closing) is free underwriting and carries no spend. Verified: endpoint returns real counts, non-admin 403, UI renders authenticated.
+
+
+## 🧠📣 FUUSIC PHASE 4 — COMPANION MEMORY + SPONSOR BREAKS UI (2026-10 fork, web + mobile, testing agent PASS iter232 — backend 9/9 + web + mobile)
+Completed the Phase 4 UI (backend Memory CRUD / break scheduling / premium ad-free were done+curl-tested in the prior job). The previously-left web component was a corrupted 309-char stub and was fully rewritten.
+- **Companion Memory UI (shared contract `/api/fun-ai/memory` GET/PUT/POST/POST-remove/POST-clear)** — categories: favourite genres, favourite stations, disliked genres, languages, interests; ON by default; on/off toggle + clear-all. Fun AI honours these approved prefs in every voice session (injected server-side via `memory_instructions`). Self-hides for signed-out users (API is auth-gated).
+  - WEB: `frontend/src/FunAI/FunAiMemory.jsx` (REWRITTEN) — collapsible panel, chips with add-input per category. Wired into `InteractiveNews.jsx` (testid prefix `inews-memory`, signed-in only) and `NowPlayingRadioLife.jsx` (prefix `rl-memory`).
+  - MOBILE: NEW `mobile/src/fun-ai/FunAiMemory.tsx` (reusable), embedded on `app/fun-ai-news.tsx` + NEW dedicated screen `app/fun-ai-memory.tsx` reached from Profile → "Companion Memory" (`menu-fun-ai-memory`).
+- **Sponsor Breaks playback** — `/api/fun-ai/news/briefing` returns a `breaks[]` (opening after_index -1, mid after_index=mid_after_segment clamped, closing after_index=count); now consumed on both clients and woven into the news program. Paid breaks (audio_url) play recorded audio; text-only sponsorship breaks show a disclosed "Sponsored" card AND are read aloud (web `speechSynthesis`, mobile `expo-speech`@~14.0.8 added). Each break start fires `POST /api/fun-ai/news/break-event` (impression → decrements paid-ad budget via `rj_sponsored_read_service.record_play`). Premium users stay ad-free (`breaks == []`). Skip button on every break so the listener is never stuck.
+- **Verified**: backend 9/9 (`tests/test_iter232_phase4_memory_breaks.py`), web + mobile e2e (impression POST captured on Play). Sponsor restored to DISABLED after testing. Minor polished: darkened the shared memory card scrim so light-mode labels read on the NowPlaying gradient.
+- Files: NEW `mobile/src/fun-ai/FunAiMemory.tsx`, `mobile/app/fun-ai-memory.tsx`; rewritten `frontend/src/FunAI/FunAiMemory.jsx`; edited `frontend/src/InteractiveNews.jsx`, `frontend/src/design_radiolife/screens/NowPlayingRadioLife.jsx`, `mobile/app/fun-ai-news.tsx`, `mobile/app/(tabs)/profile.tsx`.
+
+
 
 ## 📻 HOME: "50,000+ Radio Stations" showcase (2026-10 fork, WEB, self-verified screenshot)
 Added a prominent live-radio catalog section to the Home page (`design_v2/RadioStationsHomeV2.jsx`), placed right below the FUUSIC World grid, tied to the always-on **Listen** feature (`feat('listen')`, section key `radio_stations`).
@@ -1604,3 +1644,136 @@ Four user-requested Travel follow-ups. Tested iter222 (backend 10/10 pytest + we
 - Klook content widget logs a third-party `KlookAff` console warning (depends on the user's Travelpayouts dashboard params) — third-party, cosmetic.
 - HUB list duplicated across web + mobile — candidate for a shared module later.
 - Still pending from Milestone 3: "Follow Show + Live Clip Buffer" (not started; user pivoted to Travel).
+
+---
+
+## Milestone 3 web reachability + Arena social-gaming layer — 2026-06 (iter225: 14/14 backend + web + mobile PASS)
+
+### P0 — Global player → Now Playing (Milestone 3 reachable on web)
+- The active default shell for all users is `SocialFeedShell` (homeView default "v2"), whose global player is `AudioDock` in `frontend/src/design_v2/socialfeed/socialFeedParts.jsx` — it previously had NO link to `/now-playing`, so the Follow Show + Live Clip screen was URL-only.
+- Fix: wrapped the dock thumb+title in a `Link` (`data-testid="sf-dock-expand"`) → `/now-playing?ch=<slug>` when an AI channel is active. Also added the same link to `PlayerBarV2.jsx` (`nlv2-player-expand`) for the homeView="v1" path. `primitives.jsx` MiniPlayer already linked correctly.
+- Clip button = option b (user choice): always rendered, `disabled` when no active audio segment, with tooltip ("Start the station to clip"). Already implemented in `NowPlayingRadioLife.jsx`.
+
+### P1 — Arena (Play-With-Friends challenges + weekly leaderboard) — web + mobile
+- NEW backend router `backend/routes/game_challenges.py`, prefix `/api/arena` (registered + bootstrapped `ensure_challenge_bank` in server.py). Self-contained static quiz bank (seeded into `challenge_questions`: trivia + Bollywood/movie "quiz") so challenges are deterministic (no OpenAI dependency).
+- Challenges: head-to-head (1 invitee) AND group (2+). Host + invitees play the SAME fixed 5-question set; score = correct×100 + speed bonus. Finalize only when NO pending invitees + ≥2 participants + all submitted → highest score wins, prize via `PointsService` (source `game_challenge`, idempotent `challenge_win:{cid}`). Host can force `/complete`.
+- Endpoints: GET /games; POST /challenges; GET /challenges (invites/active/completed); GET /challenges/{cid}; POST /{cid}/accept (pulls invitee→participants); /decline; GET /{cid}/quiz (answers stripped); POST /{cid}/submit; POST /{cid}/complete; GET /leaderboard (scope global|friends, game_key all|trivia|quiz, weekly SUM); POST /score (generic, lets any house game feed the board).
+- Collections: `game_challenges`, `challenge_questions` (seeded), `game_scores` (week key `YYYY-Www`).
+- Web UI: `frontend/src/pages/social/SocialChallenges.jsx` → new "Arena" tab in `SocialV2.jsx` (/social?tab=challenges). Sub-tabs Challenges / Leaderboard, create modal, quiz runner, scoreboard, global/friends + per-game leaderboard.
+- Mobile UI: `mobile/src/social/challenges.tsx` → new "Arena" tab in `mobile/app/(tabs)/social.tsx`. Full parity (RN StyleSheet, testID-matched).
+- Bugs found & fixed in build: (1) premature finalize when host submitted before invitee accepted; (2) accept now `$pull`s invitee from invitees so finalize can trigger.
+
+### Known / not fully exercised
+- Group-mode end-to-end needs ≥2 friends; demo has 1 (Free Tester) so only group VALIDATION (400 group_needs_two) was exercised — code path identical to h2h.
+- Mobile RN-Web deprecation warnings (`shadow*`, `pointerEvents`) + pre-existing require-cycle `social.tsx ↔ wall.tsx` — cosmetic, non-blocking.
+- Leaderboard aggregates weekly SUM of scores (rewards activity); resets Monday (ISO week).
+
+### Backlog (unchanged, still open)
+- P1: Push Notifications (needs user's Firebase `google-services.json`; native build only).
+- P2: Admin "Games → Appearance" art-management screen.
+- P2: Platform-wide Light Mode WCAG contrast audit.
+- P2 blocked-on-user: prod Google OAuth redirect_uri (GCP), Apple Sign-In `.p8`, SMS A2P 10DLC opt-in site.
+- NOTE: memory/PRD.md now ~1650 lines — split into PRD/CHANGELOG/ROADMAP recommended next maintenance pass.
+
+---
+
+## iPad support in the iOS release — 2026-06 (mobile only)
+User asked to ensure the iPad app ships as part of the iPhone release, then chose (b) optimize layout + (c) allow iPad landscape.
+- **Already universal**: `mobile/app.json` `ios.supportsTablet: true` — the single Publish build installs/runs full-screen natively on iPhone AND iPad. No change was needed for inclusion.
+- **(c) Per-device orientation**: `app.json` top-level `orientation` changed `portrait` → `default` (native allows all idioms). `mobile/app/_layout.tsx` now locks orientation at runtime via `expo-screen-orientation` + `expo-device`: `Device.getDeviceTypeAsync() === TABLET` → `unlockAsync()` (iPad/Android tablets rotate freely); otherwise `lockAsync(PORTRAIT_UP)` (iPhone + Android phones stay portrait). Web returns early. NOTE: orientation behaviour is native-only — NOT testable on Expo Go web preview; validate on a real iPad after Publish.
+- **(b) Tablet-centred layout**: new reactive hook `mobile/src/hooks/useResponsive.ts` (`useWindowDimensions`, recomputes on rotation): `isTablet = min(w,h) >= 768`; returns `feed` (maxWidth 640) + `grid` (maxWidth 1040) style helpers that are `null` on phones (so phone layout is byte-identical — `[style, null]` ≡ `[style]`). Applied to the primary tab screens' main ScrollView `contentContainerStyle`: home/listen = `feed`, shop/games = `grid`; `social.tsx` wraps the whole tab-content block (incl. Arena) in a `feed` container while the header stays edge-to-edge.
+- Installed `expo-screen-orientation@9.0.9` (SDK 54). `expo-device` was already present.
+- Verified at iPad width (1194×834): home, listen, shop, games, social/Arena all render centred with no stretch and no errors; phone width unaffected by construction.
+- Files: `mobile/app.json`, `mobile/app/_layout.tsx`, `mobile/src/hooks/useResponsive.ts`, `mobile/app/(tabs)/{home,listen,shop,games,social}.tsx`.
+
+---
+
+## Admin: create users + assign roles — 2026-06 (web admin, self-tested)
+- NEW backend endpoint `POST /api/admin/users` in `routes/admin_users.py` (admin-only via `require_admin`). Body: email, name, password (min 8, must contain a letter + a digit), role (default `user`), status (default `active`), is_premium, market. Reuses the existing bcrypt `hash_password` + `PreferenceVector` from `auth.py`; normalizes/uniques email (409 on dup); validates role against `ALLOWED_ROLES` (user/listener/creator/advertiser/business_partner/moderator/ad_manager/admin → 400 on invalid) and status against `ALLOWED_STATUSES`; sets `onboarding_complete:true`, `created_by_admin_id`; writes a `create` entry to `user_role_audit_log` (added `create` to `ALLOWED_ACTIONS`). Returns `_user_view`.
+- Web UI: `frontend/src/AdminUsers.jsx` (/admin/users) — added a **+ Create User** button (`create-user-btn`) and `CreateUserModal` (email, full name, initial password, role select across all ROLE_OPTIONS, "grant premium" checkbox; `create-user-modal`, `create-email`, `create-name`, `create-password`, `create-role-select`, `create-premium`, `confirm-create`). On success: toast + stats/list refresh.
+- Design decision: admin sets an INITIAL password (account works immediately), rather than an email invite flow. Admin-created users skip onboarding.
+- Verified via curl + Playwright: create success, new user logs in, duplicate→409, invalid role→400, weak password→400, non-admin→blocked, UI create → Total 44→45 + toast + new user login 200. Self-tested (did not run the testing_agent).
+- No mobile admin panel exists → web-only. `test_credentials.md` unchanged (only ephemeral timestamped test accounts were created).
+
+---
+
+## Admin users — Welcome email + Bulk CSV import + Edit user — 2026-06 (web admin, self-tested)
+Built on top of the admin create-user feature. All in `routes/admin_users.py` + `frontend/src/AdminUsers.jsx`.
+- **Refactor**: single-create logic extracted to `_create_one(...)` (returns (ok, result)); reused by both create + bulk.
+- **Welcome email**: `CreateUserBody.send_welcome` (+ bulk `send_welcome` form flag). `_send_welcome_email()` mints a single-use `password_reset_tokens` entry (kind="welcome", 7-day expiry) and emails a "Set your password" link + login link via the existing Mailgun `send_email` (reuses `_frontend_base_url` + `_ensure_reset_indexes` from auth.py). Falls back to a visible WARN log with the set-password URL when Mailgun isn't live (MOCKED fallback). Mailgun IS live in the current env (verified send ok). UI: "Email a welcome + set-password link" checkbox in the create modal (`create-send-welcome`).
+- **Bulk import**: `POST /api/admin/users/bulk` (multipart `file` + `send_welcome` form). Parses CSV (utf-8-sig) via `csv.DictReader`; columns case-insensitive, requires email+name, optional role/password/premium/market/status; blank password → `_gen_password()` (random, letter+digit, len>=11). Per-row result list {row,email,status,error}. UI: "Bulk Import" header button → `BulkImportModal` (file picker + welcome toggle + results summary `bulk-result`).
+- **Edit user**: `PATCH /api/admin/users/{user_id}` (body name/email/is_premium). Validates email format + uniqueness (excl self → 409), 404 on missing, audit action `update` (added to ALLOWED_ACTIONS). UI: "Edit Details" row-menu item (`menu-edit-*`) → `EditUserModal` (`edit-name`/`edit-email`/`edit-premium`/`confirm-edit`).
+- Verified via curl: welcome (sent + set_url), bulk (2 created/2 failed with invalid_email + invalid_role), edit (name/email/premium change, login with new email, dup→409, 404, non-admin→blocked). Verified via browser: bulk import 2/1, edit + toast + row update, create welcome checkbox present. Self-tested (testing_agent not run).
+- test_credentials.md unchanged (only ephemeral timestamped test users created).
+
+---
+
+## Games → Appearance (Game Art Admin) — COMPLETE — 2026-06 (web admin + web/mobile hubs, testing_agent verified)
+No-code control of game-hub tile art/label/colour/icon/visibility/order, shared by both clients. Backend (`routes/game_appearance.py`) + web hub (`PlayAndWin.js`) were built earlier; this session finished the Admin UI + mobile hub wiring.
+- **Web Admin UI** (NEW `frontend/src/AdminGamesAppearance.jsx`, route `/admin/games-appearance`, sidebar link `adnav-games-appearance` under Ad Monetization): lists all 15 catalog games (house + sponsored templates); per-card edit label/color(picker)/icon(select)/visibility(toggle) → Save (PUT), **Upload** image (POST /image), **AI Art** generate via Gemini prompt (POST /generate), **Clear** (DELETE /image), and up/down **reorder** (POST /reorder). Dark admin theme + sonner toasts.
+- **Mobile hub** (`mobile/app/(tabs)/games.tsx`): fetches `GET /api/games/appearance`, builds an override map keyed by `mobile_key`, and merges label/color/image_url/order onto the Featured spin card, QUICK GAMES tiles (hidden games dropped, order-sorted), the Trivia card art, and template/campaign cards. On a fetch failure `ov` stays `null` → house tiles fall back to bundled default art (no regression). Image URLs resolved via `BACKEND` prefix for relative `/api/static/...` paths.
+- Endpoints (all `/api`): admin `GET/PUT/POST(reorder)/POST({key}/image)/POST({key}/generate)/DELETE({key}/image) /admin/game-appearance*`; public `GET /games/appearance` (excludes hidden). Images stored via Tigris object storage (deploy-safe), served at `/api/static/game_art/...`. AI gen uses `gemini-3.1-flash-image-preview` via `EMERGENT_LLM_KEY`.
+- Verified: backend 11/11 pytest (`tests/test_iter226_game_appearance.py`), web admin UI (edit/save/reorder/sidebar nav), web `/play-and-win` + mobile `/games` reflect overrides ("Mega Spin" label + admin reorder), AI generate confirmed live (returned real image URL). Report: `/app/test_reports/iteration_226.json`.
+- Files: `frontend/src/AdminGamesAppearance.jsx`, `frontend/src/App.js`, `frontend/src/components/AdminSidebar.jsx`, `frontend/src/PlayAndWin.js`, `mobile/app/(tabs)/games.tsx`, `backend/routes/game_appearance.py`.
+- Backlog update: P2 "Admin Games → Appearance art-management screen" → **DONE**. Still open: P1 Push Notifications (needs Firebase `google-services.json`, native build), P2 Light-Mode WCAG audit, P2 blocked-on-user (Google OAuth redirect_uri, Apple `.p8`, SMS A2P).
+
+---
+
+## FUUSIC Fun AI — Phase 1: Interactive News voice pilot (WEB) — COMPLETE — 2026-06 (testing_agent verified, iter227)
+First slice of the "Interactive Personal Radio" vision, built ON TOP OF the existing news system (reuses `news_articles`, `newsdata_client`, `news_radio_renderer`, ElevenLabs TTS). xAI Grok Realtime Voice anchor; radio-first; no on-demand music.
+- **Integration**: xAI Grok Realtime Voice (`grok-voice-latest`, `wss://api.x.ai/v1/realtime`). Server mints SHORT-LIVED ephemeral client secrets (`POST https://api.x.ai/v1/realtime/client_secrets`); the permanent `XAI_API_KEY` NEVER reaches the browser (verified no-leak). Client auths the WS via `xai-client-secret.<secret>` subprotocol. Server VAD drives turn-taking + barge-in. PCM16 @24kHz capture/playback with a jitter queue; barge-in flushes playback.
+- **Backend** (new): `services/grok_realtime.py` (token minting, flags), `services/fun_ai_service.py` (flags, per-user daily quotas, source-grounded `search_news`, `build_briefing`, sponsor config, anchor persona + tool spec), `routes/fun_ai.py` mounted at `/api/fun-ai`: `GET /config`, `POST /session`, `POST /session/end`, `GET /news/briefing`, `POST /news/search` (the Grok tool, source-grounded + audited in `fun_ai_tool_audit`), `GET /usage`; admin `GET/PUT /api/admin/fun-ai/news-sponsor`. Usage in `fun_ai_usage`, sessions in `fun_ai_sessions`.
+- **Feature flags** (backend/.env): `FUN_AI_ENABLED`, `FUN_AI_NEWS_ENABLED`, `FUN_AI_COMPANION_ENABLED=false`, `FUN_AI_SPONSORSHIP_ENABLED`, `FUN_AI_VOICE_PROVIDER=grok`, `FUN_AI_VOICE_MODEL`, `FUN_AI_GROK_VOICE=eve`, `FUN_AI_SESSION_SECONDS=300`, `FUN_AI_MAX_VOICE_MINUTES_PER_DAY_FREE=10`/`_PREMIUM=60`, `FUN_AI_MAX_SESSIONS_PER_DAY=20`. Graceful fallback: if voice is off/unconfigured, the plain news program still plays.
+- **Frontend** (web): `FunAI/useGrokVoice.js` (realtime hook), `FunAI/TalkToFunAI.jsx` (voice panel: states Ready/Listening/Thinking/Speaking/Error, MIC-ON indicator, live transcript, Stop), `InteractiveNews.jsx` at `/radio/news/interactive` (Press-Play verified news program with per-item source + "View source", sponsor acknowledgement banner, gradient "Talk to Fun AI" button, Light/Dark). Entry link added to `/radio/news`.
+- **Compliance/safety baked in**: anchor system prompt forbids inventing headlines/quotes/dates, mandates `search_news` + source attribution, distinguishes verified vs opinion, discloses sponsorship, states it's an AI (not medical/legal). Sponsor is admin-configured approved copy, DISABLED by default (we never invent sponsor names). Mic only active during a session.
+- **Verified**: backend 11/11 pytest (`tests/test_iter227_fun_ai.py`), web UI, no key leak, admin sponsor PUT→briefing/banner. Live voice session reaches "ready" (ephemeral token + xAI WS + mic). Report `/app/test_reports/iteration_227.json`.
+- **LIMITATION**: real spoken audio I/O cannot be validated by automation — needs a real-mic QA pass by the user. Mobile (Expo) client for this pilot NOT built yet (web-first per user choice).
+
+### Fun AI roadmap (remaining, per spec)
+- P1: Phase 1 on MOBILE (Expo client for the voice anchor).
+- P1: Phase 2 — "Talk to Fun AI" on Now Playing + voice commands + `RadioProgrammingPolicyService` (music licensing policy engine; needs legal review).
+- P2: Phase 3 — RJ personalities (Friendly/Energetic/Calm/Funny/Thoughtful; Flirty&Sultry age-gated), voice previews, opt-in companion memory.
+- P2: Phase 4 — full sponsorship engine (commercial breaks, campaign inventory, impression/completion tracking) on the ad stack.
+- P2: Phase 5 — perf/scale, cost controls dashboard, admin Fun AI management + analytics.
+- EXTERNAL REQUIRED: rotate `XAI_API_KEY` (the first key was pasted in chat → treat as exposed); ensure the xAI account has Realtime Voice access + sufficient voice quota; legal/licensing review before any format/skip/on-demand changes (Phase 2+); NewsData.io quota for live search.
+
+---
+
+## FUUSIC Fun AI — Phases A–D (News Modes, Follow Story, Player voice + policy engine, Mobile) — COMPLETE — 2026-06
+Staged on top of the Phase 1 pilot; each phase testing_agent-verified (iter 228/229/230).
+
+### A. News Program Modes (6) — web + mobile (iter228, 17/17 backend)
+All six anchor-followed program lengths: Morning Briefing (~8 stories), News in 2 Minutes (6, summaries trimmed ~30 words), Continuous (12), Deep Dive (one topic — topic input, related articles), Local (user market), Global (world/top). `GET /api/fun-ai/news/briefing?mode=&topic=` returns mode/mode_label/anchor_hint; `POST /api/fun-ai/session {mode,topic}` injects the mode (and deep-dive topic) into the anchor instructions. Config lists modes.
+
+### B. Follow This Story — web + mobile (iter228)
+Save a topic; Fun AI opens with a verified update on it next time. `fun_ai_follows` collection (dedupe by normalized key). Endpoints: `GET/POST /api/fun-ai/follows`, `DELETE /api/fun-ai/follows/{id}`, `GET /api/fun-ai/follows/updates`. Session instructions inject a "FOLLOWING …" opening (top 3). New voice tool `follow_story` (anchor can follow by voice). Web: per-segment follow toggle + Following chips. Mobile: same.
+
+### C. Talk on the Player — Phase 2 + RadioProgrammingPolicyService — web (iter229, 16/17; the 1 "fail" was the demo account's own 20-session/day cap, re-verified via admin)
+New `services/fun_ai_radio_policy.py` — the compliance/decision layer; the model is NEVER the authority. Rules: exact on-demand song → DENIED `ON_DEMAND_NOT_PERMITTED` + alternative; third-party live station → `THIRD_PARTY_SEQUENCE_LOCKED` (only station switch); managed station → format/mood/energy/language changes allowed (persisted to `fun_ai_radio_prefs`); skip rate-limited (`skip_per_hour`, default 6). Admin-configurable (`app_settings.fun_ai_radio_policy`). Endpoints: `POST /api/fun-ai/radio/action`, `GET /api/fun-ai/radio/formats`, `GET /api/fun-ai/radio/now-playing`, admin `GET/PUT /api/admin/fun-ai/radio-policy`. `POST /api/fun-ai/session {surface:'player', station}` returns player tools [get_now_playing, get_available_radio_formats, request_radio_action, record_music_feedback] + player instructions. Web: "Talk to Fun AI" on NowPlayingRadioLife (`rl-talk-funai-btn`) opens the shared panel in player surface; station switches navigate, other decisions toast. NOTE: performing live format changes = a recorded programming directive/preference (the existing radio engine consumes it); station switch navigates; truly re-sequencing live audio remains with the existing engine.
+
+### D. Mobile — listen-only Interactive News now + native voice anchor ready-to-enable (iter230, 7/7 mobile)
+`app/fun-ai-news.tsx` (route `/fun-ai-news`, entry CTA on the News tab): modes, program playback (expo-audio), Follow This Story, sponsor banner, source links — full parity with web on the news side, testable in the Expo preview. The live voice anchor is a NATIVE-BUILD-ONLY feature: `src/fun-ai/grokVoiceNative.ts` holds the complete Grok realtime client (raw WS + PCM16 @16kHz via `expo-stream-audio` + `@speechmatics/expo-two-way-audio`, barge-in, tool relay) but is intentionally NOT imported (keeps the preview bundle working). The mobile Talk button opens an explainer. ENABLE STEPS (after Publish/EAS build) are documented in that file's header: `yarn expo install expo-stream-audio @speechmatics/expo-two-way-audio buffer`, add the plugin + mic permission to app.json, import the hook into the screen, EAS build on a real device.
+
+### Fun AI roadmap (remaining)
+- P1: Enable mobile live voice (install native audio pkgs + app.json perms + EAS build) — cannot be validated in preview.
+- P2: Phase 3 — RJ personalities (Friendly/Energetic/Calm/Funny/Thoughtful; Flirty&Sultry age-gated), voice previews, opt-in companion memory + controls.
+- P2: Phase 4 — full sponsorship engine (commercial breaks, campaign inventory, impression/completion tracking) on the ad stack; Phase 5 — scale, cost dashboard, admin Fun AI analytics.
+- EXTERNAL: rotate XAI_API_KEY (first key was pasted in chat); ensure xAI realtime voice quota; legal/licensing review before enabling any real on-demand/skip beyond current policy.
+
+---
+
+## FUUSIC Fun AI — RJ Personalities, Sponsor admin, Player undo, Mobile voice enablement — COMPLETE — 2026-06 (iter231, 9/9 backend + web + mobile)
+
+### RJ Personalities (web + mobile)
+Friendly/Energetic/Calm/Funny/Thoughtful — ONE global setting applied to BOTH the news anchor and the player RJ. Backend: `fun_ai_prefs` collection; `GET/PUT /api/fun-ai/preferences`; `personality_instructions()` prepended to session instructions on both surfaces; `/config` + `/session` return personality + label. UI: `RjPersonalityPicker.jsx` on Interactive News + Now Playing (web), and a chip row on mobile `/fun-ai-news`. (Flirty&Sultry age-gated personality intentionally NOT built — not requested.)
+
+### Sponsor Setup admin (web)
+New `AdminFunAiNews.jsx` at `/admin/fun-ai-news` (sidebar `adnav-fun-ai-news` under Ad Monetization): enter your OWN approved sponsor name + opening/closing copy, enable toggle, live preview. Persists via existing `GET/PUT /api/admin/fun-ai/news-sponsor`; briefing + anchor opening reflect it. Disabled by default; we never invent sponsors.
+
+### Player Voice Polish — confirm + undo (web)
+Now Playing shows a confirmation toast after a voice radio action with an **Undo** (`rl-radio-action-msg` / `rl-radio-undo`): format/mood/energy/language changes revert via new `POST /api/fun-ai/radio/undo {fields}` (clears those `fun_ai_radio_prefs`); station switch undo navigates back. (The toast is triggered by a live voice tool call — the endpoint + wiring are verified; the live trigger needs a real voice session.)
+
+### Enable Mobile Voice (native-build feature)
+Wired for the next Publish. Installed `expo-stream-audio` + `@speechmatics/expo-two-way-audio` + `buffer`; added the `expo-stream-audio` config plugin, iOS `NSMicrophoneUsageDescription`, Android `RECORD_AUDIO`/`MODIFY_AUDIO_SETTINGS`. Platform split keeps the preview safe: `src/fun-ai/grokVoiceNative.ts` = WEB/Expo-Go stub (`nativeVoiceSupported()=false`), `src/fun-ai/grokVoiceNative.native.ts` = the real Grok realtime client (WS + PCM16 @16kHz via the native modules, barge-in, tool relay). `/fun-ai-news` calls the hook: on a published build it opens a live voice overlay (`fai-voice-live`); in preview `nativeVoiceSupported()` is false → the explainer sheet. **Live mic voice cannot run in Expo Go/web preview — it only works after the user taps Publish and runs a real-device build; the first EAS build is the validation point (if the build complains, add the @speechmatics plugin).**
+
+Remaining Fun AI roadmap: Phase 3 remainder (companion memory + controls, voice previews, Flirty&Sultry age-gate), Phase 4 full sponsorship engine (commercial breaks/inventory/impressions), Phase 5 scale + admin analytics. EXTERNAL: rotate XAI_API_KEY (first key pasted in chat); Publish for live mobile voice.

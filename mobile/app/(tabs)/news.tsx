@@ -85,6 +85,21 @@ export default function NewsScreen() {
         <Text testID="news-title" style={s.title}>News</Text>
         <Text style={s.subtitle}>Breaking headlines & local stories</Text>
 
+        {/* FUUSIC Interactive News — voice AI anchor */}
+        <TouchableOpacity testID="news-interactive-cta" activeOpacity={0.85}
+          onPress={() => router.push('/fun-ai-news')}
+          style={s.interactiveCta}>
+          <View style={s.interactiveIcon}>
+            <Ionicons name="radio" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.interactiveTitle}>Interactive News</Text>
+            <Text style={s.interactiveSub}>Your News. Your Questions. Your AI Anchor.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#fff" />
+        </TouchableOpacity>
+
+
         {/* Local weather + prayer-times strip */}
         {strip && (strip.weather || strip.prayer?.next) && (
           <View style={s.strip} testID="news-local-strip">
@@ -216,6 +231,17 @@ const s = StyleSheet.create({
   scroll: { padding: SPACING.lg, paddingBottom: 40 },
   title: { color: COLORS.text, fontSize: FONT.xxl, fontWeight: '900' },
   subtitle: { color: COLORS.textDim, fontSize: FONT.md, marginBottom: SPACING.md },
+  interactiveCta: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: '#0E7490', borderRadius: RADIUS.lg,
+    padding: SPACING.md, marginBottom: SPACING.md,
+  },
+  interactiveIcon: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  interactiveTitle: { color: '#fff', fontSize: FONT.md, fontWeight: '800' },
+  interactiveSub: { color: 'rgba(255,255,255,0.85)', fontSize: FONT.xs, marginTop: 2 },
   breakingStrip: { marginBottom: SPACING.md },
   breakingCard: {
     width: 260, padding: SPACING.md, borderRadius: RADIUS.lg,

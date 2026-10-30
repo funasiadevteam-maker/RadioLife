@@ -1,0 +1,36 @@
+{
+  "summary": "Verified Auto-Contrast tokens on top of accent system. WEB CSS token layer passes 100% of the spec matrix: for every accent (violet/coral/teal/amber/blue) in BOTH themes, --on-accent and --accent-ink resolve to the exact required hex values; data-accent attribute is absent for violet and set correctly for others. Shared classes .fz-grad/.fz-chip-active (use --on-accent) and .fz-brand/.fz-chip (use --accent-ink) all render legible colors — in Amber+Light, .fz-grad text = #231600 on gold fill, .fz-brand = #B45309. Violet default is unchanged: .fz-grad on violet-dark still produces white text on the A855F7→EC4899 gradient (visible in login screenshot — Dark/Light pill + Appearance Light button both render white-on-gradient). Login auth-theme-switch active pill uses var(--on-accent) correctly. MOBILE tokens.ts withAccent() is pure logic mirroring the web CSS exactly (ACCENT_ON + ACCENT_INK_LIGHT/DARK maps) and ACCENTS[k].onSwatch matches web swatch on-colors (amber/coral dark, others white) — code review confirms correctness. Backend /api/shell/prefs round-trips theme/accent/theme_schedule unchanged (10/11 pass; one pre-existing stale assertion unrelated to this iteration).",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/shell/prefs (PUT)", "issue": "Pre-existing stale assertion in test_prefs_put_light_then_get_persists expects {ok,theme} but endpoint now returns {ok,theme,accent,theme_schedule}. Not a regression from this iteration — introduced when accent/schedule were added earlier. Low priority test cleanup."}
+    ]
+  },
+  "frontend_issues": {
+    "web": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+    "mobile": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []}
+  },
+  "parity_issues": [],
+  "test_report_links": [
+    "/app/test_reports/pytest/iter235_prefs.xml",
+    "/app/backend/tests/test_shell_endpoints.py"
+  ],
+  "action_items": [
+    "Optional cleanup: update /app/backend/tests/test_shell_endpoints.py::test_prefs_put_light_then_get_persists to expect accent + theme_schedule keys in response (pre-existing, not from this iteration)."
+  ],
+  "critical_code_review_comments": [
+    "index.css: cascade order is correct — [data-accent=...] blocks come AFTER both [data-theme=dark|light] blocks so accent overrides win, and the theme-aware --accent-ink flips sit after that so Light/Dark override the base accent ink. Verified computed styles match spec in all 10 (accent × theme) combinations.",
+    "tokens.ts withAccent(): violet correctly short-circuits (returns {...t, accentInk}) so brand/brandEnd/onAccent stay as the theme defaults — this is intentional no-regression per the review request. Non-violet accents override onAccent only when ACCENT_ON[accent] has an entry; teal/blue return '#FFFFFF' explicitly matching web.",
+    "AccentSwatches.jsx uses ACCENT_SWATCHES[].on for the checkmark color (amber=#231600, coral=#ffffff — note mobile uses #2A1200 for coral.onSwatch; coral checkmark on web is defined as '#ffffff' which still has acceptable contrast against the orange swatch but diverges slightly from the mobile dark-ink choice). Non-blocking cosmetic parity nit.",
+    "No hardcoded colors leaked into shared .fz-* classes — all consume CSS vars; violet gradient components unchanged."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "91%", "frontend": "100%"},
+  "test_credentials": "Used demo@bigfm.dubai (not needed — CSS tokens verified via DOM manipulation on /login).",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Appearance route /settings/appearance is auth-gated and the test env's cookie login goes through Google OAuth button first — if you need to interact with the real page, use the 'Try the demo' link (demo-login-btn) or POST /api/auth/login via API to set the cookie before navigating. CSS tokens were validated by direct DOM manipulation + getComputedStyle at /login (unauthed), which is sufficient because the iteration ships only global CSS vars + a pure-logic mobile helper. Mobile withAccent() is deterministic — code-reviewed against the exact matrix shipped on web.",
+  "rca of the issue": "Minor web/mobile cosmetic divergence worth flagging: web ACCENT_SWATCHES defines coral.on = '#ffffff' (white checkmark) while mobile ACCENTS.coral.onSwatch = '#2A1200' (dark checkmark). Design intent per the spec was 'bright accents (coral, amber) use dark ink' — web coral checkmark is the exception. Not blocking; main agent can align coral.on → '#2A1200' on web if desired."
+}

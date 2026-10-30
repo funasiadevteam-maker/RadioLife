@@ -63,6 +63,8 @@ a#emergent-badge,
     --field-border:  rgba(255,255,255,.12);
     --chip-bg:       rgba(168,85,247,.16);
     --chip-active:   #A855F7;
+    --on-accent:     #ffffff;
+    --accent-ink:    #C084FC;
     --live:          #FF3B30;
 }
 
@@ -101,8 +103,47 @@ a#emergent-badge,
     --field-border:  #E4E4E7;
     --chip-bg:       #F3E8FF;
     --chip-active:   #9333EA;
+    --on-accent:     #ffffff;
+    --accent-ink:    #7E22CE;
     --live:          #E02020;
 }
+
+/* ── User-selectable ACCENT (recolours brand-driven elements) ──────────
+   Applied via data-accent on <html>. "violet" is the default (no attribute),
+   so existing screens are untouched. These override the brand tokens for
+   both light & dark, placed AFTER the theme blocks so they win on tie. */
+[data-accent="coral"] {
+    --brand-solid: #F26B2A; --brand-grad-start: #F97316; --brand-grad-end: #FB7185;
+    --accent-pink: #FB7185; --accent-magenta: #F26B2A; --nav-active: #F26B2A;
+    --chip-active: #F26B2A; --chip-bg: rgba(242,107,42,0.12); --on-accent: #2A1200;
+}
+[data-accent="teal"] {
+    --brand-solid: #0D9488; --brand-grad-start: #14B8A6; --brand-grad-end: #06B6D4;
+    --accent-pink: #06B6D4; --accent-magenta: #0D9488; --nav-active: #0D9488;
+    --chip-active: #0D9488; --chip-bg: rgba(13,148,136,0.12); --on-accent: #ffffff;
+}
+[data-accent="amber"] {
+    --brand-solid: #D97706; --brand-grad-start: #F59E0B; --brand-grad-end: #FBBF24;
+    --accent-pink: #FBBF24; --accent-magenta: #D97706; --nav-active: #D97706;
+    --chip-active: #D97706; --chip-bg: rgba(217,119,6,0.12); --on-accent: #231600;
+}
+[data-accent="blue"] {
+    --brand-solid: #2563EB; --brand-grad-start: #3B82F6; --brand-grad-end: #6366F1;
+    --accent-pink: #6366F1; --accent-magenta: #2563EB; --nav-active: #2563EB;
+    --chip-active: #2563EB; --chip-bg: rgba(37,99,235,0.12); --on-accent: #ffffff;
+}
+
+/* Theme-aware accent INK: a readable accent tone for accent-coloured TEXT and
+   BORDERS on the page background — darker in Light, lighter in Dark. */
+[data-theme="dark"][data-accent="coral"] { --accent-ink: #FB923C; }
+[data-theme="light"][data-accent="coral"] { --accent-ink: #C2410C; }
+[data-theme="dark"][data-accent="teal"] { --accent-ink: #2DD4BF; }
+[data-theme="light"][data-accent="teal"] { --accent-ink: #0F766E; }
+[data-theme="dark"][data-accent="amber"] { --accent-ink: #FBBF24; }
+[data-theme="light"][data-accent="amber"] { --accent-ink: #B45309; }
+[data-theme="dark"][data-accent="blue"] { --accent-ink: #93C5FD; }
+[data-theme="light"][data-accent="blue"] { --accent-ink: #1D4ED8; }
+
 
 /* FUUSIC themed utilities — read the semantic theme tokens directly so they
    flip with data-theme and are immune to the legacy shop-desktop-dark remaps
@@ -115,13 +156,13 @@ a#emergent-badge,
 .fz-text      { color: var(--text-primary); }
 .fz-sub       { color: var(--text-secondary); }
 .fz-muted     { color: var(--text-muted); }
-.fz-brand     { color: var(--brand-solid); }
+.fz-brand     { color: var(--accent-ink); }
 .fz-border    { border-color: var(--card-border) !important; }
 .fz-field     { background: var(--field-bg); border: 1px solid var(--field-border); color: var(--text-primary) !important; }
 .fz-field::placeholder { color: var(--text-muted) !important; }
-.fz-chip      { background: var(--chip-bg); color: var(--brand-solid); border: 1px solid var(--card-border); }
-.fz-chip-active { background: var(--chip-active); color: #fff; border: 1px solid transparent; }
-.fz-grad      { background: linear-gradient(90deg, var(--brand-grad-start), var(--brand-grad-end)); color: #fff; }
+.fz-chip      { background: var(--chip-bg); color: var(--accent-ink); border: 1px solid var(--card-border); }
+.fz-chip-active { background: var(--chip-active); color: var(--on-accent); border: 1px solid transparent; }
+.fz-grad      { background: linear-gradient(90deg, var(--brand-grad-start), var(--brand-grad-end)); color: var(--on-accent); }
 .fz-brand-soft { background: color-mix(in srgb, var(--brand-solid) 12%, transparent); border: 1px solid color-mix(in srgb, var(--brand-solid) 30%, transparent); }
 
 /* Social tab (SocialV2) — light-mode remap of its hardcoded glass/dark

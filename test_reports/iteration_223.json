@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 223 — M3 (Follow Channel + 30s Share Segment), Trip Price Alerts, Hotels City Picker, and My Trips Sync tested on backend + web + mobile. 8/8 backend tests pass (channel follow+status+unfollow, share-segment 403-on-external, share-segment 200 on /api/radio/*, feed-preferences includes ch_<slug>, /travel/watches CRUD with drop_pct/dropped fields + alert_drop_pct=5, /travel/saved CRUD across flight/hotel/car). Web /shop/travel: Trending renders 6 watch-btn-<DEST> & 6 save-btn-<DEST>, toggling a watch mounts the travel-watching strip with remove, saving a flight pushes it into /shop/travel/trips (trips-saved-flights/hotels/cars present with saved-remove-* controls). Web Hotels/Cars tabs (rendered inline inside /shop/travel, NOT at /shop/travel/search which is instead matched as a deal_id and 404s to 'Deal not found') — tabs show, hotels-city-picker renders 8 chips (254 Dubai default, 3 Singapore, 4 Bangkok, 2, 25, 50, 64, 5), switching to chip-3 remounts travel-content-widget, travel-save-hotel + travel-save-car save successfully. Mobile parity on /shop/travel + /shop/travel/trips + /shop/travel/search (travel-search-web-notice as expected on Expo web preview); mobile /now-playing shows now-playing-follow-btn (toggles) and now-playing-clip-btn correctly DISABLED until a segment is playing. Web Now Playing (/radio/station/{slug}) overlay DID NOT render in this preview — see action items.",
+  "platforms_tested": ["web", "mobile"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "web": {
+      "ui_bugs": [
+        {"component": "NowPlayingRadioLife overlay", "issue": "Visiting /radio/station/vip_lounge (or /now-playing?ch=vip_lounge — route doesn't exist in App.js at all) does NOT mount the RadioLife overlay. The route is served by legacy LiveRadioStation which calls /live-radio/stations/vip_lounge (404 — vip_lounge is a FUUSIC channel slug, not a live_radio station). The FUUSICOverlay only mounts when useDesignVariantStore.variant==='radiolife'; setting localStorage design_variant to 'radiolife' or 'fuusic' still didn't surface rl-now-playing. Result: rl-follow-show-btn and rl-clip-btn could not be tested on web.", "selector": "[data-testid='rl-now-playing']", "priority": "HIGH"}
+      ],
+      "integration_issues": [
+        {"flow": "Hotels Klook widget", "issue": "Klook script logs 'KlookAff: Invalid product type: auto_dynamic_widget--amount' when the Hotels tab is active — the travel-content-widget container itself mounts correctly but Klook's own iframe content fails. Pre-existing from iter222; third-party widget — mocked per request.", "affected_selectors": ["[data-testid='travel-content-widget']"]}
+      ],
+      "design_issues": []
+    },
+    "mobile": {
+      "ui_bugs": [],
+      "integration_issues": [],
+      "design_issues": [],
+      "react_native_issues": []
+    }
+  },
+  "parity_issues": [
+    {"flow": "Now Playing — Follow + 30s Clip", "platform": "web", "issue": "Mobile /now-playing fully works (follow toggles, clip disabled while no segment), but on web no route reliably mounts rl-now-playing in this preview — the described routes (/radio/station/{slug} with channel slug, /now-playing?ch=) both fall through to legacy LiveRadioStation / 'Deal not found' / landing. Cannot verify rl-follow-show-btn / rl-clip-btn in current build.", "expected": "Web Now Playing overlay renders when visiting /radio/station/{channel_slug} like it does for mobile /now-playing.", "actual": "Overlay never mounts; legacy LiveRadioStation shows 'We couldn't find that station'. No /now-playing web route exists in App.js."},
+    {"flow": "Travel Live Search entry", "platform": "web", "issue": "/shop/travel/search on WEB is matched as a travel deal detail (deal_id='search') and renders 'Deal not found. Back to Travel'. The actual Live Search UI (travel-tab-flights/hotels/cars) is rendered INLINE on /shop/travel. Mobile has a dedicated /shop/travel/search route. This is intentional per design but may confuse end users who deep-link.", "expected": "/shop/travel/search either shows Live Search or redirects to /shop/travel.", "actual": "Shows 404-style 'Deal not found' because the catch-all deal detail route eats it."}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter223_m3_travel_batch.py",
+    "/app/test_reports/pytest/iter223.xml"
+  ],
+  "action_items": [
+    "Mount the RadioLife Now Playing overlay (rl-now-playing / rl-follow-show-btn / rl-clip-btn) on web when the URL is /radio/station/{channel_slug}. Either (a) add a /now-playing route to App.js that renders NowPlayingRadioLife directly, or (b) make FUUSICOverlay recognise FUUSIC channel slugs (ch_*) regardless of design variant, or (c) ensure the default design variant for this build is 'radiolife'. Without this, demo users cannot test Follow/Live-Clip on web.",
+    "(Low) Add a dedicated /shop/travel/search route on web (or 301→/shop/travel) so the URL doesn't fall into the deal_id={search} 'Deal not found' page.",
+    "(Carried from iter222) Klook hotel widget still logs 'Invalid product type: auto_dynamic_widget--amount' — cosmetic third-party error, not blocking."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/design_radiolife/RadioLifeOverlay.jsx: the overlay is route-matched (pathname.startsWith('/radio/station/')) but ONLY mounts when useDesignVariantStore.variant==='radiolife' (see App.js:455 designVariant). In the current preview build the default variant is not 'radiolife' and setting localStorage.design_variant doesn't propagate until a full page reload sequence — this effectively hides the new Follow/Clip features on web for anyone not already in that variant. Consider mounting the FUUSIC Now Playing screen on a dedicated /now-playing route that is variant-agnostic.",
+    "backend/routes/radio_clips.py: _is_owned_audio() does an exact substring check on '/api/radio/' — fine for FUUSIC-owned paths, but a hostile client could POST something like 'https://evil.com/api/radio/x.mp3' and bypass. Consider restricting to a trusted host prefix OR to a path that starts with /api/radio/."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter223_m3_travel_batch.py",
+    "/app/test_reports/iteration_223.json"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "mobile 100%, web 85% (Now Playing overlay not reachable)"},
+  "test_credentials": "demo@bigfm.dubai / DemoPass123! (web cookie); mobile demo-login-btn.",
+  "seed_data_creation": "A handful of TEST_iter223_* saved trips + a channel follow/unfollow + one share-segment clip created during tests; cleaned up where possible.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend tests at /app/backend/tests/test_iter223_m3_travel_batch.py are complete and all green. Web /shop/travel + /shop/travel/trips flows (watch, save flight/hotel/car) all work end-to-end. Mobile /shop/travel + /shop/travel/trips + /shop/travel/search tabs + /now-playing all work. The ONE outstanding frontend issue is that the web Now Playing overlay (rl-now-playing) does not mount for channel slugs via /radio/station/{slug} in this preview build — main agent must verify the variant gating or add a dedicated web route. Also note /shop/travel/search on web falls into 'Deal not found' because the Live Search widgets live inline inside /shop/travel on web (unlike mobile which uses a separate screen).",
+  "rca of the issue": "WEB Now Playing non-rendering: FUUSICOverlay in App.js is gated by useDesignVariantStore.variant==='radiolife'. In the current preview the active variant is a different value (likely 'legacy' or 'fuusic'), so pathname.startsWith('/radio/station/') never triggers the NowPlayingRadioLife screen. Meanwhile the legacy /radio/station/:id → LiveRadioStation component GETs /api/live-radio/stations/{id}, and FUUSIC channel slugs (ch_*) aren't present there → 404 → 'We couldn't find that station' fallback. Fix is either (a) a dedicated variant-agnostic /now-playing route, (b) look up channels in LiveRadioStation and delegate to NowPlayingRadioLife, or (c) force variant='radiolife' when a channel slug is used."
+}

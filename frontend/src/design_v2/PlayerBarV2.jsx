@@ -3,7 +3,8 @@
 // GlobalAudio), just a larger, richer presentation: big artwork, transport,
 // a live progress bar, city, BigPoints and favorites.
 import React from "react";
-import { Play, Pause, Users, Moon } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Play, Pause, SkipForward, Loader2, Users, Moon } from "lucide-react";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useGeoStore } from "@/store/useGeoStore";
 import { useStationFavoritesStore } from "@/store/useStationFavoritesStore";
@@ -86,6 +87,9 @@ export default function PlayerBarV2() {
   const currentRjSegment = usePlayerStore((s) => s.currentRjSegment);
   const currentTime   = usePlayerStore((s) => s.currentTime);
   const duration      = usePlayerStore((s) => s.duration);
+  const advancing     = usePlayerStore((s) => s.advancing);
+  const skipUsed      = usePlayerStore((s) => s.skipUsed);
+  const skipLimit     = usePlayerStore((s) => s.skipLimit);
   const footerCity    = useGeoStore((s) => s.city);
 
   const favBootstrap = useStationFavoritesStore((s) => s.bootstrap);
@@ -200,8 +204,11 @@ export default function PlayerBarV2() {
         )}
       </button>
 
-      {/* Title · subtitle · progress */}
-      <div className="min-w-0 flex-1 sm:flex-none sm:w-[220px] xl:w-[280px]">
+      {/* Title · subtitle · progress — tap to open Now Playing (Follow + Clip) */}
+      <Link
+        to="/now-playing"
+        data-testid="nlv2-player-expand"
+        className={["min-w-0 flex-1 sm:flex-none sm:w-[220px] xl:w-[280px] block", hasContent ? "cursor-pointer" : "pointer-events-none"].join(" ")}>
         <div className="flex items-center gap-2">
           {activeSource && (
             <span className="hidden sm:inline text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded"
@@ -224,7 +231,7 @@ export default function PlayerBarV2() {
             </div>
           ) : null
         )}
-      </div>
+      </Link>
 
       {/* Transport */}
       <button
@@ -237,6 +244,24 @@ export default function PlayerBarV2() {
         style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)", color: "#fff" }}>
         {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
       </button>
+
+      {/* Skip / Next — only for the AI-composed radio session. */}
+      {activeSource === "AI" && (
+        <button
+          type="button"
+          onClick={() => {
+            if (advancing || !sessionId) return;
+            window.dispatchEvent(new CustomEvent("bigfm:player:skip"));
+          }}
+          disabled={advancing || !sessionId || (skipLimit > 0 && skipUsed >= skipLimit)}
+          data-testid="nlv2-player-skip"
+          aria-label="Skip to next"
+          title={skipLimit > 0 && skipUsed >= skipLimit ? "Skip limit reached" : "Skip"}
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full grid place-items-center flex-shrink-0 transition-transform hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: "rgba(255,255,255,0.06)", color: "#d8b4fe", border: "1px solid rgba(255,255,255,0.10)" }}>
+          {advancing ? <Loader2 size={16} className="animate-spin" /> : <SkipForward size={16} fill="currentColor" />}
+        </button>
+      )}
 
       <div className="flex-1 hidden sm:block" />
 

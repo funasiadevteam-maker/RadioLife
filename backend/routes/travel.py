@@ -7,6 +7,7 @@ reuses the BigPoints demo flow. Admins manage the catalogue via /admin/deals.
 Platform-agnostic (web + mobile)."""
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -14,7 +15,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth import current_user, require_admin
 
@@ -461,6 +462,217 @@ _SEED: List[Dict[str, Any]] = [
 ]
 
 
+# ---- Trip Price Alerts (watch a route, ping on ≥5% drop) ------------------
+_ALERT_DROP_PCT = 5.0
+
+
+async def _origin_price_map(db, origin: str) -> Dict[str, Dict[str, Any]]:
+    """Full {dest: {price,...}} map from city-directions for an origin,
+    cached 24h (separate from the recognisable-only trending cache)."""
+    origin = (origin or "").upper()[:3]
+    now_ts = _now().timestamp()
+    cache = await db.travel_prices_cache.find_one({"_id": origin})
+    if cache and isinstance(cache.get("fetched_ts"), (int, float)) \
+            and (now_ts - cache["fetched_ts"]) < _TRENDING_TTL_H * 3600:
+        return cache.get("prices") or {}
+    token = os.environ.get("TRAVELPAYOUTS_API_TOKEN")
+    prices: Dict[str, Dict[str, Any]] = {}
+    if token:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(_TP_CITY_DIRECTIONS,
+                                      params={"origin": origin, "currency": "usd", "token": token})
+            data = (r.json() or {}).get("data") or {}
+            for dest, row in data.items():
+                prices[dest] = {
+                    "price": int(row.get("price") or 0), "airline": row.get("airline"),
+                    "transfers": int(row.get("transfers") or 0),
+                    "departure_at": row.get("departure_at"), "return_at": row.get("return_at"),
+                }
+        except Exception:
+            prices = {}
+    if prices:
+        await db.travel_prices_cache.update_one(
+            {"_id": origin}, {"$set": {"prices": prices, "fetched_ts": now_ts}}, upsert=True)
+    elif cache:
+        prices = cache.get("prices") or {}
+    return prices
+
+
+def _iso(v):
+    return v.isoformat() if isinstance(v, datetime) else v
+
+
+def _watch_public(w: Dict[str, Any], current: int) -> Dict[str, Any]:
+    o, d = w.get("origin"), w.get("destination")
+    om, dm = IATA_NAMES.get(o) or {}, IATA_NAMES.get(d) or {}
+    base = int(w.get("baseline_price") or 0)
+    cur = int(current or base)
+    drop_pct = round((base - cur) / base * 100, 1) if base > 0 and cur < base else 0.0
+    return {
+        "watch_id": w["_id"], "origin": o, "destination": d,
+        "origin_city": om.get("city") or o, "city": dm.get("city") or d,
+        "country": dm.get("country") or "", "emoji": dm.get("emoji") or "✈️",
+        "baseline_price": base, "current_price": cur, "drop_pct": drop_pct,
+        "dropped": drop_pct >= _ALERT_DROP_PCT, "currency": "USD",
+        "deep_link": w.get("deep_link"), "created_at": _iso(w.get("created_at")),
+    }
+
+
+async def _notify_price_drop(db, uid: str, w: Dict[str, Any], cur: int) -> None:
+    o, d = w.get("origin"), w.get("destination")
+    om, dm = IATA_NAMES.get(o) or {}, IATA_NAMES.get(d) or {}
+    route = f"{om.get('city', o)} → {dm.get('city', d)}"
+    base = int(w.get("baseline_price") or 0)
+    title = f"Fare drop: {route}"
+    msg = (f"{dm.get('emoji', '✈️')} {route} is now ${cur} (was ${base}). "
+           "Book before it climbs again.")
+    try:
+        from routes.notifications import _enqueue
+        await _enqueue(db, owner_user_id=uid, station_id="travel",
+                       station_slug="travel", type_="travel_price_drop",
+                       payload={"title": title, "body": msg, "message": msg,
+                                "emoji": dm.get("emoji", "✈️"), "route": route,
+                                "old_price": base, "new_price": cur,
+                                "cta_url": w.get("deep_link")},
+                       dedupe_key=f"tw_drop_{w['_id']}_{cur}")
+    except Exception:
+        pass
+    try:
+        u = await db.users.find_one({"user_id": uid})
+        email = (u or {}).get("email")
+        if email:
+            from services.mailgun_client import send_email
+            await asyncio.to_thread(send_email, email, title,
+                                    f"<p>{msg}</p>", text=msg)
+    except Exception:
+        pass
+
+
+class WatchBody(BaseModel):
+    origin: str = Field(..., max_length=3)
+    destination: str = Field(..., max_length=3)
+    price: int = Field(..., ge=0)
+    deep_link: Optional[str] = Field(None, max_length=600)
+
+
+@router.get("/watches")
+async def list_watches(request: Request, user: dict = Depends(current_user)):
+    """List the user's watched routes with live current price + drop flag.
+    Detects ≥5% drops here (fires an in-app + email ping, deduped per price)."""
+    db = request.app.state.db
+    uid = user["user_id"]
+    rows = [w async for w in db.travel_price_watches.find(
+        {"user_id": uid}).sort("created_at", -1).limit(50)]
+    out: List[Dict[str, Any]] = []
+    price_maps: Dict[str, Dict[str, Any]] = {}
+    for w in rows:
+        o = w.get("origin")
+        if o not in price_maps:
+            price_maps[o] = await _origin_price_map(db, o)
+        cur = (price_maps[o].get(w.get("destination")) or {}).get("price") \
+            or int(w.get("last_price") or 0) or int(w.get("baseline_price") or 0)
+        cur = int(cur)
+        base = int(w.get("baseline_price") or 0)
+        upd = {"last_price": cur}
+        if base > 0 and cur > 0 and cur <= base * (1 - _ALERT_DROP_PCT / 100) \
+                and int(w.get("notified_price") or 0) != cur:
+            await _notify_price_drop(db, uid, w, cur)
+            upd["notified_price"] = cur
+        await db.travel_price_watches.update_one({"_id": w["_id"]}, {"$set": upd})
+        out.append(_watch_public(w, cur))
+    return {"items": out, "alert_drop_pct": _ALERT_DROP_PCT}
+
+
+@router.post("/watches")
+async def add_watch(body: WatchBody, request: Request,
+                    user: dict = Depends(current_user)):
+    db = request.app.state.db
+    uid = user["user_id"]
+    o, d = body.origin.upper()[:3], body.destination.upper()[:3]
+    _id = f"tw_{uid[:10]}_{o}_{d}"
+    await db.travel_price_watches.update_one(
+        {"_id": _id},
+        {"$set": {"user_id": uid, "origin": o, "destination": d,
+                  "baseline_price": int(body.price), "deep_link": body.deep_link,
+                  "last_price": int(body.price), "updated_at": _now()},
+         "$setOnInsert": {"created_at": _now(), "notified_price": 0}},
+        upsert=True)
+    return {"ok": True, "watch_id": _id}
+
+
+@router.delete("/watches/{watch_id}")
+async def remove_watch(watch_id: str, request: Request,
+                       user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await db.travel_price_watches.delete_one(
+        {"_id": watch_id, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+# ---- My Trips Sync (save flights/hotels/cars into one place) ---------------
+_SAVED_TYPES = ("flight", "hotel", "car")
+
+
+class SavedTripBody(BaseModel):
+    trip_type: str = Field(..., max_length=12)
+    title: str = Field(..., max_length=160)
+    subtitle: Optional[str] = Field(None, max_length=200)
+    deep_link: Optional[str] = Field(None, max_length=600)
+    image_url: Optional[str] = Field(None, max_length=600)
+    price_label: Optional[str] = Field(None, max_length=60)
+    origin: Optional[str] = Field(None, max_length=3)
+    destination: Optional[str] = Field(None, max_length=3)
+
+
+def _saved_public(s: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "saved_id": s["_id"], "trip_type": s.get("trip_type"),
+        "title": s.get("title"), "subtitle": s.get("subtitle"),
+        "deep_link": s.get("deep_link"), "image_url": s.get("image_url"),
+        "price_label": s.get("price_label"), "origin": s.get("origin"),
+        "destination": s.get("destination"), "created_at": _iso(s.get("created_at")),
+    }
+
+
+@router.post("/saved")
+async def save_trip(body: SavedTripBody, request: Request,
+                    user: dict = Depends(current_user)):
+    db = request.app.state.db
+    tt = body.trip_type if body.trip_type in _SAVED_TYPES else "flight"
+    _id = f"st_{uuid.uuid4().hex[:14]}"
+    await db.travel_saved_trips.insert_one({
+        "_id": _id, "user_id": user["user_id"], "trip_type": tt,
+        "title": body.title[:160], "subtitle": body.subtitle,
+        "deep_link": body.deep_link, "image_url": body.image_url,
+        "price_label": body.price_label,
+        "origin": (body.origin or None), "destination": (body.destination or None),
+        "created_at": _now(),
+    })
+    return {"ok": True, "saved_id": _id}
+
+
+@router.delete("/saved/{saved_id}")
+async def unsave_trip(saved_id: str, request: Request,
+                      user: dict = Depends(current_user)):
+    db = request.app.state.db
+    await db.travel_saved_trips.delete_one(
+        {"_id": saved_id, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+@router.get("/saved")
+async def list_saved(request: Request, user: dict = Depends(current_user)):
+    db = request.app.state.db
+    groups: Dict[str, List[Dict[str, Any]]] = {"flight": [], "hotel": [], "car": []}
+    async for s in db.travel_saved_trips.find(
+            {"user_id": user["user_id"]}).sort("created_at", -1).limit(100):
+        groups.setdefault(s.get("trip_type") or "flight", []).append(_saved_public(s))
+    return {"flights": groups.get("flight", []),
+            "hotels": groups.get("hotel", []),
+            "cars": groups.get("car", [])}
+
+
 async def ensure_travel(db):
     """Idempotently seed curated demo deals + indexes on startup."""
     try:
@@ -472,6 +684,8 @@ async def ensure_travel(db):
                 upsert=True)
         await db.category_follows.create_index([("user_id", 1), ("topic", 1)], unique=True)
         await db.travel_deals.create_index([("deal_type", 1)])
+        await db.travel_price_watches.create_index([("user_id", 1)])
+        await db.travel_saved_trips.create_index([("user_id", 1)])
     except Exception:
         pass
 

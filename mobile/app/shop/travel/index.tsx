@@ -39,12 +39,23 @@ const HUBS: { iata: string; city: string; emoji: string }[] = [
   { iata: 'KHI', city: 'Karachi', emoji: '🇵🇰' },
 ];
 
+const rkey = (o: string, d: string) => `${o}|${d}`;
+
+type Watch = {
+  watch_id: string; origin: string; destination: string; origin_city: string;
+  city: string; emoji: string; current_price: number; baseline_price: number;
+  drop_pct: number; dropped: boolean;
+};
+
 function TrendingRow() {
   const [origin, setOrigin] = useState<string | null>(null);
   const [originCity, setOriginCity] = useState('Dubai');
   const [confident, setConfident] = useState(true);
   const [items, setItems] = useState<Trend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [watchItems, setWatchItems] = useState<Watch[]>([]);
+  const [watched, setWatched] = useState<Set<string>>(new Set());
+  const [saved, setSaved] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let on = true;
@@ -75,11 +86,86 @@ function TrendingRow() {
     return () => { on = false; };
   }, [origin]);
 
+  const loadWatches = () => {
+    api.get('/travel/watches').then((r) => {
+      const its: Watch[] = r.data?.items || [];
+      setWatchItems(its);
+      setWatched(new Set(its.map((w) => rkey(w.origin, w.destination))));
+    }).catch(() => {});
+  };
+  const loadSaved = () => {
+    api.get('/travel/saved').then((r) => {
+      const fl = r.data?.flights || [];
+      setSaved(new Set(fl.filter((f: any) => f.origin && f.destination).map((f: any) => rkey(f.origin, f.destination))));
+    }).catch(() => {});
+  };
+  useEffect(() => { loadWatches(); loadSaved(); }, []);
+
+  const toggleWatch = async (it: Trend) => {
+    const k = rkey(origin || '', it.destination);
+    if (watched.has(k)) {
+      const w = watchItems.find((x) => rkey(x.origin, x.destination) === k);
+      setWatched((s) => { const n = new Set(s); n.delete(k); return n; });
+      if (w) await api.delete(`/travel/watches/${w.watch_id}`).catch(() => {});
+      loadWatches();
+    } else {
+      setWatched((s) => new Set(s).add(k));
+      await api.post('/travel/watches', { origin, destination: it.destination, price: it.price, deep_link: it.deep_link }).catch(() => {});
+      loadWatches();
+    }
+  };
+  const toggleSave = async (it: Trend) => {
+    const k = rkey(origin || '', it.destination);
+    if (saved.has(k)) return;
+    setSaved((s) => new Set(s).add(k));
+    await api.post('/travel/saved', {
+      trip_type: 'flight', title: `${originCity} → ${it.city}`,
+      subtitle: `${it.transfers === 0 ? 'Direct' : it.transfers + ' stop'} · ${it.airline || ''}`.trim(),
+      deep_link: it.deep_link, price_label: `$${it.price}`, origin, destination: it.destination,
+    }).catch(() => {});
+  };
+  const removeWatch = async (w: Watch) => {
+    setWatchItems((xs) => xs.filter((x) => x.watch_id !== w.watch_id));
+    setWatched((s) => { const n = new Set(s); n.delete(rkey(w.origin, w.destination)); return n; });
+    await api.delete(`/travel/watches/${w.watch_id}`).catch(() => {});
+  };
+
   const hubList = (!origin || HUBS.some((h) => h.iata === origin))
     ? HUBS : [{ iata: origin, city: originCity, emoji: '📍' }, ...HUBS];
 
   return (
     <View style={{ marginTop: 6 }} testID="travel-trending">
+      {watchItems.length > 0 && (
+        <View testID="travel-watching" style={{ marginBottom: 6 }}>
+          <View style={tr.head}>
+            <Ionicons name="notifications-outline" size={14} color={COLORS.primary} />
+            <Text style={tr.headTxt}>Price watch</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: 8, paddingBottom: 6 }}>
+            {watchItems.map((w) => (
+              <View key={w.watch_id} testID={`watch-${w.destination}`} style={tr.watchCard}>
+                <Text style={{ fontSize: 16 }}>{w.emoji}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={tr.watchRoute} numberOfLines={1}>{w.origin_city} → {w.city}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Text style={tr.watchPrice}>${w.current_price}</Text>
+                    {w.dropped && (
+                      <View style={tr.dropBadge}>
+                        <Ionicons name="trending-down" size={9} color="#fff" />
+                        <Text style={tr.dropTxt}>-{w.drop_pct}%</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => removeWatch(w)} testID={`watch-remove-${w.destination}`} hitSlop={8}>
+                  <Ionicons name="close" size={14} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
       <View style={tr.head}>
         <Ionicons name="trending-up" size={15} color={COLORS.primary} />
         <Text style={tr.headTxt} numberOfLines={1}>Trending from {originCity}</Text>
@@ -112,16 +198,32 @@ function TrendingRow() {
         ) : items.length === 0 ? (
           <Text style={tr.empty}>No live prices for this origin right now.</Text>
         ) : (
-          items.map((it) => (
-            <TouchableOpacity key={it.destination} activeOpacity={0.85} testID={`trending-${it.destination}`}
-              onPress={() => Linking.openURL(it.deep_link).catch(() => {})} style={tr.card}>
-              <Text style={{ fontSize: 22 }}>{it.emoji}</Text>
-              <Text style={tr.city} numberOfLines={1}>{it.city}</Text>
-              <Text style={tr.country} numberOfLines={1}>{it.country}</Text>
-              <Text style={tr.price}>from {money(it.price * 100)}</Text>
-              <Text style={tr.sub}>{it.transfers === 0 ? 'Direct' : `${it.transfers} stop`} · {it.airline}</Text>
-            </TouchableOpacity>
-          ))
+          items.map((it) => {
+            const k = rkey(origin || '', it.destination);
+            const isW = watched.has(k), isS = saved.has(k);
+            return (
+              <View key={it.destination} style={tr.card} testID={`trending-${it.destination}`}>
+                <TouchableOpacity activeOpacity={0.85}
+                  onPress={() => Linking.openURL(it.deep_link).catch(() => {})}>
+                  <Text style={{ fontSize: 22 }}>{it.emoji}</Text>
+                  <Text style={tr.city} numberOfLines={1}>{it.city}</Text>
+                  <Text style={tr.country} numberOfLines={1}>{it.country}</Text>
+                  <Text style={tr.price}>from {money(it.price * 100)}</Text>
+                  <Text style={tr.sub}>{it.transfers === 0 ? 'Direct' : `${it.transfers} stop`} · {it.airline}</Text>
+                </TouchableOpacity>
+                <View style={tr.cardActions}>
+                  <TouchableOpacity onPress={() => toggleWatch(it)} testID={`watch-btn-${it.destination}`}
+                    style={[tr.cardActBtn, isW && tr.cardActBtnOn]}>
+                    <Ionicons name={isW ? 'notifications' : 'notifications-outline'} size={13} color={isW ? '#fff' : COLORS.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => toggleSave(it)} testID={`save-btn-${it.destination}`}
+                    style={[tr.cardActBtn, isS && tr.cardActBtnOn]}>
+                    <Ionicons name={isS ? 'bookmark' : 'bookmark-outline'} size={13} color={isS ? '#fff' : COLORS.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })
         )}
       </ScrollView>
     </View>
@@ -145,6 +247,14 @@ const tr = StyleSheet.create({
   originChipTxt: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
   originChipTxtOn: { color: '#fff' },
   empty: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: SPACING.md, paddingVertical: 10 },
+  watchCard: { flexShrink: 0, minWidth: 172, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: RADIUS.md, paddingHorizontal: 10, paddingVertical: 8 },
+  watchRoute: { color: COLORS.text, fontSize: FONT.xs, fontWeight: '900' },
+  watchPrice: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
+  dropBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: COLORS.green, borderRadius: 999, paddingHorizontal: 5, paddingVertical: 1 },
+  dropTxt: { color: '#fff', fontSize: 9, fontWeight: '900' },
+  cardActions: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  cardActBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.inputBg },
+  cardActBtnOn: { backgroundColor: COLORS.primary },
 });
 const TYPES: { key: string; label: string; icon: any }[] = [
   { key: 'all', label: 'All', icon: 'globe-outline' },

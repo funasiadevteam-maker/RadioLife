@@ -12,6 +12,7 @@ import { SPACING, FONT, RADIUS } from '../../src/constants/theme';
 import { useThemeTokens } from '../../src/theme/ThemeProvider';
 import type { ThemeTokens } from '../../src/theme/tokens';
 import { useCartStore } from '../../src/stores/useCartStore';
+import { useResponsive } from '../../src/hooks/useResponsive';
 
 interface Biz {
   business_id: string; public_name: string; category: string; subcategory?: string;
@@ -39,6 +40,7 @@ export default function ShopHome() {
   const menuCart = useCartStore();
   const t = useThemeTokens();
   const s = makeStyles(t);
+  const resp = useResponsive();
 
   const load = useCallback(async () => {
     try {
@@ -109,7 +111,7 @@ export default function ShopHome() {
 
   return (
     <SafeAreaView style={s.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 90 }} testID="shop-home-root"
+      <ScrollView contentContainerStyle={[{ paddingBottom: 90 }, resp.grid]} testID="shop-home-root"
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.primary}
           onRefresh={() => { setRefreshing(true); load(); }} />}>
 

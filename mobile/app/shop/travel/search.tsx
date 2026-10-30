@@ -5,10 +5,12 @@
 import React, { useRef, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ActivityIndicator, SafeAreaView, Platform,
+  ScrollView, TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
+import api from '../../../src/api/client';
 import { COLORS, SPACING, FONT } from '../../../src/constants/theme';
 
 type Tab = 'flights' | 'hotels' | 'cars';
@@ -31,7 +33,20 @@ const WL_FLIGHTS = `<!DOCTYPE html>
 </body>
 </html>`;
 
-const KLOOK_HOTELS = 'https://tpwidg.com/content?currency=USD&trs=587763&shmarker=174867&locale=en-US&city_id=2&category=4&amount=6&powered_by=true&campaign_id=137&promo_id=4497&sub_id=fuusic_app';
+const KLOOK_CITIES: { id: number; label: string; emoji: string }[] = [
+  { id: 254, label: 'Dubai', emoji: '🇦🇪' },
+  { id: 3, label: 'Singapore', emoji: '🇸🇬' },
+  { id: 4, label: 'Bangkok', emoji: '🇹🇭' },
+  { id: 2, label: 'Hong Kong', emoji: '🇭🇰' },
+  { id: 25, label: 'Tokyo', emoji: '🇯🇵' },
+  { id: 50, label: 'Seoul', emoji: '🇰🇷' },
+  { id: 64, label: 'Bali', emoji: '🇮🇩' },
+  { id: 5, label: 'Kuala Lumpur', emoji: '🇲🇾' },
+  { id: 360, label: 'London', emoji: '🇬🇧' },
+  { id: 487, label: 'Paris', emoji: '🇫🇷' },
+];
+const klookHotelsSrc = (cityId: number) =>
+  `https://tpwidg.com/content?currency=USD&trs=587763&shmarker=174867&locale=en-US&city_id=${cityId}&category=4&amount=6&powered_by=true&campaign_id=137&promo_id=4497&sub_id=fuusic_app`;
 const CARS = 'https://tpwidg.com/content?trs=587763&shmarker=174867&locale=en-US&country=153&city=68511&powered_by=true&campaign_id=87&promo_id=2466&sub_id=fuusic_app';
 
 const contentHtml = (src: string) => `<!DOCTYPE html>
@@ -48,8 +63,8 @@ const contentHtml = (src: string) => `<!DOCTYPE html>
 </body>
 </html>`;
 
-const htmlFor = (t: Tab) =>
-  t === 'flights' ? WL_FLIGHTS : t === 'hotels' ? contentHtml(KLOOK_HOTELS) : contentHtml(CARS);
+const htmlFor = (t: Tab, hotelCity: number) =>
+  t === 'flights' ? WL_FLIGHTS : t === 'hotels' ? contentHtml(klookHotelsSrc(hotelCity)) : contentHtml(CARS);
 
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'flights', label: 'Flights', icon: 'airplane' },
@@ -62,11 +77,23 @@ export default function TravelSearchScreen() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState<Tab>('flights');
+  const [hotelCity, setHotelCity] = useState(254);
+  const [savedTypes, setSavedTypes] = useState<Record<string, boolean>>({});
   const webRef = useRef<WebView>(null);
+  const cityLabel = (KLOOK_CITIES.find((c) => c.id === hotelCity) || KLOOK_CITIES[0]).label;
 
   const switchTab = (t: Tab) => {
     if (t === tab) return;
     setTab(t); setLoading(true); setFailed(false);
+  };
+  const pickCity = (id: number) => {
+    if (id === hotelCity) return;
+    setHotelCity(id); setLoading(true); setFailed(false);
+  };
+  const saveSearch = async (type: 'hotel' | 'car') => {
+    setSavedTypes((m) => ({ ...m, [type]: true }));
+    const title = type === 'hotel' ? `Hotels in ${cityLabel}` : 'Car rental';
+    await api.post('/travel/saved', { trip_type: type, title, subtitle: `Saved ${type} search` }).catch(() => {});
   };
 
   return (
@@ -92,6 +119,31 @@ export default function TravelSearchScreen() {
         })}
       </View>
 
+      {tab === 'hotels' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.cityRow} testID="hotels-city-picker">
+          {KLOOK_CITIES.map((c) => {
+            const on = hotelCity === c.id;
+            return (
+              <TouchableOpacity key={c.id} onPress={() => pickCity(c.id)} testID={`hotel-city-${c.id}`}
+                style={[styles.cityChip, on && styles.cityChipOn]}>
+                <Text style={[styles.cityChipTxt, on && styles.cityChipTxtOn]}>{c.emoji} {c.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+      {(tab === 'hotels' || tab === 'cars') && (() => {
+        const stype: 'hotel' | 'car' = tab === 'hotels' ? 'hotel' : 'car';
+        return (
+          <TouchableOpacity testID={`travel-save-${stype}`} onPress={() => saveSearch(stype)}
+            disabled={!!savedTypes[stype]} style={styles.saveBar}>
+            <Ionicons name={savedTypes[stype] ? 'checkmark-circle' : 'bookmark-outline'} size={15} color={COLORS.primary} />
+            <Text style={styles.saveBarTxt}>{savedTypes[stype] ? 'Saved to My Trips' : 'Save this search to My Trips'}</Text>
+          </TouchableOpacity>
+        );
+      })()}
+
       <View style={{ flex: 1 }} testID="travel-search-webview">
         {Platform.OS === 'web' ? (
           <View style={styles.overlay} testID="travel-search-web-notice">
@@ -107,10 +159,10 @@ export default function TravelSearchScreen() {
           </View>
         ) : (
           <WebView
-            key={tab}
+            key={`${tab}-${hotelCity}`}
             ref={webRef}
             originWhitelist={['*']}
-            source={{ html: htmlFor(tab), baseUrl: 'https://tpwidg.com/' }}
+            source={{ html: htmlFor(tab, hotelCity), baseUrl: 'https://tpwidg.com/' }}
             javaScriptEnabled
             domStorageEnabled
             setSupportMultipleWindows={false}
@@ -159,4 +211,11 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: COLORS.primary },
   tabTxt: { color: COLORS.textMuted, fontSize: FONT.sm, fontWeight: '900' },
   tabTxtOn: { color: '#fff' },
+  cityRow: { gap: 8, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
+  cityChip: { flexShrink: 0, height: 32, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 999, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder },
+  cityChipOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  cityChipTxt: { color: COLORS.textDim, fontSize: FONT.xs, fontWeight: '800' },
+  cityChipTxtOn: { color: '#fff' },
+  saveBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 10, backgroundColor: COLORS.inputBg, borderBottomWidth: 1, borderBottomColor: COLORS.surfaceBorder },
+  saveBarTxt: { color: COLORS.primary, fontSize: FONT.sm, fontWeight: '900' },
 });
